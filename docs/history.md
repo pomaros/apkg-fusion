@@ -280,8 +280,10 @@ nothing is set aside:
   ROLLBACK. ROLLBACK itself goes back and forth, so after a cut it is given
   again only when the version it was asked for is not the one installed.
 - On AROS, atomic file writes flush a temporary file beside the destination
-  and publish it with DOS `ReplaceObject`. The handler performs replacement
-  in one operation. An unsupported handler fails with the old destination
+  and publish it with DOS `ReplaceObject`. Building requires an SDK that
+  exports this DOS 50.84 operation. At runtime, a missing or earlier DOS
+  dispatch base returns an unsupported-operation error before vector 227 is
+  called. The handler performs replacement in one operation. An unsupported handler fails with the old destination
   intact. Directory moves use DOS `Rename` and retain its no-overwrite
   contract.
 
