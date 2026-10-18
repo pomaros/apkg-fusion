@@ -27,6 +27,9 @@ prefix=r'''
 #include <unistd.h>
 #define __AROS__ 1
 typedef const char *CONST_STRPTR;
+struct Library { unsigned lib_Version, lib_Revision; } library = {50,84};
+static struct Library *DOSBase = &library;
+#define __aros_getbase_DOSBase() (DOSBase)
 static int refuse, packets;
 static int ReplaceObject(const char *from,const char *to) {
  char old[4]={0};int fd=open(to,O_RDONLY);
@@ -40,9 +43,13 @@ suffix=r'''
 static void seed(void) { FILE *f=fopen("prefs","w");assert(f);assert(fwrite("old",1,3,f)==3);assert(!fclose(f)); }
 static void contents(const char *wanted) { char b[8]={0};FILE *f=fopen("prefs","r");assert(f);assert(fread(b,1,3,f)==3);fclose(f);assert(!strcmp(b,wanted)); }
 int main(void) {
+ seed();library.lib_Revision=83;assert(write_atomic_mode("prefs","new",3,0644)==-1);assert(errno==ENOTSUP&&packets==0);contents("old");
+ library.lib_Version=49;library.lib_Revision=99;assert(write_atomic_mode("prefs","new",3,0644)==-1);assert(errno==ENOTSUP&&packets==0);contents("old");
+ DOSBase=NULL;assert(write_atomic_mode("prefs","new",3,0644)==-1);assert(errno==ENOTSUP&&packets==0);contents("old");DOSBase=&library;
+ library.lib_Version=50;library.lib_Revision=84;
  seed();refuse=1;assert(write_atomic_mode("prefs","new",3,0644)==-1);contents("old");assert(packets==1);
  refuse=0;assert(write_atomic_mode("prefs","new",3,0644)==0);contents("new");assert(packets==2);
- puts("libpkg AROS publication: PASS replacement_packets=2 missing_destination_observations=0 failure_target_loss=0");
+ puts("libpkg AROS publication: PASS replacement_packets=2 missing_destination_observations=0 failure_target_loss=0 old_DOS_vector_calls=0");
 }
 '''
 actual='\n'.join(function(name) for name in ('static int replace_file(', 'static int open_tmp_beside(', 'static int write_atomic_mode('))
@@ -53,3 +60,14 @@ with tempfile.TemporaryDirectory(prefix='pkg-atomic-aros-') as directory:
     work=Path(directory);(work/'test.c').write_text(prefix+actual+suffix)
     subprocess.run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(work/'test.c'),'-o',str(work/'test')],check=True)
     subprocess.run([str(work/'test')],cwd=work,check=True)
+
+# A missing admission check must expose the unsafe old-DOS publication path.
+start=actual.index('    const struct Library *dos =')
+end=actual.index('    if (ReplaceObject',start)
+unguarded=actual[:start]+actual[end:]
+with tempfile.TemporaryDirectory(prefix='pkg-atomic-aros-revision-negative-') as directory:
+    work=Path(directory);(work/'test.c').write_text(prefix+unguarded+suffix)
+    subprocess.run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(work/'test.c'),'-o',str(work/'test')],check=True)
+    result=subprocess.run([str(work/'test')],cwd=work,capture_output=True,text=True)
+    assert result.returncode != 0, 'old DOS admission control did not reject a removed guard'
+    print('libpkg DOS revision negative control: PASS removed guard rejected')

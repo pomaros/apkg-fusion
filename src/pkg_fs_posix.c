@@ -42,6 +42,12 @@
 static int replace_file(const char *from, const char *to)
 {
 #ifdef __AROS__
+    const struct Library *dos = (const struct Library *)__aros_getbase_DOSBase();
+    if (dos == NULL || dos->lib_Version < 50 ||
+        (dos->lib_Version == 50 && dos->lib_Revision < 84)) {
+        errno = ENOTSUP;
+        return -1;
+    }
     if (ReplaceObject((CONST_STRPTR)from, (CONST_STRPTR)to))
         return 0;
     errno = EIO;
