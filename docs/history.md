@@ -279,15 +279,15 @@ nothing is set aside:
   since there is nothing to go back from yet, and finishes an interrupted
   ROLLBACK. ROLLBACK itself goes back and forth, so after a cut it is given
   again only when the version it was asked for is not the one installed.
-- On AROS, `rename()` over a file is `DeleteFile` then `Rename`, which a cut
-  in between leaves with no file at all. So pkg first renames the old
-  record aside as `.<name>.pkgbak`, then puts the new one in place, and
-  every reader of a record that is missing reads its backup.
+- On AROS, atomic file writes flush a temporary file beside the destination
+  and publish it with DOS `ReplaceObject`. The handler performs replacement
+  in one operation. An unsupported handler fails with the old destination
+  intact. Directory moves use DOS `Rename` and retain its no-overwrite
+  contract.
 
 `tests/interrupt.sh` ends pkg before each rename and unlink of INSTALL,
 UPGRADE, a second UPGRADE, ROLLBACK and REPAIR, once and twice at the same
-point, in a build cut as a process ends and one built and cut as AROS
-renames, and checks the version, the pin, the previous version and that
+point, using the host atomic rename boundary, and checks the version, the pin, the previous version and that
 ROLLBACK right after the cut goes where the database says or nowhere. A
 process that ends is not power loss: what the handler still held in its
 cache is not in that test.

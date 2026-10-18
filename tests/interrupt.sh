@@ -13,10 +13,9 @@
 # ROLLBACK must go back to the version before the one the database names,
 # or refuse: never to another.
 #
-# Two builds: this one, cut as a process ends; and one built as for AROS
-# (PKG_RENAME_NOT_ATOMIC), cut as AROS renames over a file, deleting the
-# target first. A process ending is not power loss: the handler's cache is
-# not in this test, and power loss needs a record of the device's writes.
+# Atomic publication is cut before each rename. A process ending preserves
+# the host page cache; device power loss needs a separate write-trace model.
+# AROS publication is covered by tests/atomic-aros.py and handler gates.
 #
 # Needs: make, a C compiler; macOS (interpose) or Linux (LD_PRELOAD).
 
@@ -33,9 +32,7 @@ case $(uname) in
 Darwin) lib="$T/cut.dylib"; "$cc" -dynamiclib -O1 -o "$lib" "$repo_root/tests/interrupt/cut.c"; pre=DYLD_INSERT_LIBRARIES ;;
 *) lib="$T/cut.so"; "$cc" -shared -fPIC -O1 -o "$lib" "$repo_root/tests/interrupt/cut.c" -ldl; pre=LD_PRELOAD ;;
 esac
-( cd "$repo_root" && "$cc" -std=c99 -O1 -Iinclude -Ithird_party/bzip2 -DPKG_RENAME_NOT_ATOMIC \
-    -DPKG_VERSION_PATCH='"0"' -DPKG_BUILD='"0"' -DPKG_BUILD_DAY='"0"' \
-    -o "$T/pkg-aros" $(make -s print-sources) ) || { echo "interrupt: cannot build the AROS-rename pkg"; exit 1; }
+
 
 # One package in three versions: a file that changes each time, one that
 # never does, one only 1.0 has, and two 1.1 brings.
@@ -54,7 +51,7 @@ done
 
 field() { sed -n "s/^$1: *//p" "$2" | head -1; }
 installed() { "$1" VERIFY multi ROOT "$2" MACHINE > "$2.v" 2>&1; echo "$(field result "$2.v") $(field version "$2.v")"; }
-pin_of() { cat "$1/.pkg/keys/multi" 2>/dev/null || cat "$1/.pkg/keys/.multi.pkgbak" 2>/dev/null; }
+pin_of() { cat "$1/.pkg/keys/multi" 2>/dev/null; }
 
 # setup <pkg> <root> <scenario>: the root before the command under test.
 setup() {
@@ -91,15 +88,15 @@ before() {
 run() { # run <pkg> <root> <scenario> [cut] [mode]
     set -- "$1" "$2" "$3" "${4:-}" "${5:-exit}"
     if [ -n "$4" ]; then
-        env "$pre=$lib" PKGCUT_AT="$4" PKGCUT_MODE="$5" "$1" $(command_of "$3") ROOT "$2" CHANNEL "$T/ch" MACHINE > "$2.out" 2>&1
+        env "$pre=$lib" PKGCUT_AT="$4" "$1" $(command_of "$3") ROOT "$2" CHANNEL "$T/ch" MACHINE > "$2.out" 2>&1
     else
         "$1" $(command_of "$3") ROOT "$2" CHANNEL "$T/ch" MACHINE > "$2.out" 2>&1
     fi
 }
 
 total=0
-for build in plain aros; do
-    if [ $build = plain ]; then pk=$P; mode=exit; else pk=$T/pkg-aros; mode=aros; fi
+for build in atomic; do
+    pk=$P; mode=exit
     for sc in install upgrade upgrade2 rollback repair; do
         # How many writes the command makes, uncut.
         R="$T/count"; rm -rf "$R" "$T/log"; setup "$pk" "$R" $sc

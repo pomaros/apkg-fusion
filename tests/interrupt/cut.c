@@ -3,9 +3,7 @@
  *
  * Preloaded into pkg by tests/interrupt.sh: counts every rename and unlink
  * and ends the process at number PKGCUT_AT, before that call happens, as a
- * crash or a reset would. PKGCUT_MODE=aros cuts a rename the way AROS does
- * one over an existing file, DeleteFile then Rename: the target is deleted,
- * then the process ends. PKGCUT_LOG, if set, gets one line per call. */
+ * crash or a reset would. PKGCUT_LOG, if set, gets one line per call. */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,9 +30,6 @@ static int cut_here(const char *op, const char *a, const char *b)
 static int cut_rename(const char *a, const char *b)
 {
     if (cut_here("rename", a, b)) {
-        const char *mode = getenv("PKGCUT_MODE");
-        if (mode != NULL && strcmp(mode, "aros") == 0)
-            unlink(b);              /* not interposed inside this library */
         _exit(137);
     }
     return rename(a, b);
@@ -63,9 +58,6 @@ int rename(const char *a, const char *b)
     if (real == NULL)
         real = (int (*)(const char *, const char *))dlsym(RTLD_NEXT, "rename");
     if (cut_here("rename", a, b)) {
-        const char *mode = getenv("PKGCUT_MODE");
-        if (mode != NULL && strcmp(mode, "aros") == 0)
-            syscall(SYS_unlinkat, -100, b, 0);
         _exit(137);
     }
     return real(a, b);

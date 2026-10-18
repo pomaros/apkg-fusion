@@ -163,6 +163,7 @@ build/test_%: tests/test_%.c $(CORE) $(HDR)
 # by being incremental, and a test that can report the wrong state is worse
 # than a slow one.
 test:
+	python3 tests/atomic-aros.py
 	@config=$$(mktemp -d); trap 'rm -rf "$$config"' EXIT HUP INT TERM; \
 		XDG_CONFIG_HOME="$$config" $(MAKE) --no-print-directory test-run
 
