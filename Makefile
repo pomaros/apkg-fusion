@@ -17,11 +17,27 @@ VERFLAGS  = -DPKG_VERSION_PATCH='"$(PATCH)"' -DPKG_BUILD='"$(BUILD)"' -DPKG_BUIL
 include sources.mk
 HDR  = $(wildcard include/*.h) $(wildcard src/*.h)
 
-UNITS = test_args test_activity test_container test_sha256 test_manifest test_ed25519 test_image test_ameta
+UNITS = test_args test_activity test_container test_sha256 test_manifest test_ed25519 test_image test_ameta test_target test_application
 
 .PHONY: all print-sources check-symbols check-cross test test-run test-ubsan check-portability check-m68k check-image check check-aros clean install aros-channel
 
-all: build/pkg
+all: build/apkg build/libpkg.a
+
+build/apkg: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
+	@mkdir -p build
+	$(CC) $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST)
+
+.PHONY: test-fusion
+test-fusion: build/apkg build/pkg build/test_target build/test_application build/test_first_install
+	./build/test_target
+	./build/test_application
+	./build/test_first_install ./build/pkg
+	python3 tests/fusion-cli.py
+	python3 tests/fusion-publish.py
+
+build/test_first_install: tests/test_first_install.c $(LIB) $(CORE) $(HOST) $(HDR)
+	@mkdir -p build
+	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ $< $(LIB) $(CORE) $(HOST)
 
 # The list, for a build that is not this Makefile (the AROS scripts, the
 # tests that compile pkg themselves): `make -s print-sources`.
@@ -84,17 +100,16 @@ build/libpkg.a: $(LIB) $(CORE) $(HOST) $(HDR)
 	@rm -f $@
 	ar rcs $@ $(LIBOBJ)
 
-# Install the tool, the library and the agents' skill: `make install`, or
-# `make install PREFIX=/usr/local`. Nothing else is needed at run time.
+# Install the development client and shared library. The inherited pkg skill
+# describes the old interface and is not installed as guidance for apkg.
 PREFIX ?= $(HOME)/.local
 
-install: build/pkg build/libpkg.a
-	@mkdir -p $(PREFIX)/bin $(PREFIX)/include $(PREFIX)/lib $(PREFIX)/share/pkg/skills/pkg
-	cp build/pkg $(PREFIX)/bin/pkg
-	cp include/pkg.h include/pkg_environment.h $(PREFIX)/include/
+install: build/apkg build/libpkg.a
+	@mkdir -p $(PREFIX)/bin $(PREFIX)/include $(PREFIX)/lib
+	cp build/apkg $(PREFIX)/bin/apkg
+	cp include/pkg.h include/pkg_environment.h include/pkg_target.h include/pkg_application.h $(PREFIX)/include/
 	cp build/libpkg.a $(PREFIX)/lib/libpkg.a
-	cp skills/pkg/SKILL.md $(PREFIX)/share/pkg/skills/pkg/SKILL.md
-	@echo "installed pkg into $(PREFIX)/bin; if that is not on PATH, add it"
+	@echo "installed development apkg into $(PREFIX)/bin"
 
 # A channel that puts Pkg itself on AROS machines: `make aros-channel
 # CHANNEL=<dir>`. See tools/make-aros-channel.sh.
@@ -119,16 +134,29 @@ build/pkg.exe: src/pkg_main.c $(CLI) $(LIB) $(CORE) $(WINHOST) $(HDR)
 	$(WINCC) $(CFLAGS) $(CPPFLAGS) -o $@ src/pkg_main.c $(CLI) $(LIB) $(CORE) $(WINHOST) \
 		-lbcrypt -ladvapi32 -lshell32
 
+build/apkg.exe: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(WINHOST) $(HDR)
+	@mkdir -p build
+	$(WINCC) $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(WINHOST) \
+		-lbcrypt -ladvapi32 -lshell32
+
 # macOS, one universal binary for Apple silicon and Intel.
 build/pkg-macos: src/pkg_main.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
 	@mkdir -p build
 	cc $(CFLAGS) $(CPPFLAGS) -arch arm64 -arch x86_64 -o $@ src/pkg_main.c $(CLI) $(LIB) $(CORE) $(HOST)
+
+build/apkg-macos: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
+	@mkdir -p build
+	cc $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -arch arm64 -arch x86_64 -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST)
 
 # Linux, static against musl, cross-built with zig so no Linux toolchain is
 # needed here.
 build/pkg-linux-%: src/pkg_main.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
 	@mkdir -p build
 	zig cc -target $*-linux-musl $(CFLAGS) $(CPPFLAGS) -static -o $@ src/pkg_main.c $(CLI) $(LIB) $(CORE) $(HOST)
+
+build/apkg-linux-%: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
+	@mkdir -p build
+	zig cc -target $*-linux-musl $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -static -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST)
 
 # The library through pkg.h alone, as another program would use it.
 build/test_api: tests/test_api.c $(LIB) $(CORE) $(HOST) $(HDR)

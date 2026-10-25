@@ -1265,6 +1265,10 @@ static int run_verb(int argc, char **argv)
     return rc;
 }
 
+#ifdef PKG_FUSION_CLI
+int pkg_fusion_cli(int argc, char **argv, int (*dispatch)(int, char **));
+#endif
+
 static int pkg_main(int argc, char **argv)
 {
     int rc;
@@ -1273,6 +1277,10 @@ static int pkg_main(int argc, char **argv)
         pkg_err("pkg: cannot read the command line\n");
         return PKG_RC_IO;
     }
+
+#ifdef PKG_FUSION_CLI
+    return pkg_fusion_cli(argc, argv, run_verb);
+#endif
 
     /* PORT is not a verb the port itself may run, so it is handled here.
      * Under PKG_CHECK_WORDS its words are judged and no port is opened:

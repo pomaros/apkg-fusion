@@ -8,6 +8,7 @@
  */
 
 #include "pkg_internal.h"
+#include "pkg_target.h"
 
 /* ---- building a package from a drawer --------------------------------- */
 
@@ -1557,7 +1558,7 @@ int build_package(const struct pkg_options *a, struct built *out)
                             "the paths). A boot or sdk package may hold several, when KIND and "
                             "ARCH name the kind and the machine it is for", seen);
         }
-        if (a->arch != NULL && got > 0 && strcmp(a->arch, found_arch) != 0 && !several_ok) {
+        if (a->arch != NULL && got > 0 && !pkg_target_cpu_matches(a->arch, found_arch) && !several_ok) {
             /* afrom points into the drawer: refuse before freeing it. */
             refuse_c(20, "ARCH %s, but %s is built for %s", a->arch, afrom, found_arch);
             drawer_free(&d);

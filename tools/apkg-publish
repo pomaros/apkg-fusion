@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Publish an apkg-pack author drawer into a signed local channel.
+
+Uses the original TOML, apkg-pack's technical checks and application.json
+generator, and the common native engine's signing and channel publication.
+Publishing requires no catalogue review. depends_checked is the author's
+declaration, and confers no reviewer status. The private staging area receives
+all generated files; the author's source drawer and manifest are unchanged.
+
+This bridge supports app/tool/data drawers with numeric versions, revision 1,
+and package dependencies. Unsupported requirements, relations, installation
+constraints and system layouts are refused before publication. Runtime must
+be explicit. Parsing a target does not qualify that platform for release.
+"""
+
+import argparse
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+import tomllib
+import zipfile
+
+HERE = Path(__file__).resolve().parents[1]
+PACK = HERE / "components/arospkg/tools/apkg-pack"
+AUTHOR_COPY = "Package.arospkg.toml"
+ALLOWED = {
+    "id", "version", "revision", "summary", "category", "license", "kind",
+    "arch", "abi", "subdir", "icon", "depends", "depends_checked", "launch",
+    "requires_system", "recommends", "conflicts", "replaces", "installs_on",
+    "runs_on", "does_not_run_on", "post_install_notes", "source",
+}
+UNSUPPORTED = {
+    "requires_system": "runtime library and system requirement validation",
+    "recommends": "optional recommendation plans",
+    "conflicts": "package conflict plans",
+    "replaces": "package replacement plans",
+    "installs_on": "distribution-specific installation constraints",
+    "runs_on": "distribution-specific runtime constraints",
+    "does_not_run_on": "distribution-specific exclusions",
+}
+
+
+class Refusal(Exception):
+    pass
+
+
+def refuse(message):
+    raise Refusal(message)
+
+
+def run(command, env):
+    done = subprocess.run([str(x) for x in command], env=env, text=True,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if done.returncode:
+        refuse((done.stderr + done.stdout).strip() or f"command exited {done.returncode}")
+    return done.stdout
+
+
+def regular_tree(drawer):
+    """Packing a link could disclose data outside the author's drawer."""
+    for path in [drawer, *drawer.rglob("*")]:
+        mode = path.lstat().st_mode
+        if stat.S_ISLNK(mode) or not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
+            refuse(f"{path}: only regular files and directories can be packaged")
+
+
+def read_author(path):
+    if path.is_symlink() or not path.is_file():
+        refuse(f"{path}: provide a regular apkg-pack author manifest")
+    data = path.read_bytes()
+    if len(data) > 1024 * 1024:
+        refuse("author manifest exceeds 1 MiB")
+    try:
+        manifest = tomllib.loads(data.decode("utf-8"))
+    except (UnicodeError, tomllib.TOMLDecodeError) as exc:
+        refuse(f"invalid author manifest: {exc}")
+    unknown = sorted(set(manifest) - ALLOWED)
+    if unknown:
+        refuse("unsupported author fields: " + ", ".join(unknown)
+               + "; review and test attestations belong to catalogue maintainers")
+    for field, feature in UNSUPPORTED.items():
+        if manifest.get(field):
+            refuse(f"{field}: the signed bridge needs {feature} before publishing this declaration")
+    if "revision" in manifest and (type(manifest["revision"]) is not int or manifest["revision"] != 1):
+        refuse("revision: the signed bridge supports revision 1; preserving later revisions needs the common version model")
+    version = manifest.get("version")
+    if not isinstance(version, str) or not re.fullmatch(r"[0-9]{1,9}(?:\.[0-9]{1,9}){0,7}", version):
+        refuse("version: the signed bridge supports dotted numeric versions; prereleases need the common version model")
+    if manifest.get("kind") not in ("app", "tool", "data"):
+        refuse("kind: this bridge supports app, tool and data drawers; system packages need explicit shared destinations")
+    source = manifest.get("source")
+    if source is not None and (not isinstance(source, dict) or set(source) - {"repository"}
+                               or not isinstance(source.get("repository", ""), str)):
+        refuse("source: this bridge supports only source.repository")
+    return manifest, data
+
+
+def target_of(manifest, runtime):
+    # Keep the accepted components in sync with include/pkg_target.h. The
+    # native publisher independently checks the actual executable CPU.
+    cpu, abi = manifest.get("arch"), manifest.get("abi")
+    if cpu not in ("x86_64", "i386", "aarch64", "arm", "m68k", "ppc"):
+        refuse("arch: unsupported target CPU")
+    if abi not in ("v0", "v1", "v11"):
+        refuse("abi: provide v0, v1 or v11 explicitly")
+    if runtime == "raspi" and cpu not in ("arm", "aarch64"):
+        refuse("runtime: raspi requires arm or aarch64")
+    return f"{cpu}-aros-{abi}-{runtime}"
+
+
+def unpack(archive, stage, drawer_name):
+    with zipfile.ZipFile(archive) as z:
+        seen = set()
+        for info in z.infolist():
+            name = info.filename
+            p = PurePosixPath(name)
+            if (not name or p.is_absolute() or ".." in p.parts or "\\" in name
+                    or ":" in name or any(ord(ch) < 32 or ord(ch) == 127 for ch in name)
+                    or name in seen or stat.S_ISLNK(info.external_attr >> 16)):
+                refuse(f"unsafe or duplicate archive member: {name!r}")
+            seen.add(name)
+            if p.parts[0] == ".arospkg":
+                continue  # Preserved inside this bundle under AUTHOR_COPY.
+            if any(part.startswith(".") for part in p.parts):
+                refuse(f"hidden member {name!r} needs preservation in the native container")
+            if p.parts[0] not in (drawer_name, drawer_name + ".info"):
+                refuse(f"unexpected archive member: {name!r}")
+            destination = stage.joinpath(*p.parts)
+            if info.is_dir():
+                destination.mkdir(parents=True, exist_ok=True)
+            else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with z.open(info) as src, destination.open("xb") as dest:
+                    shutil.copyfileobj(src, dest)
+        # The native container records files. Refuse directory-only entries
+        # until directory preservation has a shared representation.
+        for path in stage.rglob("*"):
+            if path.is_dir() and not any(path.iterdir()):
+                refuse(f"empty directory {path.relative_to(stage)} needs directory preservation in the native container")
+
+
+def publish(args):
+    source = Path(args.drawer).expanduser().absolute()
+    if source.is_symlink() or not source.is_dir():
+        refuse("drawer must be a regular directory")
+    source = source.resolve()
+    channel = Path(args.channel).expanduser().resolve()
+    key = Path(args.sign).expanduser().resolve()
+    engine = Path(args.engine).expanduser().resolve()
+    manifest_path = source.with_name(source.name + ".arospkg.toml")
+    manifest, author_bytes = read_author(manifest_path)
+    target = target_of(manifest, args.runtime)
+    if channel == source or channel.is_relative_to(source) or source.is_relative_to(channel):
+        refuse("source drawer and channel must be separate directory trees")
+    if not key.is_file() or key.is_relative_to(source) or key.is_relative_to(channel):
+        refuse("signing key must be a file outside the source drawer and channel")
+    if not engine.is_file() or not os.access(engine, os.X_OK):
+        refuse(f"native engine missing or not executable: {engine}; build it or use --engine")
+    regular_tree(source)
+    if (source / AUTHOR_COPY).exists():
+        refuse(f"{AUTHOR_COPY} is reserved for the unchanged author manifest")
+    icon = manifest.get("icon")
+    if icon and (not isinstance(icon, str) or icon != source.name + ".info"):
+        refuse("icon: the bridge accepts the drawer's sibling NAME.info icon")
+    if icon:
+        icon_path = source.parent / icon
+        if icon_path.is_symlink() or not icon_path.is_file():
+            refuse("icon must be a regular sibling file")
+
+    with tempfile.TemporaryDirectory(prefix="apkg-publish-") as temporary:
+        temporary = Path(temporary)
+        # No command inherits a selected environment or a publishing key.
+        env = {k: v for k, v in os.environ.items() if not k.startswith("PKG_")}
+        env["XDG_CONFIG_HOME"] = str(temporary / "config")
+        snapshot = temporary / "source" / source.name
+        shutil.copytree(source, snapshot, symlinks=True)
+        regular_tree(snapshot)
+        snapshot.with_name(snapshot.name + ".arospkg.toml").write_bytes(author_bytes)
+        if icon:
+            shutil.copyfile(icon_path, snapshot.parent / icon, follow_symlinks=False)
+            if (snapshot.parent / icon).is_symlink():
+                refuse("icon changed into a symbolic link during snapshot")
+        archive = temporary / "bundle.zip"
+        # apkg-pack validates the author's declaration using mkindex's shared
+        # technical rules. Its internal validation placeholder 'approved' is
+        # never written into the author metadata or a review record here.
+        run([sys.executable, PACK, "build", snapshot, "--output", archive], env)
+        stage = temporary / "payload"
+        stage.mkdir()
+        unpack(archive, stage, source.name)
+        with zipfile.ZipFile(archive) as z:
+            if z.read(".arospkg/manifest.toml") != author_bytes:
+                refuse("packed author manifest differs from the supplied bytes")
+        (stage / source.name / AUTHOR_COPY).write_bytes(author_bytes)
+        description = temporary / "description.txt"
+        lines = [manifest.get("summary", "")]
+        if manifest.get("post_install_notes"):
+            lines += ["", "Author's installation notes:", *manifest["post_install_notes"]]
+        description.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        command = [engine, "PUBLISH", stage, "CHANNEL", channel,
+                   "SIGN", key, "NAME", manifest["id"], "VERSION", manifest["version"],
+                   "ARCH", target, "KIND", "data" if manifest["kind"] == "data" else "application",
+                   "DEPENDS", ", ".join(manifest.get("depends", [])) or "none",
+                   "CONFIG", "none", "TAGS", "none", "AUTHOR", "none", "HOMEPAGE", "none",
+                   "DISTRIBUTION", "none", "SCREENSHOT", "none",
+                   "DESCRIPTION", description, "MACHINE"]
+        summary = manifest.get("summary", "")
+        command += ["SHORT", summary if summary and len(summary) <= 40 else "none"]
+        for field, keyword in (("category", "CATEGORY"), ("license", "LICENSE"), ("icon", "ICON")):
+            command += [keyword, manifest.get(field) or "none"]
+        repository = manifest.get("source", {}).get("repository")
+        command += ["REPOSITORY", repository or "none"]
+        answer = run(command, env)
+    print(answer, end="" if answer.endswith("\n") else "\n")
+    print("publication-mode: open")
+    print("review: not-queried")
+    print("runtime-tests: not-queried")
+    print(f"target: {target}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("drawer", help="apkg-pack drawer with sibling NAME.arospkg.toml")
+    parser.add_argument("--channel", required=True, help="local directory or mounted share")
+    parser.add_argument("--sign", required=True, help="author signing key outside the payload and channel")
+    parser.add_argument("--runtime", choices=("native", "hosted", "raspi"), required=True)
+    parser.add_argument("--engine", default=str(HERE / "build/pkg"), help="common native engine executable")
+    args = parser.parse_args()
+    try:
+        publish(args)
+    except (Refusal, OSError, ValueError, zipfile.BadZipFile) as exc:
+        print(f"apkg-publish: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
