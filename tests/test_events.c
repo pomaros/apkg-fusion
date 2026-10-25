@@ -459,9 +459,9 @@ static void install_and_upgrade(void)
     o.version = "1.0";
     rc = pkg_install(&s, &o);
     ok(rc == 0 && stream_ok(), "INSTALL: a whole, well-formed stream");
-    ok(has_phases("resolve verify fetch verify verify inspect prepare place record"),
+    ok(has_phases("resolve verify fetch verify verify inspect prepare place record flush"),
        "INSTALL into a new root: resolution with the manifest and payload checked, then the "
-       "payload's files, the root, staging, placing and the records, in that order");
+       "payload's files, the root, staging, placing, records and flush, in that order");
     ok(all_ok(), "every step ended ok");
     e = end_of(PKG_PHASE_PLACE, -1, 0);
     ok(e && e->total_known && e->done == 3 && e->total == 3 && rec_field("files")

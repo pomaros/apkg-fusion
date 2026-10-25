@@ -53,7 +53,7 @@ toolkit and is run by `make test`.
 
 ## What an install looks like
 
-`hello 1.0`, two files, from a local channel into a root that exists. Each
+`hello 1.0`, two files, from a local channel into an installation root. Each
 line is one event; nesting is the `parent` field.
 
 ```text
@@ -192,9 +192,12 @@ of a channel it downloads. Beyond that:
 | PUSH | `prepare` per file hashed for the plan; `upload` of the files the portal needs, one `upload` step per file inside it |
 | KEYGEN, KEYINFO, SIGN, CHECKSIG, WITHDRAW, LIST, RESOLVE, IMAGE, MOUNTLIST, CHANNEL, SEARCH | nothing but the operation events and any download |
 
-`flush` comes only for a root that existed when the operation began, since
-only such a root is locked and written back (see below). The integrity
-checks are `verify` steps: a manifest that is not the one indexed, a
+A mutating INSTALL creates a missing root and locks it before package
+resolution. Its `flush` step runs before unlocking, including on the first
+installation. Dry runs and read-only operations create no root and take no
+mutation lock. `flushed` reports the filesystem backend's result; it does
+not by itself prove recovery after a power cut. The integrity checks are
+`verify` steps: a manifest that is not the one indexed, a
 signature that does not verify and a payload that is not the one signed
 each end that step `failed`, code 12 or 13, and nothing is placed.
 
@@ -246,10 +249,6 @@ watching what a front end would be shown, or for a script.
 These are limits of the engine found while connecting the events to it.
 The events report them as they are rather than paper over them.
 
-- **A first INSTALL into a root that does not exist yet is not locked and
-  not written back.** `call()` locks and flushes only a root that is a
-  directory when the operation starts, so that install has no `flush` step,
-  and `flushed` is absent from its records.
 - **A package refused while its files are placed is not taken back.** The
   engine finishes such a change when the same operation is repeated; the
   events say `restore` `incomplete`. The dependencies this operation placed

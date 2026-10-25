@@ -51,6 +51,39 @@ static int options_clean(const struct pkg_options *o)
     return 0;
 }
 
+/* A first install needs a real directory before each backend can identify
+ * and lock its root. Reject requests whose syntax is already known to be
+ * invalid before creating that directory; resolution itself runs under the
+ * lock. Existing roots keep their ordinary command validation path. */
+static int prepare_install_root(const struct pkg_options *o)
+{
+    unsigned i;
+    const char *why;
+    if (o && o->root && pkg_fs_is_dir(o->root)) return 0;
+    if (!o || !o->target)
+        return refuse_c(20, "INSTALL takes the name of a package, or several names");
+    if (!o->root || !o->root[0])
+        return refuse_c(20, "name the root with ROOT <dir>");
+    if ((why = pkg_check_name(o->target)) != NULL)
+        return refuse_c(20, "package name: %s", why);
+    if (o->version && (why = pkg_check_version(o->version)) != NULL)
+        return refuse_c(20, "VERSION \"%s\": %s", o->version, why);
+    if (o->arch && (why = pkg_check_arch(o->arch)) != NULL)
+        return refuse_c(20, "ARCH \"%s\": %s", o->arch, why);
+    if (!o->channel || !o->channel[0])
+        return refuse_c(20, "name the channel with CHANNEL <dir|url> for a new root");
+    if (o->nalso && !o->also)
+        return refuse_c(20, "INSTALL needs the additional package names");
+    if (o->nalso && (o->version || o->acceptkey || o->downgrade || o->key))
+        return refuse_c(20, "VERSION, ACCEPTKEY, DOWNGRADE and KEY apply to one package at a time");
+    for (i = 0; i < o->nalso; i++)
+        if (!o->also[i] || pkg_check_name(o->also[i]))
+            return refuse_c(20, "INSTALL has an invalid additional package name");
+    if (pkg_fs_mkdirs(o->root) != 0)
+        return refuse_c(17, "cannot create the installation root %s: %s", o->root, strerror(errno));
+    return 0;
+}
+
 /* The network's trace lines, as the operation's own. */
 static void net_trace_line(const char *line)
 {
@@ -132,7 +165,11 @@ int call(const struct pkg_sink *s, const char *verb, op_fn fn, const struct pkg_
              * root would share its staging and interleave its records. A dry
              * run writes nothing and takes no lock. */
             void *lock = NULL;
-            if (o != NULL && o->root != NULL && !o->dryrun && pkg_fs_is_dir(o->root)
+            /* Usage diagnostics share the displayed verb but have their
+             * own operation and already carry the caller's precise reason. */
+            if (fn == cmd_install && !dry_run)
+                rc = prepare_install_root(o);
+            if (!rc && o != NULL && o->root != NULL && !o->dryrun && pkg_fs_is_dir(o->root)
                 && (!strcmp(verb, "install") || !strcmp(verb, "upgrade") || !strcmp(verb, "rollback")
                     || !strcmp(verb, "repair") || !strcmp(verb, "remove"))) {
                 int busy;
