@@ -41,7 +41,11 @@ done
 : > "$T/src/Top/Extras/P2/nothing"                      # a member of no bytes
 for n in 1 2 3 4; do dd if=/dev/urandom of="$T/src/Top/Fill/f$n" bs=1024 count=900 2>/dev/null; done
 printf 'last\n' > "$T/src/Top/zz-last"                  # the final member of the tar
-(cd "$T/src" && tar --format=pax -cf "$T/a.tar" Top)
+# The mapped-read API delivers archive order. Give tar explicit roots so the
+# two selected packages and final member have a deterministic order on every
+# filesystem; a recursive walk of Top alone inherits directory enumeration.
+(cd "$T/src" && tar --format=pax -cf "$T/a.tar" \
+    Top/Extras/P1 Top/Extras/P2 Top/Extras/P3 Top/Fill Top/zz-last)
 bzip2 -9 -c "$T/a.tar" > "$T/a.tar.bz2"
 
 echo "map"
