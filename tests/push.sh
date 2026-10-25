@@ -100,14 +100,14 @@ mv "$m" "local/objects/$(shasum -a 256 "$m" | cut -d' ' -f1).manifest" 2>/dev/nu
 d=$(awk '$1=="hello" && $2=="1.1"{print $4}' local/index)
 nd=$(ls -t local/objects/*.manifest | head -1 | xargs basename | cut -d. -f1)
 mv "local/objects/$d.sig" "local/objects/$nd.sig"
-sed -i '' "s|$d|$nd|" local/index
+sed -i.bak "s|$d|$nd|" local/index && rm -f local/index.bak
 $PKG PUSH CHANNEL local TO "$U" MACHINE > o8 2>&1
 [ $? -eq 12 ] && has o8 '^result: refused$' && ! grep -q ' 1.1 ' portal/pkg/index
                                                       ok $? "a manifest changed after signing is refused by the portal's check, nothing published"
 
 echo "resume"
 stop
-rm -rf portal local/objects/$nd.* && sed -i '' "/ $nd\$/d" local/index
+rm -rf portal local/objects/$nd.* && sed -i.bak "/ $nd\$/d" local/index && rm -f local/index.bak
 export PKG_TEST_FAIL_PART=2
 start
 : > log

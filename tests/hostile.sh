@@ -66,7 +66,7 @@ PY2
     $PKG SIGN "$m" KEY "$T/key" OUT "$T/sig.new" > /dev/null 2>&1
     [ "$new" = "$old" ] || { mv "$m" "$ch/objects/$new.manifest"; rm -f "$ch/objects/$old.sig"; }
     cp "$T/sig.new" "$ch/objects/$new.sig"
-    sed -i '' "s|$old|$new|" "$ch/index"
+    sed -i.bak "s|$old|$new|" "$ch/index" && rm -f "$ch/index.bak"
 }
 
 echo "paths"
@@ -114,11 +114,11 @@ printf 'precious' > "$T/precious"
 mkdir -p d4/C; printf 'x' > d4/C/X
 $PKG PUBLISH d4 CHANNEL ch4 NAME victim VERSION 1 KIND data > /dev/null
 $PKG INSTALL victim ROOT r4 CHANNEL ch4 > /dev/null 2>&1
-sed -i '' 's| C/X$| ../../precious|' r4/.pkg/db/victim
+sed -i.bak 's| C/X$| ../../precious|' r4/.pkg/db/victim && rm -f r4/.pkg/db/victim.bak
 $PKG REMOVE victim ROOT r4 MACHINE > out-db 2>&1
 code=$?
 [ -f "$T/precious" ] && [ "$code" -ne 0 ];            ok $? "a database entry naming a path outside the root is refused (exit $code), and deletes nothing"
-sed -i '' 's| ../../precious$| C/X|' r4/.pkg/db/victim
+sed -i.bak 's| ../../precious$| C/X|' r4/.pkg/db/victim && rm -f r4/.pkg/db/victim.bak
 ln -sf "$T/precious" r4/C/X 2>/dev/null
 $PKG REMOVE victim ROOT r4 MACHINE > out-db2 2>&1
 [ -f "$T/precious" ];                                 ok $? "an installed file replaced by a link out of the root: REMOVE leaves the target alone"
@@ -213,7 +213,7 @@ Src='"$T/x"'
 mkdir -p d6/C; printf 's' > d6/C/S
 $PKG PUBLISH d6 CHANNEL ch6 NAME src VERSION 1 KIND data > /dev/null
 m=$(ls ch6/objects/*.manifest)
-sed -i '' 's|^Payload: .*|Source: ../../evil.tar.bz2!/Top|' "$m"
+sed -i.bak 's|^Payload: .*|Source: ../../evil.tar.bz2!/Top|' "$m" && rm -f "$m.bak"
 $PKG INSTALL src ROOT r6 CHANNEL ch6 MACHINE > out-c3 2>&1
 code=$?
 [ "$code" -ne 0 ] && [ ! -e r6/C/S ];                 ok $? "a Source naming an archive outside the channel is refused (exit $code)"

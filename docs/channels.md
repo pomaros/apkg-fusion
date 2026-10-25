@@ -187,11 +187,15 @@ machine:
 
 ```console
 $ python3 -m http.server --bind 127.0.0.1 --directory channel 8765 > /dev/null 2>&1 &
-$ sleep 1; pkg SHOW notes CHANNEL http://127.0.0.1:8765
+$ curl --fail --silent --retry 60 --retry-connrefused --retry-delay 1 --retry-max-time 60 http://127.0.0.1:8765/index > /dev/null
+$ pkg SHOW notes CHANNEL http://127.0.0.1:8765
 Package  Version  Kind   Arch     Status  Signer
 notes    1.0      image  generic  ok      5ff18d3fe14e383e
 $ kill %1
 ```
+
+The curl command waits for the channel index to become available before pkg
+reads it; server startup need not finish within a fixed one-second delay.
 
 pkg follows redirects and understands chunked replies. For `https` it uses
 the system's `curl` on macOS, Linux and Windows, and its own client over
