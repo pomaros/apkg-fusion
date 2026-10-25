@@ -52,6 +52,10 @@
 <h2 class="label">What is signed</h2>
 <p>A package version is described by its manifest: its name, version, CPU, dependencies, and every file with its size and SHA-256. The publisher signs the manifest. Since the manifest lists every file's SHA-256, one valid signature vouches for every byte of the package.</p>
 
+<h2 class="label">Publishing, review and runtime tests</h2>
+<p>Authors can publish packages without an editorial review. Browse <a href="/search">all published packages</a> or choose <a href="/search?review=reviewed">reviewed builds</a>. A review identifies the maintainer, evidence and exact package manifest it covers. A different version or build needs its own review.</p>
+<p>Runtime results state the tested CPU, ABI and runtime. A failed retest remains visible. Neither a review nor a successful runtime test grants trust in a publisher's key. These observations are this portal's records, served over HTTPS; their JSON has no detached signature.</p>
+
 <h2 class="label">What this site checks before it publishes</h2>
 <ol>
     <li><strong>pkg's own checks.</strong> Every upload is checked by pkg itself: each signature, each digest, each withdrawal.</li>

@@ -53,6 +53,50 @@ PKG_PUSHKEY=<key> sh portal/tools/push.sh <local channel dir> https://<host>/<ch
 
 ## The maintainers' API
 
+### Open publishing and catalogue review
+
+Authors register their publishing key through the account page when GitHub
+sign-in is configured. Publishing and installation work without catalogue
+review. The catalogue's **All published packages** view includes these
+packages; **Reviewed builds** selects exact builds that maintainers reviewed.
+Review, publisher signatures and runtime test results are independent facts.
+
+The maintainer API accepts JSON over HTTPS with an admin bearer key:
+
+- `POST /_admin/channels/<channel>/qualifications/<manifest-sha256>/review`
+  takes `result` (`reviewed`, `rejected` or `revoked`), `summary` and `evidence`
+  (an HTTPS URL to the review). The authenticated admin key supplies the
+  reviewer identity. A publisher cannot choose it.
+- `POST /_admin/channels/<channel>/qualifications/<manifest-sha256>/runtime`
+  takes `result` (`passed` or `failed`), `summary`, `evidence` and `target` in
+  `CPU-aros-ABI-runtime` form, for example `x86_64-aros-v11-native`. A fully
+  qualified package target must match exactly. For CPU-only manifests only
+  CPU identity can be checked; the response labels their target identity
+  `cpu-only`. The evidence describes the distribution and test environment.
+- `GET /api/qualifications/<channel>/<manifest-sha256>` returns the package
+  identity, review result, latest runtime result per target and observation
+  history. A failed retest replaces the displayed result for that target;
+  the earlier success stays in the history.
+- `/search?review=reviewed` and `/api/search?review=reviewed` select packages
+  whose latest version has a reviewed build. An `arch` filter applies to that
+  same build. The search result links to the reviewed architecture explicitly.
+
+Records bind the channel, manifest digest, package name, version and architecture.
+A new manifest starts unreviewed. Authors' manifest fields and push credentials
+cannot grant review. Withdrawing a review leaves publication and downloads intact.
+Runtime reports name their tested ABI and runtime; a pass on one target says
+nothing about another. Package pages and the JSON package/search APIs expose
+these records separately from signer information.
+
+The history is stored at `state/<channel>/qualifications/<digest>.json`, outside
+publisher-writable channel files. A single portal process owns the state directory.
+Each write flushes a replacement file before renaming it; backup the state tree
+alongside the channels. These records are statements authenticated by this portal
+over HTTPS. They carry no detached signature and clients must not use them as
+package-signature verification or as independently verifiable offline attestations.
+
+### Channel administration
+
 `/_admin/…`, HTTPS only, with an admin key (never a push key):
 
 - `POST /_admin/channels/<channel>/remove` with lines `<name> *`,

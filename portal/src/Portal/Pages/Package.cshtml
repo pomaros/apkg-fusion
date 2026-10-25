@@ -205,6 +205,7 @@ else if (!isLatest)
         <dt>First seen</dt><dd>@Site.Date(v.Published)</dd>
         <dt>Signed by</dt><dd><a href="/publishers/@v.Signer">@(Publishers.Names().GetValueOrDefault(v.Signer ?? "") ?? "key")</a> <code title="@v.Signer">@Site.Short(v.Signer)</code> <span class="muted small">Ed25519; pkg pins this key at the first install · <a href="/trust">what this means</a></span></dd>
         <dt>Manifest</dt><dd><a href="/@ch.Name/objects/@(v.Line.Digest).manifest">@Site.Short(v.Line.Digest)</a> · <a href="/@ch.Name/objects/@(v.Line.Digest).sig">signature</a></dd>
+        <dt>Catalogue review</dt><dd>@(v.Qualification?.Review ?? "unreviewed")</dd>
     </dl>
 </section>
 <section>
@@ -229,6 +230,45 @@ else if (!isLatest)
     <div class="cmd"><code>@show</code><button class="copy" data-copy="@show">Copy</button></div>
     <p class="muted small">Checks the signature and digests of every version of @p.Name in the channel. To check it without pkg: <a href="/trust">by hand</a>.</p>
     <p class="small"><a href="@issue" rel="nofollow noopener">Report a problem with this version</a></p>
+</section>
+<section>
+    <h2 class="label">Review and runtime evidence</h2>
+    <p class="muted small">Authors can publish without review. These observations are recorded by this portal's maintainers for this exact manifest. Signatures identify publishers separately.</p>
+    @if (v.Qualification is not { History.Count: > 0 } qualification)
+    {
+        <p>No review or runtime test has been recorded for this build.</p>
+    }
+    else
+    {
+        <p>Catalogue review: <strong>@qualification.Review</strong>.</p>
+        @if (qualification.TargetIdentity == "cpu-only")
+        {
+            <p class="muted small">This package declares its CPU only. Its manifest does not establish ABI or runtime compatibility; runtime reports describe the environment observed by the tester.</p>
+        }
+        @if (!qualification.RuntimeTests.Any())
+        {
+            <p>No runtime test has been recorded for this build.</p>
+        }
+        else
+        {
+            <ul>
+            @foreach (var test in qualification.RuntimeTests)
+            {
+                <li><code>@test.Target</code>: @test.Result · @test.By · <a href="@test.Evidence" rel="nofollow noopener">evidence</a></li>
+            }
+            </ul>
+        }
+        <details>
+            <summary>Observation history</summary>
+            <ul>
+            @foreach (var observation in qualification.History.AsEnumerable().Reverse())
+            {
+                <li>@observation.Kind: @observation.Result @observation.Target · @observation.By · @observation.When.ToString("u") · @observation.Summary <a href="@observation.Evidence" rel="nofollow noopener">evidence</a></li>
+            }
+            </ul>
+        </details>
+    }
+    <p class="small"><a href="/api/qualifications/@ch.Name/@v.Line.Digest">Qualification record</a></p>
 </section>
 <section>
     <h2 class="label">Dependencies</h2>

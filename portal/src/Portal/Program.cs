@@ -47,6 +47,7 @@ CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICult
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<PortalOptions>(builder.Configuration.GetSection("Portal"));
 builder.Services.AddSingleton<Catalogue>();
+builder.Services.AddSingleton<Qualifications>();
 builder.Services.AddSingleton<PublisherKeys>();
 builder.Services.AddSingleton<SignedPush>();
 builder.Services.AddSingleton<Portal.Accounts.Registry>();
@@ -359,6 +360,23 @@ admin.MapPost("/restore/{stamp}", async (HttpContext http, string stamp, Portal.
     Results2.Text(await s.Restore((string)http.Items["admin"]!, stamp, http.RequestAborted)));
 
 admin.MapGet("/log", (Portal.Admin.AdminService s) => Results2.Text(s.ReadLog()));
+
+// Editorial and runtime observations are written only by authenticated
+// maintainers, outside channels. Publishing never needs either observation.
+foreach (var kind in new[] { "review", "runtime" })
+    admin.MapPost($"/channels/{{channel}}/qualifications/{{digest}}/{kind}",
+        (HttpContext http, string channel, string digest, QualificationRequest request, Catalogue catalogue, Qualifications qualifications) =>
+    {
+        var line = catalogue.Get(channel)?.Lines.FirstOrDefault(x => x.Digest == digest);
+        if (line is null) return Results.NotFound();
+        try
+        {
+            var result = qualifications.Add(channel, line, kind, (string)http.Items["admin"]!, request);
+            catalogue.Invalidate(channel);
+            return Results.Json(result);
+        }
+        catch (ArgumentException e) { return Results.BadRequest(new { error = e.Message }); }
+    });
 
 // What the portal failed to answer, and why: for whoever has to find out.
 admin.MapGet("/failures", () => Results2.Text(Portal.Push.Failures.Read(opts.StateDir)));

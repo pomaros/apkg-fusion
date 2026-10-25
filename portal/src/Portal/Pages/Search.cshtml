@@ -19,6 +19,7 @@
         void Add(string k, string v) { if (v.Length > 0) parts.Add($"{k}={Uri.EscapeDataString(v)}"); }
         Add("q", q.Q); Add("arch", q.Arch); Add("kind", q.Kind); Add("category", q.Category);
         Add("channel", q.Channel); Add("tag", q.Tag); Add("sort", q.Sort);
+        Add("review", q.Review);
         return "/search" + (parts.Count > 0 ? "?" + string.Join("&", parts) : "");
     }
     var byArch = Without(q => q with { Arch = "" });
@@ -32,6 +33,9 @@
 <h1 class="sr-only">Packages</h1>
 <div class="browse">
     <nav class="facets" aria-label="Filters">
+        <h2>Catalogue review</h2>
+        <a class="@(s.Review.Length == 0 ? "on" : "")" href="@Link(s with { Review = "" })">All published packages</a>
+        <a class="@(s.Review == "reviewed" ? "on" : "")" href="@Link(s with { Review = "reviewed" })">Reviewed builds</a>
         <h2>CPU</h2>
         <a class="@(s.Arch.Length == 0 ? "on" : "")" href="@Link(s with { Arch = "" })">All <span>@byArch.Count</span></a>
         @foreach (var g in byArch.SelectMany(h => h.Package.Archs.Distinct().Select(a => (a, h))).GroupBy(x => x.a).OrderByDescending(g => g.Count()))
@@ -89,6 +93,10 @@
                     }
                     <span>@string.Join(" · ", p.Archs.Select(Site.ArchLabel))</span>
                     <span>@p.Channel</span>
+                    @foreach (var reviewed in p.Versions.Where(v => !v.Withdrawn && v.Version == p.Latest.Version && v.Qualification?.Review == "reviewed"))
+                    {
+                        <a href="/packages/@p.Channel/@p.Name?version=@Uri.EscapeDataString(reviewed.Version)&arch=@reviewed.Arch">reviewed: @reviewed.Arch</a>
+                    }
                     @if (h.Downloads > 0) { <span>@Site.Ago(p.Updated)</span> }
                 </span>
             </li>

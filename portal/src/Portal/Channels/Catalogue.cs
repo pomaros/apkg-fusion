@@ -30,6 +30,7 @@ public sealed class VersionEntry
     public bool Withdrawn { get; init; }
     public DateTime Published { get; init; }
     public long PayloadSize { get; init; }
+    public Qualification? Qualification { get; init; }
     public string Name => Line.Name;
     public string Version => Line.Version;
     public string Arch => Line.Arch;
@@ -91,9 +92,10 @@ public sealed record ArchiveCheck(string Archive, string Status, DateTime When, 
 /// rebuilt when an index changes on disk. There is no database: the channel
 /// files are the single source.
 /// </summary>
-public sealed class Catalogue(IOptions<PortalOptions> options, IHttpContextAccessor? web = null)
+public sealed class Catalogue(IOptions<PortalOptions> options, IHttpContextAccessor? web = null, Qualifications? qualifications = null)
 {
     readonly PortalOptions o = options.Value;
+    readonly Qualifications reviews = qualifications ?? new(options);
     readonly ConcurrentDictionary<string, (DateTime Stamp, long Len, ChannelInfo Info)> cache = new();
     int version;
 
@@ -200,6 +202,7 @@ public sealed class Catalogue(IOptions<PortalOptions> options, IHttpContextAcces
                 // than that record, when its manifest was written here.
                 Published = firstSeen.TryGetValue(l.Digest, out var seen) ? seen : File.GetLastWriteTimeUtc(mp),
                 PayloadSize = payload,
+                Qualification = reviews.Read(channel, l),
             });
         }
         var packages = new SortedDictionary<string, PackageInfo>(StringComparer.OrdinalIgnoreCase);

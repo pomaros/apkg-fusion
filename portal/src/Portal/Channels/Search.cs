@@ -4,11 +4,11 @@
 namespace Portal.Channels;
 
 public sealed record SearchQuery(string Q = "", string Kind = "", string Arch = "", string Tag = "",
-                                 string Category = "", string Channel = "", string Sort = "")
+                                 string Category = "", string Channel = "", string Sort = "", string Review = "")
 {
     public static SearchQuery From(IQueryCollection q) => new(
         q["q"].ToString().Trim(), q["kind"].ToString(), q["arch"].ToString(), q["tag"].ToString().ToLowerInvariant(),
-        q["category"].ToString(), q["channel"].ToString(), q["sort"].ToString());
+        q["category"].ToString(), q["channel"].ToString(), q["sort"].ToString(), q["review"].ToString());
 }
 
 /// A package that answers a query, and why, when the reason is not its name.
@@ -53,6 +53,9 @@ public sealed class Search(Catalogue catalogue, Downloads downloads)
             .Where(h => h.Rank < 9
                 && (s.Kind.Length == 0 || h.Package.Kind == s.Kind)
                 && (s.Arch.Length == 0 || h.Package.Archs.Contains(s.Arch))
+                && (s.Review.Length == 0 || s.Review == "reviewed" && h.Package.Versions.Any(v =>
+                    !v.Withdrawn && v.Version == h.Package.Latest.Version && (s.Arch.Length == 0 || v.Arch == s.Arch)
+                    && v.Qualification?.Review == "reviewed"))
                 && (s.Tag.Length == 0 || h.Package.Latest.Manifest.Tags.Contains(s.Tag))
                 && (s.Category.Length == 0 || (h.Package.Latest.Manifest.Category ?? "").StartsWith(s.Category, StringComparison.OrdinalIgnoreCase)));
         return (s.Sort switch

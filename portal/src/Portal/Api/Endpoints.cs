@@ -19,6 +19,11 @@ public static class Endpoints
     public static void MapPortalApi(this WebApplication app)
     {
         var api = app.MapGroup("/api").RequireRateLimiting("api");
+        api.MapGet("/qualifications/{channel}/{digest}", (string channel, string digest, Catalogue catalogue, Qualifications qualifications) =>
+        {
+            var line = catalogue.Get(channel)?.Lines.FirstOrDefault(x => x.Digest == digest);
+            return line is null ? Results.NotFound() : Results.Json(qualifications.Read(channel, line));
+        });
         api.MapGet("/search", (HttpContext http, Search search, IOptions<PortalOptions> o) =>
         {
             var s = SearchQuery.From(http.Request.Query);
@@ -153,6 +158,8 @@ public static class Endpoints
             authors = m.Authors,
             license = m.License,
             signer = p.Latest.Signer,
+            qualification = p.Latest.Qualification,
+            qualifications = p.Versions.Where(v => v.Version == p.Latest.Version).Select(v => v.Qualification),
             updated = p.Updated,
             downloads = search.DownloadsOf(p),
             why,
@@ -164,6 +171,7 @@ public static class Endpoints
                 {
                     version = v.Version, arch = v.Arch, withdrawn = v.Withdrawn, firstSeen = v.Published,
                     manifest = v.Line.Digest, payload = v.Manifest.Payload, signer = v.Signer, downloads = search.DownloadsOf(v),
+                    qualification = v.Qualification,
                 })
                 : null,
         };
