@@ -18,10 +18,10 @@ jobs:
           python-version: '3.14'
       - name: Linux archive test dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y lhasa zlib1g-dev
+        run: sudo apt-get update && sudo apt-get install -y lhasa netpbm zlib1g-dev
       - name: macOS archive test dependencies
         if: runner.os == 'macOS'
-        run: brew install lhasa
+        run: brew install lhasa netpbm
       - name: Build and test common integration
         run: make test-fusion
       - name: Inherited engine regression suite
