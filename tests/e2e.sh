@@ -28,6 +28,7 @@ ok() {
     checks=$((checks + 1))
     if [ "$1" -ne 0 ]; then fails=$((fails + 1)); echo "  FAIL $2"; fi
 }
+mode() { python3 -c 'import os, stat, sys; print(format(stat.S_IMODE(os.stat(sys.argv[1]).st_mode), "o"))' "$1"; }
 has() { grep -q -- "$2" "$1"; }
 
 KEY="$T/dev.key"
@@ -39,7 +40,7 @@ EVILPUB=$(awk '/^Public:/{print $2}' "$EVIL")
 export PKG_SIGNKEY="$KEY"
 
 echo "keys"
-[ "$(stat -f %Lp "$KEY" 2>/dev/null || stat -c %a "$KEY")" = "600" ]
+[ "$(mode "$KEY")" = "600" ]
                                                       ok $? "key file readable by the owner alone"
 has "$T/kg" "public key $PUB";                        ok $? "keygen prints the public key"
 $PKG KEYGEN FILE "$KEY" > "$T/kg2" 2>&1
@@ -924,7 +925,7 @@ printf 'lib1' > "$AD/o/Libs/b.library"
 $PKG PUBLISH "$AD/d1" CHANNEL "$AD/ch" KIND application > /dev/null 2>&1
 $PKG PUBLISH "$AD/d2" CHANNEL "$AD/ch" > /dev/null 2>&1
 $PKG PUBLISH "$AD/o" CHANNEL "$AD/ch" NAME other VERSION 1 KIND library > /dev/null 2>&1
-mkdir -p "$AD/r"; cp -R "$AD/d1/" "$AD/r/"
+mkdir -p "$AD/r"; cp -R "$AD/d1/." "$AD/r/"
 $PKG INSTALL base VERSION 1.0 ROOT "$AD/r" CHANNEL "$AD/ch" MACHINE > "$T/ad1" 2>&1
 [ $? -eq 0 ] && grep -q '^adopted: 2$' "$T/ad1"; ok $? "files already there, identical to the package's, are adopted"
 $PKG UPGRADE base ROOT "$AD/r" CHANNEL "$AD/ch" > /dev/null 2>&1 && $PKG ROLLBACK base ROOT "$AD/r" CHANNEL "$AD/ch" > /dev/null 2>&1
@@ -934,7 +935,7 @@ $PKG INSTALL other ROOT "$AD/r" CHANNEL "$AD/ch" MACHINE > "$T/ad2" 2>&1
 [ $? -eq 15 ] && grep -q 'belongs to base, which is installed' "$T/ad2"
                                                       ok $? "a file another installed package owns is never adopted"
 ino() { ls -i "$1" | awk '{print $1}'; }
-mkdir -p "$AD/r3"; cp -R "$AD/d1/" "$AD/r3/"; i1=$(ino "$AD/r3/Libs/b.library")
+mkdir -p "$AD/r3"; cp -R "$AD/d1/." "$AD/r3/"; i1=$(ino "$AD/r3/Libs/b.library")
 $PKG INSTALL base VERSION 1.0 ROOT "$AD/r3" CHANNEL "$AD/ch" > /dev/null 2>&1
 [ "$(ino "$AD/r3/Libs/b.library")" = "$i1" ] && [ -z "$(ls "$AD/r3/.pkg/staging/base" 2>/dev/null)" ]
                                                       ok $? "an adopted file is left where it is, not written again"

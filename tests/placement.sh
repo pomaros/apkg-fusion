@@ -12,6 +12,7 @@ ok() {
     checks=$((checks + 1))
     if [ "$1" -ne 0 ]; then fails=$((fails + 1)); echo "  FAIL $2"; fi
 }
+mode() { python3 -c 'import os, stat, sys; print(format(stat.S_IMODE(os.stat(sys.argv[1]).st_mode), "o"))' "$1"; }
 run() {
     log=$1; shift
     "$PKG" "$@" > "$T/$log.log" 2>&1
@@ -141,7 +142,7 @@ mv "$SD/Quake" "$T/saved-program"
 ln -s "$T/outside/direct" "$SD/Quake"
 for verb in VERIFY REPAIR UPGRADE REMOVE; do
     run "direct-symlink-$verb" "$verb" quake ROOT "$SECROOT" CHANNEL "$CH"
-    [ $? -ne 0 ] && cmp -s "$T/saved-program" "$T/outside/direct" && [ "$(stat -f %Lp "$T/outside/direct" 2>/dev/null || stat -c %a "$T/outside/direct")" = 600 ] && [ -f "$SECROOT/.pkg/db/quake" ]
+    [ $? -ne 0 ] && cmp -s "$T/saved-program" "$T/outside/direct" && [ "$(mode "$T/outside/direct")" = 600 ] && [ -f "$SECROOT/.pkg/db/quake" ]
     ok $? "$verb refuses a direct file symlink without changing its target or mode"
 done
 rm "$SD/Quake"
@@ -179,7 +180,7 @@ chmod 600 "$T/outside/icon"
 ln -s "$T/outside/icon" "$T/canonical/Games/Quake.info"
 for verb in VERIFY REPAIR REMOVE; do
     run "icon-symlink-$verb" "$verb" quake ROOT "$SECROOT" CHANNEL "$CH"
-    [ $? -ne 0 ] && cmp -s "$T/saved-icon" "$T/outside/icon" && [ "$(stat -f %Lp "$T/outside/icon" 2>/dev/null || stat -c %a "$T/outside/icon")" = 600 ] && [ -f "$SECROOT/.pkg/db/quake" ]
+    [ $? -ne 0 ] && cmp -s "$T/saved-icon" "$T/outside/icon" && [ "$(mode "$T/outside/icon")" = 600 ] && [ -f "$SECROOT/.pkg/db/quake" ]
     ok $? "$verb refuses a sibling drawer-icon symlink without changing its target"
 done
 rm "$T/canonical/Games/Quake.info"

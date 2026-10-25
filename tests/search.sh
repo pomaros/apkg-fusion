@@ -24,6 +24,7 @@ fixture_dir=$(cd "$(dirname "$0")" && pwd)
 export PYTHONPATH="$fixture_dir${PYTHONPATH:+:$PYTHONPATH}"
 PKG=${PKG:-./build/pkg}
 T=$(mktemp -d "${TMPDIR:-/tmp}/pkg-search.XXXXXX")
+export PKG_CACHE="$T/cache"
 good=
 bad=
 trap 'for p in $good $bad; do { kill "$p"; wait "$p"; } 2>/dev/null; done
@@ -183,6 +184,7 @@ done
 P1=$(cat "$T/p1" 2>/dev/null || echo 0)
 P2=$(cat "$T/p2" 2>/dev/null || echo 0)
 
+rm -rf "$PKG_CACHE"
 $PKG SEARCH melody CHANNEL "http://127.0.0.1:$P1/ch" MACHINE > "$T/api" 2>&1
 ok $? "SEARCH against a server that answers /api/search"
 has "$T/api" 'ANSWERED BY THE API' ;             ok $? "the API's answer is what is shown"

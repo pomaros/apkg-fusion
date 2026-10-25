@@ -279,6 +279,11 @@ static int api_words(const char *channel, const char *const *words, unsigned nwo
         return -1;
     cache = pkg_cache_dir();
     if (cache == NULL) return -1;
+    if (pkg_fs_mkdirs(cache) != 0) {
+        tr("cannot create the search download cache: reading %s the long way", channel);
+        free(cache);
+        return -1;
+    }
     local = pkg_join(cache, "search.json");
     free(cache);
     if (local == NULL) return -1;
