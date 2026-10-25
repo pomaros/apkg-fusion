@@ -109,12 +109,14 @@ return pkg_selfupdate(&s,argc>1&&!strcmp(argv[1],"DRYRUN"));}
         drawer=root/'drawer';(drawer/'bin').mkdir(parents=True)
         shutil.copy2(old,drawer/'bin/pkg')
         managed=root/'managed'
+        # Linux fixtures are real ELF executables; let header inspection
+        # select their CPU rather than claiming an architecture of "any".
         run(pkg,'PUBLISH',drawer,'NAME','pkg','VERSION','1.7.0+20260922','KIND','application',
-            'ARCH','any','CHANNEL',root,'SIGN',key,check=True)
+            'CHANNEL',root,'SIGN',key,check=True)
         run(pkg,'INSTALL','pkg','ROOT',managed,'CHANNEL',root,check=True)
         shutil.copy2(new,drawer/'bin/pkg')
         run(pkg,'PUBLISH',drawer,'NAME','pkg','VERSION','1.7.5+20260922','KIND','application',
-            'ARCH','any','CHANNEL',root,'SIGN',key,check=True)
+            'CHANNEL',root,'SIGN',key,check=True)
         result=run(managed/'bin/pkg')
         assert result.returncode==0,(result.stdout,result.stderr)
         assert 'root-source: installed package record' in result.stdout,result.stdout
