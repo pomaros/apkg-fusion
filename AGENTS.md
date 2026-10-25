@@ -47,6 +47,6 @@ Imported documentation and release claims describe the upstream projects.
 The root README and fusion documents describe this integration workspace.
 
 Execution budget: follow the bounded batches in PLAN.md. Keep delegation
-limited; use Terra when available or GPT-6.1 Sol with low reasoning for scoped
-subtasks. Do not use Luna. Give sub-agents only the context needed for their
-files. Stop at the assigned batch boundary.
+limited and follow the operator's selected models and reasoning budget.
+Give sub-agents only the context needed for their files. Stop at the assigned
+batch boundary.

@@ -14,8 +14,7 @@ remain implementation work. See [implementation status](docs/fusion/status.md)
 for the distinction between tested components and release requirements.
 
 The source layout is provisional. Designs are selected by behavior, evidence
-and maintainability, regardless of their original author. APKG's explicit
-contexts and recovery model inform the common API; pkg contributes portable
+and maintainability, regardless of their original author. APKG's context-based core is the selected skeleton; pkg contributes portable
 services, signing, ownership, system operations and publishing. Both clients
 will use one engine. The [architecture](docs/fusion/architecture.md) and
 [acceptance matrix](docs/fusion/acceptance.md) define the intended result.

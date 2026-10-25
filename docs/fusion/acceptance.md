@@ -30,6 +30,8 @@ completed and outstanding work against the [architecture](architecture.md).
 | Ownership/configuration | Preserve edits and unknown files; refuse unauthorized takeover. | Upgrade/remove/repair with edited, missing, foreign and shared files. |
 | Repair | Restore verified content under trust and configuration policy. | Corrupt/missing files, edited configuration and withdrawn/unavailable sources. |
 | Cancellation | Expose cancellable phases and accurate final outcomes. | Cancel during transfer, verification, preparation and mutation; verify restoration or explicit partial state. |
+| Self-update | Use the common journal for signed client replacement and recovery; import old update records. | Concurrent updates, interrupted replacement/recovery, executable changes, rollback and legacy journal fixtures. |
+| Maintainer alignment | Record feedback during development and agreement before a joint release. | Reviewed skeleton/scope handoff with actual approvals distinguished from proposals. |
 | Recovery | Repeat recovery after operation or recovery interruption. | Inject failures between mutation and recording; disk-full, termination and power-loss cases. |
 | Rollback | Retained content supports declared offline recovery. | Disconnect channels, remove remote archives, withdraw versions and exercise retention policy. |
 | Migration | Preserve original APKG records, roots, revisions, edits, settings, launch data and relations. | Fixtures and distribution runs cover validation failure, interruption, retry and original-install usability. |

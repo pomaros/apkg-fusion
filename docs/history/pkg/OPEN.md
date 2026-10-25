@@ -1,7 +1,11 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2026 John Knipper -->
 
-# Open items
+# Upstream pkg open items
+> Historical snapshot imported from public pkg revision `6940c7a`. Its dates,
+> results and open items describe upstream pkg. Fusion progress is recorded
+> in [implementation status](../../fusion/status.md).
+
 
 What is known to remain, in one place, to fix when the time comes. Each item
 says where it was seen and what would close it. Written 2026-09-18, after
@@ -9,15 +13,15 @@ goal 2.
 
 ## AROS defects not fixed
 
-Details in [docs/aros-defects.md](docs/aros-defects.md).
+Details in [docs/aros-defects.md](../../../docs/aros-defects.md).
 
 | Item | Seen in | What would close it |
 |---|---|---|
-| `C:Unpack` does not load on hosted aarch64 ("file is not executable"), shipped or rebuilt | goal 1 bootstrap; board thread 17 | Find why the loader refuses it (hunk or ELF flags, relocation); then bootstrap through `Unpack` as first designed |
+| `C:Unpack` does not load on hosted aarch64 ("file is not executable"), shipped or rebuilt | upstream goal 1 bootstrap | Find why the loader refuses it (hunk or ELF flags, relocation); then bootstrap through `Unpack` as first designed |
 | posixc `stdout` reaches no shell redirection | first AROS runs | Fix in posixc, or document that CLI tools must write through `Output()` |
 | posixc reports no `EEXIST` or `ENOENT` where POSIX does | first AROS runs | Fix the errno mapping in posixc |
 | A command that cannot load leaves `$RC` unchanged | goal 2, four-case check | Compare with AmigaOS 3.x first; if AmigaOS sets a failure code, set it in the AROS shell too |
-| The AROS Installer cannot install most scripts, nor run unattended, nor report what it wrote or whether it failed | 2026-09-18, the Installer modes | aros-development-team/AROS#1293 and #1297 (open, another author) implement the missing commands, the V44 language, `MANIFEST/K` and `PRETEND/S`; a driven session, a manifest that can be undone and distinct return codes remain, proposed in [docs/installer-api.md](docs/installer-api.md) |
+| The AROS Installer cannot install most scripts, nor run unattended, nor report what it wrote or whether it failed | 2026-09-18, the Installer modes | aros-development-team/AROS#1293 and #1297 (open, another author) implement the missing commands, the V44 language, `MANIFEST/K` and `PRETEND/S`; a driven session, a manifest that can be undone and distinct return codes remain, proposed in [docs/installer-api.md](../../../docs/installer-api.md) |
 | collect-aros writes ELF ABI version 1 whatever the ABI, and the loader never checks it | 2026-09-18, the ABI field | Write the real ABI version per target in collect-aros, and have the loader refuse a mismatch; Pkg will not rely on it either way |
 | The darwin hosted build ships no FFS handler | goal 2 | Add `kernel-fs-afs` to the hosted build, or say why it is left out |
 
@@ -25,8 +29,8 @@ Details in [docs/aros-defects.md](docs/aros-defects.md).
 
 | PR | Fix | Local branch |
 |---|---|---|
-| aros-development-team/AROS#1238 | identify.library decodes dead-end alerts | `~/aros-pr-identify`, `fix/identify-deadend-alerts` on jonx/AROS |
-| aros-development-team/contrib#64 | Regina gives RC the port's number, RESULT its string | `~/aros-pr-regina`, `fix/regina-arexx-rc` on jonx/contrib |
+| aros-development-team/AROS#1238 | identify.library decodes dead-end alerts | `fix/identify-deadend-alerts` on jonx/AROS |
+| aros-development-team/contrib#64 | Regina gives RC the port's number, RESULT its string | `fix/regina-arexx-rc` on jonx/contrib |
 
 When both are merged: drop `tools/aros/regina-arexx-rc.patch` and the copy
 step in `tools/build-aros-regina.sh`, decode a dead-end alert in
@@ -36,12 +40,12 @@ step in `tools/build-aros-regina.sh`, decode a dead-end alert in
 
 - **pc-x86_64 in QEMU**: done 2026-09-18, `tests/native-x86_64.sh`, 31
   checks, Pkg bootstrapping itself from a channel named by its root
-  (`DEPOT:`). Two AROS defects found on the way, in [docs/aros-defects.md](docs/aros-defects.md): `Lock()`
+  (`DEPOT:`). Two AROS defects found on the way, in [docs/aros-defects.md](../../../docs/aros-defects.md): `Lock()`
   misses later directories of a multi-directory assign, and on the CD-booted
   native system a RAM: directory added to `LIBS:` is not searched by the
   library loader. Worth a look in dos.library before an upstream report.
 - **m68k**, later, at the owner's request: an Amiga emulator (UAE) with the
-  AROS m68k build in `~/Source/aros-project/aros-m68k-build`; QEMU does not emulate an Amiga.
+  AROS m68k build selected through `M68K_CC`; QEMU does not emulate an Amiga.
 
 ## Pkg, not built yet
 
@@ -51,7 +55,7 @@ step in `tools/build-aros-regina.sh`, decode a dead-end alert in
   declare whether its state survives a downgrade, and ROLLBACK must honour it
   (`[PKG22]` item 5; README, "On hosted AROS").
 - **Block-compressed images.** The image is stored whole; chunk size and codec
-  are still open in the planning repository's packaging README.
+  are were undecided in the imported upstream design.
 - **Images over about 49 MB.** Bitmap extension blocks are not written, and
   such an image is refused.
 - **Mounting as one command.** MOUNTLIST writes the entry and lists the
@@ -64,7 +68,7 @@ step in `tools/build-aros-regina.sh`, decode a dead-end alert in
   `afsplus.aros.protection` xattrs (afsplus e026786, ADR-120). PUBLISH could
   read them as the native source there, before `.ameta`; today such a drawer
   needs a `.ameta` like any host folder.
-- **What the progress events found in the engine** ([docs/events.md](docs/events.md#what-the-events-cannot-say-yet)),
+- **What the progress events found in the engine** ([docs/events.md](../../../docs/events.md#what-the-events-cannot-say-yet)),
   seen 2026-10-09 while connecting them. A first INSTALL into a root that
   does not exist yet takes no lock and is not written back to its medium
   (`call()` locks and flushes only an existing root). A package refused
@@ -85,7 +89,7 @@ step in `tools/build-aros-regina.sh`, decode a dead-end alert in
 - **Installer scripts as a package kind.** pkg runs a package's own
   `Installer` script through a driven session and undoes it from Installer's
   manifest. The contract with Installer is proposed in
-  [docs/installer-api.md](docs/installer-api.md); both sides are unbuilt.
+  [docs/installer-api.md](../../../docs/installer-api.md); both sides are unbuilt.
 - **Loose ends from 1.8.1.** On AROS the root lock is an Exec semaphore: a pkg
   that crashes or aborts (`abort()` in `pkg_archive.c`) keeps it, and every
   change is refused with 15 until a reset. On Windows `.pkg/lock` stays in the
@@ -102,8 +106,7 @@ step in `tools/build-aros-regina.sh`, decode a dead-end alert in
   `docs/reference.md` still says `T:pkg-cache` on AROS, while the code uses
   `SYS:.pkg/cache`, falling back to `RAM:pkg-cache`.
 - **Network channels, publishing from a GitHub link, Aminet and AmigaOS
-  interoperability, WHDLoad, paid packages, licences listing**: designed in
-  the planning repository, none built.
+  interoperability, WHDLoad, paid packages, licences listing**: upstream design ideas without implementations in this snapshot.
 - **`pkg.library`, the installed record as a shared library.** Other programs
   can read what is installed only by linking `libpkg.a`, so each carries its
   own copy of pkg and its own reading of `.pkg/db`. Proposed: an AROS shared
@@ -120,7 +123,7 @@ step in `tools/build-aros-regina.sh`, decode a dead-end alert in
   Closes when a second program lists and verifies installed packages through
   it on AROS.
 - **No `[PKG*]` gate is claimed.** Goals 1 and 2 touch many gates, but none has
-  its `pkg-*.json` verdict artifact; `STATUS.md` in aros-next still says spec.
+  its `pkg-*.json` verdict artifact; upstream gate artifacts were not included with this snapshot.
 
 ## Guidance added from the agent rounds
 
@@ -143,17 +146,3 @@ publish needs, an image's manifest lists the files inside it, and the dry
 run compares a new version with the last one file by file; the missing key
 is class 14 (key), no longer 20.
 
-## Icon-launched installation scripts
-
-Provide an installation script and small launcher icon for LunaPaint from contrib.
-The requested target is AROS x86_64 SMP. UNVERIFIED: the repository location
-(suggested path `gfx/Multimedia/lunapaint`), package/channel identity and target ABI.
-Confirm these before choosing the signed package to install.
-
-Use a shared package/channel description with a launcher for each supported desktop.
-AROS uses an icon and ToolTypes; other platforms need their own launcher formats.
-A tooltip supplies descriptive text. ToolTypes supply configuration.
-The launcher must expose progress, errors and user confirmation, preserve signature
-checks, and handle a missing pkg executable. Acceptance includes a double-click
-installation of LunaPaint on the requested AROS target and explicit platform tests
-for every additional launcher supplied.

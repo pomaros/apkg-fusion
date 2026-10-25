@@ -10,7 +10,7 @@ request (2026-09-18); the others are not reported.
 
 | Where | What happens | Seen in | Worked around by |
 |---|---|---|---|
-| `C:Unpack` | Does not load: "file is not executable", for the shipped binary and for one rebuilt from its sources | goal 1 bootstrap; board thread 17 | Bootstrap through `minigzip` |
+| `C:Unpack` | Does not load: "file is not executable", for the shipped binary and for one rebuilt from its sources | upstream goal 1 bootstrap | Bootstrap through `minigzip` |
 | identify.library, `IdAlert` | Every dead-end CPU alert decodes as "Unknown": `idalert.c` stores `ACPU_DivZero` and its neighbours with the dead-end bit (0x80000005) and searches with that bit masked off (`id & 0x7fffffff`), so the entry never matches | goal 2, `Guru 80000005` | The test decodes a recoverable alert, 04000001. Fixed: aros-development-team/AROS#1238, checked on hosted AROS (80000005 now reads Divide by zero, 84000001 Unknown gadget type) |
 | posixc `stdout` | Output written through posixc reaches no shell redirection | first AROS runs | Output goes through `dos.library` `Output()` |
 | posixc `errno` | No `EEXIST` for an existing directory, no `ENOENT` from `opendir` on an absent one | first AROS runs | Existence is tested, never inferred from errno |
@@ -25,4 +25,4 @@ request (2026-09-18); the others are not reported.
 | FFS handler, native pc-x86_64 | Writing a few hundred small files, each under a temporary name then renamed, into new directories: the handler stops answering after a few hundred, at full CPU, and never comes back (twice, at the same kind of point); not isolated in a test of its own yet | `tests/native-system.sh`, before pkg stopped rewriting files already in place | pkg writes staging files under their own names and no longer rewrites files already there |
 | Library search, native pc-x86_64 booted from CD | A library in a directory added to `LIBS:` is not found by OpenLibrary, nor by `Version identify.library`, whether the directory is in RAM: (`Assign LIBS: RAM:sys/Libs ADD`) or on a hard disk (`Assign LIBS: DH0:root/Libs ADD`, found again with Regina); the same assign works on hosted AROS | `tests/native-x86_64.sh`, `tests/native-contrib.sh` | The run changes to the root first: the loader also searches `libs/` under the current directory |
 
-What would close the open ones is tracked in [OPEN.md](../OPEN.md).
+What would close the open ones is tracked in [OPEN.md](history/pkg/OPEN.md).

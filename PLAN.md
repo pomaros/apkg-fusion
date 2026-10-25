@@ -7,7 +7,9 @@ Build one package manager that preserves the strongest capabilities of both
 projects and improves their shared guarantees. Choose the architecture by
 behavior and evidence, including adopting arospkg's structure where it serves
 the common product better. The repository used for integration does not decide
-the design.
+the design. The selected engineering skeleton is arospkg’s context-based
+libpkg, with pkg services ported into it; see the
+[implementation decision](docs/fusion/architecture.md#implementation-skeleton).
 
 The [architecture](docs/fusion/architecture.md) defines the contracts, the
 [acceptance matrix](docs/fusion/acceptance.md) defines release obligations,
@@ -31,7 +33,7 @@ and independent review of newly introduced trust and target checks.
 Map real APKG registries and scripts before selecting the database schema.
 Cover both existing distributions, custom roots, settings, edited files,
 versions, packaging revisions, relations, installation reasons, launch data
-and rollback history. Retain fixtures with permission and suitable provenance.
+and rollback history, including both existing self-update journals. Retain fixtures with permission and suitable provenance.
 
 Define explicit contexts, typed queries/results/events, root identity,
 CPU/OS/ABI/runtime, package/capability identity, version ordering and the
@@ -66,7 +68,10 @@ claiming support for older DOS/handler combinations.
 Exit evidence: stale-plan rejection before writes; install, upgrade, remove,
 repair and rollback across dependency sets; first-root concurrency; failures
 between mutation and recording; interrupted recovery; offline rollback. Distinguish
-cancellation, process death, write failure and power loss in the results.
+cancellation, process death, write failure and power loss in the results. Self-update uses this same journal and recovery
+protocol, covering running-executable replacement and the old
+`ENVARC:arospkg/self-update.json` history. It must not retain a parallel recovery
+engine.
 
 ## Connect PkgManager and the native CLI
 
@@ -148,7 +153,8 @@ recorded effects. Application installation tests cannot establish these results.
 
 ## Release gate
 
-Both maintainers agree the concrete first-release scope and platform evidence.
+The [ALIGN handoff](docs/fusion/maintainer-agreement.md) records feedback during
+development. Both maintainers agree the concrete first-release scope and platform evidence.
 Deferred capabilities retain their acceptance obligations. Publish a merged
 release only after migration, trust, recovery and the included workflows are
 qualified. The development repository and its passing host tests are not a
@@ -174,17 +180,20 @@ Complexity is relative engineering scope, not a token or time estimate.
 | Batch | Dependency | Concrete deliverable and paths | Acceptance and stop boundary | Scope |
 |---|---|---|---|---|
 | BASE | None | Preserve the tested integration, source commits and precise `docs/fusion/status.md`. Publish the repository and plan. | Record the running suite's result, confirm the public revision, stop implementation. | Small |
-| MAP | BASE | `docs/fusion/migration.md` and anonymized `tests/fixtures/migration/`; inspect imported `core.c`, `ops.c`, `swap.c`, `relations_io.c`, settings and release fixtures. | Map each old field to meaning, ownership and preservation rule. Include roots, edits, revision, launch, reasons, relations and rollback. Distinguish real-distribution fixtures from synthetic ones. No importer or schema implementation. | Medium |
-| CONTRACT | MAP | `docs/fusion/data-model.md` and a public context API draft. Compare extending arospkg's context model with the cost of moving pkg services into it. | Decide database identity, version/revision, target, payload fidelity and trust; define context/query/plan/result lifetimes. Review once with high reasoning. No broad source rewrite. | Large; split data model and API into separate tasks |
+| ALIGN | BASE | `docs/fusion/maintainer-agreement.md`: record feedback on skeleton, recovery, official trust and first-release scope. | Development proceeds while feedback is pending; revise decisions if evidence warrants it. Contact requires operator authorization; joint-release agreement remains a release gate. | Small coordination task |
+| MAP | BASE | `docs/fusion/migration.md` and anonymized `tests/fixtures/migration/`; inspect imported `core.c`, `ops.c`, `swap.c`, `relations_io.c`, settings and release fixtures. | Identify the distribution/releases and DOS/handler versions as evidence permits; unconfirmed identities stay explicit and do not block contract work. Map roots, edits, revision, launch, reasons, relations, rollback and both self-update histories. Distinguish real-distribution fixtures from synthetic ones. No importer or schema implementation. | Medium |
+| CONTRACT | MAP | `docs/fusion/data-model.md` and a public context API draft. Detail the selected arospkg skeleton and the module boundaries for pkg services. | Decide database identity, version/revision, target, payload fidelity and trust; define context/query/plan/result lifetimes. Review once with high reasoning. No broad source rewrite. | Large; split data model and API into separate tasks |
 | CONTEXT | CONTRACT | Common context creation/closing and read-only root inspection; one module and its tests. | Two roots remain independent; absent-root reads create nothing; pending recovery is reported. No mutating operation and no GUI changes. | Medium |
 | SIGNED-READ | CONTEXT | Connect existing signing, channel and manifest readers to the context API. | Read a signed package with explicit target; reject tampering, wrong key and wrong target. Preserve existing cryptographic implementations. No installation. | Medium |
 | PLAN-INSTALL | SIGNED-READ | Engine-owned install plan, typed inspection and preconditions. | Plan identifies exact bytes, signer, root, target, writes and permissions. Changes invalidate it. Tests use one package without dependencies. No filesystem mutation. | Medium |
-| JOURNAL | PLAN-INSTALL | Journal/recovery protocol specification and fault-injection cases. | Specify every durable boundary, root locking, commit decision, recovery after recovery interruption and offline retained data. High-reasoning review before implementation. No claim that the inherited journal already satisfies this. | Medium |
+| JOURNAL | PLAN-INSTALL | Journal/recovery protocol specification and fault-injection cases. | Specify every durable boundary, root locking, commit decision, interrupted recovery, offline retained data and self-update recovery in the common journal. High-reasoning review before implementation. No claim that the inherited journal already satisfies this. | Medium |
 | INSTALL | JOURNAL | One signed-package plan executor and journal recovery. | Install, write failure, cancellation and process termination produce stated outcomes; retry is idempotent; stale plan writes nothing. Keep OS power-loss qualification separate. No dependency solver, upgrades or UI redesign. | Large; split normal execution and injected recovery |
 | GUI-INSTALL | INSTALL | One PkgManager worker path for preview/confirm/install, preserving DOS Process ownership. | UI shows and executes the same plan; progress/cancel/results match CLI and disk state. Retain the existing UI. No general rework of browsing or settings. | Medium |
 | OPERATIONS | INSTALL | Separate tasks for upgrade, remove, repair and rollback, each with tests and configuration preservation. | Complete one operation per task. Edited/foreign files and retained rollback bytes are covered. Never implement all four in a single unattended batch. | Four medium tasks |
 | RELATIONS | OPERATIONS | Separate tasks for dependency closure, installed-provider preference, conflicts/replaces and recommends; then plan execution across packages. | Use shared fixtures from both engines; prove loader compatibility and interruption outcomes. Each relation family is its own stopping point. | Several medium tasks |
-| BUNDLES | CONTEXT + INSTALL | Separate tasks for native unregistered launch, managed adoption and movement. | Check containment, icons, actual executable target and loader requirements; launch needs no database. Parser acceptance alone is insufficient. | Three medium tasks |
+| BUNDLE-LAUNCH | CONTEXT | Native launch of an unregistered application folder. | Check containment, icons, executable target and loader requirements on AROS. No database membership or successful package installation is required. Parser acceptance alone is insufficient. | Medium |
+| BUNDLE-MANAGE | INSTALL + BUNDLE-LAUNCH | Separate tasks for managed adoption and movement. | Ownership, update identity and recovery follow the common context model while standalone launching remains possible. | Two medium tasks |
+| SELF-UPDATE | OPERATIONS + JOURNAL | Connect signed client updates to the common journal; retire both independent update-recovery implementations. | Test concurrent update, changed executable, interrupted replacement/recovery, rollback and old self-update-record import. | Medium |
 | MIGRATE | MAP + OPERATIONS + RELATIONS | Importer, retry/commit protocol and legacy CLI compatibility adapter. | Original records retained; failed import preserves old usability; real fixtures from both distributions pass. Break into validation-only, import/commit, interruption and compatibility tasks. | Several medium tasks |
 | AUTHORING | CONTRACT + RELATIONS | Extend `tools/apkg-publish` field by field; preserve revisions, requirements, relations, hidden files, empty directories and attributes. | Remove a refusal only with an end-to-end fidelity test. One semantic family per task; no silent field dropping. | Several small/medium tasks |
 | QUALIFY | SIGNED-READ + AUTHORING | Connect catalogue/portal/client qualifications, signed attestations and trust bootstrap/rotation. | Open publication remains independent; exact-digest review and runtime evidence survive transport; authors cannot grant review. Split attestations, client presentation and key lifecycle. | Three medium tasks |
@@ -201,11 +210,10 @@ common contract, but parallel agents are not the default execution policy.
 - Default to one agent and one named batch. Use light reasoning for bounded
   implementation against an approved contract. Reserve higher reasoning for
   CONTRACT, JOURNAL and a focused review of irreversible design choices.
-- Keep the coordinating agent at the user's selected reasoning level. When
-  delegation materially helps, use Terra when available, otherwise GPT-6.1
-  Sol with low reasoning, for bounded tasks. Do not use Luna for this project.
-  Give each agent only its required context and files; avoid full-history forks
-  and routine fan-out.
+- Keep the coordinating agent at the operator's selected reasoning level.
+  Use budget-appropriate models for bounded delegated work, honoring the
+  operator's model preferences. Give each agent only its required context
+  and files; avoid full-history forks and routine fan-out.
 - Read this plan, status and the named files first. Reuse the recorded audit;
   do not rediscover both repositories for every task.
 - Before editing, state the deliverable, file scope and targeted test command

@@ -9,6 +9,24 @@ The architecture follows the behavior it must guarantee. Source layout and
 original authorship confer no architectural priority. Implementation evidence
 is recorded in [status](status.md).
 
+## Implementation skeleton
+
+The engineering direction is to extend arospkg's context-based libpkg as the
+product skeleton and port pkg's portable filesystem, signing, ownership,
+system-package and publishing services into it as modules. This preserves the
+client-facing structure already used by PkgManager. Its journal still requires
+the durability and recovery work specified below.
+
+The root pkg backend and development CLI are a baseline and service testbed.
+BASE may correct their integration regressions. Further product features belong
+to the common context skeleton. The root layout does not turn the provisional
+global-operation backend into the final engine.
+
+This is the project's engineering direction, not a claim of agreement by both
+upstream maintainers. Development proceeds without waiting for that agreement
+or missing distribution information. Review and alignment are tracked in the
+[maintainer handoff](maintainer-agreement.md); resulting changes remain possible.
+
 ## One engine, explicit contexts
 
 CLI, PkgManager, installers and embedded consumers share one library. A context

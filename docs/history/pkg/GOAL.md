@@ -1,7 +1,11 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2026 John Knipper -->
 
-# Goal 1: Pkg delivers the platform to itself, and an agent watches
+# Upstream pkg goal 1: Pkg delivers the platform to itself, and an agent watches
+> Historical snapshot imported from public pkg revision `6940c7a`. Its dates,
+> results and open items describe upstream pkg. Fusion progress is recorded
+> in [implementation status](../../fusion/status.md).
+
 
 Set 2026-09-18. **Met 2026-09-18**: `tests/goal.sh`, 25 checks, 0 failures, including a sabotaged control run that must fail and does. One sequence that passes or fails as a whole:
 
@@ -39,7 +43,7 @@ follows.
 
 Gates touched: `[PKG1]`, `[PKG6]`, `[PKG10]`, `[PKG11]`, `[PKG17]`, `[PKG18]`,
 `[PKG19]`, `[PKG21]`, `[PKG22]`, `[PKG23]`, and the first component of
-`[PKG9]`, all in the planning repository's `docs/features/packaging/spec.md`.
+`[PKG9]`, were labels in the upstream planning specification; they confer no fusion acceptance.
 
 # Goal 2: an application arrives, its dependencies arrive by Pkg, it runs, and it is checked from outside, with no ARexx anywhere
 

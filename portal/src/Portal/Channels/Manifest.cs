@@ -22,7 +22,7 @@ public sealed class Manifest
     public List<ManifestFile> Content { get; } = [];
     public List<Dependency> Depends { get; } = [];
 
-    // Catalogue fields, all optional (board thread 24). Signed like the rest.
+    // Catalogue fields, all optional. Signed like the rest.
     public string? Short { get; private set; }
     public List<string> Description { get; } = [];
     public string? Category { get; private set; }

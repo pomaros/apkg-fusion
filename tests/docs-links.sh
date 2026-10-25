@@ -8,7 +8,7 @@ here=$(dirname "$0")
 exec python3 - "$here/.." <<'PY'
 import os, re, sys
 repo = os.path.abspath(sys.argv[1])
-files = [os.path.join(repo, "README.md"), os.path.join(repo, "GOAL.md"), os.path.join(repo, "OPEN.md")]
+files = [os.path.join(repo, "README.md")]
 if os.path.exists(os.path.join(repo, "PLAN.md")):
     files.append(os.path.join(repo, "PLAN.md"))
 for d, _, fs in os.walk(os.path.join(repo, "docs")):

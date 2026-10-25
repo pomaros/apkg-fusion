@@ -8,7 +8,7 @@ How pkg is built and tested, on the host, on hosted AROS and on native AROS,
 how it is used as a library, and the state of its pieces. For using or
 publishing with pkg, start at the [README](../README.md). Related:
 [the container](container.md), [AROS defects found while building pkg](aros-defects.md),
-[how pkg was established](history.md), [GOAL.md](../GOAL.md), [OPEN.md](../OPEN.md).
+[how pkg was established](history.md), [GOAL.md](history/pkg/GOAL.md), [OPEN.md](history/pkg/OPEN.md).
 
 ## Setting up
 
@@ -316,7 +316,7 @@ and each refusal as it happens. It never mixes into stdout.
 
 ## State
 
-Goals and milestones: [GOAL.md](../GOAL.md). What remains: [OPEN.md](../OPEN.md). **Goal 1 is met**: all four milestones, and the whole sequence passes as one run, `tests/goal.sh`, 25 checks. **Goal 2 is met** within its agreed line: an application arrives with its dependencies and runs, checked from outside, with no ARexx anywhere (`tests/goal2.sh`, 51 checks), the contract is identical on AROS, macOS and through the ARexx port (`tests/aros-contract.sh`, 152 checks), and the Windows, macOS and Linux kit is ready; its Windows run is the owner's.
+Goals and milestones: [GOAL.md](history/pkg/GOAL.md). What remains: [OPEN.md](history/pkg/OPEN.md). **Goal 1 is met**: all four milestones, and the whole sequence passes as one run, `tests/goal.sh`, 25 checks. **Goal 2 is met** within its agreed line: an application arrives with its dependencies and runs, checked from outside, with no ARexx anywhere (`tests/goal2.sh`, 51 checks), the contract is identical on AROS, macOS and through the ARexx port (`tests/aros-contract.sh`, 152 checks), and the Windows, macOS and Linux kit is ready; its Windows run is the owner's.
 
 | Piece | State |
 |---|---|

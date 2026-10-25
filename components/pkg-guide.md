@@ -270,5 +270,5 @@ libraries keep theirs, in `third_party/`.
 [Developing pkg](../docs/development.md) (build, test, the library),
 [the portal's source](../portal/README.md), [the container](../docs/container.md),
 [AROS defects found while building pkg](../docs/aros-defects.md),
-[how pkg was established](../docs/history.md), [GOAL.md](../GOAL.md) and
-[OPEN.md](../OPEN.md).
+[how pkg was established](../docs/history.md), [GOAL.md](../docs/history/pkg/GOAL.md) and
+[OPEN.md](../docs/history/pkg/OPEN.md).

@@ -4,7 +4,7 @@
 # How pkg was established
 
 The record of the goal sequences that proved pkg, kept as history. The goals
-themselves are in [GOAL.md](../GOAL.md); what remains in [OPEN.md](../OPEN.md).
+themselves are in [GOAL.md](history/pkg/GOAL.md); what remains in [OPEN.md](history/pkg/OPEN.md).
 Nothing here is a promise about the current tool: the guides describe that.
 
 ## The goal sequence
@@ -186,9 +186,8 @@ Each file carries its AROS protection word and comment, where they differ
 from the default: `Protect: 0x00000041 S/Go` and `Comment: Starts%20the%20tool
 S/Go` lines in the signed manifest, for the package's files and for the files
 inside its image. On AROS they come from the file system; on a host from the
-drawer's `.ameta` files (the format of the planning repository's
-`docs/features/file-metadata/ameta.md`, whose reference cases are vendored in
-`tests/ameta-corpus` and run by `tests/test_ameta.c`), with owner Execute
+drawer's `.ameta` files (reference cases in `tests/ameta-corpus`,
+run by `tests/test_ameta.c`), with owner Execute
 from the host mode. A malformed or stale `.ameta` line refuses the publish,
 naming it, as does a comment AROS cannot store (over 79 characters, or
 outside Latin-1). INSTALL applies them with SetProtection and SetComment on
