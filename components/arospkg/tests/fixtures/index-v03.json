@@ -1,0 +1,957 @@
+{
+  "schema": 1,
+  "source": "https://archives.arosworld.org/share/FULLINDEX.readme",
+  "packages": [
+    {
+      "id": "antiword",
+      "version": "0.37",
+      "summary": "Convert Word documents to TXT/PDF/PS",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/text/convert",
+      "url": "https://archives.arosworld.org/share/utility/text/convert/antiword-v0.37.x86_64-aros-v11.zip",
+      "size": 291711,
+      "sha256": "5e4830f2f95af12bb93cd82f50074af68d7d871bbe7994d6fd776d1afff64477",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Antiword",
+      "icon": "Antiword.info",
+      "install": {}
+    },
+    {
+      "id": "bin2iso",
+      "version": "1.1",
+      "summary": "convert Bin File to ISO 9660",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/filetool",
+      "url": "https://archives.arosworld.org/share/utility/filetool/bin2iso.x86_64-aros-v11.zip",
+      "size": 45900,
+      "sha256": "aa15708fbc7ad763ac363dfc38a23675e2c39119111e68a31fc2a9e1f7dba54c",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Bin2Iso",
+      "icon": "Bin2Iso.info",
+      "install": {}
+    },
+    {
+      "id": "blips",
+      "version": "1.0",
+      "summary": "a sokoban style puzzle",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/puzzle",
+      "url": "https://archives.arosworld.org/share/game/puzzle/blips.x86_64-aros-v11.zip",
+      "size": 1408356,
+      "sha256": "bbd9576dfdedc2f3d508894f81c38ee22870804ae56cb9f0b37b91bcd1011362",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "SDL.library"
+        },
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Blips",
+      "icon": "Blips.info",
+      "install": {}
+    },
+    {
+      "id": "ccd2iso",
+      "version": "0.3",
+      "summary": "Convert CloneCD (.ccd) to ISO Images",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/archive",
+      "url": "https://archives.arosworld.org/share/utility/archive/ccd2iso.x86_64-aros-v11.zip",
+      "size": 58798,
+      "sha256": "5826015e739fdc261da0001f4a3af3ced1e239b6be9709a0231f2e2035db32dd",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "CCD2ISO",
+      "icon": "CCD2ISO.info",
+      "install": {}
+    },
+    {
+      "id": "dirtree",
+      "version": "40.8",
+      "summary": "Shell command displaying directory trees",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/misc",
+      "url": "https://archives.arosworld.org/share/utility/misc/dirtree.x86_64-aros-v11.zip",
+      "size": 50125,
+      "sha256": "0776eb0ad5dd0e05757da2860aca3131d5fd06ca22b27c0b0506e7e2d3b4be3b",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "DirTree",
+      "icon": "DirTree.info",
+      "install": {}
+    },
+    {
+      "id": "folio",
+      "version": "0.3.8",
+      "summary": "PDF reader with thumbnails, search and highlighting, on MuPDF",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "office/misc",
+      "url": "https://github.com/tomaszstaniak/aros-foliopdf/releases/download/v0.3.8/Folio-0.3.8.x86_64-aros-v11.lha",
+      "size": 29363297,
+      "sha256": "e46f8c09562899bd41315c08eae47632c5316ae696c6785414989401a6531ecf",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "m.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Folio",
+      "icon": "Folio.info",
+      "install": {},
+      "source": "https://github.com/tomaszstaniak/aros-foliopdf"
+    },
+    {
+      "id": "gmore",
+      "version": "1.2",
+      "summary": "Text viewer similar to MORE",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/text",
+      "url": "https://archives.arosworld.org/share/utility/text/gmore.x86_64-aros-v11.zip",
+      "size": 35787,
+      "sha256": "65ecebd838705d29ffdb05dbd4727aa8e9c8f49342923a73e30d60acb6427131",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "GMore1.2",
+      "icon": "GMore1.2.info",
+      "install": {}
+    },
+    {
+      "id": "grafx2",
+      "version": "2.9",
+      "summary": "256-colour indexed paint program for AROS",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "graphics/edit",
+      "url": "https://github.com/tomaszstaniak/aros-grafx2/releases/download/v2.9-r4/GrafX2-2.9-r4.x86_64-aros-v11.lha",
+      "size": 4207684,
+      "sha256": "b037cb10dbdd7e2d527764a3b6f1d48bcf9876dd954ba7595fed3c55820d2d61",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "m.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "GrafX2",
+      "icon": "GrafX2.info",
+      "install": {},
+      "revision": 4,
+      "source": "https://github.com/tomaszstaniak/aros-grafx2"
+    },
+    {
+      "id": "grep",
+      "version": "2.0",
+      "summary": "GNU Grep",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/misc",
+      "url": "https://archives.arosworld.org/share/utility/misc/grep.x86_64-aros-v11.zip",
+      "size": 58437,
+      "sha256": "bd3a6561c93d3adff82c8d9cceb08c636e55b6efbb556892dde2582e7379fd3d",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Grep",
+      "icon": "Grep.info",
+      "install": {}
+    },
+    {
+      "id": "hocoslamfy",
+      "version": "2026",
+      "summary": "SDL Flappy Bird clone.",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/misc",
+      "url": "https://archives.arosworld.org/share/game/misc/hocoslamfy.x86_64-aros-v11.zip",
+      "size": 1640158,
+      "sha256": "438173ee2ea27d765bef1e266cbe92aaf4261d54d40513fd8ce7034fda04e734",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "SDL.library"
+        },
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Hocoslamfy",
+      "icon": "Hocoslamfy.info",
+      "install": {}
+    },
+    {
+      "id": "iconmake",
+      "version": "1.2",
+      "summary": "The DualPNG Icon Creator for AROS",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/misc",
+      "url": "https://archives.arosworld.org/share/utility/misc/iconmake.x86_64-aros-v11.zip",
+      "size": 59623,
+      "sha256": "a0c5581412225f711fd8c2164867a4e49ec16a65c049592ee9537a3cf8441bb3",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "IconMake",
+      "icon": "IconMake.info",
+      "install": {}
+    },
+    {
+      "id": "isomaker",
+      "version": "1.0",
+      "summary": "Create an ISO CD from DOS",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility",
+      "url": "https://archives.arosworld.org/share/utility/isomaker.x86_64-aros-v11.zip",
+      "size": 44202,
+      "sha256": "c9b16161ed6ccc737deac09004be2112dd635cfe2bdf841fd3cf80cda6aed47d",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "IsoMaker",
+      "icon": "IsoMaker.info",
+      "install": {}
+    },
+    {
+      "id": "isotool",
+      "version": "1.0",
+      "summary": "Boot Extraction ISO And Rename Volume",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility",
+      "url": "https://archives.arosworld.org/share/utility/isotool.x86_64-aros-v11.zip",
+      "size": 38403,
+      "sha256": "ab747f8eb6296957b4461d36561c1b3d5e9e17be805d26cf99a55d35579f5fad",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "IsoTool",
+      "icon": "IsoTool.info",
+      "install": {}
+    },
+    {
+      "id": "micropolis",
+      "version": "0.1.0-rc3",
+      "summary": "Classic city-building simulation for AROS",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/strategy",
+      "url": "https://github.com/tomaszstaniak/aros-micropolis/releases/download/v0.1.0-rc3/micropolis.x86_64-aros-v11.lha",
+      "size": 2593505,
+      "sha256": "c46bbc14274af53fb4452f59081fbcf28f1ce5fffb534c06d169b0b1911cd124",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "m.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Micropolis",
+      "icon": "Micropolis.info",
+      "install": {},
+      "revision": 1,
+      "source": "https://github.com/tomaszstaniak/aros-micropolis"
+    },
+    {
+      "id": "ominostage",
+      "version": "1.1",
+      "summary": "collect all the coins and avoid the enemies",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/platform",
+      "url": "https://archives.arosworld.org/share/game/platform/ominostage.x86_64-aros-v11.zip",
+      "size": 1645762,
+      "sha256": "2a60c078accba2e796d85dbd83640ef9f2c0537d6cf38e4693990039060bfccf",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Omino1.1",
+      "icon": "Omino1.1.info",
+      "install": {}
+    },
+    {
+      "id": "openloco",
+      "version": "0.1.0-rc1",
+      "summary": "Open-source re-implementation of Chris Sawyer's Locomotion",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/strategy",
+      "url": "https://github.com/tomaszstaniak/aros-openloco/releases/download/v0.1.0-rc1/openloco.x86_64-aros-v11.lha",
+      "size": 16998333,
+      "sha256": "59fb5f11a8fe848f249d2a3399b67d6d28f617d52c167307c3d2a596d320efe0",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "openal.library"
+        },
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "m.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "OpenLoco",
+      "icon": "",
+      "install": {},
+      "revision": 1,
+      "source": "https://github.com/tomaszstaniak/aros-openloco"
+    },
+    {
+      "id": "rescode",
+      "version": "1.2",
+      "summary": "Calculates resistor values (4 and 5 band)",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/misc",
+      "url": "https://archives.arosworld.org/share/utility/misc/rescode.x86_64-aros-v11.zip",
+      "size": 89500,
+      "sha256": "20390af4424f167727fc0765db0bf0cd96f581942272694e5e047fd8df799407",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "ResCode",
+      "icon": "ResCode.info",
+      "install": {}
+    },
+    {
+      "id": "sdllopan",
+      "version": "1.0",
+      "summary": "Lopan - MahJong clone",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/board",
+      "url": "https://archives.arosworld.org/share/game/board/sdllopan.x86_64-aros-v11.zip",
+      "size": 490689,
+      "sha256": "5291f44af0f38d43c8bc357d1e23a3ab68da6f14ab1a9ee1974b6324a968fd39",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "SDL.library"
+        },
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "sdllopan-10",
+      "icon": "sdllopan-10.info",
+      "install": {}
+    },
+    {
+      "id": "sdlpop",
+      "version": "1.23",
+      "summary": "SDLPoP, an open-source port of Prince of Persia",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/platform",
+      "url": "https://archives.arosworld.org/share/game/platform/sdlpop.x86_64-aros-v11.zip",
+      "size": 1413476,
+      "sha256": "e841a0936330d7d4944bc10169fe4f9b7c2713cb4fe2757cc4d4c277a51ffe51",
+      "depends": [],
+      "requires_system": [],
+      "installs_on": [
+        "mainline-x86_64",
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "SDLPoP",
+      "icon": "SDLPoP.info",
+      "install": {}
+    },
+    {
+      "id": "shooterspace",
+      "version": "1.0",
+      "summary": "Avoid asteroids and deal with threatening UFOs",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/misc",
+      "url": "https://archives.arosworld.org/share/game/misc/shooterspace.x86_64-aros-v11.zip",
+      "size": 1184697,
+      "sha256": "173a4f28870be7cc37c1865d0e9f58d6bec3a84df08123a5cc52461e6f9f0254",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "ShooterSpace1.0",
+      "icon": "ShooterSpace1.0.info",
+      "install": {}
+    },
+    {
+      "id": "skandalfoclock",
+      "version": "1.1",
+      "summary": "Advanced Analog Clock",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/workbench",
+      "url": "https://archives.arosworld.org/share/utility/workbench/skandalfoclock.x86_64-aros-v11.zip",
+      "size": 177395,
+      "sha256": "d687ccb1d86163e866d1338b404c836dfc6544a01e1f7d3e33bb17ca2f35559b",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "SkandalfoClock",
+      "icon": "",
+      "install": {}
+    },
+    {
+      "id": "soliton",
+      "version": "2.2",
+      "summary": "Klondike & Freecell card game",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/card",
+      "url": "https://archives.arosworld.org/share/game/card/soliton.x86_64-aros-v11.zip",
+      "size": 223945,
+      "sha256": "62c9b8a9713d80ffc303f1b1ca83625ae54faf452a45442d048a45ef87a9115e",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Soliton",
+      "icon": "Soliton.info",
+      "install": {}
+    },
+    {
+      "id": "unlzx",
+      "version": "2.16",
+      "summary": "Unpack lzx files",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/archive",
+      "url": "https://archives.arosworld.org/share/utility/archive/unlzx.x86_64-aros-v11.zip",
+      "size": 61106,
+      "sha256": "bc68cc880afd5f1044870a026cfb19dee98a2451a01812b7c0eef413df5b49b0",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "UnLZX",
+      "icon": "UnLZX.info",
+      "install": {}
+    },
+    {
+      "id": "untangle",
+      "version": "1.2",
+      "summary": "Untangle set of dots joined by lines",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/puzzle",
+      "url": "https://archives.arosworld.org/share/game/puzzle/untangle.x86_64-aros-v11.zip",
+      "size": 60526,
+      "sha256": "0c97bbf1b4aceb4eea66a91a6e94f00e2cffbc7318c652f334a367eefcc053dc",
+      "depends": [],
+      "requires_system": [],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "Untangle",
+      "icon": "Untangle.info",
+      "install": {}
+    },
+    {
+      "id": "xrick",
+      "version": "050500",
+      "summary": "a clone of Rick Dangerous",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "game/platform",
+      "url": "https://archives.arosworld.org/share/game/platform/xrick.x86_64-aros-v11.zip",
+      "size": 2043720,
+      "sha256": "671d89c9b45c9358cd02faf379510ef8a49bf746119fa45f7b90c466575c3e98",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "crt.library"
+        },
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "xRick",
+      "icon": "xRick.info",
+      "install": {}
+    },
+    {
+      "id": "zaphod",
+      "version": "1.3",
+      "summary": "A simple binary file editor",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "development/edit",
+      "url": "https://archives.arosworld.org/share/development/edit/zaphod-v1.3-.x86_64-aros-v11.zip",
+      "size": 218782,
+      "sha256": "603e292457c3439f32709380bdd1d9c72b06536d013eebc01541a0bf0fa75448",
+      "depends": [],
+      "requires_system": [],
+      "installs_on": [
+        "mainline-x86_64",
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "ZapHod",
+      "icon": "",
+      "install": {}
+    },
+    {
+      "id": "zunecalc",
+      "version": "1.0",
+      "summary": "Simple Calculator",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "office/misc",
+      "url": "https://archives.arosworld.org/share/office/misc/zunecalc.x86_64-aros-v11.zip",
+      "size": 44996,
+      "sha256": "e730fdbb86aa4190f91d78bd9e26a3291ff42e42d0caab9bd2a8bf6ef18150d4",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "ZuneCalc",
+      "icon": "ZuneCalc.info",
+      "install": {}
+    }
+  ]
+}

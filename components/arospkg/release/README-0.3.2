@@ -1,0 +1,67 @@
+arospkg 0.3.2 -- AROS x86_64 ABIv11
+==================================
+
+This patch updates apkg's download progress. PkgManager is the unchanged
+0.3.1 binary. Other CPU/ABI builds remain available in release 0.3.1.
+
+INSTALL
+
+Close PkgManager and finish running apkg commands before updating.
+Keep SYS:Packages: it contains installed applications and their records.
+
+  UnZip arospkg-0.3.2.x86_64-aros-v11.zip
+  CD arospkg-0.3.2.x86_64-aros-v11
+  Copy apkg C:
+  apkg --version
+  apkg update
+
+Keep this drawer somewhere permanent if using the graphical interface:
+
+  Run PkgManager
+
+No compiler or separate TLS libraries are required. You need an x86_64
+ABIv11 system, crt.library and stdlib.library; PkgManager also needs Zune
+(muimaster.library). Downloads need networking and the certificate bundle
+ENV:SYS/Certificates/ca-bundle.crt.
+
+USE
+
+  apkg search soliton
+  apkg show soliton
+  apkg install soliton
+
+Open SYS:Packages/soliton in Wanderer and launch the program inside.
+PkgManager offers the same catalogue and Install/Remove operations.
+Use apkg list to see installed packages, apkg verify soliton to check one,
+and apkg remove soliton to remove it while retaining locally changed and
+user-created files. For a different package root pass --root Work:Packages
+to both front ends consistently.
+
+WHAT CHANGED
+
+Download progress uses complete milestone lines every 10%, rather than
+redrawing a bar that can leave fragments after a window is narrowed.
+In Limpet, each new line fits the current width with one column spare;
+narrow windows show fewer details. Success, error and cancellation start
+on separate lines. --plain, JSON and redirected output are unchanged.
+Colours, show/search layout and package operations remain as before.
+
+CHECKS AND LIMITS
+
+The progress change was exercised on AROS One 1.3 under QEMU with Limpet
+rc5: both themes, narrowing, multiple updates, widening, completion and
+cancellation. The host suite passed. The final apkg rebuild changes the
+version identification from the guest-tested development build to 0.3.2;
+that final rebuild was not separately run in the guest.
+PkgManager is byte-identical to the published 0.3.1 program.
+
+TLS uses Mbed TLS with jitterentropy on this target. The entropy assessment
+remains limited to the previously tested QEMU configuration; the restart
+series is incomplete. This update makes no new security-validation claim.
+
+BUILD.txt records source revisions and program SHA-256 hashes.
+SHA256SUMS on the release page checks the downloadable archive.
+Licences are in LICENSE and licenses/. ARexx examples are in Examples/ARexx/.
+
+Documentation and other builds:
+https://github.com/tomaszstaniak/arospkg

@@ -1,0 +1,233 @@
+arospkg 0.6.0
+=============
+
+Find, install, start, update and remove software for AROS, with apkg in
+the Shell or PkgManager on the desktop.
+
+INSTALL
+-------
+
+1. Unpack the archive for your CPU and ABI.
+2. Close PkgManager and let any apkg operation finish.
+3. In the Shell, enter the unpacked drawer and run:
+
+     Copy apkg C:
+     apkg --version
+     apkg update
+
+Already on 0.4.x to 0.6.0? Run "apkg self-update" twice instead: the first
+run replaces apkg, the second updates PkgManager and the rest of its
+drawer. If the apkg you run is the copy in C:, name the drawer the second
+time:
+
+     apkg self-update --drawer "Work:arospkg-0.6.0.x86_64-aros-v11"
+
+From this version on, one "apkg self-update", or About > Update arospkg in
+PkgManager, updates both. Keep your existing SYS:Packages. Versions 0.3.x
+need the manual copy above.
+
+PkgManager is included in the x86_64 ABIv11, mainline and Pi archives.
+Keep the unpacked drawer and start PkgManager from its icon, or:
+
+     Run PkgManager
+
+Click Update index, select a package and click Install, then Run.
+
+BUILDS
+------
+
+0.5.0:
+  x86_64-aros-v11    apkg and PkgManager: stable (AROS One)
+  i386-aros-v0       apkg: checked under QEMU, see the release notes
+  x86_64-aros-v1     apkg and PkgManager: experimental (mainline AROS)
+  aarch64-aros-raspi apkg and PkgManager: experimental, compiled and
+                     linked, NOT run on a Raspberry Pi. Please test and
+                     report what works.
+
+Downloads: https://github.com/tomaszstaniak/arospkg/releases
+
+x86_64 ABIv11 has the most test coverage, on AROS One 1.3 under QEMU.
+What was run on each other build is in the release notes. Nothing was run
+on real hardware. The Folio checksum failure reported on a Pi remains
+unexplained; --keep-rejected keeps such a download for a report.
+
+For online operations you need working networking and the certificate
+bundle ENV:SYS/Certificates/ca-bundle.crt. PkgManager needs Zune.
+
+START HERE
+----------
+
+  apkg search game        find packages
+  apkg show soliton       view details and requirements
+  apkg install soliton    download, verify and install
+  apkg run folio          start an installed application
+  apkg open soliton       open the installed drawer in Wanderer
+  apkg list               list installed packages
+  apkg verify folio       check the installed files
+  apkg remove soliton     remove it, keeping changed and additional files
+
+Packages go into SYS:Packages by default. To use another root, put it
+before the command:
+
+  apkg --root "Work:Packages" install soliton
+  apkg --root "Work:Packages" run soliton
+
+Use the same root for later operations on those packages.
+
+NEW IN 0.6.0
+------------
+
+- Packages can depend on, recommend, conflict with and replace other
+  packages. apkg install shows the plan first: dependencies are installed
+  before the package, a replaced package is removed after, and a package
+  others need is not removed. The catalogue for 0.6 is index-v3.json.
+- Larger programs: one file in a package may be up to 128 MiB (64 MiB
+  before). Files are unpacked through small fixed buffers and checked
+  against their recorded size and CRC, so a larger package needs no more
+  memory to install.
+- Test and preview releases are put in order: apkg upgrade moves from
+  0.9.0-test2-r2 to 0.9.0-test4 and later to 0.9.0, and test10 comes after
+  test9. Versions in other forms are still refused rather than guessed.
+- apkg update says what is new in the catalogue; apkg recent lists what
+  was added recently. apkg show and PkgManager say whether a build was
+  reviewed automatically and where it was tested.
+
+NEW IN 0.5.0
+------------
+
+- apkg run <id> [files] and PkgManager's Run start an application as its
+  package describes: a Workbench program from its icon (its stack and
+  tool types, so no Stack command is needed; files are passed as if
+  dropped on it), a Shell program in your Shell with its return code.
+  apkg run --check says whether and why not. A package that does not say
+  how it starts still has Open folder. The description is application.json
+  in the program's drawer, so "apkg run Work:Apps/Folio" also works for a
+  drawer unpacked by hand.
+- PkgManager: Run, Verify (the result at the top of the details), the
+  files kept by Remove, installed packages listed even without a
+  catalogue, and versions written the same way everywhere (0.4.1-aros2).
+  ARexx: RUN and VERIFY.
+- DEMONSTRATION ONLY: pictures beside the details (a few real screenshots
+  shipped in the Demo drawer, not from the catalogue) and a Demo store
+  with one fictional paid application. "Demo -- purchasing is not
+  available yet": nothing can be bought or installed from it, and no data
+  is asked for or sent.
+- apkg-pack checks and writes the start information for authors.
+- Ctrl-C while connecting is reported as cancelled, not as a network
+  error.
+
+NEW IN 0.4.2
+------------
+
+- apkg outdated, apkg upgrade --all, the Updates (N) list, Ctrl-C during
+  downloads, About > Check for a newer version, --keep-rejected.
+
+NEW IN 0.4.1
+------------
+
+- apkg upgrade moves to a newer version of a program, for example
+  Limpet 0.1.0 to 0.2.0, with the same plan, kept files, rollback and
+  recovery as a revision upgrade. Versions made of numbers and dots are
+  compared as numbers (1.10 is newer than 1.9). An older version, or one
+  apkg cannot order, is refused with the reason. PkgManager offers the
+  same upgrades.
+
+NEW IN 0.4
+----------
+
+- Open folder in PkgManager and apkg open.
+- Package notes after installation and in the details.
+- Clearer operation stages, results and removal reports.
+- Larger catalogues: tested with 5,000 packages on x86_64 ABIv11.
+  The parser allocates as needed, within memory and size limits.
+- apkg self-update, with the previous executable kept as apkg.old.
+
+UPDATES
+-------
+
+  apkg update                refresh the catalogue
+  apkg outdated              list installed packages with updates
+  apkg upgrade <id>          install a newer version or packaging revision
+  apkg upgrade --all         every update that can be installed, in turn
+  apkg rollback <id>         restore what the last upgrade replaced
+  apkg self-update --check   check apkg and PkgManager against the release
+  apkg self-update           update apkg and its PkgManager
+
+Upgrade moves to a newer upstream version (0.1.0 to 0.2.0, 1.9 to
+1.10, 0.9.0-test2-r2 to 0.9.0-test4) or to a newer packaging revision of
+the same version. Versions are ordered when they are numbers and dots,
+optionally with one -testN, -previewN or -rcN tag and a -rN rebuild tag;
+any other change of version, and any older version, is refused with the
+reason. Files you
+changed are kept, as in a revision upgrade. Rollback needs the previous
+archive in the cache. Close the application before either operation or removal.
+
+Self-update keeps the previous files beside the new ones as .old; for
+arospkg installed as a package, "apkg rollback arospkg" goes back. In
+PkgManager: About > Check for a newer version, then Update arospkg.
+PkgManager closes and starts again. Details and recovery:
+https://github.com/tomaszstaniak/arospkg/blob/main/docs/self-update.md
+
+FILES AND RECOVERY
+------------------
+
+  SYS:Packages/<id>/       installed program
+  SYS:Packages/db/         installation records; do not edit
+  SYS:Packages/cache/      downloaded archives
+
+Removal keeps files you changed and files apkg did not install, and lists
+them. A later install will not overwrite a drawer left behind by removal.
+Move it aside first, keeping any files you need.
+
+  apkg verify <id>         check installed files without repairing them
+  apkg doctor              report unresolved operations
+  apkg doctor --retry      retry recovery after an interruption
+
+MORE OPTIONS
+------------
+
+  apkg --help             common commands
+  apkg --help-all         full user help
+  apkg --help-testing     diagnostic and test options
+
+--plain removes decorations. --verbose shows more transport and path
+details. --json provides machine-readable output for supported commands.
+--dry-run previews install, remove, upgrade or rollback without changing
+installed files; --fetch permits downloading the archive for that preview.
+
+PkgManager provides the PKGMANAGER ARexx port while it is running.
+Examples are in Examples/ARexx. The command reference is at:
+https://github.com/tomaszstaniak/arospkg/blob/main/docs/arexx.md
+
+LIMITS
+------
+
+- CPU and ABI matching is not proof that every application works.
+- System requirements are checked, but dependencies are not installed
+  automatically. Installer scripts and shared system files are not managed.
+- Downloads use HTTPS and SHA-256 checks. The catalogue is not signed,
+  and a matching hash does not establish an application's safety.
+
+CHECKSUMS AND LICENCES
+---------------------
+
+BUILD.txt records the source commit and program hashes. apkg --version
+reports the running binary's hash. Archive hashes are in SHA256SUMS on
+the matching release page.
+
+arospkg: copyright 2026 Tomasz Staniak. See LICENSE.
+Third-party notices are in licenses/:
+- Mbed TLS: Apache License 2.0.
+- jitterentropy-library: BSD licence, where included.
+- AROS XTerm terminal-control client: MIT.
+- zlib: zlib licence.
+
+DOCUMENTATION AND SOURCE
+------------------------
+
+https://github.com/tomaszstaniak/arospkg
+
+PACKAGE CATALOGUE
+-----------------
+
+https://github.com/tomaszstaniak/arospkg-index

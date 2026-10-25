@@ -1,0 +1,28 @@
+; Negative TLS tests. A successful download proves the right certificate was
+; accepted; it says nothing about whether a wrong one would be refused. These
+; must all FAIL, and failing is the pass condition.
+
+FAILAT 21
+Echo "== TLS negative tests =="
+RAM:apkg --version
+
+Echo "*N-- N1. certificate must match a name the server does not have --"
+Echo "expect: handshake fails, hostname mismatch"
+RAM:apkg --root RAM:N --verify-name example.invalid --run-id n1 --expect 12 --report RAM:n1.json update
+
+Echo "*N-- N2. a real but wrong name --"
+Echo "expect: the certificate is valid, for someone else; still refused"
+RAM:apkg --root RAM:N --verify-name www.google.com --run-id n2 --expect 12 --report RAM:n2.json update
+
+Echo "*N-- N3. plain http must be refused outright --"
+Echo "expect: not an https URL; no connection attempted"
+RAM:apkg --root RAM:N --index-url http://archives.arosworld.org/share/RECENT.readme --run-id n3 --expect 12 --report RAM:n3.json update
+
+Echo "*N-- N4. no CA bundle: must refuse to download at all --"
+Rename ENV:SYS/Certificates/ca-bundle.crt ENV:SYS/Certificates/ca-bundle.hidden
+RAM:apkg --root RAM:N --run-id n4 --expect 12 --report RAM:n4.json update
+Rename ENV:SYS/Certificates/ca-bundle.hidden ENV:SYS/Certificates/ca-bundle.crt
+
+Echo "*N-- N5. the control: unmodified, must SUCCEED --"
+RAM:apkg --root RAM:N --run-id n5 --expect 0 --report RAM:n5.json update
+Echo "== end =="

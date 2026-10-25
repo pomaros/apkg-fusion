@@ -1,0 +1,49 @@
+; v0.1 release suite, part 2 of 2 -- after a real reboot, then TLS.
+;     Execute PAYLOAD:R/REL2
+; Every command appends to RAM:rel2-console.txt itself. Measured on AROS One on 2026-09-19:
+; redirecting Execute (or Run ... Execute) does not capture the output of the
+; commands inside the script, while a redirection on each command does. A line
+; that writes a test fixture keeps its own single redirection.
+
+FAILAT 21
+Delete RAM:rel2-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:putfile +e
+Protect RAM:apkg +e
+Delete RAM:rel ALL FORCE QUIET
+MakeDir RAM:rel
+Echo >>RAM:rel2-console.txt "== v0.1 release suite, part 2: after the reboot =="
+RAM:apkg >>RAM:rel2-console.txt --version
+
+Echo >>RAM:rel2-console.txt "*N==== H. the transaction interrupted before the reboot ===="
+Echo >>RAM:rel2-console.txt "read-only view must warn, not show a settled state:"
+RAM:apkg >>RAM:rel2-console.txt --root SYS:PkgRel list
+RAM:apkg >>RAM:rel2-console.txt --root SYS:PkgRel --machine onetest --run-id h2 --expect 0 --report RAM:rel/h2.json doctor --retry
+If EXISTS SYS:PkgRel/db/installed/cls.json
+  Echo >>RAM:rel2-console.txt "FAIL h: registry of an uncommitted install survived"
+Else
+  Echo >>RAM:rel2-console.txt "PASS h: uncommitted install rolled back after a reboot"
+EndIf
+If EXISTS SYS:PkgRel/cls.info
+  Echo >>RAM:rel2-console.txt "FAIL h: icon survived"
+Else
+  Echo >>RAM:rel2-console.txt "PASS h: icon rolled back after a reboot"
+EndIf
+
+Echo >>RAM:rel2-console.txt "*N==== I. TLS, negative: every one of these must be REFUSED ===="
+RAM:apkg >>RAM:rel2-console.txt --root RAM:N --verify-name example.invalid --machine onetest --run-id n1 --expect 12 --report RAM:rel/n1.json update
+RAM:apkg >>RAM:rel2-console.txt --root RAM:N --verify-name www.google.com --machine onetest --run-id n2 --expect 12 --report RAM:rel/n2.json update
+RAM:apkg >>RAM:rel2-console.txt --root RAM:N --index-url http://archives.arosworld.org/share/RECENT.readme --machine onetest --run-id n3 --expect 12 --report RAM:rel/n3.json update
+Rename ENV:SYS/Certificates/ca-bundle.crt ENV:SYS/Certificates/ca-bundle.hidden
+RAM:apkg >>RAM:rel2-console.txt --root RAM:N --machine onetest --run-id n4 --expect 12 --report RAM:rel/n4.json update
+Rename ENV:SYS/Certificates/ca-bundle.hidden ENV:SYS/Certificates/ca-bundle.crt
+Echo >>RAM:rel2-console.txt "and the positive control, so the refusals above are not just no network:"
+RAM:apkg >>RAM:rel2-console.txt --root RAM:N --machine onetest --run-id n0 --expect 0 --report RAM:rel/n0.json update
+Echo >>RAM:rel2-console.txt "== end of part 2 =="
+
+; Evidence out, as the last step: nothing may be typed into this Shell while
+; the script runs -- keystrokes land in its input and get spliced into output.
+RAM:putfile RAM:rel2-console.txt
+Join RAM:rel/#?.json AS RAM:rel2-reports.txt
+RAM:putfile RAM:rel2-reports.txt

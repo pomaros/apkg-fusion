@@ -1,0 +1,30 @@
+; Two questions in one run.
+;
+; 1. What do the commands actually look like? Every long invocation so far was
+;    test scaffolding: --root to keep tests off the real package root, --index
+;    from before the index was published, --run-id/--report/--expect for the
+;    evidence rule, --interrupt-at/--fail-at for fault injection. None of it is
+;    needed to use pkg. Here it is with no flags at all, from C:.
+;
+; 2. Is a program built for mainline TODAY affected? abitest was compiled with
+;    the current mainline SDK and calls exactly what the two archive binaries
+;    died in: FindTask, then OpenLibrary of the same GUI libraries, then it
+;    opens a window.
+
+FAILAT 21
+
+Echo "== 1. the commands, with nothing added =="
+Copy "Qemu Vvfat:apkg" C:
+Protect C:apkg +e
+
+apkg update
+apkg search zaphod
+apkg install zaphod
+apkg list
+apkg remove zaphod
+
+Echo "*N== 2. a program built for mainline today =="
+Copy "Qemu Vvfat:abitest" RAM:
+Protect RAM:abitest +e
+RAM:abitest
+Echo "== end =="

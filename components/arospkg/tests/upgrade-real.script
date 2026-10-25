@@ -1,0 +1,79 @@
+; A real program through an upgrade and a rollback: the published soliton
+; archive as revision 1, a repackaged copy as revision 2. No network: both
+; archives are placed in the cache with the hashes the indexes expect.
+;     Execute PAYLOAD:S/SOLUP
+
+FAILAT 1000
+Delete RAM:sol-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Copy PAYLOAD:I/IDXS1 RAM:idx-sol1.json
+Copy PAYLOAD:I/IDXS2 RAM:idx-sol2.json
+Protect RAM:apkg +e
+Protect RAM:putfile +e
+Delete SYS:PkgSol ALL FORCE QUIET
+Delete RAM:srep ALL FORCE QUIET
+MakeDir RAM:srep
+MakeDir SYS:PkgSol
+MakeDir SYS:PkgSol/cache
+Copy PAYLOAD:A/SOLR1 SYS:PkgSol/cache/soliton.zip
+Copy PAYLOAD:A/SOLR2 SYS:PkgSol/cache/soliton.new.zip
+
+Echo >>RAM:sol-console.txt "== install the published revision =="
+RAM:apkg --root SYS:PkgSol --machine onetest --index RAM:idx-sol1.json --run-id s-install --expect 0 --report RAM:srep/s-install.json install soliton >>RAM:sol-console.txt
+RAM:apkg --root SYS:PkgSol --machine onetest assert-hash SYS:PkgSol/soliton/Soliton.guide 19e44bb43199cbae69192999227c50650d4adbd43acc85b4e14460bd5d47fd1a >>RAM:sol-console.txt
+CD SYS:PkgSol/soliton
+Run >NIL: <NIL: Soliton
+Wait 12
+Echo >>RAM:sol-console.txt "before upgrade: soliton running? (a number means yes):"
+Status >>RAM:sol-console.txt COMMAND=Soliton
+Status >NIL: COMMAND=Soliton
+If NOT WARN
+  Break >NIL: `Status COMMAND=Soliton` C
+EndIf
+Wait 4
+CD SYS:
+Echo >>RAM:sol-console.txt "*N== upgrade to revision 2: the guide replaced, NEWS added, the program untouched =="
+RAM:apkg --root SYS:PkgSol --machine onetest --index RAM:idx-sol2.json --run-id s-upgrade --expect 0 --report RAM:srep/s-upgrade.json upgrade soliton >>RAM:sol-console.txt
+RAM:apkg --root SYS:PkgSol --machine onetest assert-hash SYS:PkgSol/soliton/Soliton.guide 828659001c17f8ef28b824456f0c3093995512d4c8cfbdbfbf9c588f5282ce22 >>RAM:sol-console.txt
+RAM:apkg --root SYS:PkgSol --machine onetest assert-hash SYS:PkgSol/soliton/NEWS ff3071ef387ebfd2f5a85a2168e7f5dd90a22f731d74610b127c413da135272f >>RAM:sol-console.txt
+RAM:apkg --root SYS:PkgSol --machine onetest assert-hash SYS:PkgSol/soliton/Soliton 96ac15a54c53ecd5c125218a1aaa0696c0df4cba1b22aff69b211b57300783a5 >>RAM:sol-console.txt
+RAM:apkg --root SYS:PkgSol --machine onetest info soliton >>RAM:sol-console.txt
+CD SYS:PkgSol/soliton
+Run >NIL: <NIL: Soliton
+Wait 12
+Echo >>RAM:sol-console.txt "after upgrade: soliton running? (a number means yes):"
+Status >>RAM:sol-console.txt COMMAND=Soliton
+Status >NIL: COMMAND=Soliton
+If NOT WARN
+  Break >NIL: `Status COMMAND=Soliton` C
+EndIf
+Wait 4
+CD SYS:
+Echo >>RAM:sol-console.txt "*N== rollback: the guide back, NEWS gone, the program untouched =="
+RAM:apkg --root SYS:PkgSol --machine onetest --run-id s-rollback --expect 0 --report RAM:srep/s-rollback.json rollback soliton >>RAM:sol-console.txt
+RAM:apkg --root SYS:PkgSol --machine onetest assert-hash SYS:PkgSol/soliton/Soliton.guide 19e44bb43199cbae69192999227c50650d4adbd43acc85b4e14460bd5d47fd1a >>RAM:sol-console.txt
+RAM:apkg --root SYS:PkgSol --machine onetest assert-hash SYS:PkgSol/soliton/Soliton 96ac15a54c53ecd5c125218a1aaa0696c0df4cba1b22aff69b211b57300783a5 >>RAM:sol-console.txt
+If EXISTS SYS:PkgSol/soliton/NEWS
+  Echo >>RAM:sol-console.txt "FAIL s-rollback: NEWS still there"
+Else
+  Echo >>RAM:sol-console.txt "PASS s-rollback: NEWS gone"
+EndIf
+CD SYS:PkgSol/soliton
+Run >NIL: <NIL: Soliton
+Wait 12
+Echo >>RAM:sol-console.txt "after rollback: soliton running? (a number means yes):"
+Status >>RAM:sol-console.txt COMMAND=Soliton
+Status >NIL: COMMAND=Soliton
+If NOT WARN
+  Break >NIL: `Status COMMAND=Soliton` C
+EndIf
+Wait 4
+CD SYS:
+Echo >>RAM:sol-console.txt "*N== remove =="
+RAM:apkg --root SYS:PkgSol --machine onetest --run-id s-remove --expect 0 --report RAM:srep/s-remove.json remove soliton >>RAM:sol-console.txt
+List SYS:PkgSol >>RAM:sol-console.txt
+Echo >>RAM:sol-console.txt "== end =="
+Join RAM:srep/#?.json AS RAM:sol-reports.txt
+RAM:putfile RAM:sol-console.txt
+RAM:putfile RAM:sol-reports.txt

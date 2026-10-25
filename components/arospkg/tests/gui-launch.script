@@ -1,0 +1,13 @@
+; PkgManager acceptance, second increment: start it detached with an event
+; log and slowed transfers (--slow 300: about 0.3 s per 16 KB and a 3 s pause
+; after extraction begins), so a cancel, a close or a concurrent CLI attempt
+; can be timed by a script rather than by luck.
+Copy PAYLOAD:PKGMGR RAM:PkgManager
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:PkgManager +e
+Protect RAM:apkg +e
+Protect RAM:putfile +e
+Delete SYS:Packages ALL FORCE QUIET
+Delete RAM:gui-#? QUIET
+Run >NIL: RAM:PkgManager --slow 300 --log RAM:gui-events.log

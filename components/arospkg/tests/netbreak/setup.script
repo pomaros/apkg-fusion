@@ -1,0 +1,10 @@
+; A broken download, made deterministic with --break-download-at: package
+; roots of its own, SYS:NbCli for apkg and SYS:NbGui for the window.
+Failat 21
+Protect RAM:rxt/apkg +e
+Protect RAM:rxt/PkgManager +e
+Delete SYS:NbCli ALL FORCE QUIET
+Delete SYS:NbGui ALL FORCE QUIET
+MakeDir SYS:NbGui
+MakeDir SYS:NbGui/db
+MakeDir SYS:NbGui/cache

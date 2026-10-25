@@ -1,0 +1,76 @@
+; Rows and progress: the accessor a front end reads, the --json form of it,
+; and the progress/cancel contract from pkg.h, on the target.
+;     Execute PAYLOAD:S/JSONTEST
+; Every command appends to RAM:json-console.txt itself (Execute >file does
+; not capture a script's output on AROS; measured 2026-09-19).
+;
+; What is checked, and by what:
+;   - `search game` text must equal what the 09-22 acceptance run printed,
+;     because search is now formatted FROM the rows (host diff of consoles)
+;   - the --json output parses and says what the registry says (host check)
+;   - --cancel-at download: status 14, no .part in the cache, nothing installed
+;   - --cancel-at download-mid: the same, cancelled inside the transport
+;   - --cancel-at verify:   status 14, archive cached, nothing installed
+;   - --cancel-at extract:  ignored, as pkg.h promises: the install completes
+
+FAILAT 1000
+Delete RAM:json-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Copy PAYLOAD:I/RELIDX RAM:rel-index.json
+Protect RAM:apkg +e
+Protect RAM:putfile +e
+Delete SYS:PkgJson ALL FORCE QUIET
+MakeDir SYS:PkgJson
+Delete RAM:jrep ALL FORCE QUIET
+MakeDir RAM:jrep
+
+Echo >>RAM:json-console.txt "== version =="
+RAM:apkg >>RAM:json-console.txt --version
+
+Echo >>RAM:json-console.txt "*N== search game, text: must equal the 09-22 acceptance output =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json search game
+
+Echo >>RAM:json-console.txt "*N== search game, json =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --json search game
+
+Echo >>RAM:json-console.txt "*N== list json, nothing installed =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --json list
+
+Echo >>RAM:json-console.txt "*N== install soliton with --progress =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --progress --machine onetest --run-id js-install --expect 0 --report RAM:jrep/1.json install soliton
+
+Echo >>RAM:json-console.txt "*N== list json, soliton installed (summary comes from the index) =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --json list
+
+Echo >>RAM:json-console.txt "*N== search json: soliton shows installed true =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --json search soliton
+
+Echo >>RAM:json-console.txt "*N== cancel during download: 14, no .part, nothing installed =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --progress --cancel-at download --machine onetest --run-id js-cancel-download --expect 14 --report RAM:jrep/2.json install screentest
+List >>RAM:json-console.txt SYS:PkgJson/cache
+List >>RAM:json-console.txt SYS:PkgJson/db/installed
+
+Echo >>RAM:json-console.txt "*N== cancel while bytes flow: 14, no .part, nothing installed =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --progress --cancel-at download-mid --machine onetest --run-id js-cancel-download-mid --expect 14 --report RAM:jrep/2b.json install screentest
+List >>RAM:json-console.txt SYS:PkgJson/cache
+List >>RAM:json-console.txt SYS:PkgJson/db/installed
+
+Echo >>RAM:json-console.txt "*N== cancel after verify: 14, archive cached, nothing installed =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --cancel-at verify --machine onetest --run-id js-cancel-verify --expect 14 --report RAM:jrep/3.json install screentest
+List >>RAM:json-console.txt SYS:PkgJson/cache
+List >>RAM:json-console.txt SYS:PkgJson/db/installed
+
+Echo >>RAM:json-console.txt "*N== cancel at extract is ignored: the install completes =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --index RAM:rel-index.json --progress --cancel-at extract --machine onetest --run-id js-cancel-extract --expect 0 --report RAM:jrep/4.json install screentest
+List >>RAM:json-console.txt SYS:PkgJson
+
+Echo >>RAM:json-console.txt "*N== remove both =="
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --machine onetest --run-id js-rm-soliton --expect 0 --report RAM:jrep/5.json remove soliton
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --machine onetest --run-id js-rm-screentest --expect 0 --report RAM:jrep/6.json remove screentest
+RAM:apkg >>RAM:json-console.txt --root SYS:PkgJson --json list
+
+Echo >>RAM:json-console.txt "== end =="
+Join RAM:jrep/#?.json AS RAM:json-reports.txt
+RAM:putfile RAM:json-console.txt
+RAM:putfile RAM:json-reports.txt

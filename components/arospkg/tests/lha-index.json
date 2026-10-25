@@ -1,0 +1,53 @@
+{
+ "schema": 1,
+ "source": "TEST: LHA packages -- not a repository",
+ "packages": [
+  {
+   "id": "hex2",
+   "version": "0.2",
+   "summary": "Calculator with variables",
+   "arch": "x86_64",
+   "abi": "v11",
+   "category": "utility/misc",
+   "url": "https://archives.arosworld.org/share/utility/misc/hex2.x86_64-aros-v11.lha",
+   "size": 248685,
+   "sha256": "7c401a29713ca9eb106a41879017fb517134013bfb22fd572f2ee67e6567bd58",
+   "depends": [],
+   "kind": "app",
+   "subdir": "Hex2",
+   "icon": "Hex2.info",
+   "install": {},
+   "requires_system": []
+  },
+  {
+   "id": "micropolis",
+   "version": "0.1.0-rc1",
+   "summary": "Classic city-building simulation for AROS",
+   "arch": "x86_64",
+   "abi": "v11",
+   "category": "game/strategy",
+   "url": "https://example.invalid/not-published-yet/micropolis.x86_64-aros-v11.lha",
+   "size": 2593505,
+   "sha256": "c46bbc14274af53fb4452f59081fbcf28f1ce5fffb534c06d169b0b1911cd124",
+   "depends": [],
+   "kind": "app",
+   "subdir": "Micropolis",
+   "icon": "Micropolis.info",
+   "install": {},
+   "requires_system": [
+    {
+     "type": "library",
+     "id": "crt.library"
+    },
+    {
+     "type": "library",
+     "id": "m.library"
+    },
+    {
+     "type": "library",
+     "id": "stdlib.library"
+    }
+   ]
+  }
+ ]
+}

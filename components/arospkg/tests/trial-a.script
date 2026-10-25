@@ -1,0 +1,62 @@
+; v0.1 trial, part A: install every candidate. Approval needs install,
+; a start, and a removal on the target; this is the first of the three.
+;     Execute PAYLOAD:R/TRIALA
+; Every command appends to RAM:triala-console.txt itself. Measured on AROS One on 2026-09-19:
+; redirecting Execute (or Run ... Execute) does not capture the output of the
+; commands inside the script, while a redirection on each command does. A line
+; that writes a test fixture keeps its own single redirection.
+
+FAILAT 21
+Delete RAM:triala-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:putfile +e
+Copy PAYLOAD:I/CANDIDX RAM:cand.json
+Protect RAM:apkg +e
+Delete RAM:trial ALL FORCE QUIET
+MakeDir RAM:trial
+Delete SYS:PkgV01 ALL FORCE QUIET
+MakeDir SYS:PkgV01
+RAM:apkg >>RAM:triala-console.txt --version
+
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-screentest-install --expect 0 --report RAM:trial/screentest-install.json install screentest
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-untangle-install --expect 0 --report RAM:trial/untangle-install.json install untangle
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-zunecalc-install --expect 0 --report RAM:trial/zunecalc-install.json install zunecalc
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-ccd2iso-install --expect 0 --report RAM:trial/ccd2iso-install.json install ccd2iso
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-bin2iso-install --expect 0 --report RAM:trial/bin2iso-install.json install bin2iso
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-dirtree-install --expect 0 --report RAM:trial/dirtree-install.json install dirtree
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-grep-install --expect 0 --report RAM:trial/grep-install.json install grep
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-iconmake-install --expect 0 --report RAM:trial/iconmake-install.json install iconmake
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-joytest-install --expect 0 --report RAM:trial/joytest-install.json install joytest
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-cls-install --expect 0 --report RAM:trial/cls-install.json install cls
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-diskusage-install --expect 0 --report RAM:trial/diskusage-install.json install diskusage
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-gisplita-install --expect 0 --report RAM:trial/gisplita-install.json install gisplita
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-timeit-install --expect 0 --report RAM:trial/timeit-install.json install timeit
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-gmore-install --expect 0 --report RAM:trial/gmore-install.json install gmore
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-zapperng-install --expect 0 --report RAM:trial/zapperng-install.json install zapperng
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-isomaker-install --expect 0 --report RAM:trial/isomaker-install.json install isomaker
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-isotool-install --expect 0 --report RAM:trial/isotool-install.json install isotool
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-unmount-install --expect 0 --report RAM:trial/unmount-install.json install unmount
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-soliton-install --expect 0 --report RAM:trial/soliton-install.json install soliton
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-blips-install --expect 0 --report RAM:trial/blips-install.json install blips
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-hocoslamfy-install --expect 0 --report RAM:trial/hocoslamfy-install.json install hocoslamfy
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-xrick-install --expect 0 --report RAM:trial/xrick-install.json install xrick
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-shooterspace-install --expect 0 --report RAM:trial/shooterspace-install.json install shooterspace
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-ominostage-install --expect 0 --report RAM:trial/ominostage-install.json install ominostage
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-unlzx-install --expect 0 --report RAM:trial/unlzx-install.json install unlzx
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-lzop-install --expect 0 --report RAM:trial/lzop-install.json install lzop
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-antiword-install --expect 0 --report RAM:trial/antiword-install.json install antiword
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-tinysid-install --expect 0 --report RAM:trial/tinysid-install.json install tinysid
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-skandalfoclock-install --expect 0 --report RAM:trial/skandalfoclock-install.json install skandalfoclock
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 --index RAM:cand.json --machine onetest --run-id t-rescode-install --expect 0 --report RAM:trial/rescode-install.json install rescode
+
+Echo >>RAM:triala-console.txt "*N-- what is installed, and each drawer with its icon beside it --"
+RAM:apkg >>RAM:triala-console.txt --root SYS:PkgV01 list
+List >>RAM:triala-console.txt SYS:PkgV01 PAT=#?.info
+Echo >>RAM:triala-console.txt "== end of trial A =="
+
+; Evidence out, as the last step: nothing may be typed into this Shell while
+; the script runs -- keystrokes land in its input and get spliced into output.
+RAM:putfile RAM:triala-console.txt
+Join RAM:trial/#?.json AS RAM:triala-reports.txt
+RAM:putfile RAM:triala-reports.txt

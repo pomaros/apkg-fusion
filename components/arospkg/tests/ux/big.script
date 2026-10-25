@@ -1,0 +1,52 @@
+; The large-catalogue acceptance: a generated 5000-package index (tests/
+; fixtures/make-big-index.py) read by the CLI, an install and an upgrade of
+; the entry at its very end (the real gmore archive), a download that is not
+; an index, and the published 0.3.2 client on the same file. Staged into
+; RAM:rxt; run as  Execute RAM:rxt/big.script <run>
+.key run/A
+FAILAT 1000
+Delete RAM:big ALL FORCE QUIET
+MakeDir RAM:big
+Copy RAM:rxt/#? RAM:big ALL QUIET
+Protect RAM:big/apkg +e
+Protect RAM:big/apkg-032 +e
+Delete SYS:UxBig SYS:UxBig2 ALL FORCE QUIET
+MakeDir SYS:UxBig SYS:UxBig/db SYS:UxBig2 SYS:UxBig2/db
+Copy RAM:big/big-5000.json SYS:UxBig/db/index.json
+Copy RAM:big/big-5000.json SYS:UxBig2/db/index.json
+RAM:big/apkg --version >RESULTS:<run>-version.txt
+
+Date >RESULTS:<run>-time-search.txt
+RAM:big/apkg --root SYS:UxBig search >RAM:big/s1.txt
+RAM:big/apkg --root SYS:UxBig search >RAM:big/s2.txt
+RAM:big/apkg --root SYS:UxBig search >RAM:big/s3.txt
+RAM:big/apkg --root SYS:UxBig search >RAM:big/s4.txt
+RAM:big/apkg --root SYS:UxBig search >RAM:big/s5.txt
+Date >>RESULTS:<run>-time-search.txt
+Echo "rc=$RC" >>RESULTS:<run>-time-search.txt
+Copy RAM:big/s5.txt RESULTS:<run>-search.txt
+RAM:big/apkg --root SYS:UxBig search calculator >RESULTS:<run>-search-term.txt
+RAM:big/apkg --root SYS:UxBig --json search calculator >RESULTS:<run>-search-json.txt
+RAM:big/apkg --root SYS:UxBig show pkg00000 >RESULTS:<run>-show-variant.txt
+RAM:big/apkg --root SYS:UxBig show zz-target >RESULTS:<run>-show-last.txt
+Avail >RESULTS:<run>-avail-before.txt
+RAM:big/apkg --root SYS:UxBig install zz-target >RESULTS:<run>-install-last.txt
+Echo "rc=$RC" >>RESULTS:<run>-install-last.txt
+RAM:big/apkg --root SYS:UxBig list >RESULTS:<run>-list.txt
+RAM:big/apkg --root SYS:UxBig --json list >RESULTS:<run>-list-json.txt
+Copy RAM:big/big-5000-r1.json SYS:UxBig/db/index.json
+RAM:big/apkg --root SYS:UxBig upgrade zz-target >RESULTS:<run>-upgrade-last.txt
+Echo "rc=$RC" >>RESULTS:<run>-upgrade-last.txt
+RAM:big/apkg --root SYS:UxBig show zz-target >RESULTS:<run>-show-after-upgrade.txt
+
+; a 2xx answer that is not an index: the previous one must stay
+RAM:big/apkg --root SYS:UxBig2 --index-url https://raw.githubusercontent.com/tomaszstaniak/arospkg/main/README.md update >RESULTS:<run>-update-bad.txt
+Echo "rc=$RC" >>RESULTS:<run>-update-bad.txt
+RAM:big/apkg --root SYS:UxBig2 search >RAM:big/s6.txt
+Echo "rc=$RC" >RESULTS:<run>-after-bad-update.txt
+C:Search RAM:big/s6.txt zz-target >>RESULTS:<run>-after-bad-update.txt
+
+; the published 0.3.2 client on the same large index
+RAM:big/apkg-032 --root SYS:UxBig2 search >RESULTS:<run>-old-search.txt
+Echo "rc=$RC" >>RESULTS:<run>-old-search.txt
+Echo DONE >RESULTS:<run>-done.txt

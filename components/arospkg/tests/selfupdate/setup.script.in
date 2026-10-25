@@ -1,0 +1,40 @@
+; Self-update tests: what every boot needs. The network (AROSTCP is not
+; started at boot on every pool slot), the test CA in the RAM copy of the
+; certificate bundle only (gone at power-off; ENVARC: is not touched), and
+; the machine's own C:apkg and arospkg records put aside for cleanup.script.
+FailAt 21
+Protect RAM:rxt/apkg-b1 +e
+Protect RAM:rxt/apkg-r2 +e
+Protect RAM:rxt/hc +e
+Protect RAM:rxt/putfile +e
+If NOT EXISTS RAM:su-setup-done
+  ; AROS One starts its network at boot; the 2026.09 base does not.
+  Status >NIL: COMMAND AROSTCP
+  If WARN
+    Execute SYS:System/Network/AROSTCP/S/startnet
+  EndIf
+  Type RAM:rxt/ca.crt >>ENV:SYS/Certificates/ca-bundle.crt
+  If EXISTS C:apkg
+    Copy C:apkg RAM:c-apkg-before
+  EndIf
+  If EXISTS ENVARC:arospkg/copies.json
+    Copy ENVARC:arospkg/copies.json RAM:copies-before.json
+  EndIf
+  ; A PkgManager started from its icon uses SYS:Packages and makes it.
+  If NOT EXISTS SYS:Packages
+    Echo "none" >RAM:su-no-packages
+  EndIf
+  Echo "done" >RAM:su-setup-done
+EndIf
+; Every result of this run goes into its own drawer on RESULTS:.
+If NOT EXISTS RESULTS:arospkg-{{R}}
+  MakeDir RESULTS:arospkg-{{R}}
+EndIf
+List C:apkg#? ENVARC:arospkg >RESULTS:arospkg-{{R}}/{{R}}-setup.txt
+Delete ENVARC:arospkg/copies.json ENV:arospkg/copies.json ENVARC:arospkg/self-update.json QUIET
+If EXISTS SYS:SUT
+  Delete SYS:SUT ALL QUIET FORCE
+EndIf
+MakeDir SYS:SUT
+Wait 45
+RAM:rxt/putfile RESULTS:arospkg-{{R}}/{{R}}-setup.txt >NIL:

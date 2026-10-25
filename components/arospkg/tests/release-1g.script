@@ -1,0 +1,49 @@
+; v0.1 release suite, part G, standalone: a registry entry written by the
+; PREVIOUS release, removed by this one.
+;
+; Part G inside release-1 is one-shot by nature -- each run consumes one of the
+; packages installed on 2026-09-12 -- and they are used up. So the old binary is
+; rebuilt from its commit (87708fc, build id 628e220d2861a26f, the source hash
+; in that day's run reports) and writes a genuine old-format entry here: one
+; with no "icon" member, because icons did not exist yet.
+;     Execute PAYLOAD:R/REL1G
+
+FAILAT 1000
+Delete RAM:rel1g-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:OLDPKG RAM:oldpkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Copy PAYLOAD:I/RELIDX RAM:rel-index.json
+Protect RAM:apkg +e
+Protect RAM:oldpkg +e
+Protect RAM:putfile +e
+Delete SYS:PkgOld ALL FORCE QUIET
+MakeDir SYS:PkgOld
+Delete RAM:relg ALL FORCE QUIET
+MakeDir RAM:relg
+Copy PAYLOAD:A/CLSZIP SYS:PkgOld/cache/cls.zip CLONE
+
+Echo >>RAM:rel1g-console.txt "-- the 2026-09-12 binary installs cls --"
+RAM:oldpkg >>RAM:rel1g-console.txt --version
+RAM:oldpkg >>RAM:rel1g-console.txt --root SYS:PkgOld --index RAM:rel-index.json --machine onetest --run-id g2a --expect 0 --report RAM:relg/g2a.json install cls
+Echo >>RAM:rel1g-console.txt "-- its registry entry has no icon member (nothing should print) --"
+Search >>RAM:rel1g-console.txt SYS:PkgOld/db/installed/cls.json icon
+If EXISTS SYS:PkgOld/cls.info
+  Echo >>RAM:rel1g-console.txt "FAIL g2: the old binary wrote an icon, which it cannot do"
+Else
+  Echo >>RAM:rel1g-console.txt "PASS g2: no drawer icon, as that release did not have them"
+EndIf
+
+Echo >>RAM:rel1g-console.txt "*N-- this release removes that entry --"
+RAM:apkg >>RAM:rel1g-console.txt --version
+RAM:apkg >>RAM:rel1g-console.txt --root SYS:PkgOld --machine onetest --run-id g2 --expect 0 --report RAM:relg/g2.json remove cls
+If EXISTS SYS:PkgOld/cls
+  Echo >>RAM:rel1g-console.txt "FAIL g2: the drawer survived"
+Else
+  Echo >>RAM:rel1g-console.txt "PASS g2: an entry from the previous release removed cleanly"
+EndIf
+RAM:apkg >>RAM:rel1g-console.txt --root SYS:PkgOld list
+
+Join RAM:relg/#?.json AS RAM:rel1g-reports.txt
+RAM:putfile RAM:rel1g-console.txt
+RAM:putfile RAM:rel1g-reports.txt

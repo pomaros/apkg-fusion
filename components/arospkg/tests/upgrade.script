@@ -1,0 +1,159 @@
+; Upgrade and rollback on a controlled package, no network: both revisions
+; are placed in the cache with hashes the index expects.
+;     Execute PAYLOAD:S/UPGRADE
+; Every command appends to RAM:up-console.txt itself.
+
+FAILAT 1000
+Delete RAM:up-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Copy PAYLOAD:I/IDX1 RAM:idx-r1.json
+Copy PAYLOAD:I/IDX2 RAM:idx-r2.json
+Copy PAYLOAD:I/IDXV2 RAM:idx-v2.json
+Protect RAM:apkg +e
+Protect RAM:putfile +e
+Delete SYS:PkgUp ALL FORCE QUIET
+Delete RAM:urep ALL FORCE QUIET
+MakeDir RAM:urep
+MakeDir SYS:PkgUp
+MakeDir SYS:PkgUp/cache
+Copy PAYLOAD:A/UPR1 SYS:PkgUp/cache/up.zip
+Copy PAYLOAD:A/UPR2 SYS:PkgUp/cache/up.new.zip
+
+Echo >>RAM:up-console.txt "*N== install revision 1 =="
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r1.json --run-id u-install --expect 0 --report RAM:urep/u-install.json install up >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog de2e9dd44a1e7c1f67da798f8f458006704db548863cd87d4c81c2dd2a06b450 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/OldFile 01d09d19c2139a46aebfb577780d123d7396e97201bc7ead210a2ebff8239dee >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up.info 9a3b0850727271dcc7d3d254b46fb0e9b69d4f277dd97d9abfd1fb4982c8f3cb >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== the user edits config.txt =="
+Echo >>SYS:PkgUp/Up/config.txt "user edit"
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/config.txt 6878eb21668e065767933db2ca22b0f30e85accf08015d5e6f204bd58dffc0ea >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== upgrade to revision 2: Prog replaced, NewFile added, OldFile removed, config kept, icon replaced =="
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id u-upgrade --expect 0 --report RAM:urep/u-upgrade.json upgrade up >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog 681c1e1e81ef3103ee146d92458c19913ec2d567556d9cabf110e7bbfcaff3d4 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/NewFile 7aa7a5359173d05b63cfd682e3c38487f3cb4f7f1d60659fe59fab1505977d4c >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/config.txt 6878eb21668e065767933db2ca22b0f30e85accf08015d5e6f204bd58dffc0ea >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up.info df49d444954fe6148896b06dc9cb6c9f34880ecd5b0d5f646aed7a072591167e >>RAM:up-console.txt
+If EXISTS SYS:PkgUp/Up/OldFile
+  Echo >>RAM:up-console.txt "FAIL u-upgrade: Up/OldFile exists"
+Else
+  Echo >>RAM:up-console.txt "PASS u-upgrade: Up/OldFile absent"
+EndIf
+RAM:apkg --root SYS:PkgUp --machine onetest info up >>RAM:up-console.txt
+List SYS:PkgUp/cache SYS:PkgUp/cache/previous SYS:PkgUp/db/previous >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== the user edits NewFile after the upgrade =="
+Echo >>SYS:PkgUp/Up/NewFile "user edit"
+Echo >>RAM:up-console.txt "*N== rollback: Prog back to r1, OldFile back, NewFile kept as edited, config kept, icon back =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id u-rollback --expect 0 --report RAM:urep/u-rollback.json rollback up >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog de2e9dd44a1e7c1f67da798f8f458006704db548863cd87d4c81c2dd2a06b450 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/OldFile 01d09d19c2139a46aebfb577780d123d7396e97201bc7ead210a2ebff8239dee >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/NewFile fe0a2a98b026f730aa1e867238e981cd3dfe96e718a0e70400f279fb2074ed81 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/config.txt 6878eb21668e065767933db2ca22b0f30e85accf08015d5e6f204bd58dffc0ea >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up.info 9a3b0850727271dcc7d3d254b46fb0e9b69d4f277dd97d9abfd1fb4982c8f3cb >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== rollback again: nothing to go back to =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id u-rollback-none --expect 4 --report RAM:urep/u-rollback-none.json rollback up >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== conflict: the user edits Prog, which revision 2 changes -> refused, nothing touched =="
+Copy PAYLOAD:A/UPR2 SYS:PkgUp/cache/up.new.zip
+Delete SYS:PkgUp/Up/NewFile QUIET
+Echo >>SYS:PkgUp/Up/Prog "user edit"
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id u-conflict --expect 7 --report RAM:urep/u-conflict.json upgrade up >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog 08b02ed3c4659b116c00535c573f2a97cd94cdcfb109b5437c45aff3cae6ceb7 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/OldFile 01d09d19c2139a46aebfb577780d123d7396e97201bc7ead210a2ebff8239dee >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up.info 9a3b0850727271dcc7d3d254b46fb0e9b69d4f277dd97d9abfd1fb4982c8f3cb >>RAM:up-console.txt
+If EXISTS SYS:PkgUp/Up/NewFile
+  Echo >>RAM:up-console.txt "FAIL u-conflict: Up/NewFile exists"
+Else
+  Echo >>RAM:up-console.txt "PASS u-conflict: Up/NewFile absent"
+EndIf
+List SYS:PkgUp/db/transactions SYS:PkgUp/tmp >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== restore Prog; interrupted upgrades: 9 (old tree aside), 10 (new tree in place), 5 (before commit) =="
+Delete SYS:PkgUp/Up/Prog QUIET
+Echo >SYS:PkgUp/Up/Prog "prog r1"
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog de2e9dd44a1e7c1f67da798f8f458006704db548863cd87d4c81c2dd2a06b450 >>RAM:up-console.txt
+Copy PAYLOAD:A/UPR2 SYS:PkgUp/cache/up.new.zip
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id u-int9 --expect 11 --report RAM:urep/u-int9.json --interrupt-at 9 upgrade up >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== after interruption 9: the next write open recovers; revision 1 must be intact =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id u-int9-doctor --expect 0 --report RAM:urep/u-int9-doctor.json doctor --retry >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog de2e9dd44a1e7c1f67da798f8f458006704db548863cd87d4c81c2dd2a06b450 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/OldFile 01d09d19c2139a46aebfb577780d123d7396e97201bc7ead210a2ebff8239dee >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/config.txt 6878eb21668e065767933db2ca22b0f30e85accf08015d5e6f204bd58dffc0ea >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up.info 9a3b0850727271dcc7d3d254b46fb0e9b69d4f277dd97d9abfd1fb4982c8f3cb >>RAM:up-console.txt
+If EXISTS SYS:PkgUp/Up/NewFile
+  Echo >>RAM:up-console.txt "FAIL u-int9: Up/NewFile exists"
+Else
+  Echo >>RAM:up-console.txt "PASS u-int9: Up/NewFile absent"
+EndIf
+List SYS:PkgUp/db/transactions SYS:PkgUp/tmp >>RAM:up-console.txt
+Copy PAYLOAD:A/UPR2 SYS:PkgUp/cache/up.new.zip
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id u-int10 --expect 11 --report RAM:urep/u-int10.json --interrupt-at 10 upgrade up >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== after interruption 10: the next write open recovers; revision 1 must be intact =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id u-int10-doctor --expect 0 --report RAM:urep/u-int10-doctor.json doctor --retry >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog de2e9dd44a1e7c1f67da798f8f458006704db548863cd87d4c81c2dd2a06b450 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/OldFile 01d09d19c2139a46aebfb577780d123d7396e97201bc7ead210a2ebff8239dee >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/config.txt 6878eb21668e065767933db2ca22b0f30e85accf08015d5e6f204bd58dffc0ea >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up.info 9a3b0850727271dcc7d3d254b46fb0e9b69d4f277dd97d9abfd1fb4982c8f3cb >>RAM:up-console.txt
+If EXISTS SYS:PkgUp/Up/NewFile
+  Echo >>RAM:up-console.txt "FAIL u-int10: Up/NewFile exists"
+Else
+  Echo >>RAM:up-console.txt "PASS u-int10: Up/NewFile absent"
+EndIf
+List SYS:PkgUp/db/transactions SYS:PkgUp/tmp >>RAM:up-console.txt
+Copy PAYLOAD:A/UPR2 SYS:PkgUp/cache/up.new.zip
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id u-int5 --expect 11 --report RAM:urep/u-int5.json --interrupt-at 5 upgrade up >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== after interruption 5: the next write open recovers; revision 1 must be intact =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id u-int5-doctor --expect 0 --report RAM:urep/u-int5-doctor.json doctor --retry >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog de2e9dd44a1e7c1f67da798f8f458006704db548863cd87d4c81c2dd2a06b450 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/OldFile 01d09d19c2139a46aebfb577780d123d7396e97201bc7ead210a2ebff8239dee >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/config.txt 6878eb21668e065767933db2ca22b0f30e85accf08015d5e6f204bd58dffc0ea >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up.info 9a3b0850727271dcc7d3d254b46fb0e9b69d4f277dd97d9abfd1fb4982c8f3cb >>RAM:up-console.txt
+If EXISTS SYS:PkgUp/Up/NewFile
+  Echo >>RAM:up-console.txt "FAIL u-int5: Up/NewFile exists"
+Else
+  Echo >>RAM:up-console.txt "PASS u-int5: Up/NewFile absent"
+EndIf
+List SYS:PkgUp/db/transactions SYS:PkgUp/tmp >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== the real upgrade, then an interrupted rollback at 10, recovered: revision 2 must be intact =="
+Copy PAYLOAD:A/UPR2 SYS:PkgUp/cache/up.new.zip
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id u-upgrade2 --expect 0 --report RAM:urep/u-upgrade2.json upgrade up >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog 681c1e1e81ef3103ee146d92458c19913ec2d567556d9cabf110e7bbfcaff3d4 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id u-rint10 --expect 11 --report RAM:urep/u-rint10.json --interrupt-at 10 rollback up >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id u-rint10-doctor --expect 0 --report RAM:urep/u-rint10-doctor.json doctor --retry >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "*N== after the undone rollback, both archives and the previous entry are still there =="
+If EXISTS SYS:PkgUp/cache/up.zip
+  Echo >>RAM:up-console.txt "PASS u-rint10: current archive kept"
+Else
+  Echo >>RAM:up-console.txt "FAIL u-rint10: current archive missing"
+EndIf
+If EXISTS SYS:PkgUp/cache/previous/up.zip
+  Echo >>RAM:up-console.txt "PASS u-rint10: previous archive kept"
+Else
+  Echo >>RAM:up-console.txt "FAIL u-rint10: previous archive missing"
+EndIf
+If EXISTS SYS:PkgUp/db/previous/up.json
+  Echo >>RAM:up-console.txt "PASS u-rint10: previous registry entry kept"
+Else
+  Echo >>RAM:up-console.txt "FAIL u-rint10: previous registry entry missing"
+EndIf
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog 681c1e1e81ef3103ee146d92458c19913ec2d567556d9cabf110e7bbfcaff3d4 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/NewFile 7aa7a5359173d05b63cfd682e3c38487f3cb4f7f1d60659fe59fab1505977d4c >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up.info df49d444954fe6148896b06dc9cb6c9f34880ecd5b0d5f646aed7a072591167e >>RAM:up-console.txt
+If EXISTS SYS:PkgUp/Up/OldFile
+  Echo >>RAM:up-console.txt "FAIL u-rint10: Up/OldFile exists"
+Else
+  Echo >>RAM:up-console.txt "PASS u-rint10: Up/OldFile absent"
+EndIf
+Echo >>RAM:up-console.txt "*N== and the rollback for real =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id u-rollback2 --expect 0 --report RAM:urep/u-rollback2.json rollback up >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/Prog de2e9dd44a1e7c1f67da798f8f458006704db548863cd87d4c81c2dd2a06b450 >>RAM:up-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest assert-hash SYS:PkgUp/Up/OldFile 01d09d19c2139a46aebfb577780d123d7396e97201bc7ead210a2ebff8239dee >>RAM:up-console.txt
+If EXISTS SYS:PkgUp/Up/NewFile
+  Echo >>RAM:up-console.txt "FAIL u-rollback2: Up/NewFile exists"
+Else
+  Echo >>RAM:up-console.txt "PASS u-rollback2: Up/NewFile absent"
+EndIf
+Echo >>RAM:up-console.txt "*N== upgrade to a different upstream version is refused =="
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-v2.json --run-id u-version --expect 7 --report RAM:urep/u-version.json upgrade up >>RAM:up-console.txt
+Echo >>RAM:up-console.txt "== end =="
+Join RAM:urep/#?.json AS RAM:up-reports.txt
+RAM:putfile RAM:up-console.txt
+RAM:putfile RAM:up-reports.txt

@@ -1,0 +1,61 @@
+; verify and dry-run on the controlled package. Nothing a dry run prints is
+; checked by the guest; the host reads the console for the words.
+;     Execute PAYLOAD:S/VERIFY
+
+FAILAT 1000
+Delete RAM:vf-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Copy PAYLOAD:I/IDX1 RAM:idx-r1.json
+Copy PAYLOAD:I/IDX2 RAM:idx-r2.json
+Protect RAM:apkg +e
+Protect RAM:putfile +e
+Delete SYS:PkgUp ALL FORCE QUIET
+Delete RAM:vrep ALL FORCE QUIET
+MakeDir RAM:vrep
+MakeDir SYS:PkgUp
+MakeDir SYS:PkgUp/cache
+Copy PAYLOAD:A/UPR1 SYS:PkgUp/cache/up.zip
+
+Echo >>RAM:vf-console.txt "*N== install revision 1, then verify: everything as installed =="
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r1.json --run-id v-install --expect 0 --report RAM:vrep/v-install.json install up >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-verify0 --expect 0 --report RAM:vrep/v-verify0.json verify up >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --json verify up >>RAM:vf-console.txt
+Echo >>RAM:vf-console.txt "*N== edit config.txt, delete OldFile, add Extra: 1 changed, 1 missing, 1 not the package's =="
+Echo >>SYS:PkgUp/Up/config.txt "user edit"
+Delete SYS:PkgUp/Up/OldFile
+Echo >SYS:PkgUp/Up/Extra "mine"
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-verify1 --expect 0 --report RAM:vrep/v-verify1.json verify up >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --json verify up >>RAM:vf-console.txt
+Echo >>RAM:vf-console.txt "*N== dry-run remove: says what it would do, changes nothing =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-dry-remove --expect 0 --report RAM:vrep/v-dry-remove.json --dry-run remove up >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-verify2 --expect 0 --report RAM:vrep/v-verify2.json verify up >>RAM:vf-console.txt
+List SYS:PkgUp/db/installed SYS:PkgUp/db/transactions SYS:PkgUp/tmp >>RAM:vf-console.txt
+Echo >>RAM:vf-console.txt "*N== dry-run upgrade without the new archive and without --fetch: plan incomplete, says so =="
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id v-dry-up-nofetch --expect 0 --report RAM:vrep/v-dry-up-nofetch.json --dry-run upgrade up >>RAM:vf-console.txt
+Echo >>RAM:vf-console.txt "*N== dry-run upgrade with the new archive cached: the plan, and the conflict on Extra? no -- Extra is not in r2; the plan =="
+Copy PAYLOAD:A/UPR2 SYS:PkgUp/cache/up.new.zip
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id v-dry-up --expect 0 --report RAM:vrep/v-dry-up.json --dry-run upgrade up >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-verify3 --expect 0 --report RAM:vrep/v-verify3.json verify up >>RAM:vf-console.txt
+List SYS:PkgUp/db/installed SYS:PkgUp/db/transactions SYS:PkgUp/tmp >>RAM:vf-console.txt
+Echo >>RAM:vf-console.txt "*N== dry-run rollback with nothing to go back to =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-dry-rb --expect 0 --report RAM:vrep/v-dry-rb.json --dry-run rollback up >>RAM:vf-console.txt
+Echo >>RAM:vf-console.txt "*N== an interrupted upgrade, then a dry run: it must NOT recover; then doctor does =="
+Delete SYS:PkgUp/Up/config.txt
+Echo >SYS:PkgUp/Up/config.txt "cfg"
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r2.json --run-id v-int9 --expect 11 --report RAM:vrep/v-int9.json --interrupt-at 9 upgrade up >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-dry-after-int --expect 0 --report RAM:vrep/v-dry-after-int.json --dry-run remove up >>RAM:vf-console.txt
+List SYS:PkgUp/db/transactions >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-doctor --expect 0 --report RAM:vrep/v-doctor.json doctor --retry >>RAM:vf-console.txt
+List SYS:PkgUp/db/transactions >>RAM:vf-console.txt
+Echo >>RAM:vf-console.txt "*N== remove for real, then dry-run install: the file list from the cached archive; without the archive, incomplete =="
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-remove --expect 0 --report RAM:vrep/v-remove.json remove up >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r1.json --run-id v-dry-install --expect 0 --report RAM:vrep/v-dry-install.json --dry-run install up >>RAM:vf-console.txt
+List SYS:PkgUp/db/installed SYS:PkgUp/tmp >>RAM:vf-console.txt
+Delete SYS:PkgUp/cache/up.zip
+RAM:apkg --root SYS:PkgUp --machine onetest --index RAM:idx-r1.json --run-id v-dry-install-nofetch --expect 0 --report RAM:vrep/v-dry-install-nofetch.json --dry-run install up >>RAM:vf-console.txt
+RAM:apkg --root SYS:PkgUp --machine onetest --run-id v-list --expect 0 --report RAM:vrep/v-list.json list >>RAM:vf-console.txt
+Echo >>RAM:vf-console.txt "== end =="
+Join RAM:vrep/#?.json AS RAM:vf-reports.txt
+RAM:putfile RAM:vf-console.txt
+RAM:putfile RAM:vf-reports.txt

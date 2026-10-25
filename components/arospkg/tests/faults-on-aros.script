@@ -1,0 +1,86 @@
+; arospkg fault run -- the paths that only execute when a write FAILS, plus the
+; window inside u_publish. None of these is reachable by stopping early: the
+; code has to try and be refused.
+;
+;   Execute "Qemu Vvfat:faults-on-aros.script"
+
+FAILAT 21
+
+Echo "== arospkg fault run =="
+RAM:apkg --version
+
+Delete SYS:PkgTest ALL FORCE QUIET
+Delete SYS:PkgFaults ALL FORCE QUIET
+MakeDir SYS:PkgTest
+MakeDir SYS:PkgTest/cache
+MakeDir SYS:PkgFaults
+Copy "Qemu Vvfat:zaphod.zip" SYS:PkgTest/cache
+
+Echo "*N-- F1. 005-commit refused during install --"
+Echo "expect: install fails, transaction KEPT, next run rolls back"
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --machine mainline --fail-at commit --run-id f1 --expect 9 --report SYS:PkgFaults/f1.json install zaphod
+Echo "transactions left behind:"
+List SYS:PkgTest/db/transactions
+Echo "read-only view (should warn):"
+RAM:apkg --root SYS:PkgTest --run-id f1r --report SYS:PkgFaults/f1r.json list
+Echo "recovery on the next mutating run:"
+RAM:apkg --root SYS:PkgTest --run-id f1x --expect 4 --report SYS:PkgFaults/f1x.json remove zaphod
+RAM:apkg --root SYS:PkgTest --run-id f1y --report SYS:PkgFaults/f1y.json list
+
+Echo "*N-- F2. doctor report refused during remove --"
+Echo "expect: remove aborts with the REGISTRY STILL PRESENT"
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --run-id f2a --report SYS:PkgFaults/f2a.json install zaphod
+Echo "modified by the user" >SYS:PkgTest/zaphod/README
+RAM:apkg --root SYS:PkgTest --fail-at doctor --run-id f2 --expect 9 --report SYS:PkgFaults/f2.json remove zaphod
+Echo "is the registry still there?"
+List SYS:PkgTest/db/installed
+Echo "retry without the fault:"
+RAM:apkg --root SYS:PkgTest --run-id f2x --expect 4 --report SYS:PkgFaults/f2x.json remove zaphod
+List SYS:PkgTest/db/doctor
+
+Echo "*N-- F3. publish window, with a user file that nothing registered --"
+; The window only opens when the DESTINATION exists and no registry claims it,
+; which is the leftover state a previous failure produces. The first version of
+; this test reinstalled over a live package and never got there -- install
+; refuses with "already installed" first -- yet it produced a report with a
+; status in the right place and looked like it passed. Hence --expect: a test
+; passes when it reaches what it was testing and ends where it should.
+;
+; The harder question is what happens to content nobody registered. Absence of
+; a registry entry is not a licence to delete: a file the user put there must
+; still be byte-for-byte itself afterwards.
+
+Delete SYS:PkgTest/zaphod ALL FORCE QUIET
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --run-id f3a --expect 0 --report SYS:PkgFaults/f3a.json install zaphod
+Delete SYS:PkgTest/db/installed/zaphod.json FORCE
+
+Echo "a file the user put there, which no registry mentions:"
+Echo "irreplaceable" >SYS:PkgTest/zaphod/MY-SAVEGAME
+; sha256 of the 14 bytes "irreplaceable" plus newline
+RAM:apkg assert-hash SYS:PkgTest/zaphod/MY-SAVEGAME dfa760658b74123b95f0638d3f7cd05d01965cc46eb75b9dae69a8fd8fcf2c41
+
+Echo "*NOWNERSHIP: README below predates this transaction. It is a PACKAGE"
+Echo "file, byte-identical to what a fresh install would write, so its hash"
+Echo "cannot distinguish it from one we created. Only the disk can."
+RAM:apkg assert-hash SYS:PkgTest/zaphod/README 2bc08a14fd9782252d17f608804391f62b44820b928e4dc79f5fce9e749ebb58
+
+Echo "*Nstop inside the publish window:"
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --interrupt-at 7 --run-id f3 --expect 11 --report SYS:PkgFaults/f3.json install zaphod
+Echo "the user file, after the interruption:"
+RAM:apkg assert-hash SYS:PkgTest/zaphod/MY-SAVEGAME dfa760658b74123b95f0638d3f7cd05d01965cc46eb75b9dae69a8fd8fcf2c41
+Echo "the pre-existing PACKAGE file, after the interruption:"
+RAM:apkg assert-hash SYS:PkgTest/zaphod/README 2bc08a14fd9782252d17f608804391f62b44820b928e4dc79f5fce9e749ebb58
+
+Echo "*Nrecovery -- it must NOT delete files it never created:"
+RAM:apkg --root SYS:PkgTest --run-id f3d --report SYS:PkgFaults/f3d.json doctor
+RAM:apkg --root SYS:PkgTest --run-id f3x --report SYS:PkgFaults/f3x.json doctor --retry
+Echo "the user file, after recovery:"
+RAM:apkg assert-hash SYS:PkgTest/zaphod/MY-SAVEGAME dfa760658b74123b95f0638d3f7cd05d01965cc46eb75b9dae69a8fd8fcf2c41
+Echo "the pre-existing PACKAGE file, after recovery:"
+RAM:apkg assert-hash SYS:PkgTest/zaphod/README 2bc08a14fd9782252d17f608804391f62b44820b928e4dc79f5fce9e749ebb58
+Echo "how many files are left?"
+List SYS:PkgTest/zaphod
+
+Echo "*N== fault reports =="
+List SYS:PkgFaults
+Echo "== end of fault run =="

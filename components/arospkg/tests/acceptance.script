@@ -1,0 +1,97 @@
+; v0.1 acceptance: what the README tells a user to do, done in that order,
+; from the release archive, against the PUBLISHED index.
+;     Execute PAYLOAD:R/ACCEPT
+;
+; Nothing from the test payload is used except the archive itself and putfile
+; (to get the transcript out). apkg comes out of the release zip, as a user's
+; would, and every command below is quoted from the README.
+
+FAILAT 1000
+Delete RAM:accept-console.txt QUIET
+Delete RAM:acc ALL FORCE QUIET
+MakeDir RAM:acc
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:putfile +e
+Delete RAM:unpacked ALL FORCE QUIET
+MakeDir RAM:unpacked
+Delete SYS:Packages ALL FORCE QUIET
+
+Echo >>RAM:accept-console.txt "== a user unpacks the release archive =="
+CD RAM:unpacked
+Copy PAYLOAD:A/RELZIP RAM:unpacked/release.zip
+; The archive under test is named by its hash, and so is the apkg inside it,
+; before anything else runs: a payload built with the wrong archive once
+; produced an acceptance of the previous release (2026-09-29).
+Copy PAYLOAD:APKG RAM:hashcheck
+Protect RAM:hashcheck +e
+Echo >>RAM:accept-console.txt "== the archive under test =="
+RAM:hashcheck >>RAM:accept-console.txt assert-hash RAM:unpacked/release.zip @RELSHA@
+If WARN
+  Echo >>RAM:accept-console.txt "ABORT: not the archive this acceptance was built for"
+  Echo >RAM:accept-reports.txt "FAIL archive hash"
+  RAM:putfile RAM:accept-console.txt
+  RAM:putfile RAM:accept-reports.txt
+  Quit 20
+EndIf
+UnZip >>RAM:accept-console.txt RAM:unpacked/release.zip
+RAM:hashcheck >>RAM:accept-console.txt assert-hash RAM:unpacked/@RELDIR@/apkg @APKGSHA@
+If WARN
+  Echo >>RAM:accept-console.txt "ABORT: the apkg in the archive is not the binary under test"
+  Echo >RAM:accept-reports.txt "FAIL apkg hash"
+  RAM:putfile RAM:accept-console.txt
+  RAM:putfile RAM:accept-reports.txt
+  Quit 20
+EndIf
+List >>RAM:accept-console.txt RAM:unpacked/@RELDIR@
+
+Echo >>RAM:accept-console.txt "*N== and copies apkg to C:, as the README says =="
+Copy RAM:unpacked/@RELDIR@/apkg C:
+Protect C:apkg +e
+CD SYS:
+
+; AROSTCP comes up asynchronously after a boot. Started too early, apkg says so
+; and names the command to fix it -- which is correct behaviour, and not what
+; this test is measuring, so it waits for the stack first.
+Wait 60
+Echo >>RAM:accept-console.txt "*N== apkg --version: the abi line must say v11 =="
+apkg >>RAM:accept-console.txt --version
+
+Echo >>RAM:accept-console.txt "*N== apkg update =="
+apkg >>RAM:accept-console.txt --machine onetest --run-id a-update --expect 0 --report RAM:acc/a1.json update
+
+Echo >>RAM:accept-console.txt "*N== apkg search game =="
+apkg >>RAM:accept-console.txt search game
+
+Echo >>RAM:accept-console.txt "*N== apkg install soliton =="
+apkg >>RAM:accept-console.txt --machine onetest --run-id a-install --expect 0 --report RAM:acc/a2.json install soliton
+List >>RAM:accept-console.txt SYS:Packages
+
+Echo >>RAM:accept-console.txt "*N== the user starts it from its drawer =="
+CD SYS:Packages/soliton
+Run >NIL: <NIL: Soliton
+Wait 15
+Echo >>RAM:accept-console.txt "soliton running? (a number means yes):"
+Status >>RAM:accept-console.txt COMMAND=Soliton
+Status >NIL: COMMAND=Soliton
+If NOT WARN
+  Break >NIL: `Status COMMAND=Soliton` C
+EndIf
+Wait 4
+CD SYS:
+
+Echo >>RAM:accept-console.txt "*N== apkg list, info, remove =="
+apkg >>RAM:accept-console.txt list
+apkg >>RAM:accept-console.txt --machine onetest --run-id a-remove --expect 0 --report RAM:acc/a3.json remove soliton
+apkg >>RAM:accept-console.txt list
+List >>RAM:accept-console.txt SYS:Packages
+
+Echo >>RAM:accept-console.txt "*N== and the checksums in the archive match what was unpacked =="
+CD RAM:unpacked/@RELDIR@
+Type >>RAM:accept-console.txt SHA256SUMS
+apkg >>RAM:accept-console.txt --version
+CD SYS:
+
+Echo >>RAM:accept-console.txt "== end of acceptance =="
+Join RAM:acc/#?.json AS RAM:accept-reports.txt
+RAM:putfile RAM:accept-console.txt
+RAM:putfile RAM:accept-reports.txt

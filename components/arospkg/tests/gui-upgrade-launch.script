@@ -1,0 +1,20 @@
+; PkgManager over a root prepared for the upgrade scenario: the published
+; soliton index as db/index.json and both archives in the cache, so the
+; window never needs the network. Slowed transfers, automatic confirmation of
+; the requester (--yes) and an event log, for a driven run.
+Copy PAYLOAD:PKGMGR RAM:PkgManager
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:PkgManager +e
+Protect RAM:apkg +e
+Protect RAM:putfile +e
+Delete SYS:PkgSol ALL FORCE QUIET
+Delete RAM:gui-#? QUIET
+MakeDir SYS:PkgSol
+MakeDir SYS:PkgSol/db
+MakeDir SYS:PkgSol/cache
+Copy PAYLOAD:I/IDXS1 SYS:PkgSol/db/index.json
+Copy PAYLOAD:I/IDXS2 RAM:idx-sol2.json
+Copy PAYLOAD:A/SOLR1 SYS:PkgSol/cache/soliton.zip
+Copy PAYLOAD:A/SOLR2 RAM:soliton-r2.zip
+Run >NIL: RAM:PkgManager --root SYS:PkgSol --slow 300 --yes --log RAM:gui-events.log

@@ -1,0 +1,52 @@
+; v0.1 trial, part C: remove every candidate, after each was started by hand.
+;     Execute PAYLOAD:R/TRIALC
+; Every command appends to RAM:trialc-console.txt itself. Measured on AROS One on 2026-09-19:
+; redirecting Execute (or Run ... Execute) does not capture the output of the
+; commands inside the script, while a redirection on each command does. A line
+; that writes a test fixture keeps its own single redirection.
+
+FAILAT 21
+Delete RAM:trialc-console.txt QUIET
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:putfile +e
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-screentest-remove --expect 0 --report RAM:trial/screentest-remove.json remove screentest
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-untangle-remove --expect 0 --report RAM:trial/untangle-remove.json remove untangle
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-zunecalc-remove --expect 0 --report RAM:trial/zunecalc-remove.json remove zunecalc
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-ccd2iso-remove --expect 0 --report RAM:trial/ccd2iso-remove.json remove ccd2iso
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-bin2iso-remove --expect 0 --report RAM:trial/bin2iso-remove.json remove bin2iso
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-dirtree-remove --expect 0 --report RAM:trial/dirtree-remove.json remove dirtree
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-grep-remove --expect 0 --report RAM:trial/grep-remove.json remove grep
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-iconmake-remove --expect 0 --report RAM:trial/iconmake-remove.json remove iconmake
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-joytest-remove --expect 0 --report RAM:trial/joytest-remove.json remove joytest
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-cls-remove --expect 0 --report RAM:trial/cls-remove.json remove cls
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-diskusage-remove --expect 0 --report RAM:trial/diskusage-remove.json remove diskusage
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-gisplita-remove --expect 0 --report RAM:trial/gisplita-remove.json remove gisplita
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-timeit-remove --expect 0 --report RAM:trial/timeit-remove.json remove timeit
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-gmore-remove --expect 0 --report RAM:trial/gmore-remove.json remove gmore
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-zapperng-remove --expect 0 --report RAM:trial/zapperng-remove.json remove zapperng
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-isomaker-remove --expect 0 --report RAM:trial/isomaker-remove.json remove isomaker
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-isotool-remove --expect 0 --report RAM:trial/isotool-remove.json remove isotool
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-unmount-remove --expect 0 --report RAM:trial/unmount-remove.json remove unmount
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-soliton-remove --expect 0 --report RAM:trial/soliton-remove.json remove soliton
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-blips-remove --expect 0 --report RAM:trial/blips-remove.json remove blips
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-hocoslamfy-remove --expect 0 --report RAM:trial/hocoslamfy-remove.json remove hocoslamfy
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-xrick-remove --expect 0 --report RAM:trial/xrick-remove.json remove xrick
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-shooterspace-remove --expect 0 --report RAM:trial/shooterspace-remove.json remove shooterspace
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-ominostage-remove --expect 0 --report RAM:trial/ominostage-remove.json remove ominostage
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-unlzx-remove --expect 0 --report RAM:trial/unlzx-remove.json remove unlzx
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-lzop-remove --expect 0 --report RAM:trial/lzop-remove.json remove lzop
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-antiword-remove --expect 0 --report RAM:trial/antiword-remove.json remove antiword
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-tinysid-remove --expect 0 --report RAM:trial/tinysid-remove.json remove tinysid
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-skandalfoclock-remove --expect 0 --report RAM:trial/skandalfoclock-remove.json remove skandalfoclock
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 --machine onetest --run-id t-rescode-remove --expect 0 --report RAM:trial/rescode-remove.json remove rescode
+
+Echo >>RAM:trialc-console.txt "*N-- after removing everything: the root must hold only db/ and cache/ --"
+List >>RAM:trialc-console.txt SYS:PkgV01
+RAM:apkg >>RAM:trialc-console.txt --root SYS:PkgV01 list
+Echo >>RAM:trialc-console.txt "== end of trial C =="
+
+; Evidence out, as the last step: nothing may be typed into this Shell while
+; the script runs -- keystrokes land in its input and get spliced into output.
+RAM:putfile RAM:trialc-console.txt
+Join RAM:trial/#?.json AS RAM:trialc-reports.txt
+RAM:putfile RAM:trialc-reports.txt

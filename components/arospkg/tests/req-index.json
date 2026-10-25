@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "source": "tests/req-index.json -- NOT a repository. Hand-written test data.",
+  "packages": [
+    {
+      "id": "req-test-missing",
+      "version": "0",
+      "arch": "x86_64",
+      "abi": "v11",
+      "summary": "TEST ONLY: requires a library that exists nowhere",
+      "category": "test",
+      "kind": "app",
+      "url": "https://example.invalid/never-fetched.zip",
+      "size": 1,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "depends": [],
+      "subdir": "",
+      "icon": "",
+      "install": {},
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "arospkg-test-absent.library"
+        }
+      ]
+    },
+    {
+      "id": "req-test-undetermined",
+      "version": "1.3",
+      "arch": "x86_64",
+      "abi": "v11",
+      "summary": "TEST ONLY: an undeterminable requirement (zaphod's archive)",
+      "category": "test",
+      "kind": "app",
+      "url": "https://archives.arosworld.org/share/development/edit/zaphod-v1.3-.x86_64-aros-v11.zip",
+      "size": 218782,
+      "sha256": "603e292457c3439f32709380bdd1d9c72b06536d013eebc01541a0bf0fa75448",
+      "depends": [],
+      "subdir": "ZapHod",
+      "icon": "",
+      "install": {},
+      "requires_system": [
+        {
+          "type": "datatype",
+          "id": "png"
+        }
+      ]
+    },
+    {
+      "id": "req-test-satisfied",
+      "version": "1.3",
+      "arch": "x86_64",
+      "abi": "v11",
+      "summary": "TEST ONLY: a requirement every AROS meets (zaphod's archive)",
+      "category": "test",
+      "kind": "app",
+      "url": "https://archives.arosworld.org/share/development/edit/zaphod-v1.3-.x86_64-aros-v11.zip",
+      "size": 218782,
+      "sha256": "603e292457c3439f32709380bdd1d9c72b06536d013eebc01541a0bf0fa75448",
+      "depends": [],
+      "subdir": "ZapHod",
+      "icon": "",
+      "install": {},
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "dos.library"
+        }
+      ]
+    }
+  ]
+}

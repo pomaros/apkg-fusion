@@ -1,0 +1,15 @@
+; `show` acceptance: a package root of its own, SYS:PkgShow, with no index
+; yet and soliton revision 1 in the cache.
+Failat 21
+Protect RAM:rxt/apkg +e
+Protect RAM:rxt/PkgManager +e
+Delete SYS:PkgShow ALL FORCE QUIET
+MakeDir SYS:PkgShow
+MakeDir SYS:PkgShow/db
+MakeDir SYS:PkgShow/cache
+Copy RAM:rxt/SOLR1 SYS:PkgShow/cache/soliton.zip
+Copy RAM:rxt/RESCODEZIP SYS:PkgShow/cache/rescode.zip
+; a root with no index, for ARexx NOINDEX and then TOOLONG
+Delete SYS:PkgEmpty ALL FORCE QUIET
+MakeDir SYS:PkgEmpty
+MakeDir SYS:PkgEmpty/db

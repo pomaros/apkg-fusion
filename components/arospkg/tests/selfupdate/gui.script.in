@@ -1,0 +1,122 @@
+### gui-g1
+; G1: a drawer unpacked by hand at 0.6.99-sutest1, started from a Shell with
+; a root of its own; C:apkg at the same build and recorded with nothing, so
+; the window asks about it. run-on-pool.sh then drives the window.
+FailAt 21
+Delete ENVARC:arospkg/copies.json ENV:arospkg/copies.json QUIET
+Copy RAM:rxt/apkg-b1 C:apkg
+Protect C:apkg +e
+MakeDir "SYS:SUT/Gui Apps"
+UnZip >NIL: RAM:rxt/arospkg-0.6.99-sutest1.x86_64-aros-v11.zip -d "SYS:SUT/Gui Apps"
+MakeDir "SYS:SUT/G Root"
+Assign SUG: "SYS:SUT/Gui Apps/arospkg-0.6.99-sutest1.x86_64-aros-v11"
+; Started as the README says: in its drawer, Run PkgManager. The Shell
+; process is then named PkgManager too, and must still count as one window.
+CD SUG:
+Run >NIL: PkgManager --root "SYS:SUT/G Root" --release-from https://10.0.2.2/slow/ --log RAM:pmg1.log
+CD SYS:
+### gui-g1-check
+FailAt 21
+Set G "SYS:SUT/Gui Apps/arospkg-0.6.99-sutest1.x86_64-aros-v11"
+Echo "== g1: after Update arospkg in the window, and its restart" >RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+RAM:rxt/hc assert-hash "$G/PkgManager" {{P2}} >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+RAM:rxt/hc assert-hash "$G/apkg" {{A2}} >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+RAM:rxt/hc assert-hash "$G/BUILD.txt" {{B2}} >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+RAM:rxt/hc assert-hash "$G/PkgManager.info" {{I1}} >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+RAM:rxt/hc assert-hash C:apkg {{A2}} >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+Type ENVARC:arospkg/copies.json >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+Echo "-- log" >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+Type RAM:pmg1.log >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+List T: >>RESULTS:arospkg-{{R}}/{{R}}-g1.txt
+RAM:rxt/putfile RESULTS:arospkg-{{R}}/{{R}}-g1.txt >NIL:
+### gui-g2
+; G2: the same window, now at 0.7.0-sutest2, offered 0.7.1-sutest3 slowly;
+; the driver presses Cancel during the download.
+; The window G1 left was started again by apkg, by its full path; the
+; driver closes it before this runs.
+FailAt 21
+Run >NIL: SUG:PkgManager --root "SYS:SUT/G Root" --release-from https://10.0.2.2/slow3/ --log RAM:pmg2.log
+### gui-g2-check
+FailAt 21
+Set G "SYS:SUT/Gui Apps/arospkg-0.6.99-sutest1.x86_64-aros-v11"
+Echo "== g2: cancelled during the download: nothing changed" >RESULTS:arospkg-{{R}}/{{R}}-g2.txt
+RAM:rxt/hc assert-hash "$G/PkgManager" {{P2}} >>RESULTS:arospkg-{{R}}/{{R}}-g2.txt
+RAM:rxt/hc assert-hash "$G/apkg" {{A2}} >>RESULTS:arospkg-{{R}}/{{R}}-g2.txt
+RAM:rxt/hc assert-hash C:apkg {{A2}} >>RESULTS:arospkg-{{R}}/{{R}}-g2.txt
+If EXISTS ENVARC:arospkg/self-update.json
+  Echo "FAIL a journal was left" >>RESULTS:arospkg-{{R}}/{{R}}-g2.txt
+Else
+  Echo "PASS no journal" >>RESULTS:arospkg-{{R}}/{{R}}-g2.txt
+EndIf
+List "$G" T: >>RESULTS:arospkg-{{R}}/{{R}}-g2.txt
+Type RAM:pmg2.log >>RESULTS:arospkg-{{R}}/{{R}}-g2.txt
+Assign SUG: REMOVE
+RAM:rxt/putfile RESULTS:arospkg-{{R}}/{{R}}-g2.txt >NIL:
+### gui-g5
+; G5: this PkgManager is the release, but the apkg beside it and C:apkg are
+; behind: the window must see the whole installation and offer the update.
+FailAt 21
+Assign SUG: "SYS:SUT/Gui Apps/arospkg-0.6.99-sutest1.x86_64-aros-v11"
+Copy RAM:rxt/apkg-b1 SUG:apkg
+Copy RAM:rxt/apkg-b1 C:apkg
+Protect SUG:apkg +e
+Protect C:apkg +e
+Run >NIL: SUG:PkgManager --root "SYS:SUT/G Root" --release-from https://10.0.2.2/r2/ --log RAM:pmg5.log
+### gui-g5-check
+FailAt 21
+Echo "== g5: only the files that were behind were updated" >RESULTS:arospkg-{{R}}/{{R}}-g5.txt
+RAM:rxt/hc assert-hash SUG:apkg {{A2}} >>RESULTS:arospkg-{{R}}/{{R}}-g5.txt
+RAM:rxt/hc assert-hash C:apkg {{A2}} >>RESULTS:arospkg-{{R}}/{{R}}-g5.txt
+RAM:rxt/hc assert-hash SUG:PkgManager {{P2}} >>RESULTS:arospkg-{{R}}/{{R}}-g5.txt
+Type RAM:pmg5.log >>RESULTS:arospkg-{{R}}/{{R}}-g5.txt
+Assign SUG: REMOVE
+RAM:rxt/putfile RESULTS:arospkg-{{R}}/{{R}}-g5.txt >NIL:
+### gui-g3
+; G3: arospkg installed by apkg as a package at 0.6.99-sutest1, started from
+; its icon (Workbench: no arguments; its compiled-in test source offers
+; 0.7.0-sutest2). Restarted from its icon after the update.
+FailAt 21
+MakeDir SYS:SUT/WbRoot
+RAM:rxt/apkg-r2 --root SYS:SUT/WbRoot --index RAM:rxt/idxb1.json install arospkg >RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+Echo "install rc=$RC" >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+RAM:rxt/apkg-r2 --root SYS:SUT/WbRoot run arospkg >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+### gui-g3-check
+FailAt 21
+Set W "SYS:SUT/WbRoot/arospkg"
+Echo "== g3: the package after Update arospkg from a window started from its icon" >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+RAM:rxt/hc assert-hash "$W/PkgManager" {{P2}} >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+RAM:rxt/hc assert-hash "$W/apkg" {{A2}} >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+RAM:rxt/hc assert-hash "$W/BUILD.txt" {{B2}} >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+RAM:rxt/apkg-r2 --root SYS:SUT/WbRoot info arospkg >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+RAM:rxt/apkg-r2 --root SYS:SUT/WbRoot verify arospkg >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+Echo "verify rc=$RC" >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+Status >>RESULTS:arospkg-{{R}}/{{R}}-g3.txt
+RAM:rxt/putfile RESULTS:arospkg-{{R}}/{{R}}-g3.txt >NIL:
+### gui-g4
+; G4: an update stopped dead between apkg and PkgManager (from the Shell);
+; then PkgManager is started from that drawer and offers to repair it.
+FailAt 21
+MakeDir "SYS:SUT/Int G"
+UnZip >NIL: RAM:rxt/arospkg-0.6.99-sutest1.x86_64-aros-v11.zip -d "SYS:SUT/Int G"
+Assign SUIG: "SYS:SUT/Int G/arospkg-0.6.99-sutest1.x86_64-aros-v11"
+SUIG:apkg --root "SYS:SUT/No Root" --self-update-from https://10.0.2.2/r2/ --self-update-fail-at stop:1 self-update >RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+Echo "rc=$RC want=20" >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+RAM:rxt/hc assert-hash SUIG:PkgManager {{P1}} >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+Run >NIL: SUIG:PkgManager --root "SYS:SUT/No Root" --log RAM:pmg4.log
+### gui-g4-check
+FailAt 21
+Echo "== g4: after Repair now and the restart" >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+RAM:rxt/hc assert-hash SUIG:apkg {{A2}} >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+RAM:rxt/hc assert-hash SUIG:PkgManager {{P2}} >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+RAM:rxt/hc assert-hash SUIG:BUILD.txt {{B2}} >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+If EXISTS ENVARC:arospkg/self-update.json
+  Echo "FAIL the journal is still there" >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+Else
+  Echo "PASS journal gone" >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+EndIf
+Type RAM:pmg4.log >>RESULTS:arospkg-{{R}}/{{R}}-g4.txt
+Status >ENV:supm COMMAND SUIG:PkgManager
+Break $supm
+Wait 8
+Assign SUIG: REMOVE
+RAM:rxt/putfile RESULTS:arospkg-{{R}}/{{R}}-g4.txt >NIL:

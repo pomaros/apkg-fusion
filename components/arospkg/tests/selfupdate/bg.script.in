@@ -1,0 +1,14 @@
+### bg-jb
+FailAt 21
+; J: update B, held between its plan and its swap until RAM:su-go-b exists.
+SYS:SUT/JrnB/arospkg-0.6.99-sutest1.x86_64-aros-v11/apkg <NIL: >RAM:su-jb.out --root SYS:SUT/NoRoot --self-update-from https://10.0.2.2/r2/ --self-update-fail-at hold:RAM:su-go-b self-update
+Echo "rc=$RC want=10" >RAM:su-jb.rc
+### bg-mv1
+FailAt 21
+; MV: a self-update of the package, held until RAM:su-go-m exists.
+SUCM:apkg <NIL: >RAM:su-mv1.out --root SUMR: --self-update-from https://10.0.2.2/r2/ --self-update-fail-at hold:RAM:su-go-m self-update
+Echo "rc=$RC want=10" >RAM:su-mv1.rc
+### bg-mv2
+FailAt 21
+SUCM:apkg <NIL: >RAM:su-mv2.out --root SUMR: --self-update-from https://10.0.2.2/r2/ --self-update-fail-at hold:RAM:su-go-n self-update
+Echo "rc=$RC want=10" >RAM:su-mv2.rc

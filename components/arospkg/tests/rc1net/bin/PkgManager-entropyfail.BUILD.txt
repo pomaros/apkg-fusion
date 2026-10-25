@@ -1,0 +1,17 @@
+PkgManager-entropyfail: a TEST build, never part of a release
+
+SHA-256   f81b0e9c1ea3b622d3c1b5cef3fbe9448755b027f446c0d72c39bfcac9a4bba5
+source    tag v0.3.1-rc1 (0e4a1f6c00db17cacd705208babace2f6dc94f9e), unchanged
+target    x86_64 AROS ABIv11
+how       src/build-gui.sh, with TC pointing at a copy of the toolchain whose
+          x86_64-aros-gcc is a wrapper adding one flag:
+              exec <toolchain>/x86_64-aros-gcc -DAROS_JENT_FORCE_FAIL "$@"
+          AROS_JENT_FORCE_FAIL (src/tls/entropy_jent.c) makes the entropy
+          adapter behave as if jitterentropy's start-up test had failed.
+          Nothing else differs.
+control   the same command with the plain toolchain, at the same tag, gives
+          732ecd9b356c200e3436e5f3bf49240c30b5698050e9aea3c6464eed360070ff,
+          the published rc1 PkgManager, bit for bit.
+toolchain GCC 10.5.0, x86_64-aros cross toolchain from make crosstools of
+          deadwood2/AROS 5376f09bc1ed; the ABIv11 SDK as in the release's
+          BUILD.txt.

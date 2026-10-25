@@ -1,0 +1,91 @@
+; Relations on an AROS guest: dependencies, conflicts, replacement of
+; Hardcode by Bishop, the removal guard and recovery of an interrupted
+; replacement. Unpack the payload (make-relations-fixtures.py) to RAM:rl,
+; then
+;   execute RAM:rl/relations.script
+; Every result goes to RESULTS:<tag>-NN-*.txt (setenv RTAG r1b for a second
+; run: the FAT32 overwrite defect). No network is needed: every archive is
+; in the root's cache.
+failat 21
+if not exists ENV:RTAG
+  setenv RTAG r1
+endif
+copy RAM:rl/apkg RAM:apkg
+protect RAM:apkg +e
+RAM:apkg --version >RESULTS:$RTAG-01-version.txt
+delete SYS:RelT all quiet
+makedir SYS:RelT
+makedir SYS:RelT/cache
+copy RAM:rl/cache/#? SYS:RelT/cache/ quiet
+; Input from NIL:, as in any script: a plan beyond the package itself is
+; then refused without --yes instead of waiting for an answer.
+setenv A "RAM:apkg <NIL: --root SYS:RelT --index RAM:rl/idx.json --plain"
+
+; A real dependency: Hardcode needs Limpet.
+$A install hardcode >RESULTS:$RTAG-02-hardcode-noyes.txt
+echo "rc $RC" >>RESULTS:$RTAG-02-hardcode-noyes.txt
+$A --dry-run install hardcode >RESULTS:$RTAG-03-hardcode-dry.txt
+echo "rc $RC" >>RESULTS:$RTAG-03-hardcode-dry.txt
+$A --yes install hardcode >RESULTS:$RTAG-04-hardcode-yes.txt
+echo "rc $RC" >>RESULTS:$RTAG-04-hardcode-yes.txt
+type SYS:RelT/db/installed/limpet.json >RESULTS:$RTAG-05-limpet-registry.txt
+$A remove limpet >RESULTS:$RTAG-06-remove-limpet-needed.txt
+echo "rc $RC" >>RESULTS:$RTAG-06-remove-limpet-needed.txt
+
+; The user's own changes in Hardcode's drawer.
+echo "my note" >>SYS:RelT/hardcode/ReadMe.txt
+echo "mine" >SYS:RelT/hardcode/my-own-file.txt
+
+; Bishop replaces Hardcode, and recommends Limpet.
+$A show bishop >RESULTS:$RTAG-07-show-bishop.txt
+$A --dry-run --json install bishop >RESULTS:$RTAG-08-bishop-plan.json
+echo "rc $RC" >RESULTS:$RTAG-08-bishop-plan-rc.txt
+$A install bishop >RESULTS:$RTAG-09-bishop-noyes.txt
+echo "rc $RC" >>RESULTS:$RTAG-09-bishop-noyes.txt
+; Interrupted after Bishop is in and before Hardcode is removed.
+$A --yes --interrupt-at 11 install bishop >RESULTS:$RTAG-10-bishop-interrupted.txt
+echo "rc $RC" >>RESULTS:$RTAG-10-bishop-interrupted.txt
+list SYS:RelT/db/installed >RESULTS:$RTAG-11-registry-between.txt
+type SYS:RelT/db/replace.json >>RESULTS:$RTAG-11-registry-between.txt
+; The next apkg that opens the root for writing finishes it.
+$A install relbase >RESULTS:$RTAG-12-recovery.txt
+echo "rc $RC" >>RESULTS:$RTAG-12-recovery.txt
+list SYS:RelT/db/installed >RESULTS:$RTAG-13-registry-after.txt
+list SYS:RelT/hardcode >>RESULTS:$RTAG-13-registry-after.txt
+$A list >RESULTS:$RTAG-14-list.txt
+$A show bishop >RESULTS:$RTAG-15-show-bishop-after.txt
+; Limpet is only recommended now: it may go, and show says so.
+$A remove limpet >RESULTS:$RTAG-16-remove-limpet.txt
+echo "rc $RC" >>RESULTS:$RTAG-16-remove-limpet.txt
+$A show bishop >RESULTS:$RTAG-17-show-bishop-nolimpet.txt
+
+; Controlled packages.
+$A --yes install relapp >RESULTS:$RTAG-20-relapp.txt
+echo "rc $RC" >>RESULTS:$RTAG-20-relapp.txt
+$A remove rellib >RESULTS:$RTAG-21-remove-rellib.txt
+echo "rc $RC" >>RESULTS:$RTAG-21-remove-rellib.txt
+$A install relenemy >RESULTS:$RTAG-22-enemy.txt
+echo "rc $RC" >>RESULTS:$RTAG-22-enemy.txt
+$A install relfoe >RESULTS:$RTAG-23-foe.txt
+echo "rc $RC" >>RESULTS:$RTAG-23-foe.txt
+$A install relpeace >RESULTS:$RTAG-24-peace.txt
+echo "rc $RC" >>RESULTS:$RTAG-24-peace.txt
+$A install relold >RESULTS:$RTAG-25-old.txt
+echo "rc $RC" >>RESULTS:$RTAG-25-old.txt
+$A install relabi >RESULTS:$RTAG-26-abi.txt
+echo "rc $RC" >>RESULTS:$RTAG-26-abi.txt
+$A install relamb >RESULTS:$RTAG-27-amb.txt
+echo "rc $RC" >>RESULTS:$RTAG-27-amb.txt
+$A install relcyc1 >RESULTS:$RTAG-28-cycle.txt
+echo "rc $RC" >>RESULTS:$RTAG-28-cycle.txt
+$A install relghost >RESULTS:$RTAG-29-ghost.txt
+echo "rc $RC" >>RESULTS:$RTAG-29-ghost.txt
+$A install rellib >RESULTS:$RTAG-30-mark-explicit.txt
+echo "rc $RC" >>RESULTS:$RTAG-30-mark-explicit.txt
+type SYS:RelT/db/installed/rellib.json >>RESULTS:$RTAG-30-mark-explicit.txt
+$A --yes install relbroken >RESULTS:$RTAG-31-broken.txt
+echo "rc $RC" >>RESULTS:$RTAG-31-broken.txt
+$A list >RESULTS:$RTAG-32-list-end.txt
+$A doctor >RESULTS:$RTAG-33-doctor.txt
+echo "rc $RC" >>RESULTS:$RTAG-33-doctor.txt
+echo "done" >RESULTS:$RTAG-99-done.txt

@@ -1,0 +1,382 @@
+; v0.1 trial, part B: start every installed candidate once.
+;     Execute PAYLOAD:R/TRIALB
+; Windowed programs: Run, wait 15 s, Status records whether the process is
+; alive, then Ctrl-C if it still is, and Status again. Shell tools: input from
+; NIL: so none can block, output and return code to the log. Nothing is typed
+; or clicked while this runs; the host only takes screenshots.
+;
+; The drawer is <root>/<id>, NOT the archive's own drawer name: the first run
+; of this script CD'd to the archive names and five of them do not exist.
+; FAILAT is high because a tool's own return code (bin2iso answers its usage
+; with 20) must not end the run; the first run stopped at DiskUsage.
+
+FAILAT 1000
+Delete RAM:trialb-console.txt QUIET
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:putfile +e
+
+Echo >>RAM:trialb-console.txt "*N==== screentest ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/screentest
+Run >NIL: <NIL: ScreenTest
+Wait 15
+Echo >>RAM:trialb-console.txt "screentest: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=ScreenTest
+Status >NIL: COMMAND=ScreenTest
+If NOT WARN
+  Break >NIL: `Status COMMAND=ScreenTest` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "screentest: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=ScreenTest
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== untangle ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/untangle
+Run >NIL: <NIL: Untangle
+Wait 15
+Echo >>RAM:trialb-console.txt "untangle: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=Untangle
+Status >NIL: COMMAND=Untangle
+If NOT WARN
+  Break >NIL: `Status COMMAND=Untangle` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "untangle: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=Untangle
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== zunecalc ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/zunecalc
+Run >NIL: <NIL: ZuneCalc
+Wait 15
+Echo >>RAM:trialb-console.txt "zunecalc: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=ZuneCalc
+Status >NIL: COMMAND=ZuneCalc
+If NOT WARN
+  Break >NIL: `Status COMMAND=ZuneCalc` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "zunecalc: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=ZuneCalc
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== ccd2iso ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/ccd2iso
+CCD2ISO <NIL: >>RAM:trialb-console.txt
+Echo >>RAM:trialb-console.txt "ccd2iso: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== bin2iso ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/bin2iso
+Bin2ISO <NIL: >>RAM:trialb-console.txt
+Echo >>RAM:trialb-console.txt "bin2iso: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== dirtree ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/dirtree
+DirTree <NIL: >>RAM:trialb-console.txt SYS:PkgV01/dirtree
+Echo >>RAM:trialb-console.txt "dirtree: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== grep ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/grep
+Grep <NIL: >>RAM:trialb-console.txt -i *pattern* Readme
+Echo >>RAM:trialb-console.txt "grep: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== iconmake ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/iconmake
+Run >NIL: <NIL: IconMake
+Wait 15
+Echo >>RAM:trialb-console.txt "iconmake: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=IconMake
+Status >NIL: COMMAND=IconMake
+If NOT WARN
+  Break >NIL: `Status COMMAND=IconMake` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "iconmake: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=IconMake
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== joytest ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/joytest
+Run >NIL: <NIL: JoyTest
+Wait 15
+Echo >>RAM:trialb-console.txt "joytest: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=JoyTest
+Status >NIL: COMMAND=JoyTest
+If NOT WARN
+  Break >NIL: `Status COMMAND=JoyTest` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "joytest: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=JoyTest
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== cls ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/cls
+CLS
+Echo >>RAM:trialb-console.txt "cls: rc=$RC (run on the console, not redirected)"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== diskusage ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/diskusage
+DiskUsage <NIL: >>RAM:trialb-console.txt SYS:PkgV01/diskusage SUMMARY
+Echo >>RAM:trialb-console.txt "diskusage: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== gisplita ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/gisplita
+split <NIL: >>RAM:trialb-console.txt
+Echo >>RAM:trialb-console.txt "gisplita: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== timeit ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/timeit
+TimeIt <NIL: >>RAM:trialb-console.txt Wait 1
+Echo >>RAM:trialb-console.txt "timeit: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== gmore ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/gmore
+Run >NIL: <NIL: gmore Readme
+Wait 15
+Echo >>RAM:trialb-console.txt "gmore: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=gmore
+Status >NIL: COMMAND=gmore
+If NOT WARN
+  Break >NIL: `Status COMMAND=gmore` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "gmore: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=gmore
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== zapperng ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/zapperng
+Run >NIL: <NIL: ZapperNG
+Wait 15
+Echo >>RAM:trialb-console.txt "zapperng: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=ZapperNG
+Status >NIL: COMMAND=ZapperNG
+If NOT WARN
+  Break >NIL: `Status COMMAND=ZapperNG` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "zapperng: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=ZapperNG
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== isomaker ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/isomaker
+Run >NIL: <NIL: IsoMaker
+Wait 15
+Echo >>RAM:trialb-console.txt "isomaker: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=IsoMaker
+Status >NIL: COMMAND=IsoMaker
+If NOT WARN
+  Break >NIL: `Status COMMAND=IsoMaker` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "isomaker: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=IsoMaker
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== isotool ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/isotool
+Run >NIL: <NIL: IsoTools
+Wait 15
+Echo >>RAM:trialb-console.txt "isotool: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=IsoTools
+Status >NIL: COMMAND=IsoTools
+If NOT WARN
+  Break >NIL: `Status COMMAND=IsoTools` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "isotool: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=IsoTools
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== unmount ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/unmount
+UnMount <NIL: >>RAM:trialb-console.txt
+Echo >>RAM:trialb-console.txt "unmount: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== soliton ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/soliton
+Run >NIL: <NIL: Soliton
+Wait 15
+Echo >>RAM:trialb-console.txt "soliton: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=Soliton
+Status >NIL: COMMAND=Soliton
+If NOT WARN
+  Break >NIL: `Status COMMAND=Soliton` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "soliton: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=Soliton
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== blips ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/blips
+Run >NIL: <NIL: Blips
+Wait 15
+Echo >>RAM:trialb-console.txt "blips: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=Blips
+Status >NIL: COMMAND=Blips
+If NOT WARN
+  Break >NIL: `Status COMMAND=Blips` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "blips: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=Blips
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== hocoslamfy ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/hocoslamfy
+Run >NIL: <NIL: Hocoslamfy
+Wait 15
+Echo >>RAM:trialb-console.txt "hocoslamfy: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=Hocoslamfy
+Status >NIL: COMMAND=Hocoslamfy
+If NOT WARN
+  Break >NIL: `Status COMMAND=Hocoslamfy` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "hocoslamfy: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=Hocoslamfy
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== xrick ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/xrick
+Run >NIL: <NIL: xRick
+Wait 15
+Echo >>RAM:trialb-console.txt "xrick: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=xRick
+Status >NIL: COMMAND=xRick
+If NOT WARN
+  Break >NIL: `Status COMMAND=xRick` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "xrick: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=xRick
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== shooterspace ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/shooterspace
+Run >NIL: <NIL: ShooterSpace
+Wait 15
+Echo >>RAM:trialb-console.txt "shooterspace: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=ShooterSpace
+Status >NIL: COMMAND=ShooterSpace
+If NOT WARN
+  Break >NIL: `Status COMMAND=ShooterSpace` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "shooterspace: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=ShooterSpace
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== ominostage ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/ominostage
+Run >NIL: <NIL: Omino
+Wait 15
+Echo >>RAM:trialb-console.txt "ominostage: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=Omino
+Status >NIL: COMMAND=Omino
+If NOT WARN
+  Break >NIL: `Status COMMAND=Omino` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "ominostage: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=Omino
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== unlzx ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/unlzx
+UnLzx <NIL: >>RAM:trialb-console.txt
+Echo >>RAM:trialb-console.txt "unlzx: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== lzop ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/lzop
+lzop <NIL: >>RAM:trialb-console.txt -V
+Echo >>RAM:trialb-console.txt "lzop: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== antiword ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/antiword
+antiword <NIL: >>RAM:trialb-console.txt Docs/testdoc.doc
+Echo >>RAM:trialb-console.txt "antiword: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== tinysid ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/tinysid
+TinySID <NIL: >>RAM:trialb-console.txt
+Echo >>RAM:trialb-console.txt "tinysid: rc=$RC"
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== skandalfoclock ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/skandalfoclock
+Run >NIL: <NIL: SkandalfoClock
+Wait 15
+Echo >>RAM:trialb-console.txt "skandalfoclock: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=SkandalfoClock
+Status >NIL: COMMAND=SkandalfoClock
+If NOT WARN
+  Break >NIL: `Status COMMAND=SkandalfoClock` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "skandalfoclock: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=SkandalfoClock
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "*N==== rescode ===="
+Date >>RAM:trialb-console.txt
+CD SYS:PkgV01/rescode
+Run >NIL: <NIL: ResCode
+Wait 15
+Echo >>RAM:trialb-console.txt "rescode: process after 15 s (a number means it is running):"
+Status >>RAM:trialb-console.txt COMMAND=ResCode
+Status >NIL: COMMAND=ResCode
+If NOT WARN
+  Break >NIL: `Status COMMAND=ResCode` C
+EndIf
+Wait 4
+Echo >>RAM:trialb-console.txt "rescode: after Ctrl-C (empty means it closed):"
+Status >>RAM:trialb-console.txt COMMAND=ResCode
+CD SYS:
+
+Echo >>RAM:trialb-console.txt "== end of trial B =="
+RAM:putfile RAM:trialb-console.txt

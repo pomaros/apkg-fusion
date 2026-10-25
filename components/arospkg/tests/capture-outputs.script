@@ -1,0 +1,32 @@
+; Capture verbatim output of every command variant the page wants to replay.
+; Everything is redirected into one file per part so it can be read compactly.
+
+FAILAT 21
+Delete RAM:p1.txt RAM:p2.txt QUIET
+
+Echo "--- bare apkg ---" >RAM:p1.txt
+apkg >>RAM:p1.txt
+Echo "*N--- apkg --version ---" >>RAM:p1.txt
+apkg --version >>RAM:p1.txt
+
+Echo "--- search, no arguments ---" >RAM:p2.txt
+apkg search >>RAM:p2.txt
+Echo "--- search zzzznomatch ---" >>RAM:p2.txt
+apkg search zzzznomatch >>RAM:p2.txt
+Echo "--- search editor (matches via summary) ---" >>RAM:p2.txt
+apkg search editor >>RAM:p2.txt
+Echo "--- install nosuchthing ---" >>RAM:p2.txt
+apkg install nosuchthing >>RAM:p2.txt
+Echo "--- install dclock (in the catalogue, not in the index) ---" >>RAM:p2.txt
+apkg install dclock >>RAM:p2.txt
+Echo "--- install (no arguments) ---" >>RAM:p2.txt
+apkg install >>RAM:p2.txt
+Echo "--- remove (no arguments) ---" >>RAM:p2.txt
+apkg remove >>RAM:p2.txt
+Echo "--- remove zaphod, not installed ---" >>RAM:p2.txt
+apkg remove zaphod >>RAM:p2.txt
+Echo "--- list, nothing installed ---" >>RAM:p2.txt
+apkg list >>RAM:p2.txt
+Echo "--- doctor, healthy root ---" >>RAM:p2.txt
+apkg doctor >>RAM:p2.txt
+Echo "*Ncaptured" 

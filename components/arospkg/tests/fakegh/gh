@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""A stand-in for the gh CLI, for tests/test_publish_github.py: repositories
+are bare git repositories under $FAKEGH/repos/<owner>/<name>.git, pull
+requests a JSON list, and every call is logged. Only the calls
+publish_github.py makes are understood."""
+import json, os, subprocess, sys
+from pathlib import Path
+
+root = Path(os.environ["FAKEGH"])
+state_f = root / "state.json"
+state = json.loads(state_f.read_text())
+args = sys.argv[1:]
+with open(root / "calls.log", "a") as log:
+    log.write(json.dumps(args) + "\n")
+
+
+def save():
+    state_f.write_text(json.dumps(state, indent=1))
+
+
+def repo_path(full):
+    return root / "repos" / (full + ".git")
+
+
+if args[:2] == ["api", "user"]:
+    print(state["me"]); sys.exit(0)
+if args[0] == "api" and args[1].startswith("repos/"):
+    full = args[1][len("repos/"):]
+    r = state["repos"].get(full)
+    if r is None:
+        print('{"message": "Not Found"}', file=sys.stderr); sys.exit(1)
+    print(json.dumps({**r, "full_name": full, "clone_url": str(repo_path(full)), "default_branch": "main"}))
+    sys.exit(0)
+if args[:2] == ["repo", "clone"]:
+    subprocess.run(["git", "clone", "-q", str(repo_path(args[2])), args[3]], check=True); sys.exit(0)
+if args[:2] == ["repo", "fork"]:
+    up, name = args[2], args[2].split("/")[1]
+    full = f"{state['me']}/{name}"
+    subprocess.run(["git", "clone", "-q", "--bare", str(repo_path(up)), str(repo_path(full))], check=True)
+    state["repos"][full] = {"fork": True, "parent": {"full_name": up}, "permissions": {"push": True}}
+    save(); sys.exit(0)
+if args[:2] == ["pr", "list"]:
+    head = args[args.index("--head") + 1]
+    repo = args[args.index("--repo") + 1]
+    hits = [p for p in state["prs"] if p["repo"] == repo and p["branch"] == head and p["state"] == "open"]
+    print(json.dumps([{"url": p["url"], "headRepositoryOwner": {"login": p["owner"]}} for p in hits]))
+    sys.exit(0)
+if args[:2] == ["pr", "create"]:
+    repo, head, base = (args[args.index(k) + 1] for k in ("--repo", "--head", "--base"))
+    owner, branch = head.split(":") if ":" in head else (repo.split("/")[0], head)
+    url = f"https://github.invalid/{repo}/pull/{len(state['prs']) + 1}"
+    state["prs"].append({"repo": repo, "owner": owner, "branch": branch, "base": base, "url": url, "state": "open"})
+    save(); print(url); sys.exit(0)
+print("fake gh: not understood: " + " ".join(args), file=sys.stderr)
+sys.exit(2)

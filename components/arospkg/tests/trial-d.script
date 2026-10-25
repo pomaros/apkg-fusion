@@ -1,0 +1,73 @@
+; v0.1 trial, part D: the three packages published before today, put through
+; the same three steps as the candidates: install, start, remove.
+;     Execute PAYLOAD:R/TRIALD
+
+FAILAT 1000
+Delete RAM:triald-console.txt QUIET
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:putfile +e
+Copy PAYLOAD:APKG RAM:apkg
+Protect RAM:apkg +e
+Copy PAYLOAD:I/CANDIDX RAM:cand.json
+Copy PAYLOAD:I/RELIDX RAM:rel-index.json
+Delete SYS:PkgV01 ALL FORCE QUIET
+MakeDir SYS:PkgV01
+Delete RAM:trial ALL FORCE QUIET
+MakeDir RAM:trial
+
+Echo >>RAM:triald-console.txt "*N==== zaphod ===="
+RAM:apkg >>RAM:triald-console.txt --root SYS:PkgV01 --index RAM:rel-index.json --machine onetest --run-id t-zaphod-install --expect 0 --report RAM:trial/zaphod-install.json install zaphod
+CD SYS:PkgV01/zaphod
+Run >NIL: <NIL: Zaphod
+Wait 15
+Echo >>RAM:triald-console.txt "zaphod: process after 15 s (a number means it is running):"
+Status >>RAM:triald-console.txt COMMAND=Zaphod
+Status >NIL: COMMAND=Zaphod
+If NOT WARN
+  Break >NIL: `Status COMMAND=Zaphod` C
+EndIf
+Wait 4
+Echo >>RAM:triald-console.txt "zaphod: after Ctrl-C (empty means it closed):"
+Status >>RAM:triald-console.txt COMMAND=Zaphod
+CD SYS:
+RAM:apkg >>RAM:triald-console.txt --root SYS:PkgV01 --machine onetest --run-id t-zaphod-remove --expect 0 --report RAM:trial/zaphod-remove.json remove zaphod
+
+Echo >>RAM:triald-console.txt "*N==== sdllopan ===="
+RAM:apkg >>RAM:triald-console.txt --root SYS:PkgV01 --index RAM:rel-index.json --machine onetest --run-id t-sdllopan-install --expect 0 --report RAM:trial/sdllopan-install.json install sdllopan
+CD SYS:PkgV01/sdllopan
+Run >NIL: <NIL: lopan
+Wait 15
+Echo >>RAM:triald-console.txt "sdllopan: process after 15 s (a number means it is running):"
+Status >>RAM:triald-console.txt COMMAND=lopan
+Status >NIL: COMMAND=lopan
+If NOT WARN
+  Break >NIL: `Status COMMAND=lopan` C
+EndIf
+Wait 4
+Echo >>RAM:triald-console.txt "sdllopan: after Ctrl-C (empty means it closed):"
+Status >>RAM:triald-console.txt COMMAND=lopan
+CD SYS:
+RAM:apkg >>RAM:triald-console.txt --root SYS:PkgV01 --machine onetest --run-id t-sdllopan-remove --expect 0 --report RAM:trial/sdllopan-remove.json remove sdllopan
+
+Echo >>RAM:triald-console.txt "*N==== sdlpop ===="
+RAM:apkg >>RAM:triald-console.txt --root SYS:PkgV01 --index RAM:rel-index.json --machine onetest --run-id t-sdlpop-install --expect 0 --report RAM:trial/sdlpop-install.json install sdlpop
+CD SYS:PkgV01/sdlpop
+Run >NIL: <NIL: Prince
+Wait 15
+Echo >>RAM:triald-console.txt "sdlpop: process after 15 s (a number means it is running):"
+Status >>RAM:triald-console.txt COMMAND=Prince
+Status >NIL: COMMAND=Prince
+If NOT WARN
+  Break >NIL: `Status COMMAND=Prince` C
+EndIf
+Wait 4
+Echo >>RAM:triald-console.txt "sdlpop: after Ctrl-C (empty means it closed):"
+Status >>RAM:triald-console.txt COMMAND=Prince
+CD SYS:
+RAM:apkg >>RAM:triald-console.txt --root SYS:PkgV01 --machine onetest --run-id t-sdlpop-remove --expect 0 --report RAM:trial/sdlpop-remove.json remove sdlpop
+
+List >>RAM:triald-console.txt SYS:PkgV01
+Echo >>RAM:triald-console.txt "== end of trial D =="
+Join RAM:trial/#?.json AS RAM:triald-reports.txt
+RAM:putfile RAM:triald-console.txt
+RAM:putfile RAM:triald-reports.txt

@@ -1,0 +1,97 @@
+; The install-to-folder acceptance, the part whose text is captured: every
+; command redirected to RESULTS:<run>-*.txt. Staged by tests/ux/make-stage.sh
+; into RAM:rxt; run as  Execute RAM:rxt/redirected.script <run>
+.key run/A
+FAILAT 1000
+Delete RAM:ux ALL FORCE QUIET
+MakeDir RAM:ux
+Copy RAM:rxt/#? RAM:ux ALL QUIET
+Protect RAM:ux/apkg +e
+Protect RAM:ux/apkg-old +e
+Protect RAM:ux/apkg-032 +e
+Protect RAM:ux/PkgManager +e
+Delete SYS:UxA SYS:UxE SYS:UxU SYS:UxP SYS:UxOld SYS:UxS SYS:UxS2 SYS:UxL SYS:UxL2 SYS:UxG SYS:UxV "SYS:Ux Test" ALL FORCE QUIET
+MakeDir SYS:UxV SYS:UxV/db SYS:UxA SYS:UxA/db SYS:UxE SYS:UxE/db SYS:UxP SYS:UxP/db SYS:UxOld SYS:UxOld/db SYS:UxL SYS:UxL/db SYS:UxG SYS:UxG/db SYS:UxS SYS:UxS2
+MakeDir "SYS:Ux Test" "SYS:Ux Test/Root" "SYS:Ux Test/Root/db"
+Copy RAM:ux/ux-index.json SYS:UxA/db/index.json
+Copy RAM:ux/ux-index.json SYS:UxV/db/index.json
+Copy RAM:ux/ux-index.json SYS:UxE/db/index.json
+Copy RAM:ux/ux-index.json SYS:UxP/db/index.json
+Copy RAM:ux/ux-index.json SYS:UxOld/db/index.json
+Copy RAM:ux/ux-index.json SYS:UxL/db/index.json
+Copy RAM:ux/ux-index.json SYS:UxG/db/index.json
+Copy RAM:ux/ux-index.json "SYS:Ux Test/Root/db/index.json"
+
+RAM:ux/apkg --version >RESULTS:<run>-version.txt
+
+; install with notes, the record, show; install without notes
+RAM:ux/apkg --root SYS:UxA install gmore >RESULTS:<run>-install-gmore.txt
+Echo "rc=$RC" >>RESULTS:<run>-install-gmore.txt
+Copy SYS:UxA/db/installed/gmore.json RESULTS:<run>-registry-gmore.json
+RAM:ux/apkg --root SYS:UxA show gmore >RESULTS:<run>-show-gmore.txt
+RAM:ux/apkg --root SYS:UxA install zunecalc >RESULTS:<run>-install-zunecalc.txt
+Echo "rc=$RC" >>RESULTS:<run>-install-zunecalc.txt
+RAM:ux/apkg --root SYS:UxA show zunecalc >RESULTS:<run>-show-zunecalc.txt
+RAM:ux/apkg --root SYS:UxA install zunecalc >RESULTS:<run>-install-again.txt
+Echo "rc=$RC" >>RESULTS:<run>-install-again.txt
+RAM:ux/apkg --root SYS:UxV --verbose install zunecalc >RESULTS:<run>-install-verbose.txt
+Echo "rc=$RC" >>RESULTS:<run>-install-verbose.txt
+
+; open: not installed; drawer moved away; a root with a space (opens a window)
+RAM:ux/apkg --root SYS:UxE open gmore >RESULTS:<run>-open-notinstalled.txt
+Echo "rc=$RC" >>RESULTS:<run>-open-notinstalled.txt
+Rename SYS:UxA/zunecalc SYS:UxA/zunecalc-moved
+RAM:ux/apkg --root SYS:UxA open zunecalc >RESULTS:<run>-open-moved.txt
+Echo "rc=$RC" >>RESULTS:<run>-open-moved.txt
+Rename SYS:UxA/zunecalc-moved SYS:UxA/zunecalc
+Copy SYS:UxA/db/installed/zunecalc.json RESULTS:<run>-registry-zunecalc-after-open.json
+RAM:ux/apkg --root "SYS:Ux Test/Root" install gmore >RESULTS:<run>-install-space.txt
+Echo "rc=$RC" >>RESULTS:<run>-install-space.txt
+RAM:ux/apkg --root "SYS:Ux Test/Root" open gmore >RESULTS:<run>-open-space.txt
+Echo "rc=$RC" >>RESULTS:<run>-open-space.txt
+
+; a broken download and a cancel: no success line, nothing installed
+RAM:ux/apkg --root SYS:UxE --break-download-at 20000 install zunecalc >RESULTS:<run>-install-break.txt
+Echo "rc=$RC" >>RESULTS:<run>-install-break.txt
+RAM:ux/apkg --root SYS:UxE --cancel-at download-mid install zunecalc >RESULTS:<run>-install-cancel.txt
+Echo "rc=$RC" >>RESULTS:<run>-install-cancel.txt
+RAM:ux/apkg --root SYS:UxE list >RESULTS:<run>-uxe-list.txt
+
+; remove after the user changed one file and added another
+Echo "my change" >>SYS:UxA/gmore/Readme
+Echo "mine" >SYS:UxA/gmore/my-notes.txt
+RAM:ux/apkg --root SYS:UxA remove gmore >RESULTS:<run>-remove-kept.txt
+Echo "rc=$RC" >>RESULTS:<run>-remove-kept.txt
+List SYS:UxA/gmore >>RESULTS:<run>-remove-kept.txt
+RAM:ux/apkg --root SYS:UxA remove zunecalc >RESULTS:<run>-remove-clean.txt
+Echo "rc=$RC" >>RESULTS:<run>-remove-clean.txt
+
+; update; plain; JSON
+RAM:ux/apkg --root SYS:UxU update >RESULTS:<run>-update.txt
+Echo "rc=$RC" >>RESULTS:<run>-update.txt
+RAM:ux/apkg --root SYS:UxP --plain install gmore >RESULTS:<run>-install-plain.txt
+RAM:ux/apkg --root SYS:UxP --json list >RESULTS:<run>-json-list.txt
+RAM:ux/apkg --root SYS:UxP --json search >RESULTS:<run>-json-search.txt
+
+; the published 0.3.2 reads an index with notes
+RAM:ux/apkg-032 --root SYS:UxOld search >RESULTS:<run>-old-search.txt
+RAM:ux/apkg-032 --root SYS:UxOld show gmore >RESULTS:<run>-old-show.txt
+RAM:ux/apkg-032 --root SYS:UxOld install gmore >RESULTS:<run>-old-install.txt
+Echo "rc=$RC" >>RESULTS:<run>-old-install.txt
+
+; self-update: --check; one success on a test copy; one failure
+RAM:ux/apkg self-update --check >RESULTS:<run>-su-check.txt
+Echo "rc=$RC" >>RESULTS:<run>-su-check.txt
+List RAM:ux/apkg#? >>RESULTS:<run>-su-check.txt
+Copy RAM:ux/apkg-old SYS:UxS/apkg
+Protect SYS:UxS/apkg +e
+SYS:UxS/apkg self-update >RESULTS:<run>-su-ok.txt
+Echo "rc=$RC" >>RESULTS:<run>-su-ok.txt
+SYS:UxS/apkg --version >>RESULTS:<run>-su-ok.txt
+Copy RAM:ux/apkg-old SYS:UxS2/apkg
+Protect SYS:UxS2/apkg +e
+SYS:UxS2/apkg --break-download-at 100000 self-update >RESULTS:<run>-su-fail.txt
+Echo "rc=$RC" >>RESULTS:<run>-su-fail.txt
+SYS:UxS2/apkg --version >>RESULTS:<run>-su-fail.txt
+List SYS:UxS2 >>RESULTS:<run>-su-fail.txt
+Echo DONE >RESULTS:<run>-done.txt

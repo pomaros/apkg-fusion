@@ -1,0 +1,78 @@
+; New catalogue entries: install from the published URL, start, remove.
+;     Execute PAYLOAD:NEWPKG
+; apkg runs from a Shell at the default 40960-byte stack. Each program is
+; started the way its own ReadMe says, with an 8 MiB stack: both ship an icon
+; that carries it, and both crash from a small one (GrafX2 at 40960 hung the
+; whole machine on 2026-09-26). Run hands the Shell's stack to the program,
+; so the stack is raised for the Run and put back for apkg. Status after
+; 20 s, Ctrl-C only if it is still running, then removal. A screenshot is taken by the host while each
+; program is up; it illustrates, the reports and Status lines are the evidence.
+
+FAILAT 1000
+Delete RAM:newpkg-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Copy PAYLOAD:NEWIDX RAM:new-index.json
+Protect RAM:apkg +e
+Protect RAM:putfile +e
+Delete SYS:PkgNew ALL FORCE QUIET
+MakeDir SYS:PkgNew
+Delete RAM:nrep ALL FORCE QUIET
+MakeDir RAM:nrep
+
+Stack >>RAM:newpkg-console.txt
+RAM:apkg >>RAM:newpkg-console.txt --version
+
+Echo >>RAM:newpkg-console.txt "*N==== grafx2 ===="
+RAM:apkg >>RAM:newpkg-console.txt --root SYS:PkgNew --index RAM:new-index.json requires grafx2
+RAM:apkg >>RAM:newpkg-console.txt --root SYS:PkgNew --index RAM:new-index.json --machine onetest --run-id n-grafx2-install --expect 0 --report RAM:nrep/grafx2-install.json install grafx2
+List >>RAM:newpkg-console.txt SYS:PkgNew
+CD SYS:PkgNew/grafx2
+Stack 8388608
+Run >NIL: <NIL: GrafX2
+Stack 40960
+Wait 20
+Echo >>RAM:newpkg-console.txt "grafx2: process after 20 s (a number means it is running):"
+Status >>RAM:newpkg-console.txt COMMAND=GrafX2
+Echo "NEWPKG-SHOT grafx2"
+Wait 10
+Status >NIL: COMMAND=GrafX2
+If NOT WARN
+  Break >NIL: `Status COMMAND=GrafX2` C
+EndIf
+Wait 5
+Echo >>RAM:newpkg-console.txt "grafx2: after Ctrl-C (empty means it closed):"
+Status >>RAM:newpkg-console.txt COMMAND=GrafX2
+CD SYS:
+RAM:apkg >>RAM:newpkg-console.txt --root SYS:PkgNew --machine onetest --run-id n-grafx2-remove --expect 0 --report RAM:nrep/grafx2-remove.json remove grafx2
+
+Echo >>RAM:newpkg-console.txt "*N==== folio ===="
+RAM:apkg >>RAM:newpkg-console.txt --root SYS:PkgNew --index RAM:new-index.json requires folio
+RAM:apkg >>RAM:newpkg-console.txt --root SYS:PkgNew --index RAM:new-index.json --machine onetest --run-id n-folio-install --expect 0 --report RAM:nrep/folio-install.json install folio
+List >>RAM:newpkg-console.txt SYS:PkgNew
+CD SYS:PkgNew/folio
+Stack 8388608
+Run >NIL: <NIL: Folio
+Stack 40960
+Wait 20
+Echo >>RAM:newpkg-console.txt "folio: process after 20 s (a number means it is running):"
+Status >>RAM:newpkg-console.txt COMMAND=Folio
+Echo "NEWPKG-SHOT folio"
+Wait 10
+Status >NIL: COMMAND=Folio
+If NOT WARN
+  Break >NIL: `Status COMMAND=Folio` C
+EndIf
+Wait 5
+Echo >>RAM:newpkg-console.txt "folio: after Ctrl-C (empty means it closed):"
+Status >>RAM:newpkg-console.txt COMMAND=Folio
+CD SYS:
+RAM:apkg >>RAM:newpkg-console.txt --root SYS:PkgNew --machine onetest --run-id n-folio-remove --expect 0 --report RAM:nrep/folio-remove.json remove folio
+
+Echo >>RAM:newpkg-console.txt "*N-- after both removals: the root must hold only db, cache, tmp --"
+List >>RAM:newpkg-console.txt SYS:PkgNew
+RAM:apkg >>RAM:newpkg-console.txt --root SYS:PkgNew list
+Echo >>RAM:newpkg-console.txt "== end =="
+Join RAM:nrep/#?.json AS RAM:newpkg-reports.txt
+RAM:putfile RAM:newpkg-console.txt
+RAM:putfile RAM:newpkg-reports.txt

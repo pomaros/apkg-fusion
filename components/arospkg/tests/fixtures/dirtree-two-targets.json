@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "source": "https://archives.arosworld.org/share/FULLINDEX.readme",
+  "packages": [
+    {
+      "id": "dirtree",
+      "version": "40.8",
+      "summary": "Shell command displaying directory trees",
+      "arch": "i386",
+      "abi": "v0",
+      "category": "utility/shell",
+      "url": "https://archives.arosworld.org/share/utility/shell/dirtree.i386-aros.lha",
+      "size": 60764,
+      "sha256": "046e0ea9364c60f82779a8e3f3021d2519badb53ba3b3f2abf2276b52760bd4d",
+      "depends": [],
+      "requires_system": [],
+      "installs_on": [],
+      "runs_on": [],
+      "does_not_run_on": [],
+      "kind": "app",
+      "subdir": "DirTree",
+      "icon": "DirTree.info",
+      "install": {}
+    },
+    {
+      "id": "dirtree",
+      "version": "40.8",
+      "summary": "Shell command displaying directory trees",
+      "arch": "x86_64",
+      "abi": "v11",
+      "category": "utility/misc",
+      "url": "https://archives.arosworld.org/share/utility/misc/dirtree.x86_64-aros-v11.zip",
+      "size": 50125,
+      "sha256": "0776eb0ad5dd0e05757da2860aca3131d5fd06ca22b27c0b0506e7e2d3b4be3b",
+      "depends": [],
+      "requires_system": [
+        {
+          "type": "library",
+          "id": "stdlib.library"
+        }
+      ],
+      "installs_on": [
+        "aros-one"
+      ],
+      "runs_on": [
+        "aros-one"
+      ],
+      "does_not_run_on": [
+        "mainline-x86_64"
+      ],
+      "kind": "app",
+      "subdir": "DirTree",
+      "icon": "DirTree.info",
+      "install": {}
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+; The ABI gate, on a PERSISTENT root.
+;
+; apkg knows which ABI it was built for, and that is also the system's ABI: a
+; binary for the other one would not have started. So the default needs no
+; detection -- it is implied by the fact that this is running.
+
+FAILAT 21
+Echo "== ABI gate, persistent root =="
+apkg --version
+
+Delete SYS:PkgAbi ALL FORCE QUIET
+MakeDir SYS:PkgAbi
+
+Echo "*N-- 1. update and search: what does this system see? --"
+apkg --root SYS:PkgAbi update
+apkg --root SYS:PkgAbi search
+Echo "*Nand with --all-abi:"
+apkg --root SYS:PkgAbi --all-abi search
+
+Echo "*N-- 2. install: the gate --"
+apkg --root SYS:PkgAbi install zaphod
+Echo "*Nwhat is installed:"
+apkg --root SYS:PkgAbi list
+
+Echo "*N-- 3. recovery on a persistent root --"
+apkg --root SYS:PkgAbi --interrupt-at 4 install sdlpop
+Echo "read-only view, should warn:"
+apkg --root SYS:PkgAbi list
+Echo "recovery:"
+apkg --root SYS:PkgAbi doctor --retry
+apkg --root SYS:PkgAbi list
+List SYS:PkgAbi
+Echo "== end =="

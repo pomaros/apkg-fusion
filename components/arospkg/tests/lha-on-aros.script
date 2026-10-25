@@ -1,0 +1,59 @@
+; LHA on the target. Two packages, both LHA:
+;   hex2       downloaded from AROS Archives over TLS, like any other package
+;   micropolis our own release, seeded into the cache because it is not
+;              published anywhere yet -- the download path is exercised by hex2
+;     Execute PAYLOAD:R/LHATEST
+
+FAILAT 1000
+Delete RAM:lha-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Copy PAYLOAD:I/LHAIDX RAM:lha-index.json
+Protect RAM:apkg +e
+Protect RAM:putfile +e
+Delete SYS:PkgLha ALL FORCE QUIET
+MakeDir SYS:PkgLha
+MakeDir SYS:PkgLha/cache
+Delete RAM:lrep ALL FORCE QUIET
+MakeDir RAM:lrep
+Copy PAYLOAD:A/MICROLHA SYS:PkgLha/cache/micropolis.lha
+
+RAM:apkg >>RAM:lha-console.txt --version
+
+Echo >>RAM:lha-console.txt "*N== an LHA fetched from AROS Archives =="
+RAM:apkg >>RAM:lha-console.txt --root SYS:PkgLha --index RAM:lha-index.json --machine onetest --run-id lha-hex2 --expect 0 --report RAM:lrep/hex2.json install hex2
+List >>RAM:lha-console.txt SYS:PkgLha
+
+Echo >>RAM:lha-console.txt "*N== our own LHA, with the drawer icon named in the index =="
+RAM:apkg >>RAM:lha-console.txt --root SYS:PkgLha --index RAM:lha-index.json --machine onetest --run-id lha-micropolis --expect 0 --report RAM:lrep/micro.json install micropolis
+List >>RAM:lha-console.txt SYS:PkgLha
+Echo >>RAM:lha-console.txt "*Nthe drawer icon must be beside the drawer:"
+List >>RAM:lha-console.txt SYS:PkgLha PAT=#?.info
+Echo >>RAM:lha-console.txt "*Nand .arospkg must NOT be inside it (subdir named the drawer):"
+List >>RAM:lha-console.txt SYS:PkgLha/micropolis
+
+Echo >>RAM:lha-console.txt "*N== does it run? =="
+CD SYS:PkgLha/micropolis
+Run >NIL: <NIL: Micropolis
+Wait 20
+Echo >>RAM:lha-console.txt "micropolis after 20 s (a number means it is running):"
+Status >>RAM:lha-console.txt COMMAND=Micropolis
+Status >NIL: COMMAND=Micropolis
+If NOT WARN
+  Break >NIL: `Status COMMAND=Micropolis` C
+EndIf
+Wait 5
+Echo >>RAM:lha-console.txt "after Ctrl-C (empty means it closed):"
+Status >>RAM:lha-console.txt COMMAND=Micropolis
+CD SYS:
+
+Echo >>RAM:lha-console.txt "*N== remove both =="
+RAM:apkg >>RAM:lha-console.txt --root SYS:PkgLha --machine onetest --run-id lha-hex2-rm --expect 0 --report RAM:lrep/hex2rm.json remove hex2
+RAM:apkg >>RAM:lha-console.txt --root SYS:PkgLha --machine onetest --run-id lha-micro-rm --expect 0 --report RAM:lrep/microrm.json remove micropolis
+RAM:apkg >>RAM:lha-console.txt --root SYS:PkgLha list
+List >>RAM:lha-console.txt SYS:PkgLha
+
+Echo >>RAM:lha-console.txt "== end =="
+Join RAM:lrep/#?.json AS RAM:lha-reports.txt
+RAM:putfile RAM:lha-console.txt
+RAM:putfile RAM:lha-reports.txt

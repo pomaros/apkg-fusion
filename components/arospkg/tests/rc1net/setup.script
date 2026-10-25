@@ -1,0 +1,20 @@
+; rc1 network acceptance: three package roots of their own, each for one
+; window. SYS:RcNet and SYS:RcEnt start empty; SYS:RcTls holds the local
+; index made by make-tls-index.py. The windows are started by the driver.
+Failat 21
+Protect RAM:rxt/PkgManager +e
+Protect RAM:rxt/PkgManager-entropyfail +e
+Protect RAM:rxt/apkg +e
+Delete SYS:RcNet ALL FORCE QUIET
+Delete SYS:RcTls ALL FORCE QUIET
+Delete SYS:RcEnt ALL FORCE QUIET
+MakeDir SYS:RcNet
+MakeDir SYS:RcNet/db
+MakeDir SYS:RcNet/cache
+MakeDir SYS:RcTls
+MakeDir SYS:RcTls/db
+MakeDir SYS:RcTls/cache
+MakeDir SYS:RcEnt
+MakeDir SYS:RcEnt/db
+MakeDir SYS:RcEnt/cache
+Copy RAM:rxt/TLSIDX SYS:RcTls/db/index.json

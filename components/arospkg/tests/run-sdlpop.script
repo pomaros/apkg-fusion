@@ -1,0 +1,23 @@
+; Does a package arospkg installed actually RUN?
+;
+; Nothing in this project has shown that yet. Installing files is not evidence
+; that a program works, and sdlpop is in the index because its metadata was
+; reviewed, not because anyone started it.
+
+FAILAT 21
+
+Echo "== install and launch sdlpop =="
+RAM:apkg --version
+
+Delete SYS:PkgRun ALL FORCE QUIET
+Delete SYS:PkgRunReports ALL FORCE QUIET
+MakeDir SYS:PkgRun
+MakeDir SYS:PkgRunReports
+
+RAM:apkg --root SYS:PkgRun --run-id s1 --expect 0 --report SYS:PkgRunReports/s1.json update
+RAM:apkg --root SYS:PkgRun --run-id s2 --expect 0 --report SYS:PkgRunReports/s2.json search sdlpop
+Echo "*Ninstalling (1.4 MB over TLS, this takes a moment):"
+RAM:apkg --root SYS:PkgRun --run-id s3 --expect 0 --report SYS:PkgRunReports/s3.json install sdlpop
+Echo "*Nwhat was installed:"
+List SYS:PkgRun/sdlpop
+Echo "== now launch it =="

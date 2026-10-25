@@ -1,0 +1,16 @@
+; ARexx acceptance: a package root of its own, SYS:PkgRx, holding the
+; controlled index and the cached archives, and PkgManager on it with an
+; event log. --slow 500 makes a download slow enough to cancel and holds
+; every install in its extraction phase for 10 s, long enough for a script
+; to act while the library refuses a cancel.
+Failat 21
+Protect RAM:rxt/PkgManager +e
+Protect RAM:rxt/apkg +e
+Delete SYS:PkgRx ALL FORCE QUIET
+MakeDir SYS:PkgRx
+MakeDir SYS:PkgRx/db
+MakeDir SYS:PkgRx/cache
+Copy RAM:rxt/IDX1 SYS:PkgRx/db/index.json
+Copy RAM:rxt/SOLR1 SYS:PkgRx/cache/soliton.zip
+Copy RAM:rxt/CLSZIP SYS:PkgRx/cache/cls.zip
+Run >NIL: RAM:rxt/PkgManager --root SYS:PkgRx --slow 500 --log RAM:rxt-pm1.log

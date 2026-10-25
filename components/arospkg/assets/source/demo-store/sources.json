@@ -1,0 +1,75 @@
+{
+  "banner": "Demo -- purchasing is not available yet",
+  "media": [
+    {
+      "id": "folio",
+      "kind": "screenshot",
+      "provenance": "Real screenshots of Folio 0.4.1 started by apkg, AROS One 1.3 x86_64 (QEMU), 2026-10-12",
+      "screenshots": [
+        {
+          "source": "assets/source/demo-store/sources/folio-0.4.1-v11-2-20261012-pages12.png",
+          "box": [
+            96,
+            0,
+            832,
+            520
+          ],
+          "caption": "A 12-page test PDF"
+        },
+        {
+          "source": "assets/source/demo-store/sources/folio-0.4.1-v11-2-20261012-start-screen.png",
+          "box": [
+            96,
+            42,
+            830,
+            519
+          ],
+          "caption": "Start screen, recent PDFs"
+        }
+      ],
+      "icon": "assets/source/demo-store/sources/folio-icon-from-0.4.1-archive.png"
+    },
+    {
+      "id": "grafx2",
+      "kind": "screenshot",
+      "icon": "assets/source/demo-store/sources/grafx2-icon-from-2.9r5-archive.png",
+      "provenance": "Real screenshot of GrafX2 2.9 r5 started by apkg run, AROS One 1.3 x86_64 (QEMU), 2026-10-12",
+      "screenshots": [
+        {
+          "source": "assets/source/demo-store/sources/grafx2-2.9r5-v11-2-20261012-start.png",
+          "box": [
+            196,
+            165,
+            648,
+            405
+          ],
+          "caption": "Just started, with its splash"
+        }
+      ]
+    },
+    {
+      "id": "demo-paintstudio",
+      "kind": "mockup",
+      "provenance": "MOCKUP drawn for the demo storefront; there is no such program",
+      "screenshots": [
+        {
+          "label": "MOCKUP - Example Paint Studio",
+          "colour": "#5a7fa8",
+          "caption": "No such program exists"
+        }
+      ]
+    }
+  ],
+  "offers": [
+    {
+      "id": "demo-paintstudio",
+      "name": "Example Paint Studio",
+      "summary": "Fictional paid application showing how an offer could look",
+      "category": "graphics/edit",
+      "price": "9.99",
+      "currency": "EUR",
+      "seller": "Example Software (fictional)",
+      "description": "This entry exists only to show how a paid application could be presented. The program does not exist, the price is invented, and nothing can be bought or installed from it."
+    }
+  ]
+}

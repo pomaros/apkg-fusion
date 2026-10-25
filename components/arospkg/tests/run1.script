@@ -1,0 +1,64 @@
+; apkg run on an AROS guest: Folio, GrafX2 and grep from a catalogue with
+; launch tables, and the refusals. Unpack the payload to RAM:r1 first, then
+;   execute RAM:r1/run1.script
+; Every result goes to a new file RESULTS:<tag>-NN-*.txt. Set the tag with
+;   setenv R1TAG r1a      (default r1)
+; so a second run does not overwrite the first (FAT32 overwrite defect).
+failat 21
+if not exists ENV:R1TAG
+  setenv R1TAG r1
+endif
+makedir "RAM:My Root"
+makedir "RAM:My Root/cache"
+copy RAM:r1/cache/#? "RAM:My Root/cache/" quiet
+RAM:r1/tasks Folio >RESULTS:$R1TAG-01-tasks-before.txt
+RAM:r1/apkg --root "RAM:My Root" --index RAM:r1/idx.json install folio >RESULTS:$R1TAG-02-install-folio.txt
+echo "rc $RC" >>RESULTS:$R1TAG-02-install-folio.txt
+type "RAM:My Root/folio/application.json" >RESULTS:$R1TAG-03-folio-appjson.txt
+RAM:r1/apkg --root "RAM:My Root" run --check folio >RESULTS:$R1TAG-04-check-folio.txt
+echo "rc $RC" >>RESULTS:$R1TAG-04-check-folio.txt
+RAM:r1/apkg --root "RAM:My Root" run --check --json folio >RESULTS:$R1TAG-05-check-json.txt
+RAM:r1/apkg --root "RAM:My Root" run folio RAM:r1/pages12.pdf >RESULTS:$R1TAG-06-run-folio.txt
+echo "rc $RC" >>RESULTS:$R1TAG-06-run-folio.txt
+RAM:r1/tasks Folio >RESULTS:$R1TAG-07-tasks-after.txt
+RAM:r1/apkg --root "RAM:My Root" verify folio >RESULTS:$R1TAG-08-verify-folio.txt
+RAM:r1/apkg --root "RAM:My Root" --index RAM:r1/idx.json install grep >RESULTS:$R1TAG-09-install-grep.txt
+echo "rc $RC" >>RESULTS:$R1TAG-09-install-grep.txt
+RAM:r1/apkg --root "RAM:My Root" run grep -c data "RAM:r1/cases/My Tool/Data Files/note.txt" >RESULTS:$R1TAG-10-run-grep.txt
+echo "rc $RC" >>RESULTS:$R1TAG-10-run-grep.txt
+RAM:r1/apkg --root "RAM:My Root" run grep -c nothing "RAM:r1/cases/My Tool/Data Files/note.txt" >RESULTS:$R1TAG-11-run-grep-nomatch.txt
+echo "rc $RC" >>RESULTS:$R1TAG-11-run-grep-nomatch.txt
+RAM:r1/apkg run "RAM:r1/cases/My Tool" "two words" "a**b*"c" >RESULTS:$R1TAG-12-mytool.txt
+echo "rc $RC" >>RESULTS:$R1TAG-12-mytool.txt
+RAM:r1/apkg run "RAM:r1/cases/My Tool" fail >RESULTS:$R1TAG-13-mytool-fail.txt
+echo "rc $RC" >>RESULTS:$R1TAG-13-mytool-fail.txt
+setenv WHERE_LOG RESULTS:$R1TAG-14-wbtool-log.txt
+RAM:r1/apkg run RAM:r1/cases/wbtool RAM:r1/pages12.pdf >RESULTS:$R1TAG-14-wbtool.txt
+echo "rc $RC" >>RESULTS:$R1TAG-14-wbtool.txt
+unsetenv WHERE_LOG
+RAM:r1/apkg run --check RAM:r1/cases/nodesc >RESULTS:$R1TAG-15-nodesc.txt
+echo "rc $RC" >>RESULTS:$R1TAG-15-nodesc.txt
+RAM:r1/apkg run RAM:r1/cases/missing >RESULTS:$R1TAG-16-missing.txt
+echo "rc $RC" >>RESULTS:$R1TAG-16-missing.txt
+RAM:r1/apkg run RAM:r1/cases/badpath >RESULTS:$R1TAG-17-badpath.txt
+echo "rc $RC" >>RESULTS:$R1TAG-17-badpath.txt
+RAM:r1/apkg run RAM:r1/cases/i386desc >RESULTS:$R1TAG-18-i386desc.txt
+echo "rc $RC" >>RESULTS:$R1TAG-18-i386desc.txt
+RAM:r1/apkg run RAM:r1/cases/elfwrong >RESULTS:$R1TAG-19-elfwrong.txt
+echo "rc $RC" >>RESULTS:$R1TAG-19-elfwrong.txt
+RAM:r1/apkg run RAM:r1/cases/wbnoicon >RESULTS:$R1TAG-20-wbnoicon.txt
+echo "rc $RC" >>RESULTS:$R1TAG-20-wbnoicon.txt
+RAM:r1/apkg run RAM:r1/cases/unknownkey >RESULTS:$R1TAG-21-unknownkey.txt
+echo "rc $RC" >>RESULTS:$R1TAG-21-unknownkey.txt
+RAM:r1/apkg --root "RAM:My Root" run --check notinstalled >RESULTS:$R1TAG-22-notinstalled.txt
+echo "rc $RC" >>RESULTS:$R1TAG-22-notinstalled.txt
+makedir "RAM:Root2"
+makedir "RAM:Root2/cache"
+copy RAM:r1/cache/grep.zip "RAM:Root2/cache/" quiet
+RAM:r1/apkg --root RAM:Root2 --index RAM:r1/idx-nolaunch.json install grep >RESULTS:$R1TAG-23-install-nolaunch.txt
+RAM:r1/apkg --root RAM:Root2 run grep >RESULTS:$R1TAG-24-run-nolaunch.txt
+echo "rc $RC" >>RESULTS:$R1TAG-24-run-nolaunch.txt
+RAM:r1/apkg --root "RAM:My Root" --index RAM:r1/idx.json install grafx2 >RESULTS:$R1TAG-25-install-grafx2.txt
+echo "rc $RC" >>RESULTS:$R1TAG-25-install-grafx2.txt
+RAM:r1/apkg --root "RAM:My Root" run --check grafx2 >RESULTS:$R1TAG-26-check-grafx2.txt
+echo "done" >RESULTS:$R1TAG-99-done.txt

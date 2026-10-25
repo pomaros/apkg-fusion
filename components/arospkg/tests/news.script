@@ -1,0 +1,88 @@
+; What is new after apkg update, apkg recent and the status lines of show,
+; on an AROS guest with a network. Unpack the payload (make-news-fixtures.py)
+; to RAM:nw first, start the TCP stack, then
+;   execute RAM:nw/news.script
+; Every result goes to a new file RESULTS:<tag>-NN-*.txt. Set the tag with
+;   setenv NTAG n1b      (default n1)
+; so a second run does not overwrite the first (FAT32 overwrite defect).
+failat 21
+if not exists ENV:NTAG
+  setenv NTAG n1
+endif
+copy RAM:nw/apkg RAM:apkg
+protect RAM:apkg +e
+RAM:apkg --version >RESULTS:$NTAG-01-version.txt
+
+; A machine without a catalogue: the first update says so and lists the
+; catalogue's newest additions, never "everything is new".
+delete "RAM:News First" all quiet
+makedir "RAM:News First"
+RAM:apkg --root "RAM:News First" --plain update >RESULTS:$NTAG-02-first-update.txt
+echo "rc $RC" >>RESULTS:$NTAG-02-first-update.txt
+RAM:apkg --root "RAM:News First" --plain update >RESULTS:$NTAG-03-update-again.txt
+echo "rc $RC" >>RESULTS:$NTAG-03-update-again.txt
+RAM:apkg --root "RAM:News First" --plain recent --since-last-update >RESULTS:$NTAG-04-first-last.txt
+echo "rc $RC" >>RESULTS:$NTAG-04-first-last.txt
+
+; An earlier catalogue on the machine, fetched 2026-10-01: the update compares.
+delete SYS:NewsB all quiet
+makedir SYS:NewsB
+makedir SYS:NewsB/db
+copy RAM:nw/old.json SYS:NewsB/db/index.json
+copy RAM:nw/news.json SYS:NewsB/db/news.json
+RAM:apkg --root SYS:NewsB --plain recent --since-last-update >RESULTS:$NTAG-05a-seeded-last.txt
+echo "rc $RC" >>RESULTS:$NTAG-05a-seeded-last.txt
+RAM:apkg --root SYS:NewsB --plain update >RESULTS:$NTAG-05-update-b.txt
+echo "rc $RC" >>RESULTS:$NTAG-05-update-b.txt
+RAM:apkg --root SYS:NewsB --plain recent --since-last-update >RESULTS:$NTAG-06-last.txt
+echo "rc $RC" >>RESULTS:$NTAG-06-last.txt
+RAM:apkg --root SYS:NewsB recent --since-last-update --json >RESULTS:$NTAG-07-last.json
+echo "rc $RC" >RESULTS:$NTAG-07-last-rc.txt
+RAM:apkg --root SYS:NewsB --plain recent >RESULTS:$NTAG-08-recent.txt
+echo "rc $RC" >>RESULTS:$NTAG-08-recent.txt
+RAM:apkg --root SYS:NewsB --plain recent --builds --limit 0 >RESULTS:$NTAG-09-recent-all.txt
+echo "rc $RC" >>RESULTS:$NTAG-09-recent-all.txt
+RAM:apkg --root SYS:NewsB --plain recent --days 30 >RESULTS:$NTAG-10-recent-days.txt
+echo "rc $RC" >>RESULTS:$NTAG-10-recent-days.txt
+RAM:apkg --root SYS:NewsB recent --since 2026-10-01 --builds --json >RESULTS:$NTAG-11-since.json
+echo "rc $RC" >RESULTS:$NTAG-11-since-rc.txt
+RAM:apkg --root SYS:NewsB recent --since 1.10.2026 >RESULTS:$NTAG-12-usage.txt
+echo "rc $RC" >>RESULTS:$NTAG-12-usage.txt
+RAM:apkg --root SYS:NewsB recent --days 3 --since 2026-10-01 >>RESULTS:$NTAG-12-usage.txt
+echo "rc $RC" >>RESULTS:$NTAG-12-usage.txt
+
+; Cancelled and failed updates leave the catalogue and the record alone.
+copy SYS:NewsB/db/news.json RESULTS:$NTAG-13-news-before.json
+copy SYS:NewsB/db/index.json RESULTS:$NTAG-13-index-before.json
+RAM:apkg --root SYS:NewsB --plain --cancel-at download update >RESULTS:$NTAG-14-cancel.txt
+echo "rc $RC" >>RESULTS:$NTAG-14-cancel.txt
+copy SYS:NewsB/db/news.json RESULTS:$NTAG-15-news-after-cancel.json
+copy SYS:NewsB/db/index.json RESULTS:$NTAG-15-index-after-cancel.json
+RAM:apkg --root SYS:NewsB --plain --index-url https://raw.githubusercontent.com/tomaszstaniak/arospkg-index/main/no-such-catalogue.json update >RESULTS:$NTAG-16-fail.txt
+echo "rc $RC" >>RESULTS:$NTAG-16-fail.txt
+copy SYS:NewsB/db/news.json RESULTS:$NTAG-17-news-after-fail.json
+copy SYS:NewsB/db/index.json RESULTS:$NTAG-17-index-after-fail.json
+RAM:apkg --root SYS:NewsB --plain recent --since-last-update >RESULTS:$NTAG-18-last-kept.txt
+echo "rc $RC" >>RESULTS:$NTAG-18-last-kept.txt
+
+; show: status, runtime tests, dates, catalogue.
+RAM:apkg --root SYS:NewsB --plain show xrick >RESULTS:$NTAG-19-show-xrick.txt
+RAM:apkg --root SYS:NewsB --plain show sdlpop >RESULTS:$NTAG-20-show-sdlpop.txt
+RAM:apkg --root SYS:NewsB --plain show limpet >RESULTS:$NTAG-21-show-limpet.txt
+
+; No catalogue at all: recent cannot answer, and says so.
+delete RAM:NewsEmpty all quiet
+makedir RAM:NewsEmpty
+RAM:apkg --root RAM:NewsEmpty --plain recent >RESULTS:$NTAG-22-nocat.txt
+echo "rc $RC" >>RESULTS:$NTAG-22-nocat.txt
+RAM:apkg --root RAM:NewsEmpty --plain recent --since-last-update >>RESULTS:$NTAG-22-nocat.txt
+echo "rc $RC" >>RESULTS:$NTAG-22-nocat.txt
+
+; An update again, nothing changed upstream: nothing new.
+RAM:apkg --root SYS:NewsB --plain update >RESULTS:$NTAG-23-update-again-b.txt
+echo "rc $RC" >>RESULTS:$NTAG-23-update-again-b.txt
+
+; The same catalogue from another address: not compared.
+RAM:apkg --root "RAM:News First" --plain --index-url https://raw.githubusercontent.com/tomaszstaniak/arospkg-index/refs/heads/main/index-v2.json update >RESULTS:$NTAG-24-other-address.txt
+echo "rc $RC" >>RESULTS:$NTAG-24-other-address.txt
+echo "done" >RESULTS:$NTAG-99-done.txt

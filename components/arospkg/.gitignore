@@ -1,0 +1,42 @@
+.cache/
+/apkg
+.DS_Store
+
+# Build outputs. Releases ship them in an archive, not in git.
+/apkg
+/apkg-mainline
+/pkg-one
+/dist/
+
+__pycache__/
+*.pyc
+/PkgManager
+
+# Spike builds; each has its build.sh.
+/docs/spikes/network-download/dl
+/docs/spikes/dos-lock/locktest
+/docs/spikes/dos-lock/renlock
+
+/build/
+
+# Local working records; retained on disk and in earlier Git revisions.
+/local/
+/docs/reports/
+/docs/spikes/
+/docs/backlog/
+/docs/testing/
+/docs/reference/
+/docs/release/
+/docs/adr/
+/docs/STATUS.md
+/docs/SCREENSHOTS.md
+/docs/manifest-guide.md
+/docs/zune-frontend-brief.md
+/release/UPLOAD.txt
+/release/archives-*/
+
+# Private work records and generated maintainer candidate data.
+/docs/evidence/
+/skills/
+/index/candidates.json
+/index/candidates/

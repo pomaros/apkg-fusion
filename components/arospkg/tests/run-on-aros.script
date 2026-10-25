@@ -1,0 +1,85 @@
+; arospkg stabilisation run. Execute this on mainline AROS:
+;   Execute "Qemu Vvfat:run-on-aros.script"
+;
+; Root is on SYS:, not RAM:, so the state survives a reboot. Every step writes
+; a report carrying the build id and a run id, because a screendump cannot say
+; which binary produced it.
+
+; apkg returns 10 for an expected failure -- an interrupted run, or "not
+; installed" -- and AmigaDOS aborts a script at the default FAILAT of 10.
+; Without this the run would stop at the first interruption test, which is
+; the whole point of it.
+FAILAT 21
+
+Echo "== arospkg stabilisation run =="
+RAM:apkg --version
+
+; Start from nothing so a re-run cannot inherit a previous one's state.
+Delete SYS:PkgTest ALL FORCE QUIET
+Delete SYS:PkgReports ALL FORCE QUIET
+MakeDir SYS:PkgTest
+MakeDir SYS:PkgReports
+
+; cache/ must exist before the archive is copied into it. apkg creates it, but
+; not until the first time the root is opened -- and the first run of this
+; script copied into a directory that did not exist yet, so every install
+; failed with "the archive is not in the cache". The reports said so in one
+; line; a screenshot would have taken much longer to read.
+MakeDir SYS:PkgTest/cache
+Copy "Qemu Vvfat:zaphod.zip" SYS:PkgTest/cache
+List SYS:PkgTest/cache
+
+Echo "*N-- 1. clean install --"
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --machine mainline --run-id r01-install --report SYS:PkgReports/r01.json install zaphod
+RAM:apkg --root SYS:PkgTest list
+
+Echo "*N-- 2. remove with a modified file --"
+Echo "edited by the user" >SYS:PkgTest/zaphod/README
+RAM:apkg --root SYS:PkgTest --machine mainline --run-id r02-remove-modified --report SYS:PkgReports/r02.json remove zaphod
+Echo "what survived:"
+List SYS:PkgTest/zaphod
+Echo "doctor reports:"
+List SYS:PkgTest/db/doctor
+
+Echo "*N-- 3. clear the leftovers and reinstall --"
+Delete SYS:PkgTest/zaphod ALL FORCE
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --run-id r03 --report SYS:PkgReports/r03.json install zaphod
+RAM:apkg --root SYS:PkgTest --run-id r03b --report SYS:PkgReports/r03b.json remove zaphod
+
+Echo "*N-- 4. every interruption point, each followed by recovery --"
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --interrupt-at 1 --run-id i1 --report SYS:PkgReports/i1.json install zaphod
+RAM:apkg --root SYS:PkgTest --run-id i1r --report SYS:PkgReports/i1r.json list
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --run-id i1x --report SYS:PkgReports/i1x.json install zaphod
+RAM:apkg --root SYS:PkgTest --run-id i1y --report SYS:PkgReports/i1y.json remove zaphod
+
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --interrupt-at 2 --run-id i2 --report SYS:PkgReports/i2.json install zaphod
+RAM:apkg --root SYS:PkgTest --run-id i2r --report SYS:PkgReports/i2r.json list
+
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --interrupt-at 3 --run-id i3 --report SYS:PkgReports/i3.json install zaphod
+RAM:apkg --root SYS:PkgTest --run-id i3r --report SYS:PkgReports/i3r.json list
+
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --interrupt-at 4 --run-id i4 --report SYS:PkgReports/i4.json install zaphod
+RAM:apkg --root SYS:PkgTest --run-id i4r --report SYS:PkgReports/i4r.json list
+
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --interrupt-at 5 --run-id i5 --report SYS:PkgReports/i5.json install zaphod
+RAM:apkg --root SYS:PkgTest --run-id i5r --report SYS:PkgReports/i5r.json list
+
+Echo "*N-- 5. interrupt the recovery itself, then re-run it --"
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --interrupt-at 4 --run-id b0 --report SYS:PkgReports/b0.json install zaphod
+RAM:apkg --root SYS:PkgTest --break-recovery 5 --run-id b1 --report SYS:PkgReports/b1.json remove zaphod
+Echo "after the broken recovery:"
+RAM:apkg --root SYS:PkgTest --run-id b2 --report SYS:PkgReports/b2.json list
+Echo "re-running recovery:"
+RAM:apkg --root SYS:PkgTest --run-id b3 --report SYS:PkgReports/b3.json remove zaphod
+RAM:apkg --root SYS:PkgTest --run-id b4 --report SYS:PkgReports/b4.json list
+
+Echo "*N-- 6. remove interrupted after files are gone --"
+RAM:apkg --root SYS:PkgTest --index "Qemu Vvfat:index.json" --run-id c0 --report SYS:PkgReports/c0.json install zaphod
+RAM:apkg --root SYS:PkgTest --interrupt-at 6 --run-id c1 --report SYS:PkgReports/c1.json remove zaphod
+Echo "roll forward:"
+RAM:apkg --root SYS:PkgTest --run-id c2 --report SYS:PkgReports/c2.json remove zaphod
+RAM:apkg --root SYS:PkgTest --run-id c3 --report SYS:PkgReports/c3.json list
+
+Echo "*N== reports written =="
+List SYS:PkgReports
+Echo "== end of run =="

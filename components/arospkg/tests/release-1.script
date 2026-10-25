@@ -1,0 +1,212 @@
+; v0.1 release suite, part 1 of 2 -- everything up to the reboot.
+; AROS One x86_64, ABIv11, PERSISTENT root SYS:PkgRel on the qcow2 disk.
+;
+; Every step is gated: --expect for apkg runs, assert-hash for content, and an
+; explicit PASS/FAIL line for presence checks. The console transcript is the
+; evidence file; grep it for FAIL. Run as
+;     Execute PAYLOAD:R/REL1
+; Every command appends to RAM:rel1-console.txt itself. Measured on AROS One on 2026-09-19:
+; redirecting Execute (or Run ... Execute) does not capture the output of the
+; commands inside the script, while a redirection on each command does. A line
+; that writes a test fixture keeps its own single redirection.
+; and send RAM:rel1-console.txt plus RAM:rel/ to the host with putfile.
+
+FAILAT 21
+Delete RAM:rel1-console.txt QUIET
+Copy PAYLOAD:APKG RAM:apkg
+Copy PAYLOAD:PUTFILE RAM:putfile
+Protect RAM:putfile +e
+Copy PAYLOAD:I/RELIDX RAM:rel-index.json
+Protect RAM:apkg +e
+Delete RAM:rel ALL FORCE QUIET
+MakeDir RAM:rel
+Echo >>RAM:rel1-console.txt "== v0.1 release suite, part 1 =="
+RAM:apkg >>RAM:rel1-console.txt --version
+
+; Seed the cache with the two small test subjects, so the recovery tests do not
+; depend on the network. C2 below deliberately corrupts one of them.
+Delete SYS:PkgRel ALL FORCE QUIET
+Delete SYS:PkgRel-kept ALL FORCE QUIET
+MakeDir SYS:PkgRel
+MakeDir SYS:PkgRel/cache
+Copy PAYLOAD:A/CLSZIP SYS:PkgRel/cache/cls.zip
+Copy PAYLOAD:A/ZAPZIP SYS:PkgRel/cache/zaphod.zip
+
+Echo >>RAM:rel1-console.txt "*N==== B. drawer icon ===="
+Echo >>RAM:rel1-console.txt "-- B1 install puts <root>/cls.info beside the drawer, ours byte for byte"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id b1 --expect 0 --report RAM:rel/b1.json install cls
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel/cls.info eb1ede2257d410213c6f5f78ff4ddd99edb41d0c5123425d864463b0427f3360
+Search >>RAM:rel1-console.txt SYS:PkgRel/db/installed/cls.json installed
+Echo >>RAM:rel1-console.txt "-- B2 remove takes the icon too"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id b2 --expect 0 --report RAM:rel/b2.json remove cls
+If EXISTS SYS:PkgRel/cls.info
+  Echo >>RAM:rel1-console.txt "FAIL b2: icon left behind"
+Else
+  Echo >>RAM:rel1-console.txt "PASS b2: icon removed"
+EndIf
+
+Echo >>RAM:rel1-console.txt "-- B3 an icon already there is never ours: not overwritten, not removed"
+Echo "mine" >SYS:PkgRel/cls.info
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id b3 --expect 0 --report RAM:rel/b3.json install cls
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel/cls.info fcbc800db3f1867000b852f1ce0044b8f1584f76ade1ed6e65189824f95c3cda
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id b3r --expect 0 --report RAM:rel/b3r.json remove cls
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel/cls.info fcbc800db3f1867000b852f1ce0044b8f1584f76ade1ed6e65189824f95c3cda
+Delete SYS:PkgRel/cls.info QUIET
+
+Echo >>RAM:rel1-console.txt "-- B4 our icon, changed since (as a Workbench snapshot would): kept on remove"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id b4 --expect 0 --report RAM:rel/b4.json install cls
+Echo "snapshotted" >SYS:PkgRel/cls.info
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id b4r --expect 0 --report RAM:rel/b4r.json remove cls
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel/cls.info bb1d92580794e7bd1e47672840f4dc8b421340286f968bd28284e1ba1434dce6
+List >>RAM:rel1-console.txt SYS:PkgRel/db/doctor
+Delete SYS:PkgRel/cls.info QUIET
+Delete SYS:PkgRel/db/doctor/#? QUIET
+
+Echo >>RAM:rel1-console.txt "-- B5 interrupted with the icon in place and no registry: recovery removes it"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id b5 --interrupt-at 8 --expect 11 --report RAM:rel/b5.json install cls
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel/cls.info eb1ede2257d410213c6f5f78ff4ddd99edb41d0c5123425d864463b0427f3360
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id b5x --expect 0 --report RAM:rel/b5x.json doctor --retry
+If EXISTS SYS:PkgRel/cls.info
+  Echo >>RAM:rel1-console.txt "FAIL b5: icon left after recovery"
+Else
+  Echo >>RAM:rel1-console.txt "PASS b5: icon removed by recovery"
+EndIf
+If EXISTS SYS:PkgRel/cls
+  Echo >>RAM:rel1-console.txt "FAIL b5: drawer left after recovery"
+Else
+  Echo >>RAM:rel1-console.txt "PASS b5: drawer removed by recovery"
+EndIf
+
+Echo >>RAM:rel1-console.txt "-- B6 an index naming an icon the archive lacks is refused"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id b6 --expect 8 --report RAM:rel/b6.json install rel-badicon
+If EXISTS SYS:PkgRel/rel-badicon
+  Echo >>RAM:rel1-console.txt "FAIL b6: installed anyway"
+Else
+  Echo >>RAM:rel1-console.txt "PASS b6: nothing installed"
+EndIf
+
+Echo >>RAM:rel1-console.txt "*N==== C. the three fixes ===="
+; Installed cls FIRST: the filesystem returns newest first (measured 2026-09-12),
+; so unsorted output would be zaphod, cls. The first version of this test
+; installed them the other way round, where sorted and unsorted agree, and
+; so could not have failed.
+Echo >>RAM:rel1-console.txt "-- C1 list is sorted: installed as cls, zaphod; must list cls, zaphod"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id c1a --expect 0 --report RAM:rel/c1a.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id c1b --expect 0 --report RAM:rel/c1b.json install zaphod
+RAM:apkg >RAM:rel/c1-list.json --root SYS:PkgRel list
+Type >>RAM:rel1-console.txt RAM:rel/c1-list.json
+Echo >>RAM:rel1-console.txt "-- C2 a damaged cached archive is discarded and fetched again (network)"
+Echo "garbage" >SYS:PkgRel/cache/unmount.zip
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id c2 --expect 0 --report RAM:rel/c2.json install unmount
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id c2r --expect 0 --report RAM:rel/c2r.json remove unmount
+Echo >>RAM:rel1-console.txt "-- C3 search matches on category"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json search board
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json search SHELL
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id c-clean1 --expect 0 --report RAM:rel/cc1.json remove cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id c-clean2 --expect 0 --report RAM:rel/cc2.json remove zaphod
+
+Echo >>RAM:rel1-console.txt "*N==== D. every interruption point, then recovery ===="
+; install points 1-5, 7, 8 roll back; 6 is inside remove and rolls forward.
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id d1 --interrupt-at 1 --expect 11 --report RAM:rel/d1.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d1x --expect 0 --report RAM:rel/d1x.json doctor --retry
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id d2 --interrupt-at 2 --expect 11 --report RAM:rel/d2.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d2x --expect 0 --report RAM:rel/d2x.json doctor --retry
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id d3 --interrupt-at 3 --expect 11 --report RAM:rel/d3.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d3x --expect 0 --report RAM:rel/d3x.json doctor --retry
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id d4 --interrupt-at 4 --expect 11 --report RAM:rel/d4.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d4x --expect 0 --report RAM:rel/d4x.json doctor --retry
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id d5 --interrupt-at 5 --expect 11 --report RAM:rel/d5.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d5x --expect 0 --report RAM:rel/d5x.json doctor --retry
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id d7 --interrupt-at 7 --expect 11 --report RAM:rel/d7.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d7x --expect 0 --report RAM:rel/d7x.json doctor --retry
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id d8 --interrupt-at 8 --expect 11 --report RAM:rel/d8.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d8x --expect 0 --report RAM:rel/d8x.json doctor --retry
+Echo >>RAM:rel1-console.txt "after seven interrupted installs and their recoveries:"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel list
+If EXISTS SYS:PkgRel/cls
+  Echo >>RAM:rel1-console.txt "FAIL d: a drawer survived the rollbacks"
+Else
+  Echo >>RAM:rel1-console.txt "PASS d: no drawer after rollbacks"
+EndIf
+If EXISTS SYS:PkgRel/cls.info
+  Echo >>RAM:rel1-console.txt "FAIL d: an icon survived the rollbacks"
+Else
+  Echo >>RAM:rel1-console.txt "PASS d: no icon after rollbacks"
+EndIf
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id d6a --expect 0 --report RAM:rel/d6a.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d6 --interrupt-at 6 --expect 11 --report RAM:rel/d6.json remove cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id d6x --expect 0 --report RAM:rel/d6x.json doctor --retry
+If EXISTS SYS:PkgRel/db/installed/cls.json
+  Echo >>RAM:rel1-console.txt "FAIL d6: registry survived a rolled-forward removal"
+Else
+  Echo >>RAM:rel1-console.txt "PASS d6: removal finished by recovery"
+EndIf
+
+Echo >>RAM:rel1-console.txt "*N==== E. write faults, and recovery interrupted ===="
+Echo >>RAM:rel1-console.txt "-- F1 005-commit refused: install fails, transaction kept, next run rolls back"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id f1 --fail-at commit --expect 9 --report RAM:rel/f1.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id f1x --expect 4 --report RAM:rel/f1x.json remove cls
+Echo >>RAM:rel1-console.txt "-- F2 leftovers report refused: removal aborts with the registry intact"
+Delete SYS:PkgRel/db/doctor/#? QUIET
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id f2a --expect 0 --report RAM:rel/f2a.json install cls
+Echo "modified by the user" >SYS:PkgRel/cls/Readme
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id f2 --fail-at doctor --expect 9 --report RAM:rel/f2.json remove cls
+If EXISTS SYS:PkgRel/db/installed/cls.json
+  Echo >>RAM:rel1-console.txt "PASS f2: registry still there"
+Else
+  Echo >>RAM:rel1-console.txt "FAIL f2: registry gone after a refused report"
+EndIf
+; The retry's recovery rolls the interrupted removal FORWARD, so the explicit
+; remove then finds nothing: 4. What matters is that the kept file is still
+; recorded -- recovery used to delete the registry without writing this.
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id f2x --expect 4 --report RAM:rel/f2x.json remove cls
+List >>RAM:rel1-console.txt SYS:PkgRel/db/doctor PAT=cls-#? LFORMAT="PASS f2x: kept files recorded in %N"
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel/cls/Readme 030084e31eba6ad6632aa0efa62481984c3aa419e4ea9f31acfd7aacd2d639f3
+
+Echo >>RAM:rel1-console.txt "*N==== F. user data, and what remove-then-install really does ===="
+Echo >>RAM:rel1-console.txt "-- F3 the drawer f2 left behind holds the user's file. install must refuse,"
+Echo >>RAM:rel1-console.txt "   before downloading, and touch nothing"
+Echo "irreplaceable" >SYS:PkgRel/cls/MY-SAVEGAME
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id f3 --expect 7 --report RAM:rel/f3.json install cls
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel/cls/MY-SAVEGAME dfa760658b74123b95f0638d3f7cd05d01965cc46eb75b9dae69a8fd8fcf2c41
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel/cls/Readme 030084e31eba6ad6632aa0efa62481984c3aa419e4ea9f31acfd7aacd2d639f3
+Echo >>RAM:rel1-console.txt "-- F4 the documented way out: move it away, then install"
+Rename SYS:PkgRel/cls SYS:PkgRel-kept
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id f4 --expect 0 --report RAM:rel/f4.json install cls
+RAM:apkg >>RAM:rel1-console.txt assert-hash SYS:PkgRel-kept/MY-SAVEGAME dfa760658b74123b95f0638d3f7cd05d01965cc46eb75b9dae69a8fd8fcf2c41
+
+Echo >>RAM:rel1-console.txt "-- F6 an EMPTY drawer of the package's name is not an obstacle."
+; Removing a package whose program is still running leaves the drawer behind:
+; every file goes, but the drawer cannot be deleted while the program holds it
+; as its current directory. Refusing to install over that would strand the user.
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id f6a --expect 0 --report RAM:rel/f6a.json remove cls
+MakeDir SYS:PkgRel/cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id f6 --expect 0 --report RAM:rel/f6.json install cls
+
+Echo >>RAM:rel1-console.txt "-- F5 recovery interrupted after 2 files, then finished by a plain re-run"
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id f5a --expect 0 --report RAM:rel/f5a.json remove cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id f5 --interrupt-at 5 --expect 11 --report RAM:rel/f5.json install cls
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id f5b --break-recovery 2 --report RAM:rel/f5b.json doctor --retry
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --machine onetest --run-id f5x --expect 0 --report RAM:rel/f5x.json doctor --retry
+If EXISTS SYS:PkgRel/cls
+  Echo >>RAM:rel1-console.txt "FAIL f5: drawer left after the finished recovery"
+Else
+  Echo >>RAM:rel1-console.txt "PASS f5: interrupted recovery finished by a re-run"
+EndIf
+
+; ==== G ==== moved to release-1g.script.
+; G removes an entry written by the PREVIOUS release, so each run consumes one
+; of the packages installed by that binary, and they are used up. release-1g
+; rebuilds the 2026-09-12 binary from its commit and has it write a fresh
+; old-format entry, which makes the test repeatable instead of one-shot.
+
+Echo >>RAM:rel1-console.txt "*N==== H. interrupted, and the machine will now be REBOOTED ===="
+RAM:apkg >>RAM:rel1-console.txt --root SYS:PkgRel --index RAM:rel-index.json --machine onetest --run-id h1 --interrupt-at 4 --expect 11 --report RAM:rel/h1.json install cls
+List >>RAM:rel1-console.txt SYS:PkgRel/db/transactions
+Echo >>RAM:rel1-console.txt "== end of part 1: send the evidence, then reboot and run part 2 =="
+
+; Evidence out, as the last step: nothing may be typed into this Shell while
+; the script runs -- keystrokes land in its input and get spliced into output.
+RAM:putfile RAM:rel1-console.txt
+Join RAM:rel/#?.json AS RAM:rel1-reports.txt
+RAM:putfile RAM:rel1-reports.txt

@@ -1,0 +1,73 @@
+; requires_system on a real ABIv11 machine.
+;
+; Six runs, and the reason there are six is that any one of them alone can be
+; passed by a check that does the wrong thing:
+;
+;   1. sdllopan, real package, real index. Its three requirements -- SDL,
+;      crt, stdlib -- are all met here, so it must install. A check that
+;      refused everything would look correct on run 2 alone.
+;   2. req-test-missing. A requirement no machine provides, on a machine of the
+;      RIGHT ABI, so the ABI gate cannot be what refuses it. Mainline would
+;      stop an ABIv11 package earlier and prove nothing about this code.
+;   3. req-test-satisfied. dos.library, which every AROS has. The control for
+;      run 2: without it, a refusal there might just mean the field refuses
+;      anything it is given.
+;   4. req-test-undetermined. A requirement type the client cannot decide. It
+;      must install ANYWAY, warn, and leave the doubt in the registry.
+;   5. lopan actually starting. Installing is not running.
+;   6. removal, to show it takes its own files and nothing else.
+;
+; Nothing here removes or modifies a system library. The negative case is made
+; by asking for a library that was never there, not by taking one away.
+
+FAILAT 21
+Copy PAYLOAD:PKGONE RAM:apkg
+Copy PAYLOAD:REQIDX RAM:req-index.json
+Protect RAM:apkg +e
+
+Echo "== requires_system, ABIv11 =="
+RAM:apkg --version
+
+Delete SYS:PkgReq ALL FORCE QUIET
+MakeDir SYS:PkgReq
+Delete RAM:reports ALL FORCE QUIET
+MakeDir RAM:reports
+
+Echo "*N-- 1. sdllopan: three requirements, all met here --"
+RAM:apkg --root SYS:PkgReq update
+RAM:apkg --root SYS:PkgReq search sdllopan
+RAM:apkg --root SYS:PkgReq --expect 0 --run-id req-1-sdllopan --machine onetest --report RAM:reports/req-1.json install sdllopan
+Echo "*Nthe registry entry, with the verdicts in it:"
+RAM:apkg --root SYS:PkgReq info sdllopan
+
+Echo "*N-- 2. a library nothing provides: must refuse, must name it --"
+RAM:apkg --root SYS:PkgReq --index RAM:req-index.json --expect 13 --run-id req-2-missing --machine onetest --report RAM:reports/req-2.json install req-test-missing
+Echo "*Nthe cache must not contain it -- the refusal came BEFORE the download:"
+List SYS:PkgReq/cache
+
+Echo "*N-- 3. control: a requirement every AROS meets --"
+RAM:apkg --root SYS:PkgReq --index RAM:req-index.json --expect 0 --run-id req-3-satisfied --machine onetest --report RAM:reports/req-3.json install req-test-satisfied
+
+Echo "*N-- 4. undetermined: installs, warns, and records the doubt --"
+RAM:apkg --root SYS:PkgReq --index RAM:req-index.json --expect 0 --run-id req-4-undetermined --machine onetest --report RAM:reports/req-4.json install req-test-undetermined
+Echo "*Nthe registry must say undetermined, not satisfied:"
+RAM:apkg --root SYS:PkgReq info req-test-undetermined
+
+Echo "*N-- what is installed --"
+RAM:apkg --root SYS:PkgReq list
+
+Echo "*N-- 5. the point of all this: does it run? --"
+Echo "starting lopan; close its window to continue"
+SYS:PkgReq/sdllopan/lopan
+
+Echo "*N-- 6. removal takes its own files and nothing else --"
+RAM:apkg --root SYS:PkgReq --expect 0 --run-id req-6-remove --machine onetest --report RAM:reports/req-6.json remove sdllopan
+RAM:apkg --root SYS:PkgReq list
+Echo "*Nthe system libraries must still be there:"
+List LIBS:SDL.library
+List LIBS:crt.library
+
+Echo "*N-- reports --"
+List RAM:reports
+Type RAM:reports/req-2.json
+Echo "== end =="

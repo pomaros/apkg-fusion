@@ -1,0 +1,63 @@
+; arospkg end-to-end. A clean root, no index copied in by hand, no archive
+; placed in the cache: apkg fetches the archive itself over TLS.
+;
+;   Execute "Qemu Vvfat:e2e-on-aros.script"
+
+FAILAT 21
+
+Echo "== arospkg end-to-end =="
+RAM:apkg --version
+
+Delete SYS:PkgE2E ALL FORCE QUIET
+Delete SYS:PkgE2EReports ALL FORCE QUIET
+MakeDir SYS:PkgE2E
+MakeDir SYS:PkgE2EReports
+
+Echo "*N-- 1. update: nothing is placed by hand from here on --"
+Echo "expect: the index is fetched from the public index repository"
+RAM:apkg --root SYS:PkgE2E --run-id e1 --expect 0 --report SYS:PkgE2EReports/e1.json update
+List SYS:PkgE2E/db
+
+Echo "*N-- 1a. a URL the server does not have (404) --"
+Echo "expect: an HTTP error, NOT an index-parse complaint, index untouched"
+RAM:apkg --root SYS:PkgE2E --index-url https://raw.githubusercontent.com/tomaszstaniak/arospkg-index/main/no-such-file.json --run-id e1a --expect 12 --report SYS:PkgE2EReports/e1a.json update
+
+Echo "*N-- 1b. 200 OK whose content is not an index --"
+Echo "expect: fetch succeeds, contents rejected, old index untouched"
+RAM:apkg --root SYS:PkgE2E --index-url https://archives.arosworld.org/share/RECENT.readme --run-id e1b --expect 9 --report SYS:PkgE2EReports/e1b.json update
+Echo "the fetched index must still be there:"
+List SYS:PkgE2E/db
+RAM:apkg --root SYS:PkgE2E --run-id e1c --expect 0 --report SYS:PkgE2EReports/e1c.json search zaphod
+
+Echo "*N-- 2. search the index --"
+RAM:apkg --root SYS:PkgE2E --run-id e2 --expect 0 --report SYS:PkgE2EReports/e2.json search zaphod
+RAM:apkg --root SYS:PkgE2E --run-id e2b --expect 0 --report SYS:PkgE2EReports/e2b.json search editor
+
+Echo "*N-- 2c. staging identity: the path is per-transaction --"
+Echo "expect: tmp/ empty before, and an interrupted install leaves ONE"
+List SYS:PkgE2E/tmp
+RAM:apkg --root SYS:PkgE2E --interrupt-at 1 --run-id e2c --expect 11 --report SYS:PkgE2EReports/e2c.json install zaphod
+Echo "the staged tree, named after the transaction that made it:"
+List SYS:PkgE2E/tmp
+List SYS:PkgE2E/db/transactions
+Echo "recovery must remove it and must not put one back:"
+RAM:apkg --root SYS:PkgE2E --run-id e2d --report SYS:PkgE2EReports/e2d.json doctor --retry
+List SYS:PkgE2E/tmp
+
+Echo "*N-- 3. install, with NOTHING in the cache --"
+Echo "expect: fetch over TLS, follow the redirect, verify, then install"
+List SYS:PkgE2E/cache
+RAM:apkg --root SYS:PkgE2E --run-id e3 --expect 0 --report SYS:PkgE2EReports/e3.json install zaphod
+Echo "what landed in the cache:"
+List SYS:PkgE2E/cache
+Echo "what was installed:"
+List SYS:PkgE2E/zaphod
+
+Echo "*N-- 4. list and remove --"
+RAM:apkg --root SYS:PkgE2E --run-id e4 --expect 0 --report SYS:PkgE2EReports/e4.json list
+RAM:apkg --root SYS:PkgE2E --run-id e5 --expect 0 --report SYS:PkgE2EReports/e5.json remove zaphod
+RAM:apkg --root SYS:PkgE2E --run-id e6 --expect 0 --report SYS:PkgE2EReports/e6.json list
+
+Echo "*N== end-to-end reports =="
+List SYS:PkgE2EReports
+Echo "== end of run =="

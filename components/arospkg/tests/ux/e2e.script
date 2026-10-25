@@ -1,0 +1,33 @@
+; The author-to-user acceptance, guest half (host half: tests/ux/e2e-make.sh).
+; The archive is in the root's cache, so install and upgrade verify it there
+; instead of downloading. Run as  Execute RAM:rxt/e2e.script <run>
+.key run/A
+FAILAT 1000
+Delete RAM:e2e ALL FORCE QUIET
+MakeDir RAM:e2e
+Copy RAM:rxt/#? RAM:e2e ALL QUIET
+Protect RAM:e2e/apkg +e
+Delete "SYS:Ux E2E" ALL FORCE QUIET
+MakeDir "SYS:Ux E2E" "SYS:Ux E2E/db" "SYS:Ux E2E/cache"
+Copy RAM:e2e/index-r0.json "SYS:Ux E2E/db/index.json"
+Copy RAM:e2e/uxpack-r0.zip "SYS:Ux E2E/cache/uxpack.zip"
+RAM:e2e/apkg --version >RESULTS:<run>-version.txt
+
+RAM:e2e/apkg --root "SYS:Ux E2E" show uxpack >RESULTS:<run>-show-before.txt
+RAM:e2e/apkg --root "SYS:Ux E2E" install uxpack >RESULTS:<run>-install.txt
+Echo "rc=$RC" >>RESULTS:<run>-install.txt
+Copy "SYS:Ux E2E/db/installed/uxpack.json" RESULTS:<run>-registry.json
+RAM:e2e/apkg --root "SYS:Ux E2E" open uxpack >RESULTS:<run>-open.txt
+Echo "rc=$RC" >>RESULTS:<run>-open.txt
+
+; the catalogue no longer lists it: the notes come from the registry
+Copy RAM:e2e/index-without.json "SYS:Ux E2E/db/index.json"
+RAM:e2e/apkg --root "SYS:Ux E2E" show uxpack >RESULTS:<run>-show-registry-only.txt
+
+; revision 1 reaches the catalogue: the update is offered and installed
+Copy RAM:e2e/index-r1.json "SYS:Ux E2E/db/index.json"
+Copy RAM:e2e/uxpack-r1.zip "SYS:Ux E2E/cache/uxpack.new.zip"
+RAM:e2e/apkg --root "SYS:Ux E2E" show uxpack >RESULTS:<run>-show-r1.txt
+RAM:e2e/apkg --root "SYS:Ux E2E" upgrade uxpack >RESULTS:<run>-upgrade.txt
+Echo "rc=$RC" >>RESULTS:<run>-upgrade.txt
+Echo DONE >RESULTS:<run>-done.txt
