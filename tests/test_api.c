@@ -104,7 +104,7 @@ static void put(const char *path, const char *text)
 
 int main(void)
 {
-    char dirbuf[400], *dir = dirbuf, p[512], key[512], drawer[512], channel[512], root[512];
+    char dirbuf[400], *dir = dirbuf, p[700], key[512], drawer[512], channel[512], root[512];
     const char *tmp = getenv("TMPDIR");
     struct seen s;
     struct pkg_sink sink = { .record = rec, .text = txt, .user = &s, .structured = 1 };
