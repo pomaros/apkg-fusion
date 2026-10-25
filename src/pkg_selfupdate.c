@@ -354,7 +354,7 @@ int pkg_selfupdate(const struct pkg_sink *sink,int dryrun)
 #ifndef _WIN32
         if(need_admin) {
             if(!sink->structured&&isatty(STDIN_FILENO)&&isatty(STDOUT_FILENO)) {
-                char answer[16],q[PATHCAP+200]; pid_t child; int status;
+                char answer[16],q[PATHCAP+sizeof offered+sizeof PKG_VERSION_STRING+128]; pid_t child; int status;
                 snprintf(q,sizeof q,"pkg %s is offered; this is %s. Replacing %s needs administrator access: run this same executable with sudo? [y/N]",offered,PKG_VERSION_STRING,target);
                 ask(sink,q);
                 if(!fgets(answer,sizeof answer,stdin)||tolower((unsigned char)answer[0])!='y') {

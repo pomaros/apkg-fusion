@@ -184,7 +184,7 @@ has q7 '0.0/24 MB';                                     ok $? "the archive begin
 # ---- a download, where the whole may or may not be known ---------------
 echo "downloads"
 python3 - > server.log 2>&1 <<'PY' &
-import http.server, threading, os, sys, time
+import http.server, socketserver, threading, os, sys, time
 data = os.urandom(3 * 1024 * 1024)
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -212,7 +212,14 @@ class H(http.server.BaseHTTPRequestHandler):
             time.sleep(0.02)
         if not known:
             self.wfile.write(b"0\r\n\r\n")
-s = http.server.HTTPServer(("127.0.0.1", 0), H)
+class LocalHTTPServer(http.server.HTTPServer):
+    def server_bind(self):
+        # This fixture uses loopback only; hostname lookup adds an unrelated
+        # DNS dependency to readiness on hosted macOS runners.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = "localhost"
+        self.server_port = self.server_address[1]
+s = LocalHTTPServer(("127.0.0.1", 0), H)
 print(s.server_port, flush=True)
 open("port", "w").write(str(s.server_port))
 s.serve_forever()
@@ -223,6 +230,7 @@ while [ ! -s port ] && [ "$n" -lt 100 ]; do n=$((n + 1)); sleep 0.1; done
 port=$(cat port 2>/dev/null)
 if [ -z "$port" ]; then
     echo "activity: the test server did not start" >&2
+    cat server.log >&2
     kill $server 2>/dev/null
     exit 69
 fi
