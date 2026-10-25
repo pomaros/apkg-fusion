@@ -81,7 +81,7 @@ has m1 '^Kind: sdk$' && has m1 '^Short: Small TLS library to link into programs$
                                                       ok $? "the kind and every catalogue field come from the file, paragraph breaks kept"
 ! has m1 '^Upstream-Archive' && ! has m1 '^Port-Maintainer' && ! has m1 '^Port:'
                                                       ok $? "the keys Pkg does not know are ignored, not carried into the manifest"
-grep '^File: ' m1 | awk '{print $4}' | sort > got
+grep '^File: ' m1 | awk '{print $4}' | LC_ALL=C sort > got
 cat > want <<'FILES'
 Developer/Docs/mbedtls/ChangeLog
 Developer/Docs/mbedtls/mbedtls.pkginfo

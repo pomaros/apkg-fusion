@@ -1132,7 +1132,7 @@ static int scene(void)
 {
     struct pkg_sink s;
     struct pkg_options o;
-    char k[900], rel[600], a[900], b[900];
+    char k[900], rel[1024], a[900], b[900];
     int i;
 
     memset(&s, 0, sizeof s);
