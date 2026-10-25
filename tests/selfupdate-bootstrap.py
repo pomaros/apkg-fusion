@@ -5,6 +5,7 @@
 import functools
 import hashlib
 import http.server
+from http_fixture import ThreadingHTTPServer
 import os
 from pathlib import Path
 import platform
@@ -33,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='pkg-selfupdate-test-') as d:
     binary = directory / 'pkg'
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *args): pass
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=str(root)))
+    server = ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Quiet, directory=str(root)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         probe = root / 'probe.c'

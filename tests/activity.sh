@@ -23,6 +23,8 @@
 # before the first frame. Both are documented in docs/reference.md.
 
 set -u
+fixture_dir=$(cd "$(dirname "$0")" && pwd)
+export PYTHONPATH="$fixture_dir${PYTHONPATH:+:$PYTHONPATH}"
 PKG=${PKG:-./build/pkg}
 PKG=$(cd "$(dirname "$PKG")" && pwd)/$(basename "$PKG")
 [ -x "$PKG" ] || { echo "activity: missing $PKG (make build/pkg)" >&2; exit 69; }
@@ -184,7 +186,8 @@ has q7 '0.0/24 MB';                                     ok $? "the archive begin
 # ---- a download, where the whole may or may not be known ---------------
 echo "downloads"
 python3 - > server.log 2>&1 <<'PY' &
-import http.server, socketserver, threading, os, sys, time
+import http.server, threading, os, sys, time
+from http_fixture import HTTPServer
 data = os.urandom(3 * 1024 * 1024)
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -212,14 +215,7 @@ class H(http.server.BaseHTTPRequestHandler):
             time.sleep(0.02)
         if not known:
             self.wfile.write(b"0\r\n\r\n")
-class LocalHTTPServer(http.server.HTTPServer):
-    def server_bind(self):
-        # This fixture uses loopback only; hostname lookup adds an unrelated
-        # DNS dependency to readiness on hosted macOS runners.
-        socketserver.TCPServer.server_bind(self)
-        self.server_name = "localhost"
-        self.server_port = self.server_address[1]
-s = LocalHTTPServer(("127.0.0.1", 0), H)
+s = HTTPServer(("127.0.0.1", 0), H)
 print(s.server_port, flush=True)
 open("port", "w").write(str(s.server_port))
 s.serve_forever()

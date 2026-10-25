@@ -15,6 +15,8 @@
 # and a 404 for a file that is not there.
 
 set -u
+fixture_dir=$(cd "$(dirname "$0")" && pwd)
+export PYTHONPATH="$fixture_dir${PYTHONPATH:+:$PYTHONPATH}"
 TEST_EVENTS=${TEST_EVENTS:-./build/test_events}
 [ -x "$TEST_EVENTS" ] || { echo "events: missing $TEST_EVENTS (make build/test_events)" >&2; exit 69; }
 command -v python3 > /dev/null 2>&1 || { echo "events: needs python3" >&2; exit 69; }
@@ -29,6 +31,7 @@ trap stop EXIT
 
 python3 - "$T" > "$T/server.log" 2>&1 <<'PY' &
 import http.server, os, sys, time
+from http_fixture import ThreadingHTTPServer
 top = os.path.realpath(sys.argv[1])
 class H(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -60,7 +63,7 @@ class H(http.server.BaseHTTPRequestHandler):
         else:
             self.wfile.write(data)
         self.wfile.flush()
-s = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+s = ThreadingHTTPServer(("127.0.0.1", 0), H)
 open(os.path.join(top, "port"), "w").write(str(s.server_port))
 s.serve_forever()
 PY

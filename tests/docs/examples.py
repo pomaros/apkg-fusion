@@ -18,6 +18,8 @@ import http.server, os, re, shlex, shutil, subprocess, sys, tempfile, threading
 
 PORTAL = "https://aros-pkg.azurewebsites.net"
 here = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(here))
+from http_fixture import ThreadingHTTPServer
 repo = os.path.dirname(os.path.dirname(here))
 pkg = os.path.abspath(sys.argv[1])
 write = "--write" in sys.argv
@@ -56,7 +58,7 @@ class Quiet(http.server.SimpleHTTPRequestHandler):
         super().__init__(*a, directory=os.path.join(fix, "portal"), **k)
     def log_message(self, *a):
         pass
-srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Quiet)
+srv = ThreadingHTTPServer(("127.0.0.1", 0), Quiet)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 local = "http://127.0.0.1:%d" % srv.server_address[1]
 

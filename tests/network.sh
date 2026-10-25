@@ -9,6 +9,8 @@
 # channel, a file changed on the server, a PUBLISH into a URL.
 
 set -u
+fixture_dir=$(cd "$(dirname "$0")" && pwd)
+export PYTHONPATH="$fixture_dir${PYTHONPATH:+:$PYTHONPATH}"
 PKG=${PKG:-./build/pkg}
 PKG=$(cd "$(dirname "$PKG")" && pwd)/$(basename "$PKG")
 T=$(mktemp -d "${TMPDIR:-/tmp}/pkg-network.XXXXXX")
@@ -23,6 +25,7 @@ has() { grep -q -- "$2" "$1" 2>/dev/null; }
 
 cat > server.py <<'PY'
 import http.server, os, sys
+from http_fixture import ThreadingHTTPServer
 root = sys.argv[1]
 log = open(sys.argv[2], "a")
 class H(http.server.SimpleHTTPRequestHandler):
@@ -48,8 +51,8 @@ class H(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b"%x\r\n" % len(part) + part + b"\r\n")
             self.wfile.write(b"0\r\n\r\n"); return
         return super().do_GET()
-http.server.ThreadingHTTPServer.allow_reuse_address = True
-s = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+ThreadingHTTPServer.allow_reuse_address = True
+s = ThreadingHTTPServer(("127.0.0.1", 0), H)
 open(sys.argv[3], "w").write(str(s.server_address[1]))
 s.serve_forever()
 PY

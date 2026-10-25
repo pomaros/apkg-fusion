@@ -3,6 +3,7 @@
 # Copyright (c) 2026 John Knipper
 """Observe activity while a real HTTP response is deliberately withheld."""
 import http.server
+from http_fixture import ThreadingHTTPServer
 import os
 from pathlib import Path
 import re
@@ -56,7 +57,7 @@ def check(known, certificate=None):
             if not known:
                 self.wfile.write(b'0\r\n\r\n')
 
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     scheme = 'https' if certificate else 'http'
     if certificate:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

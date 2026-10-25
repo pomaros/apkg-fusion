@@ -110,8 +110,9 @@ static void describe(struct pkg_ameta *a, struct buf *b)
         for (i = 0; i < n; i++) {
             const struct pkg_ameta_entry *e = rows[i].e;
             if (pass == 1) {
-                snprintf(tmp, sizeof tmp, "stale %s\n", rows[i].esc);
-                put(b, tmp);
+                put(b, "stale ");
+                put(b, rows[i].esc);
+                put(b, "\n");
                 continue;
             }
             put(b, "entry ");

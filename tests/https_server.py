@@ -17,6 +17,7 @@ client must also cope with."""
 
 import functools
 import http.server
+from http_fixture import HTTPServer
 import os
 import ssl
 import sys
@@ -34,7 +35,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 handler = functools.partial(Handler, directory=directory)
-httpd = http.server.HTTPServer((bind, port), handler)
+httpd = HTTPServer((bind, port), handler)
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(cert)
 httpd.socket = context.wrap_socket(httpd.socket, server_side=True)

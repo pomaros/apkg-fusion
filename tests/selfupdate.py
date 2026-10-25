@@ -5,6 +5,7 @@
 import functools
 import hashlib
 import http.server
+from http_fixture import ThreadingHTTPServer
 import os
 from pathlib import Path
 import subprocess
@@ -128,7 +129,7 @@ with tempfile.TemporaryDirectory(prefix='pkg-update-') as tmp:
                 self.send_error(503)
                 return
             super().do_GET()
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(channel)))
+    server = ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(channel)))
     worker = threading.Thread(target=server.serve_forever, daemon=True); worker.start()
     url = f'http://127.0.0.1:{server.server_port}'
     env = dict(os.environ, PKG_CACHE=str(base / 'cache'))

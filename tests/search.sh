@@ -20,6 +20,8 @@
 # skipped with a message when this machine is offline.
 
 set -u
+fixture_dir=$(cd "$(dirname "$0")" && pwd)
+export PYTHONPATH="$fixture_dir${PYTHONPATH:+:$PYTHONPATH}"
 PKG=${PKG:-./build/pkg}
 T=$(mktemp -d "${TMPDIR:-/tmp}/pkg-search.XXXXXX")
 good=
@@ -126,6 +128,7 @@ has "$T/r1" '^package: melody' ;                 ok $? "SEARCH with no CHANNEL u
 # ---- the portal's API, and the fall-back -------------------------------
 cat > "$T/server.py" <<'PY'
 import http.server, json, sys, os
+from http_fixture import ThreadingHTTPServer
 root, mode, portfile = sys.argv[1], sys.argv[2], sys.argv[3]
 
 class H(http.server.SimpleHTTPRequestHandler):
@@ -159,8 +162,8 @@ class H(http.server.SimpleHTTPRequestHandler):
             return
         http.server.SimpleHTTPRequestHandler.do_GET(self)
 
-http.server.ThreadingHTTPServer.allow_reuse_address = True
-s = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+ThreadingHTTPServer.allow_reuse_address = True
+s = ThreadingHTTPServer(("127.0.0.1", 0), H)
 open(portfile, "w").write(str(s.server_address[1]))
 s.serve_forever()
 PY
