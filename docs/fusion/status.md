@@ -81,3 +81,19 @@ The integration checks comprise 118 target, 315 application-description,
 27 first-install, 110 CLI and 78 publication checks. The last three were
 rerun after the final diagnostic correction. No operational consumers were
 modified and no portal or AROS deployment was performed.
+
+## Follow-up verification register
+
+These checks remain scheduled work; they do not block BASE or contract design.
+
+| Item | Owner batch and evidence to obtain |
+|---|---|
+| Existing APKG distributions | MAP: AROS One 1.3 is named in the pinned sources; identify the second distribution and exact releases from evidence. |
+| DOS and handlers | MAP / PLATFORMS: measure dos.library version/revision and handler capabilities on each distribution; exercise replacement and recovery rather than inferring compatibility from ABI. |
+| Self-update state | MAP / JOURNAL / SELF-UPDATE: map both existing journals, including `ENVARC:arospkg/self-update.json`, into one recovery model and test interrupted self-update recovery. |
+| Maintainer feedback | ALIGN: collect comments on the selected skeleton, trust administration and release scope when contact is authorized; development continues meanwhile. |
+| Existing portal | PORTAL-MIGRATE: migration of https://aros-pkg.azurewebsites.net/ is requested after fusion. Inventory real data/configuration, rehearse backup/restore and cutover, verify publishing/consumption and URLs, and retain rollback. No live migration has been attempted. |
+
+Portal migration work keeps credentials and private data outside the public
+repository. Existing author signatures, channel trust and qualification evidence
+must retain their meaning; migration cannot grant review to unreviewed content.
