@@ -4,9 +4,49 @@
 # Implementation status
 
 This is a development integration workspace. It does not replace released APKG
-installations. The checkout starts from pkg with an arospkg import; the
-[architecture](architecture.md) is context-based and is implemented
-independently of that provisional layout.
+installations. The checkout starts from pkg with an arospkg import. The
+[architecture](architecture.md#implementation-skeleton) selects arospkg’s
+context-based core as the skeleton; porting the services remains implementation
+work, independently of the provisional source layout.
+
+## BASE qualification
+
+The complete [Host integration run](https://github.com/pomaros/apkg-fusion/actions/runs/40221131858)
+passed on source [439366b](https://github.com/pomaros/apkg-fusion/commit/439366bd67db69bce8bab220ade3d48980d6e5e9).
+All configured jobs completed successfully:
+
+| Job | Verified scope |
+|---|---|
+| `fusion (ubuntu-latest)` | Common integration, full inherited engine suite, full inherited client/authoring host suite, public-library symbol check and documentation links |
+| `fusion (macos-latest)` | The same complete suite and checks on macOS |
+| `portal` | Native verifier build and all 107 portal tests, with zero failures or skips |
+
+The [workflow](../../.github/workflows/host.yml) keeps all these gates enabled.
+The branch’s [CI runs](https://github.com/pomaros/apkg-fusion/actions/workflows/host.yml?query=branch%3Amain)
+provide exact-commit verification for subsequent documentation updates.
+Host qualification does not establish AROS runtime compatibility or power-loss
+recovery, and Windows/static cross-build qualification remains separate work.
+
+BASE fixed a first-use portal-search cache failure, bounded a self-update prompt
+for GCC, and corrected host-dependent test assumptions: path buffer sizes,
+reverse DNS during fixture startup, GNU/BSD command syntax and memory units,
+copy semantics, locale ordering, archive member order, server readiness and
+ELF fixture targeting. CI installs the native verifier and archive/image tools
+required by the existing suites. Test assertions and memory limits were retained.
+
+## MAP handoff
+
+The next bounded task is MAP from [PLAN](../../PLAN.md#bounded-execution-batches).
+Start with `components/arospkg/src/libpkg/pkg.h`, `core.c`, `ops.c`, `swap.c`,
+`relations_io.c` and the self-update record readers. Produce
+`docs/fusion/migration.md` and a provenance-labelled fixture inventory under
+`tests/fixtures/migration/`. Cover roots, edits, settings, versions/revisions,
+launch metadata, installation reasons, relations, rollback and self-update state.
+Distinguish synthetic fixtures from actual distribution records. Distribution
+identity and DOS measurements remain explicit follow-up fields; development can
+proceed while they are unknown. Stop before implementing an importer or starting
+CONTRACT. No MAP implementation or operational-consumer migration is included
+in BASE.
 
 ## Implemented integration pieces
 
@@ -18,10 +58,10 @@ independently of that provisional layout.
 | Native development CLI | `build/apkg` offers long options, explicit targets and `bundle-check`; 110 command checks pass. Its inherited engine backend still contains global request state. |
 | Authoring bridge | apkg-pack validation and bundle generation feed native signing. 78 offline checks cover publication, install, dependencies, verification, tampering and refusals. Inputs remain unchanged. |
 | Portal qualifications | Review and runtime records apply to exact published content independently of publishing rights. The portal suite has 107 passing host tests. Package and search pages were inspected in a local browser; production deployment remains separate work. |
-| Imported arospkg host suite | The complete inherited host suite passes after restoring its missing pinned LH5 fixture. This is host evidence for the imported components. |
-| Imported engine suite | `make test` passed before the first-install change. The subsequent full run exposed diagnostic regressions; these were corrected and focused e2e (272), events (86), first-install (27) and fastarchive (52) checks passed. Full final-revision validation is delegated to CI; it is not claimed locally. |
+| Imported arospkg host suite | The complete inherited host suite passes on macOS and Linux in the BASE qualification above, including the pinned LH5 fixture. This is host evidence for the imported components. |
+| Imported engine suite | The complete `make test` suite passes on both macOS and Linux; see BASE qualification for the exact source and run. |
 | First-install locking | Initially absent roots are locked before resolution and remain locked through the backend flush step. 27 focused checks, including independent competing processes and usage diagnostics, pass; the events suite passes 86 checks. Power-loss durability is separate qualification. |
-| Host build recipes | The macOS universal recipe built arm64 and x86_64 slices before the final diagnostic correction; version smoke checks ran natively and under Rosetta. Windows/Linux recipes lack local toolchain qualification. |
+| Host build recipes | Native macOS and Linux clients build and pass the BASE host suites. An earlier universal macOS build had arm64/x86_64 version smoke checks. Windows and static Linux cross-build recipes remain unqualified. |
 
 These checks ran on a host. The authoring suite's ELF fixture is synthetic and
 never executed. ABI/runtime mismatch tests prove selection refusal, not runtime
@@ -73,13 +113,12 @@ Use `make test-fusion` for integration checks and
 and target-specific tests for changed components. Final release evidence
 must identify the exact source and builds tested.
 
-The portal suite was run with installed .NET SDK 10.0.105 from a working
-directory outside the portal SDK pin. The repository requests 10.0.112,
-which was unavailable locally; the pinned-SDK CI run is separate evidence.
+The passing portal CI run used .NET SDK 10.0.113, selected within the
+repository's 10.0.1xx SDK band by `global.json`'s `latestPatch` policy.
 
 The integration checks comprise 118 target, 315 application-description,
-27 first-install, 110 CLI and 78 publication checks. The last three were
-rerun after the final diagnostic correction. No operational consumers were
+27 first-install, 110 CLI and 78 publication checks. All are covered by the passing BASE matrix; the HTTP fixture test additionally
+checks synchronous and threaded responses with reverse DNS unavailable. No operational consumers were
 modified and no portal or AROS deployment was performed.
 
 ## Follow-up verification register
