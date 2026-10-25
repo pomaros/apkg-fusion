@@ -176,8 +176,19 @@ out.append(c.flush())
 open("bomb.tar.bz2", "wb").write(b"".join(out))
 PY
 mkdir -p chb/archives; cp bomb.tar.bz2 chb/archives/
-rss() { awk '/maximum resident set size/{print int($1 / 1048576)}' "$1"; }
-/usr/bin/time -l $PKG PUBLISH "chb/archives/bomb.tar.bz2!/Top" CHANNEL chb NAME bomb VERSION 1 KIND data MACHINE > out-b1 2> out-b1.time
+case $(uname -s) in
+    Darwin)
+        rss_divisor=1048576
+        measure() { /usr/bin/time -l "$@"; }
+        ;;
+    Linux)
+        rss_divisor=1024
+        measure() { /usr/bin/time -f '%M maximum resident set size' "$@"; }
+        ;;
+    *) echo "hostile: peak-memory measurement needs macOS or Linux" >&2; exit 69 ;;
+esac
+rss() { awk -v divisor="$rss_divisor" '/maximum resident set size/{print int($1 / divisor)}' "$1"; }
+measure "$PKG" PUBLISH "chb/archives/bomb.tar.bz2!/Top" CHANNEL chb NAME bomb VERSION 1 KIND data MACHINE > out-b1 2> out-b1.time
 code=$?
 [ "$code" -lt 128 ] && [ "$(rss out-b1.time)" -lt 64 ]
                                                       ok $? "publishing from a $(wc -c < bomb.tar.bz2 | tr -d ' ')-byte archive of 1 GiB stays under 64 MB of memory ($(rss out-b1.time) MB, exit $code)"
@@ -191,7 +202,7 @@ PY2
 mkdir -p chs/archives; cp small.tar.bz2 chs/archives/bomb.tar.bz2
 $PKG PUBLISH "chs/archives/bomb.tar.bz2!/Top" CHANNEL chs NAME small VERSION 1 KIND data > /dev/null 2>&1
 cp bomb.tar.bz2 chs/archives/bomb.tar.bz2
-/usr/bin/time -l $PKG INSTALL small ROOT rb CHANNEL chs MACHINE > out-b2 2> out-b2.time
+measure "$PKG" INSTALL small ROOT rb CHANNEL chs MACHINE > out-b2 2> out-b2.time
 code=$?
 [ "$code" -eq 12 ] && has out-b2 'longer than the 3 bytes' && [ "$(rss out-b2.time)" -lt 64 ] && [ ! -e rb/zeros ]
                                                       ok $? "installing from an archive swapped for a bomb stops at the manifest's size: 12, $(rss out-b2.time) MB"
