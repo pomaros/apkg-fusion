@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Tomasz Staniak <https://tomaszstaniak.com>
+# Copyright (c) 2026 John Knipper
 """Build the LHA fixtures the host test uses.
 
 The interesting ones cannot be made with the `lha` tool, because it would
 never write them: a member called `ram:evil.txt` (absolute in the AROS sense,
 and a real archive in AROS Archives does exactly this) and one that escapes
 with `..`. So the level-1 headers are assembled here, byte by byte, with
-stored (-lh0-) data. The compressed fixture does come from the system tool,
-because the point of that one is to exercise a real encoder.
+stored (-lh0-) data. The compressed fixture is pinned from a real encoder;
+its provenance and regeneration instructions are in fixtures/lha/README.md.
 """
-import os, shutil, struct, subprocess, sys, tempfile
+import hashlib
+from pathlib import Path
+import shutil
+import struct
 
 def level1(name: bytes, data: bytes, method=b"-lh0-") -> bytes:
     # base header: everything from offset 2 to its end, then the 2-byte
@@ -46,36 +52,18 @@ write("/tmp/arospkg-lha-parent.lha",
 with open("/tmp/arospkg-lha-notanarchive", "wb") as f:
     f.write(b"this is not an archive at all, just some bytes\n")
 
-# A compressed archive from a real encoder: exactly 300 000 bytes of text,
-# which does not fit in one Huffman block, so the decoder has to cross a block
-# boundary -- the case that broke the first version of it.
-#
-# Homebrew's `lha` only extracts. aros-python3 built one that packs; try
-# whatever is around and skip the fixture if nothing can create an archive.
-tool = None
-for cand in (shutil.which("lha"),
-             os.path.expanduser("~/Work/AROS-dev/aros-python3/tools/lha")):
-    if cand and os.path.exists(cand):
-        probe = tempfile.mkdtemp()
-        open(os.path.join(probe, "t"), "w").write("t")
-        r = subprocess.run([cand, "aq", os.path.join(probe, "p.lha"), "t"],
-                           cwd=probe, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if r.returncode == 0 and os.path.exists(os.path.join(probe, "p.lha")):
-            tool = cand
-        shutil.rmtree(probe)
-        if tool:
-            break
-if not tool:
-    print("no lha that can CREATE an archive on this host: -lh5- fixture skipped",
-          file=sys.stderr)
-    sys.exit(0)
-tmp = tempfile.mkdtemp()
-with open(os.path.join(tmp, "big.txt"), "w") as f:
-    for i in range(6000):                      # 6000 x 50 bytes = 300000 exactly
-        f.write(("line %05d of a file that compresses, but not flat" % i).ljust(49) + "\n")
-out = "/tmp/arospkg-lha-packed.lha"
-if os.path.exists(out):
-    os.remove(out)
-subprocess.run([tool, "aq", out, "big.txt"], cwd=tmp, check=True,
-               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-shutil.rmtree(tmp)
+# A pinned archive from an independent encoder makes the decompression test
+# repeatable on hosts whose lha command only extracts. A missing or changed
+# fixture fails setup; it must never leave a stale /tmp archive to be tested.
+fixture = Path(__file__).resolve().parent / "fixtures/lha/packed-lh5.lha"
+expected_sha256 = "eec84257c7650f431dfceab1b7753f8824b95759eed7fa62c1687e6651c029cc"
+data = fixture.read_bytes()
+if hashlib.sha256(data).hexdigest() != expected_sha256:
+    raise SystemExit(f"{fixture}: compressed fixture SHA-256 mismatch")
+shutil.copyfile(fixture, "/tmp/arospkg-lha-packed.lha")
+# Each line is 51 bytes, including its newline: 306000 bytes in all.
+expected = b"".join(
+    f"line {i:05d} of a file that compresses, but not flat\n".encode("ascii")
+    for i in range(6000)
+)
+Path("/tmp/arospkg-lha-packed.expected").write_bytes(expected)

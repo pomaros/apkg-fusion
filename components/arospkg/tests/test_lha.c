@@ -1,3 +1,7 @@
+/* SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 Tomasz Staniak <https://tomaszstaniak.com>
+ * Copyright (c) 2026 John Knipper
+ */
 /* The LHA reader. Fixtures are built beside this test (see run-host-tests.sh):
  * a stored archive, a compressed one, and two that must be refused.
  *
@@ -28,6 +32,25 @@ static int contains(const char *path, const char *want)
     return strstr(buf, want) != NULL;
 }
 
+static int same_contents(const char *actual, const char *expected)
+{
+    unsigned char a[4096], b[4096];
+    FILE *af = fopen(actual, "rb"), *bf = fopen(expected, "rb");
+    int same = af && bf;
+    if (same) {
+        size_t an, bn;
+        do {
+            an = fread(a, 1, sizeof a, af);
+            bn = fread(b, 1, sizeof b, bf);
+            if (an != bn || memcmp(a, b, an)) { same = 0; break; }
+        } while (an);
+        if (ferror(af) || ferror(bf)) same = 0;
+    }
+    if (af) fclose(af);
+    if (bf) fclose(bf);
+    return same;
+}
+
 int main(void)
 {
     char why[160];
@@ -54,8 +77,9 @@ int main(void)
     system("rm -rf /tmp/arospkg-lha-out && mkdir -p /tmp/arospkg-lha-out");
     ok(arc_extract("/tmp/arospkg-lha-packed.lha", "/tmp/arospkg-lha-out", "",
                    4L<<20, 1L<<24, 0, 0, why) == 0, "a compressed (-lh5-) archive extracts");
-    ok(filesize("/tmp/arospkg-lha-out/big.txt") == 306000,
-       "and a member large enough to span Huffman blocks comes out whole");
+    ok(filesize("/tmp/arospkg-lha-out/big.txt") == 306000 &&
+       same_contents("/tmp/arospkg-lha-out/big.txt", "/tmp/arospkg-lha-packed.expected"),
+       "all 306000 decompressed bytes match the encoder input");
 
     /* strip, as install uses it for a package's own drawer */
     system("rm -rf /tmp/arospkg-lha-out && mkdir -p /tmp/arospkg-lha-out");
