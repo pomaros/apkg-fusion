@@ -9,6 +9,8 @@ exec python3 - "$here/.." <<'PY'
 import os, re, sys
 repo = os.path.abspath(sys.argv[1])
 files = [os.path.join(repo, "README.md"), os.path.join(repo, "GOAL.md"), os.path.join(repo, "OPEN.md")]
+if os.path.exists(os.path.join(repo, "PLAN.md")):
+    files.append(os.path.join(repo, "PLAN.md"))
 for d, _, fs in os.walk(os.path.join(repo, "docs")):
     files += [os.path.join(d, f) for f in fs if f.endswith(".md")]
 def anchors(text):

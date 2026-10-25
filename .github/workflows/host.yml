@@ -1,0 +1,49 @@
+name: Host integration
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  fusion:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Linux archive test dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y lhasa zlib1g-dev
+      - name: macOS archive test dependencies
+        if: runner.os == 'macOS'
+        run: brew install lhasa
+      - name: Build and test common integration
+        run: make test-fusion
+      - name: Inherited engine regression suite
+        run: make test
+      - name: Inherited client and authoring host suite
+        run: sh components/arospkg/tests/run-host-tests.sh
+      - name: Public library symbols
+        run: make check-symbols
+      - name: Documentation links
+        run: sh tests/docs-links.sh
+      - name: Preserve test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.os }}
+          path: build/*.log
+  portal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.1xx'
+      - name: Portal regression and qualification tests
+        run: dotnet test portal/tests/Portal.Tests/Portal.Tests.csproj --nologo
