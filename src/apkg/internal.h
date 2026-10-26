@@ -69,7 +69,17 @@ typedef struct {
     uint64_t sequence, completed, total, last_emitted;
     long long last_ms;
     const char *subject;
+    int unknown_total, has_phase;
+    apkg_phase phase, last_phase;
 } ak_import_progress;
+int ak_http_url(const char *);
+apkg_status ak_http_path(const char *, const char *, char[AK_PATH]);
+apkg_status ak_http_get(const char *, uint64_t, int, unsigned char **, size_t *,
+                        ak_import_progress *);
+apkg_status ak_channel_select(apkg_ctx *, const apkg_channel *, uint64_t,
+                              const apkg_observer *, apkg_package **,
+                              apkg_error **);
+apkg_status ak_channel_source(const apkg_channel *, const char **, int *);
 apkg_status ak_import_tick(ak_import_progress *, uint64_t);
 apkg_status ak_blob_ingest(apkg_ctx *, const char *, uint64_t, int,
                            ak_import_progress *);

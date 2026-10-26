@@ -114,6 +114,12 @@ an agreed interface with recorded effects; rollback covers only those effects.
 
 One author description feeds packaging and publication. Authors can publish
 signed packages through a directory, share, web channel or portal account.
+Discovery reads bounded metadata without creating root state. Explicit transfer
+prepares private retained content, verifies the whole archive and its exact
+selected descriptor/signature, and rechecks source and policy before retention.
+Transfer does not commit installed state. The [channel profile](channels.md)
+defines current host transport limits and remaining plan-origin obligations.
+
 Catalogue review is an independent workflow. A reviewed catalogue can select
 packages from open channels without making review a prerequisite for publication.
 

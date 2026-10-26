@@ -60,8 +60,65 @@ int main(int argc, char **argv) {
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel "
             "JSONFILE\nverify-object descriptor|channel JSONFILE SIGNATURE\n"
-            "archive-check ROOT ARCHIVE\n");
+            "archive-check ROOT ARCHIVE\nchannel-fetch ROOT ENDPOINT "
+            "CHANNEL-ID INDEX [MIN-SEQUENCE]\n");
         return APKG_INVALID;
+    }
+    if (!strcmp(argv[1], "channel-fetch")) {
+        if (argc != 6 && argc != 7)
+            return APKG_INVALID;
+        uint64_t index = 0, floor = 0;
+        char *end;
+        for (int i = 5; i < argc; i++) {
+            for (const char *q = argv[i]; *q; q++)
+                if (*q < '0' || *q > '9')
+                    return APKG_INVALID;
+            errno = 0;
+            unsigned long long value = strtoull(argv[i], &end, 10);
+            if (errno || !*argv[i] || *end)
+                return APKG_INVALID;
+            if (i == 5)
+                index = value;
+            else
+                floor = value;
+        }
+        apkg_channel *channel = NULL;
+        apkg_package *package = NULL;
+        apkg_id id;
+        if (ak_hex(argv[4], id.bytes, 16))
+            return APKG_INVALID;
+        o.contract_version = 1;
+        o.struct_size = sizeof o;
+        o.root.data = argv[2];
+        o.root.size = strlen(argv[2]);
+        o.mode = APKG_WRITE;
+        code = apkg_open(&o, &c, &e);
+        apkg_text endpoint = {argv[3], strlen(argv[3])};
+        if (!code)
+            code = ak_http_url(argv[3])
+                       ? apkg_channel_open_http(c, endpoint, &id, floor, NULL,
+                                                &channel, &e)
+                       : apkg_channel_open_file(c, endpoint, &id, floor,
+                                                &channel, &e);
+        if (!code)
+            code = apkg_channel_fetch(c, channel, index, NULL, &package, &e);
+        if (!code) {
+            const apkg_channel_entry_view *row = NULL;
+            char archive[65], descriptor[65];
+            apkg_channel_entry_at(channel, index, &row, NULL);
+            ak_tohex(row->archive_digest.bytes, 32, archive);
+            ak_tohex(package->digest.bytes, 32, descriptor);
+            printf(
+                "{\"archive_sha256\":\"%s\",\"descriptor_sha256\":\"%s\","
+                "\"managed_commit\":false,\"name\":\"%s\",\"prepared\":true}\n",
+                archive, descriptor, package->name);
+        } else
+            report(code, NULL, e);
+        apkg_package_free(package);
+        apkg_channel_free(channel);
+        apkg_error_free(e);
+        apkg_close(c);
+        return (int)code;
     }
     if (!strcmp(argv[1], "verify-object")) {
         code = ak_verify_command(argc, argv, &text);

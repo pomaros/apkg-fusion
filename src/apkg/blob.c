@@ -447,17 +447,19 @@ apkg_status ak_import_tick(ak_import_progress *p, uint64_t added) {
         return APKG_LIMIT;
     p->completed += added;
     long long now = pkg_fs_now_ms();
-    if (p->sequence && p->completed != p->total &&
+    apkg_phase phase = p->has_phase ? p->phase : APKG_PHASE_FETCH;
+    if (p->sequence && p->last_phase == phase && p->completed != p->total &&
         p->completed - p->last_emitted < 4 * 1024 * 1024 &&
         now - p->last_ms < 100)
         return APKG_OK;
     apkg_event event = {0};
     event.operation_id = p->operation_id;
     event.sequence = ++p->sequence;
-    event.phase = APKG_PHASE_FETCH;
+    event.phase = phase;
+    p->last_phase = phase;
     event.completed = p->completed;
-    event.total.state = APKG_KNOWN;
-    event.total.value = p->total;
+    event.total.state = p->unknown_total ? APKG_UNKNOWN : APKG_KNOWN;
+    event.total.value = p->unknown_total ? 0 : p->total;
     event.cancellable = 1;
     event.subject.data = p->subject;
     event.subject.size = strlen(p->subject);

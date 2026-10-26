@@ -5,7 +5,8 @@
 
 The common library implements authenticated discovery and role-separated policy.
 The local producer now adds verified immutable file publication and an atomic
-current reference. HTTP transport, durable freshness, qualifications and
+current reference. Context-owned host HTTP discovery and selected archive
+transfer are implemented below. Durable freshness, qualifications and
 default-client integration remain ALPHA-CHANNEL work.
 
 ## Immutable discovery objects
@@ -191,3 +192,45 @@ trust expansion is performed by the importer.
 The final FUSION-ALPHA publishing/discovery/operation scenario and exact-source
 Linux/macOS qualification remain required. Native execution, production portal
 cutover and joint-release claims remain separate gates.
+
+## Host HTTP discovery and selected archive transfer
+
+`apkg_channel_open_http` reads the same endpoint members as the file reader,
+checks both roles and the snapshot digest, then rereads `current`. Discovery is
+read-only and creates no cache. Its observer reports one operation identity,
+monotonic transferred bytes and an unknown total across the metadata requests.
+The caller's sequence floor remains required for its own replay policy; this
+implementation does not persist a high-water mark.
+
+The Linux/macOS adapter launches host `curl` directly without a shell or the
+legacy client's global request state. It disables curlrc loading, retains normal
+TLS certificate verification, limits redirects to five, connection time to ten
+seconds and each request to 120 seconds. HTTPS redirects cannot downgrade to
+HTTP. The parent independently enforces byte bounds, polls cancellation, drains
+bounded diagnostics and reaps its own subprocess. Metadata is bounded in memory;
+archive data streams through 64 KiB buffers. Windows and AROS HTTP adapters are
+explicitly unsupported. Local fixtures qualify HTTP behavior, not HTTPS server
+interoperability or native networking.
+
+`apkg_channel_fetch` requires a write context and a file/HTTP-bound channel.
+It rechecks current source/root policy/target, transfers exactly the selected
+archive and imports it through the common verifier. Whole-file size/SHA-256 and
+exact selected descriptor/signature must all agree. It then rechecks source and
+policy before retaining the archive. A valid archive belonging to another signed
+package refuses even if the channel signed its whole-file digest.
+
+Verified whole archives live privately at `<root>.apkg-archives/<sha256>.pkg`
+with mode 0600 in a mode 0700 directory. Exclusive incoming files are flushed
+before no-overwrite publication and directory flush. Cache hits are rehashed;
+corrupt existing bytes are preserved and refused. Cancellation and ordinary
+failures remove the operation's incoming file. A process killed during a copy
+can leave unreferenced staging data; garbage collection is not implemented.
+A failure after cache publication can leave a verified archive for safe retry.
+Imported payload objects may also remain as preparation. Fetch does not commit
+installed state or advance database generation.
+
+The explicit CLI is `apkg-core channel-fetch ROOT ENDPOINT CHANNEL-ID INDEX
+[MIN-SEQUENCE]`; `channel-open` accepts either a local directory or an HTTP(S)
+URL. Observer phases distinguish checking from transfer. Source checks currently
+end when fetch returns: approved plans do not yet retain channel preconditions.
+The default production client switch remains a separate alpha gate.

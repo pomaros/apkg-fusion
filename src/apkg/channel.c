@@ -14,6 +14,7 @@ struct apkg_channel {
     char *policy, *target, *endpoint;
     char root[AK_PATH], anchor[AK_PATH];
     struct stat binding;
+    int remote;
     apkg_id root_id;
 };
 static apkg_bytes node_bytes(const ak_json *j, int token) {
@@ -327,15 +328,153 @@ static apkg_status current_ref(const char *directory, char digest[65]) {
     free(raw);
     return code;
 }
-static apkg_status source_current(const apkg_channel *channel) {
+static apkg_status source_current(const apkg_channel *channel,
+                                  const apkg_observer *observer) {
     if (!channel->endpoint)
         return APKG_OK;
     char current[65], expected[65];
-    apkg_status code = current_ref(channel->endpoint, current);
-    if (code)
-        return code;
+    apkg_status code;
+    if (channel->remote) {
+        char url[AK_PATH];
+        unsigned char *bytes = NULL;
+        size_t size = 0;
+        ak_import_progress progress = {0};
+        progress.observer = observer;
+        progress.unknown_total = 1;
+        progress.total = 65;
+        if (observer && pkg_fs_random(progress.operation_id.bytes, 16))
+            return APKG_IO;
+        code = ak_http_path(channel->endpoint, "current", url);
+        if (!code)
+            code = ak_http_get(url, 65, -1, &bytes, &size, &progress);
+        if (!code) {
+            unsigned char digest[32];
+            if (size != 65 || bytes[64] != '\n')
+                code = APKG_INVALID;
+            else {
+                bytes[64] = 0;
+                if (ak_hex((char *)bytes, digest, 32))
+                    code = APKG_INVALID;
+                else
+                    memcpy(current, bytes, 65);
+            }
+        }
+        free(bytes);
+        if (code)
+            return code;
+    } else {
+        code = current_ref(channel->endpoint, current);
+        if (code)
+            return code;
+    }
     ak_tohex(channel->view.snapshot_digest.bytes, 32, expected);
     return strcmp(current, expected) ? APKG_STALE : APKG_OK;
+}
+apkg_status ak_channel_source(const apkg_channel *channel,
+                              const char **endpoint, int *remote) {
+    if (!channel || !channel->endpoint)
+        return APKG_UNSUPPORTED;
+    *endpoint = channel->endpoint;
+    *remote = channel->remote;
+    return APKG_OK;
+}
+apkg_status apkg_channel_open_http(apkg_ctx *ctx, apkg_text endpoint,
+                                   const apkg_id *identity, uint64_t floor,
+                                   const apkg_observer *observer,
+                                   apkg_channel **out, apkg_error **error) {
+    char base[AK_PATH], url[AK_PATH], member[128], digest[65], actual[65];
+    unsigned char *reference = NULL, *document = NULL, *signature = NULL;
+    size_t rn = 0, dn = 0, sn = 0;
+    apkg_channel *channel = NULL;
+    apkg_status code = APKG_INVALID;
+    ak_import_progress progress = {0};
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!ctx || !identity || !endpoint.data || !endpoint.size ||
+        endpoint.size >= AK_PATH ||
+        !ak_text_path_valid(endpoint.data, endpoint.size))
+        return APKG_INVALID;
+    memcpy(base, endpoint.data, endpoint.size);
+    base[endpoint.size] = 0;
+    if (!ak_http_url(base))
+        return APKG_INVALID;
+    progress.observer = observer;
+    progress.unknown_total = 1;
+    progress.total = AK_MAX / 8 + 16384 + 130;
+    if (observer && pkg_fs_random(progress.operation_id.bytes, 16))
+        return APKG_IO;
+    code = ak_http_path(base, "current", url);
+    if (code)
+        goto done;
+    code = ak_http_get(url, 65, -1, &reference, &rn, &progress);
+    if (code)
+        goto done;
+    unsigned char hash[32];
+    if (rn != 65 || reference[64] != '\n') {
+        code = APKG_INVALID;
+        goto done;
+    }
+    reference[64] = 0;
+    if (ak_hex((char *)reference, hash, 32)) {
+        code = APKG_INVALID;
+        goto done;
+    }
+    memcpy(digest, reference, 65);
+    snprintf(member, sizeof member, "snapshots/%s/channel.json", digest);
+    code = ak_http_path(base, member, url);
+    if (code)
+        goto done;
+    code = ak_http_get(url, AK_MAX / 8, -1, &document, &dn, &progress);
+    if (code)
+        goto done;
+    snprintf(member, sizeof member, "snapshots/%s/channel.signature.json",
+             digest);
+    code = ak_http_path(base, member, url);
+    if (code)
+        goto done;
+    code = ak_http_get(url, 16384, -1, &signature, &sn, &progress);
+    if (code)
+        goto done;
+    apkg_bytes d = {document, dn}, s = {signature, sn};
+    code = apkg_channel_read(ctx, identity, floor, d, s, &channel, error);
+    if (code)
+        goto done;
+    ak_tohex(channel->view.snapshot_digest.bytes, 32, actual);
+    if (strcmp(digest, actual)) {
+        code = APKG_INTEGRITY;
+        goto done;
+    }
+    channel->endpoint = ak_copy(base, strlen(base));
+    if (!channel->endpoint) {
+        code = APKG_NOMEM;
+        goto done;
+    }
+    channel->remote = 1;
+    free(reference);
+    reference = NULL;
+    code = ak_http_path(base, "current", url);
+    if (code)
+        goto done;
+    code = ak_http_get(url, 65, -1, &reference, &rn, &progress);
+    if (code)
+        goto done;
+    if (rn != 65 || reference[64] != '\n' || memcmp(reference, digest, 64)) {
+        code = APKG_STALE;
+        goto done;
+    }
+    *out = channel;
+    channel = NULL;
+done:
+    free(reference);
+    free(document);
+    free(signature);
+    apkg_channel_free(channel);
+    if (code && error && !*error)
+        ak_fail(error, code, "HTTP channel refused", base);
+    return code;
 }
 apkg_status apkg_channel_open_file(apkg_ctx *ctx, apkg_text directory,
                                    const apkg_id *id, uint64_t floor,
@@ -390,7 +529,7 @@ apkg_status apkg_channel_open_file(apkg_ctx *ctx, apkg_text directory,
         code = APKG_NOMEM;
         goto done;
     }
-    code = source_current(channel);
+    code = source_current(channel, NULL);
     if (code)
         goto done;
     *out = channel;
@@ -403,9 +542,9 @@ done:
         ak_fail(error, code, "file channel refused", input);
     return code;
 }
-apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
-                                 uint64_t index, apkg_package **out,
-                                 apkg_error **error) {
+apkg_status ak_channel_select(apkg_ctx *ctx, const apkg_channel *channel,
+                              uint64_t index, const apkg_observer *observer,
+                              apkg_package **out, apkg_error **error) {
     apkg_snapshot *snapshot = NULL;
     apkg_status code;
     if (error)
@@ -423,7 +562,7 @@ apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
         ctx->binding.st_dev != channel->binding.st_dev ||
         !ak_physical(ctx->anchor, &ctx->binding))
         return APKG_STALE;
-    code = source_current(channel);
+    code = source_current(channel, observer);
     if (code)
         return code;
     code = apkg_snapshot_read(ctx, &snapshot, error);
@@ -440,6 +579,11 @@ apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
     return apkg_package_read(ctx, channel->rows[index].descriptor,
                              channel->rows[index].signature_envelope, out,
                              error);
+}
+apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
+                                 uint64_t index, apkg_package **out,
+                                 apkg_error **error) {
+    return ak_channel_select(ctx, channel, index, NULL, out, error);
 }
 void apkg_channel_free(apkg_channel *c) {
     if (!c)
@@ -477,8 +621,11 @@ apkg_status ak_channel_inspect(const char *root, const char *dir,
         goto done;
     if (current) {
         apkg_text endpoint = {dir, strlen(dir)};
-        code =
-            apkg_channel_open_file(ctx, endpoint, &id, floor, &channel, error);
+        code = ak_http_url(dir)
+                   ? apkg_channel_open_http(ctx, endpoint, &id, floor, NULL,
+                                            &channel, error)
+                   : apkg_channel_open_file(ctx, endpoint, &id, floor, &channel,
+                                            error);
         if (code)
             goto done;
     } else {

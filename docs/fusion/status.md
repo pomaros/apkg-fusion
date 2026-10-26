@@ -533,6 +533,38 @@ qualifications and shared client selection/fetching. All other alpha/release
 obligations remain open; no live portal or OS operation occurred. Exact-source
 Linux/macOS CI must separately qualify this implementation.
 
+## FUSION-ALPHA progress: selected host transport
+
+The preceding atomic-file checkpoint is now qualified by the full
+[Linux/macOS/portal run](https://github.com/pomaros/apkg-fusion/actions/runs/40419613570)
+on source [27be6a8](https://github.com/pomaros/apkg-fusion/commit/27be6a8657a575dab2f60bc15003cbb25ef27dc1).
+
+The next checkpoint adds [host HTTP discovery and selected transfer](channels.md#host-http-discovery-and-selected-archive-transfer)
+to the context API and explicit common CLI. Discovery remains read-only. Fetch
+prepares private archives and payload objects without committing installed state;
+whole-file integrity and exact selected descriptor/signature binding are checked
+before retention. Cache hits are reverified, source/policy are rechecked, and
+progress/cancellation belong to the operation rather than legacy global hooks.
+
+New HTTP/file tests cover real publish/discover/fetch/install, read-only refusal,
+redirects and byte limits, malformed endpoints, missing/truncated/tampered bytes,
+cache reuse and corrupt-cache refusal, callback cancellation during an archive
+above 8 MiB, pre-request cancellation, three injected flush/publication failures
+with retry, and a signed reference to a different valid archive. These establish
+host process behavior; they do not qualify TLS interoperability, power loss or
+native network adapters. Local `make test-fusion` passes all 139 common
+methods plus the existing integration checks. The sanitizer harness passes
+59 methods, including actual HTTP CLI discovery/fetch through instrumented
+native binaries; direct ctypes API cases use the ordinary test library.
+Documentation links pass for
+67 files with zero broken links. Exact-source Linux/macOS CI must separately
+qualify this checkpoint.
+
+ALPHA-CHANNEL remains open: approved-plan origin preconditions, durable replay
+high-water state, independent qualifications, native adapters and shared client
+selection still require implementation. No default backend switch, portal
+migration, deployment or AROS execution occurs in this checkpoint.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
