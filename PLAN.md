@@ -160,6 +160,43 @@ release only after migration, trust, recovery and the included workflows are
 qualified. The development repository and its passing host tests are not a
 release verdict.
 
+## Active goal: FUSION-ALPHA
+
+Deliver an end-to-end, host-qualified fusion alpha using the common engine by
+default. Move beyond synthetic inline package folders to the real authoring,
+publication, discovery and client workflow. Preserve the broader acceptance
+matrix; an alpha is not a joint release or AROS runtime qualification.
+
+The operator requested this ambitious next goal after the five-stage host
+qualification. Work proceeds as one authorized sequence, with one agent,
+focused tests and a recorded evaluation at each gate. Implementation evidence
+and unresolved facts belong in [status](docs/fusion/status.md).
+
+| Gate | Concrete result | Evidence required before advancing |
+|---|---|---|
+| ALPHA-PAYLOAD | Bounded archive/content transport for the common engine, replacing the inline-only practical limit. Preserve declared files, hidden/empty paths, icons, configuration and metadata meaning. | Author/package/installed inventories agree. Hostile archives, oversized input, tampering, collisions and interrupted retention/publication refuse safely. Unrepresented semantics stay explicit blockers. |
+| ALPHA-AUTHOR | Existing TOML authoring drives common descriptors, bundles, archives and signatures without manual JSON construction. | Real authoring fixtures round-trip versions/revisions, targets, supported relations and payload metadata; existing unsupported families are refused rather than silently translated. Inputs remain unchanged. |
+| ALPHA-CHANNEL | File and HTTP channels feed context-owned discovery, bounded fetching/cache retention, signature/trust validation and exact-content review/runtime facts. | Genuine signed publication is discoverable and installable. Changed channel/content, unknown keys, stale qualifications, network interruption and offline recovery are tested. Open publication never requires curated approval. |
+| ALPHA-CLIENTS | Default `apkg` and the fusion PkgManager use the common engine for this workflow, including browsing and the implemented operations. Adapt current repository consumers; keep imported engines as explicit regression baselines. | CLI and actual worker adapter select and execute equivalent plans. Default product symbols/builds exclude the provisional global request backend. No silent fallback to another writer or truncated operation identity. |
+| ALPHA-IMPORT | Legacy validation, import/commit and command-compatibility rehearsals preserve originals and provenance. | At least one fully specified pinned fixture migrates and remains operable; ambiguity refuses with diagnostics. Interrupted import/retry preserves old usability and retained records. Unknown distribution identities remain unknown; fixture passes do not certify either live distribution. |
+| ALPHA-PORTAL | Portal consumes/publishes the common contracts with independent qualifications; migration tooling and a backup/restore/cutover-rollback rehearsal are reviewable. | Portal tests and an end-to-end publication/consumption scenario pass. Rehearsal preserves publisher/trust identities, object identity, URLs and review provenance; no live data or credentials enter the public repository. |
+
+Final acceptance is one automated clean-workspace scenario: author a bundle and
+its dependency, package/sign/publish through a real channel, discover through
+both client paths, preview/approve/install, preserve a personal configuration
+through upgrade, repair, roll back offline and remove safely. Exercise refusal,
+cancellation, failure and interrupted recovery around this path. Both inherited
+suites, integration/memory checks and portal tests must pass in exact-source
+Linux/macOS CI. Record remaining acceptance obligations without promoting a
+host or fixture result into a platform/release claim.
+
+AROS execution and power-loss/distribution tests remain deferred. This goal
+changes no OS repository and authorizes no deployment, live portal cutover,
+maintainer contact or joint-release announcement. Actual production inventory,
+distribution evidence and maintainer agreement remain separate release gates.
+The portal deliverable is a tested, reviewable migration rehearsal; production
+cutover follows after the fusion is qualified and real operational inputs exist.
+
 ## Immediate work sequence
 
 1. BASE, MAP and CONTRACT are recorded in the fusion documents. The first six
