@@ -154,6 +154,31 @@ Power-loss, distribution GUI/runtime and cross-volume activation remain
 unqualified. Portal deployment and operational consumer adaptation were not
 performed.
 
+## Six-lot source qualification
+
+Source [8e680be](https://github.com/pomaros/apkg-fusion/commit/8e680beef07469f6f2d7fcbd0d0afea5c94dfd23)
+passes the complete [Host integration run](https://github.com/pomaros/apkg-fusion/actions/runs/40398764206):
+
+| Job | Result |
+|---|---|
+| Linux fusion | Common engine/client tests, 293 allocation-failure positions, ASan/UBSan, both inherited suites, symbols and documentation links pass. |
+| macOS fusion | The same complete gate passes. |
+| Portal | All 107 tests pass, zero failures or skips. |
+
+A local hosted AROS aarch64 ABIv1 cross-build of this source also links both
+programs and verifies `main`, `__startup_entry` and common-engine entry points.
+These binary hashes identify local build evidence, not a release:
+
+| Artifact | SHA-256 |
+|---|---|
+| `apkg-core` | `09a14073b49597bf43ac57cfbe0fc7f63c6d316f022c178e1ef49a7079c7e0fb` |
+| `PkgManager` | `121404318e37b42a6acd36b7794f9631a67a3ab75faf6ce1a3d2909801079e28` |
+
+The SDK used for this compilation does not expose `ReplaceObject`; the compiled
+profile therefore refuses common mutation at capability preflight. Installing
+on AROS requires a suitable SDK/DOS/handler and subsequent runtime qualification.
+Neither native execution nor power-loss durability is inferred from this build.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
