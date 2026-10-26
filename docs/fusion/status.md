@@ -219,6 +219,29 @@ unqualified; unrepresented metadata is refused before mutation. Native launcher
 code and cross-builds do not establish runtime success, actual GUI behavior or
 power-loss durability. Managed bundle adoption/movement remains BUNDLE-MANAGE.
 
+## Five-stage source qualification
+
+Source [a896f04](https://github.com/pomaros/apkg-fusion/commit/a896f045f8177a25d6ebd4f417a6f1d1243bb022)
+passes the complete [Host integration run](https://github.com/pomaros/apkg-fusion/actions/runs/40404698438):
+
+| Job | Result |
+|---|---|
+| Linux fusion | All 63 common test groups, 693 allocation-injection positions, ASan/UBSan lifetime and five CLI/worker groups, full fusion checks, both inherited suites, symbols and documentation links pass. |
+| macOS fusion | The same complete gate passes. |
+| Portal | All 107 tests pass, zero failures or skips. |
+
+The first Linux run exposed missing POSIX declarations and GCC enum signedness
+warnings, corrected without weakening compiler flags or assertions. A subsequent
+runner spent several minutes downloading system test dependencies; dependency
+acquisition now has explicit network retry/time limits and a five-minute step
+limit. The successful run retains every required test dependency and suite.
+
+Compilation/linking of the extended CLI and PkgManager was also checked against
+an existing hosted AROS SDK, writing only fusion build artifacts. Native
+execution, actual UI/launch behavior and power-loss qualification remain deferred
+per operator direction. No operating-system source repository was modified.
+The SDK atomic-replacement restriction documented above still applies.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
