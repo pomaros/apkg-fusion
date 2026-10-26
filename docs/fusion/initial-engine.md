@@ -3,8 +3,9 @@
 
 # Initial common engine implementation
 
-This implements the first CONTEXT → SIGNED-READ → PLAN-INSTALL → JOURNAL →
+This records the first CONTEXT → SIGNED-READ → PLAN-INSTALL → JOURNAL →
 INSTALL → GUI-INSTALL path. It is a development subset, not a merged release.
+The subsequent [operations profile](operations.md) extends this initial subset.
 [Architecture](architecture.md), [data model](data-model.md) and
 [acceptance](acceptance.md) retain the broader product obligations.
 

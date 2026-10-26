@@ -56,7 +56,11 @@ typedef enum {
     APKG_POLICY,
     APKG_NETWORK
 } apkg_status;
-typedef enum { APKG_UNKNOWN = 0, APKG_KNOWN, APKG_INVALID_FACT } apkg_fact_state;
+typedef enum {
+    APKG_UNKNOWN = 0,
+    APKG_KNOWN,
+    APKG_INVALID_FACT
+} apkg_fact_state;
 typedef struct {
     apkg_fact_state state;
     uint64_t value;
@@ -77,14 +81,16 @@ typedef enum { APKG_READ = 0, APKG_WRITE } apkg_mode;
 typedef struct {
     uint32_t contract_version; /* must be APKG_CONTRACT_VERSION */
     size_t struct_size;        /* must be sizeof(apkg_open_options) */
-    apkg_text root;            /* explicit host path, never an ambient default */
+    apkg_text root; /* explicit host path, never an ambient default */
     apkg_mode mode;
-    uint64_t max_object_bytes, max_memory_bytes; /* 0 selects documented defaults */
+    uint64_t max_object_bytes,
+        max_memory_bytes; /* 0 selects documented defaults */
 } apkg_open_options;
 /* No initialization, locking, recovery, download or path creation at open. */
 apkg_status apkg_open(const apkg_open_options *, apkg_ctx **, apkg_error **);
 void apkg_close(apkg_ctx *);
-/* One active synchronous call per ctx. Distinct contexts may run concurrently. */
+/* One active synchronous call per ctx. Distinct contexts may run concurrently.
+ */
 typedef enum {
     APKG_ROOT_ABSENT = 0,
     APKG_ROOT_LEGACY,
@@ -97,10 +103,12 @@ typedef struct {
     apkg_fact_state identity_state;
     apkg_id root_id; /* meaningful only when identity_state == KNOWN */
     apkg_u64_fact generation, pending_count;
-    apkg_digest snapshot_digest; /* requires KNOWN identity/generation in common state */
+    apkg_digest snapshot_digest; /* requires KNOWN identity/generation in common
+                                    state */
     apkg_text_fact target;
-    apkg_text diagnostic;     /* explains INVALID/unsupported root state */
-    apkg_bytes source_record; /* raw canonical common bytes, or empty for legacy */
+    apkg_text diagnostic; /* explains INVALID/unsupported root state */
+    apkg_bytes
+        source_record; /* raw canonical common bytes, or empty for legacy */
 } apkg_root_view;
 apkg_status apkg_snapshot_read(apkg_ctx *, apkg_snapshot **, apkg_error **);
 const apkg_root_view *apkg_snapshot_root(const apkg_snapshot *);
@@ -118,7 +126,11 @@ typedef enum {
     APKG_SIGNATURE_VALID,
     APKG_SIGNATURE_INVALID
 } apkg_signature_state;
-typedef enum { APKG_TRUST_UNKNOWN = 0, APKG_TRUST_ACCEPTED, APKG_TRUST_REJECTED } apkg_trust_state;
+typedef enum {
+    APKG_TRUST_UNKNOWN = 0,
+    APKG_TRUST_ACCEPTED,
+    APKG_TRUST_REJECTED
+} apkg_trust_state;
 typedef struct {
     apkg_id instance_id;
     apkg_text_fact authority, name, version, target;
@@ -126,14 +138,17 @@ typedef struct {
     apkg_reason reason;
     apkg_signature_state signature;
     apkg_trust_state trust;
-    apkg_bytes record; /* full record/evidence; no lossy fixed-size UI projection */
+    apkg_bytes
+        record; /* full record/evidence; no lossy fixed-size UI projection */
 } apkg_installed_view;
 uint64_t apkg_snapshot_installed_count(const apkg_snapshot *);
 apkg_status apkg_snapshot_installed_at(const apkg_snapshot *, uint64_t,
-                                       const apkg_installed_view **, apkg_error **);
+                                       const apkg_installed_view **,
+                                       apkg_error **);
 /* Source bytes/signatures are copied; no implicit fetching or trust changes. */
-apkg_status apkg_package_read(apkg_ctx *, apkg_bytes descriptor, apkg_bytes signature_envelope,
-                              apkg_package **, apkg_error **);
+apkg_status apkg_package_read(apkg_ctx *, apkg_bytes descriptor,
+                              apkg_bytes signature_envelope, apkg_package **,
+                              apkg_error **);
 void apkg_package_free(apkg_package *);
 /* Exact immutable descriptor reference for CLI/UI presentation. */
 apkg_bytes apkg_package_descriptor(const apkg_package *);
@@ -172,7 +187,15 @@ apkg_status apkg_event_clone(const apkg_event *, apkg_event_copy **);
 const apkg_event *apkg_event_get(const apkg_event_copy *);
 void apkg_event_free(apkg_event_copy *);
 
-typedef enum { APKG_PLAN_INITIALIZE = 0, APKG_PLAN_INSTALL } apkg_plan_kind;
+typedef enum {
+    APKG_PLAN_INITIALIZE = 0,
+    APKG_PLAN_INSTALL,
+    APKG_PLAN_REMOVE,
+    APKG_PLAN_REPAIR,
+    APKG_PLAN_UPGRADE,
+    APKG_PLAN_ROLLBACK,
+    APKG_PLAN_RESOLVE
+} apkg_plan_kind;
 typedef struct {
     apkg_plan_kind kind;
     apkg_digest plan_digest;
@@ -201,18 +224,41 @@ typedef struct {
 /* Explicit first-root path, implemented after CONTEXT. Seed policy is a
  * canonical policy object, displayed as effects and committed with root id.
  * No root writes or ids are persisted while preparing this plan. */
-apkg_status apkg_plan_initialize(apkg_ctx *, const apkg_snapshot *absent, apkg_text target,
-                                 apkg_bytes seed_policy, apkg_plan **, apkg_error **);
-apkg_status apkg_plan_install(apkg_ctx *, const apkg_snapshot *, const apkg_package *,
-                              const apkg_observer *, apkg_plan **, apkg_error **);
+apkg_status apkg_plan_initialize(apkg_ctx *, const apkg_snapshot *absent,
+                                 apkg_text target, apkg_bytes seed_policy,
+                                 apkg_plan **, apkg_error **);
+apkg_status apkg_plan_install(apkg_ctx *, const apkg_snapshot *,
+                              const apkg_package *, const apkg_observer *,
+                              apkg_plan **, apkg_error **);
+/* Configuration entries use config="preserve" in signed file metadata.
+ * Mutation plans retain exact observed trees, including foreign/edited files.
+ */
+apkg_status apkg_plan_remove(apkg_ctx *, const apkg_snapshot *, apkg_text name,
+                             apkg_plan **, apkg_error **);
+apkg_status apkg_plan_repair(apkg_ctx *, const apkg_snapshot *, apkg_text name,
+                             apkg_plan **, apkg_error **);
+apkg_status apkg_plan_upgrade(apkg_ctx *, const apkg_snapshot *,
+                              const apkg_package *, apkg_plan **,
+                              apkg_error **);
+apkg_status apkg_plan_rollback(apkg_ctx *, const apkg_snapshot *,
+                               apkg_text history, apkg_plan **, apkg_error **);
+/* Pool order is a caller priority, never an implicit version ordering.
+ * Installed suitable providers are preferred. No fetching/trust expansion. */
+apkg_status apkg_plan_resolve(apkg_ctx *, const apkg_snapshot *,
+                              apkg_package *const *requested,
+                              size_t requested_count,
+                              apkg_package *const *candidates,
+                              size_t candidate_count, int include_recommends,
+                              apkg_plan **, apkg_error **);
 const apkg_plan_view *apkg_plan_get(const apkg_plan *);
-apkg_status apkg_plan_effect_at(const apkg_plan *, uint64_t, const apkg_effect_view **,
-                                apkg_error **);
+apkg_status apkg_plan_effect_at(const apkg_plan *, uint64_t,
+                                const apkg_effect_view **, apkg_error **);
 void apkg_plan_free(apkg_plan *);
 /* Caller confirms only after presenting all effects. Digest must match.
  * Approval is process-local and binds this ctx's physical root and plan. */
-apkg_status apkg_plan_approve(apkg_ctx *, const apkg_plan *, const apkg_digest *confirmed,
-                              apkg_approval **, apkg_error **);
+apkg_status apkg_plan_approve(apkg_ctx *, const apkg_plan *,
+                              const apkg_digest *confirmed, apkg_approval **,
+                              apkg_error **);
 void apkg_approval_free(apkg_approval *);
 typedef enum {
     APKG_UNCHANGED = 0,
@@ -228,10 +274,11 @@ typedef struct {
     apkg_u64_fact committed_generation;
     apkg_bytes record; /* persistent transaction reference if one exists */
 } apkg_result_view;
-apkg_status apkg_execute(apkg_ctx *, const apkg_plan *, apkg_approval *, const apkg_observer *,
-                         apkg_result **, apkg_error **);
+apkg_status apkg_execute(apkg_ctx *, const apkg_plan *, apkg_approval *,
+                         const apkg_observer *, apkg_result **, apkg_error **);
 /* Explicit recovery only; does not install new packages or expand authority. */
-apkg_status apkg_recover(apkg_ctx *, const apkg_observer *, apkg_result **, apkg_error **);
+apkg_status apkg_recover(apkg_ctx *, const apkg_observer *, apkg_result **,
+                         apkg_error **);
 const apkg_result_view *apkg_result_get(const apkg_result *);
 void apkg_result_free(apkg_result *);
 #ifdef __cplusplus

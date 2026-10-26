@@ -224,3 +224,8 @@ Design review checks: snapshot stability after context close, errors without
 allocation, GUI callbacks after window cancellation, generation versus live
 edits, approval reuse/cross-root transfer, post-commit cancellation, and limits
 on 32-bit hosts. These are future engine test obligations as well as API rules.
+
+The implemented operation, local dependency and client APIs are described in
+[the operations profile](operations.md), including exact observed-tree plans,
+current-trust offline rollback and installation reasons. Native runtime gates
+remain independent from host API and cross-build evidence.

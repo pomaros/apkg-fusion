@@ -2,6 +2,7 @@
  * Copyright (c) 2026 John Knipper
  * Strict canonical framing; no legacy token parser is used on signed input. */
 #include "internal.h"
+#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,8 +65,8 @@ static int string_end(const char *s, size_t n, size_t *at) {
             {
                 char h[3] = {s[p + 2], s[p + 3], 0};
                 unsigned char v;
-                if (ak_hex(h, &v, 1) || v >= 32 || v == 8 || v == 9 || v == 10 || v == 12 ||
-                    v == 13)
+                if (ak_hex(h, &v, 1) || v >= 32 || v == 8 || v == 9 ||
+                    v == 10 || v == 12 || v == 13)
                     return 0;
             }
             p += 4;
@@ -78,7 +79,8 @@ static int string_end(const char *s, size_t n, size_t *at) {
     }
     return 0;
 }
-static int decode(const char *s, size_t a, size_t b, char *out, size_t cap, size_t *length) {
+static int decode(const char *s, size_t a, size_t b, char *out, size_t cap,
+                  size_t *length) {
     size_t p = a + 1, n = 0;
     while (p + 1 < b) {
         unsigned char c = (unsigned char)s[p++];
@@ -143,16 +145,18 @@ static int parse(ak_json *j, size_t *p, unsigned depth) {
             for (;;) {
                 if (end == '}') {
                     size_t a = *p, b = *p, keylen;
-                    if (a >= j->size || j->text[a] != '"' || !string_end(j->text, j->size, &b) ||
-                        b - a > 1048576)
+                    if (a >= j->size || j->text[a] != '"' ||
+                        !string_end(j->text, j->size, &b) || b - a > 1048576)
                         return -1;
-                    if (decode(j->text, a, b, key, sizeof key, &keylen) || memchr(key, 0, keylen))
+                    if (decode(j->text, a, b, key, sizeof key, &keylen) ||
+                        memchr(key, 0, keylen))
                         return -1;
                     if (have && strcmp(prev, key) >= 0)
                         return -1;
                     memcpy(prev, key, strlen(key) + 1);
                     have = 1;
-                    if (parse(j, p, depth + 1) < 0 || *p >= j->size || j->text[(*p)++] != ':')
+                    if (parse(j, p, depth + 1) < 0 || *p >= j->size ||
+                        j->text[(*p)++] != ':')
                         return -1;
                 }
                 if (parse(j, p, depth + 1) < 0)
@@ -196,6 +200,7 @@ int ak_json_parse(const void *v, size_t n, ak_json *j) {
     j->size = n;
     if (!j->text || !j->tokens) {
         ak_json_free(j);
+        errno = ENOMEM;
         return -2;
     }
     if (parse(j, &p, 1) < 0 || p != n) {
@@ -301,9 +306,12 @@ int ak_fields(const ak_json *j, int obj, const char *const *fields, size_t n) {
     return count == n;
 }
 int ak_object(const ak_json *j, const char *type) {
-    static const char *const f[] = {"body", "format", "requires", "schema", "type"};
-    return ak_fields(j, 0, f, 5) && ak_equal(j, ak_member(j, 0, "format"), "apkg-json-1") &&
+    static const char *const f[] = {"body", "format", "requires", "schema",
+                                    "type"};
+    return ak_fields(j, 0, f, 5) &&
+           ak_equal(j, ak_member(j, 0, "format"), "apkg-json-1") &&
            ak_equal(j, ak_member(j, 0, "schema"), "1") &&
-           ak_equal(j, ak_member(j, 0, "type"), type) && ak_empty(j, ak_member(j, 0, "requires")) &&
+           ak_equal(j, ak_member(j, 0, "type"), type) &&
+           ak_empty(j, ak_member(j, 0, "requires")) &&
            j->tokens[ak_member(j, 0, "body")].type == '{';
 }

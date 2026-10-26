@@ -114,3 +114,8 @@ one volume, held executables/restart, coordinator and participant interruption,
 interrupted recovery again, changed/foreign executable bytes, concurrent updates,
 old journal import and explicit rollback. Until those gates pass, common clients
 refuse that operation, and fusion PkgManager disables the inherited self-updater.
+
+The implemented `changes` action extends this same journal to removal, repair,
+upgrade, rollback and multi-package installation; see the
+[participant protocol](operations.md#one-journal-multiple-participants).
+Old initialization/install records remain recoverable.

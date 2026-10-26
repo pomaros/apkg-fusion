@@ -115,3 +115,8 @@ initialization, signed local-package preview/install and journal recovery, with
 a PkgManager worker path enabled in fusion GUI builds. Its supported schema,
 resource limits and platform qualification are documented separately from the
 existing regression baseline. Run `make test-apkg` for its implementation tests.
+
+The [common operations profile](docs/fusion/operations.md) documents removal,
+repair, upgrades, offline rollback, local package dependency resolution, shared
+client operations and unregistered bundle inspection/launch. Native execution
+and legacy migration are qualified separately.

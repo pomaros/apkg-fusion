@@ -371,9 +371,9 @@ clean:
 	rm -rf build
 
 # Common context engine, separate from the provisional global-state backend.
-APKG_ENGINE = src/apkg/alloc.c src/apkg/json.c src/apkg/context.c src/apkg/schema.c src/apkg/signed.c src/apkg/plan.c src/apkg/events.c src/apkg/execute.c src/apkg/client.c
+APKG_ENGINE = src/apkg/client_ops.c src/apkg/bundle.c src/apkg/relations.c src/apkg/version.c src/apkg/tree.c src/apkg/operations.c src/apkg/alloc.c src/apkg/json.c src/apkg/context.c src/apkg/schema.c src/apkg/signed.c src/apkg/plan.c src/apkg/events.c src/apkg/execute.c src/apkg/client.c
 APKG_SERVICES = src/pkg_sha256.c src/pkg_sha512.c src/pkg_ed25519.c src/pkg_target.c src/pkg_application.c src/pkg_fs_posix.c
-build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h src/apkg/internal.h
+build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h src/apkg/internal.h src/apkg/changes.inc
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_TESTING -fPIC -shared -Iinclude -Isrc/apkg $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
@@ -381,13 +381,13 @@ build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h src/apk
 test-apkg: build/libapkg-test.dylib build/apkg-core build/test_pm_common build/libapkg.a check-common-symbols
 	python3 -m unittest discover -s tests/apkg -v
 
-build/apkg-core: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h src/apkg/internal.h
+build/apkg-core: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h src/apkg/internal.h src/apkg/changes.inc
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O2 -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
-build/test_pm_common: tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h components/arospkg/src/pkgmanager/job.h
+build/test_pm_common: tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h components/arospkg/src/pkgmanager/job.h src/apkg/changes.inc src/apkg/internal.h
 	@mkdir -p build
-	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_FUSION -Iinclude -Isrc/apkg -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
+	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_FUSION -Iinclude -Isrc/apkg -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
 APKG_OBJECTS = $(patsubst %.c,build/common/%.o,$(APKG_ENGINE) $(APKG_SERVICES))
 all: build/apkg-core build/libapkg.a
@@ -395,7 +395,7 @@ build/libapkg.a: $(APKG_OBJECTS)
 	rm -f $@
 	ar rcs $@ $(APKG_OBJECTS)
 
-build/common/%.o: %.c include/apkg.h include/apkg_client.h include/pkg_fs.h src/apkg/internal.h
+build/common/%.o: %.c include/apkg.h include/apkg_client.h include/pkg_fs.h src/apkg/internal.h src/apkg/changes.inc
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg -c $< -o $@
 

@@ -12,7 +12,8 @@ static int confirm(void *user, const apkg_plan *plan, const char *text) {
     puts(text);
     if (expected && !strcmp(expected, digest))
         return 1;
-    fprintf(stderr, "Confirmation required: repeat with --confirm %s\n", digest);
+    fprintf(stderr, "Confirmation required: repeat with --confirm %s\n",
+            digest);
     return 0;
 }
 static void report(apkg_status code, apkg_result *result, apkg_error *error) {
@@ -43,9 +44,77 @@ int main(int argc, char **argv) {
     const char *confirmation = NULL;
     int initialize_yes = 0;
     if (argc < 3) {
-        fprintf(stderr, "Usage: apkg-core inspect ROOT | recover ROOT | init ROOT TARGET POLICY "
-                        "[--confirm DIGEST] | install ROOT PACKAGE-DIRECTORY [--confirm DIGEST]\n");
+        fprintf(
+            stderr,
+            "Usage: apkg-core inspect ROOT | recover ROOT | init ROOT TARGET "
+            "POLICY "
+            "[--confirm DIGEST] | install ROOT PACKAGE-DIRECTORY [--confirm "
+            "DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
+            "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
+            "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | "
+            "bundle-check|run-bundle FOLDER TARGET\n");
         return APKG_INVALID;
+    }
+    if (!strcmp(argv[1], "folder") || !strcmp(argv[1], "run")) {
+        if (argc != 4)
+            goto done;
+        if (!strcmp(argv[1], "folder")) {
+            code = apkg_client_folder(argv[2], argv[3], &text, &e);
+            if (!code)
+                puts(text);
+        } else
+            code = apkg_client_run(argv[2], argv[3], &e);
+        goto done;
+    }
+    if (!strcmp(argv[1], "list") || !strcmp(argv[1], "show")) {
+        if (argc != 3 && argc != 4)
+            goto done;
+        code =
+            apkg_client_query(argv[2], argc == 4 ? argv[3] : NULL, &text, &e);
+        if (!code)
+            puts(text);
+        goto done;
+    }
+    if (!strcmp(argv[1], "bundle-check") || !strcmp(argv[1], "run-bundle")) {
+        if (argc != 4)
+            goto done;
+        if (!strcmp(argv[1], "bundle-check")) {
+            code = apkg_bundle_check(argv[2], argv[3], &text, &e);
+            if (!code)
+                puts(text);
+        } else {
+            code = apkg_bundle_run(argv[2], argv[3], &e);
+            if (!code)
+                puts("launch_request=accepted");
+        }
+        goto done;
+    }
+    if (!strcmp(argv[1], "remove") || !strcmp(argv[1], "repair") ||
+        !strcmp(argv[1], "upgrade") || !strcmp(argv[1], "rollback") ||
+        !strcmp(argv[1], "resolve")) {
+        if (argc < 4)
+            goto done;
+        const char *pool = NULL;
+        for (int i = 4; i < argc; i += 2) {
+            if (i + 1 >= argc)
+                goto done;
+            if (!strcmp(argv[i], "--confirm") && !confirmation)
+                confirmation = argv[i + 1];
+            else if (!strcmp(argv[i], "--pool") && !pool &&
+                     !strcmp(argv[1], "resolve"))
+                pool = argv[i + 1];
+            else
+                goto done;
+        }
+        apkg_client_action action =
+            !strcmp(argv[1], "remove")     ? APKG_CLIENT_REMOVE
+            : !strcmp(argv[1], "repair")   ? APKG_CLIENT_REPAIR
+            : !strcmp(argv[1], "upgrade")  ? APKG_CLIENT_UPGRADE
+            : !strcmp(argv[1], "rollback") ? APKG_CLIENT_ROLLBACK
+                                           : APKG_CLIENT_RESOLVE;
+        code = apkg_client_apply(action, argv[2], argv[3], pool, confirm,
+                                 (void *)confirmation, NULL, &r, &e);
+        goto done;
     }
     if (!strcmp(argv[1], "install")) {
         if (argc != 4 && argc != 6)
@@ -55,7 +124,8 @@ int main(int argc, char **argv) {
                 goto done;
             confirmation = argv[5];
         }
-        code = apkg_client_install(argv[2], argv[3], confirm, (void *)confirmation, NULL, &r, &e);
+        code = apkg_client_install(argv[2], argv[3], confirm,
+                                   (void *)confirmation, NULL, &r, &e);
         goto done;
     }
     o.contract_version = 1;

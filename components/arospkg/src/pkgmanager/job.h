@@ -50,6 +50,8 @@ typedef struct {
        out after the work was done. */
     struct pm_msg_s *done;
     char            common_package[4096]; /* signed local package directory */
+    int             common_action;
+    char            common_pool[4096];
     volatile int    common_decision;      /* 0 waiting, 1 approve, -1 decline */
     su_job         *su;         /* JOB_SU_*: the window's record of the update */
 } job;
@@ -87,6 +89,7 @@ typedef struct pm_msg_s {
 int job_start(job *j);
 #ifdef APKG_FUSION
 pkg_status pm_common_install(job *, pkg_err *);
+pkg_status pm_common_query(const char *, const char *, pkg_entries *, pkg_err *);
 #endif
 
 /* The steps of an install plan as one string, so the worker can tell the

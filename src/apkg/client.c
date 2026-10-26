@@ -31,6 +31,7 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
     *out = NULL;
     if (!p)
         return APKG_INVALID;
+    if(p->changes)return ak_changes_format(p,out);
     if (p->view.effect_count > (AK_MAX - 4096) / (AK_PATH + 512))
         return APKG_LIMIT;
     cap = 4096 + (size_t)p->view.effect_count * (AK_PATH + 512);

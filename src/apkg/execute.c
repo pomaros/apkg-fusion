@@ -157,7 +157,8 @@ static int mkdir_parents(const char *base, const char *rel) {
     return 0;
 }
 static int stage_package(const char *tree, const ak_json *j) {
-    int arr = ak_member(j, ak_member(j, 0, "body"), "files");
+    int body = ak_member(j, 0, "body");
+    int arr = ak_member(j, body < 0 ? 0 : body, "files");
     size_t i;
     for (i = (size_t)arr + 1; i < j->tokens[arr].next; i = j->tokens[i].next) {
         char rel[AK_PATH], path[AK_PATH];
@@ -404,6 +405,8 @@ static void result_set(apkg_result *r, apkg_status code, apkg_outcome outcome) {
     r->view.status = code;
     r->view.outcome = outcome;
 }
+static int emit(const apkg_observer *, apkg_result *, uint64_t *, apkg_phase, int, const char *);
+#include "changes.inc"
 /* Caller holds the parent lock. No parser accepts an arbitrary write path. */
 static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
     char txn[AK_PATH], state[AK_PATH], tree[AK_PATH], live[AK_PATH], name[256],
@@ -448,6 +451,10 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
     if (memcmp(sha, recorded_sha, 64))
         goto done;
     body = ak_member(&plan, 0, "body");
+    if (ak_equal(&plan, ak_member(&plan, body, "action"), "changes")) {
+        r = recover_changes_locked(c, result, txn, &plan);
+        goto done;
+    }
     {
         static const char *const f[] = {"action",     "anchor_dev", "anchor_ino", "before",
                                         "generation", "new_state",  "root_path",  "target_path"};
@@ -754,6 +761,10 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, cons
         (!p->absent && (s->view.state != APKG_ROOT_READY ||
                         memcmp(s->view.snapshot_digest.bytes, p->before.bytes, 32)))) {
         code = APKG_STALE;
+        goto done;
+    }
+    if (p->changes) {
+        code = execute_changes_locked(c, p, s, o, r);
         goto done;
     }
     if (!p->absent) {

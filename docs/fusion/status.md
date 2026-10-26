@@ -179,6 +179,46 @@ profile therefore refuses common mutation at capability preflight. Installing
 on AROS requires a suitable SDK/DOS/handler and subsequent runtime qualification.
 Neither native execution nor power-loss durability is inferred from this build.
 
+## Next five stages: operation and client integration
+
+The operator authorized repair, upgrade, rollback, dependency/conflict planning
+and their CLI/PkgManager/bundle integration, with transactional removal as the
+prerequisite. Native AROS execution is explicitly deferred while the operator
+cleans its repositories. No OS source checkout was changed or OS launched.
+The [operations profile](operations.md) defines the exact schemas and limits.
+
+| Stage | Evaluation before dependent work |
+|---|---|
+| Prerequisite: remove | Pristine files are removed; edited/foreign files and necessary directories survive. Missing packages, links, stale live trees and interrupted removal have explicit results. |
+| Repair | Missing/changed ordinary files are restored from reverified signed bytes; declared configurations and unknown files survive. A named repair leaves other installed packages alone. Cancellation, I/O failure and process death are covered. |
+| Upgrade | Ordered version/revision advancement, three-way preservation, obsolete files, foreign/type/case collisions and interruption are tested. The arospkg version comparator retains its authorship and uncertain orderings refuse. |
+| Rollback | Current-state-bound local history restores actual before-images offline, including pre-repair damage, while preserving later personal files. Corrupt/missing retained bytes and stale history refuse. |
+| Package relations | Required closure, installed preference, cycles, backtracking, signed replacements, conflicts, optional recommendations, recorded reasons and multi-package interruption pass. Direct install cannot bypass relation checks, and removal cannot break the remaining required graph. |
+| Clients/bundles | Actual CLI and DOS-worker bridge produce equivalent database and payload results for repair, upgrade, remove, resolve and rollback. Native installed browsing/search/detail and Run/Open use common queries. Host bundle checks cover registration independence, moving an unmanaged folder, containment, CPU/ABI target and icon presence. |
+
+Local qualification: 63 common-engine/client test groups pass, including 693
+allocation-injection positions across original and new paths. I/O boundaries,
+process death, interrupted recovery, cancellation/late cancellation, callback-time
+database changes, live edits and unrepresented metadata are exercised. The
+shared API's error code and filesystem outcome remain separate and consistent.
+The complete fusion integration gate and ASan/UBSan CLI/worker scenarios pass.
+Exact-source CI results are recorded with the published source qualification.
+
+A test harness defect initially let a forked allocation-test child continue the
+suite after an assertion. Those test processes were stopped; new children now
+terminate in a finally block even on a harness exception. The corrected tests
+pass without weakening their assertions. Parser/descriptor allocation failures
+also preserve NOMEM through cleanup instead of reporting malformed input.
+
+Scope limits remain explicit: local signed package directories and package-name
+relations are implemented; full network catalogues/news, capability/library
+provider selection, authoring adapters, migration and ARexx compatibility remain
+later integration work. PkgManager's existing display row adapter refuses an
+identity it cannot represent. General metadata/time/attribute fidelity remains
+unqualified; unrepresented metadata is refused before mutation. Native launcher
+code and cross-builds do not establish runtime success, actual GUI behavior or
+power-loss durability. Managed bundle adoption/movement remains BUNDLE-MANAGE.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

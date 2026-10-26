@@ -5,6 +5,8 @@
 #include "job.h"
 #ifdef APKG_FUSION
 #include "apkg.h"
+#include "apkg_client.h"
+#include <proto/workbench.h>
 #endif
 #include "rexx.h"
 #include "rexxcmd.h"
@@ -39,7 +41,9 @@ enum { ID_SEARCH = 1, ID_INSTALL, ID_REMOVE, ID_UPDATE, ID_CANCEL, ID_SELECT, ID
        ID_CHECK, ID_BUY, ID_THUMB0, ID_THUMB1, ID_THUMB2, ID_THUMB3, ID_SELFUPDATE };
 
 #ifdef APKG_FUSION
-static Object *str_common_package, *btn_common_install;
+static Object *str_common_package, *btn_common_install, *cyc_common_action, *str_common_pool;
+static const char *common_actions[]={"Install signed package","Remove package","Repair package","Upgrade from signed folder","Rollback from retained history","Resolve with local package pool","Recover pending transaction",NULL};
+static char *common_detail_text;
 static int common_waiting;
 static char *common_preview_text;
 #define ID_COMMON_INSTALL 1001
@@ -423,7 +427,16 @@ static void refill(const char *term, const char *keep_id, const char *why)
     pkg_entries fresh, all = {0}; int hidden = 0, i, k, again = -1, shown = 0, inst = 0;
     char msg[200];
 
-    memset(&e, 0, sizeof e);
+    memset(&e,0,sizeof e);
+#ifdef APKG_FUSION
+    memset(&fresh,0,sizeof fresh);
+    st=pm_common_query(root,term,&fresh,&e);
+    if(st!=PKG_OK){show_err("Cannot read common root",st,&e);return;}
+    SetAttrs(lst,MUIA_List_Quiet,TRUE,TAG_DONE);DoMethod(lst,MUIM_List_Clear);pkg_entries_free(&rows);rows=fresh;
+    for(i=0;i<rows.n;i++) {DoMethod(lst,MUIM_List_InsertSingle,(IPTR)&rows.v[i],MUIV_List_Insert_Bottom);if(keep_id&&!strcmp(keep_id,rows.v[i].id))again=i;}
+    SetAttrs(lst,MUIA_List_Quiet,FALSE,TAG_DONE);if(again>=0)SetAttrs(lst,MUIA_List_Active,again,TAG_DONE);
+    snprintf(msg,sizeof msg,"%d installed packages; local common root",rows.n);status(msg);show_detail();return;
+#endif
     st = pkg_open(root, PKG_OPEN_READ, &c, &e);
     if (st != PKG_OK) { show_err("cannot open the package root", st, &e); return; }
     st = pkg_query(c, index_path, term, &fresh, &hidden, &e);
@@ -808,6 +821,20 @@ static void show_detail(void)
     int run_ready;
     char reqs[1024] = "";
     pkg_entry *e = selected();
+#ifdef APKG_FUSION
+    char *detail=NULL;
+    if(common_detail_text){apkg_client_text_free(common_detail_text);common_detail_text=NULL;}
+    if(e&&apkg_client_query(root,e->id,&detail,NULL)==APKG_OK)common_detail_text=detail;
+    SetAttrs(txt_head,MUIA_Text_Contents,(IPTR)(e?e->id:""),TAG_DONE);
+    SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(common_detail_text?common_detail_text:"Select an installed package"),TAG_DONE);
+    SetAttrs(btn_remove,MUIA_Disabled,busy_now()||!e,TAG_DONE);
+    SetAttrs(btn_open,MUIA_Disabled,busy_now()||!e,TAG_DONE);
+    SetAttrs(btn_run,MUIA_Disabled,busy_now()||!e,TAG_DONE);
+    SetAttrs(btn_verify,MUIA_Disabled,TRUE,TAG_DONE);
+    SetAttrs(btn_upgrade,MUIA_Disabled,TRUE,TAG_DONE);
+    SetAttrs(btn_rollback,MUIA_Disabled,TRUE,TAG_DONE);
+    return;
+#endif
     pkg_details det;
     size_t k;
 
@@ -1045,6 +1072,16 @@ static void open_folder(const char *id)
     pkg_ctx *c = NULL; pkg_err err; pkg_status st;
     memset(&err, 0, sizeof err);
     where[0] = 0;
+#ifdef APKG_FUSION
+    char *folder=NULL;
+    apkg_status common=apkg_client_folder(root,id,&folder,NULL);
+    if(common==APKG_OK) {
+        struct Library *WorkbenchBase=OpenLibrary((CONST_STRPTR)"workbench.library",0);
+        if(WorkbenchBase){BOOL opened=OpenWorkbenchObjectA((STRPTR)folder,NULL);CloseLibrary(WorkbenchBase);status(opened?"Folder open request accepted":"Folder could not be opened");}
+        else status("Workbench is unavailable");
+    } else status("Package folder is unavailable");
+    apkg_client_text_free(folder);return;
+#endif
     st = pkg_open(root, PKG_OPEN_READ, &c, &err);
     if (st == PKG_OK) { st = pkg_open_folder(c, id, where, sizeof where, &err); pkg_close(c); }
     if (st == PKG_OK) snprintf(line, sizeof line, "opened %s", where);
@@ -1061,6 +1098,8 @@ static void busy(int on)
 #ifdef APKG_FUSION
     SetAttrs(btn_common_install, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(str_common_package, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(str_common_pool,MUIA_Disabled,on,TAG_DONE);
+    SetAttrs(cyc_common_action,MUIA_Disabled,on,TAG_DONE);
 #endif
     SetAttrs(btn_update,  MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_check,   MUIA_Disabled, on, TAG_DONE);
@@ -1157,7 +1196,11 @@ static int start(job_kind kind, const char *id)
     if (kind == JOB_COMMON_INSTALL) {
         IPTR folder = 0;
         GetAttr(MUIA_String_Contents, str_common_package, &folder);
-        if (!folder || !*(const char *)folder || strlen((const char *)folder) >= sizeof cur.common_package) return -1;
+        IPTR action=0,pool=0;GetAttr(MUIA_Cycle_Active,cyc_common_action,&action);cur.common_action=(int)action;
+        GetAttr(MUIA_String_Contents,str_common_pool,&pool);
+        if(pool&&strlen((const char *)pool)>=sizeof cur.common_pool)return -1;
+        if(pool)memcpy(cur.common_pool,(const char *)pool,strlen((const char *)pool)+1);
+        if (!folder || (cur.common_action!=APKG_CLIENT_RECOVER && !*(const char *)folder) || strlen((const char *)folder) >= sizeof cur.common_package) return -1;
         memcpy(cur.common_package, (const char *)folder, strlen((const char *)folder) + 1);
     }
 #endif
@@ -1185,7 +1228,12 @@ static void proceed(const char *how);
 static rx_job *begin(job_kind kind, const char *pkg, const char *origin)
 {
 #ifdef APKG_FUSION
-    if (kind == JOB_INSTALL || kind == JOB_REMOVE || kind == JOB_UPDATE || kind == JOB_UPGRADE || kind == JOB_ROLLBACK) {
+    if(kind==JOB_REMOVE) {
+        SetAttrs(cyc_common_action,MUIA_Cycle_Active,APKG_CLIENT_REMOVE,TAG_DONE);
+        SetAttrs(str_common_package,MUIA_String_Contents,(IPTR)(pkg?pkg:""),TAG_DONE);
+        kind=JOB_COMMON_INSTALL;
+    }
+    if (kind == JOB_INSTALL || kind == JOB_UPDATE || kind == JOB_UPGRADE || kind == JOB_ROLLBACK) {
         status("This development build uses signed plans; legacy mutations need migration");
         return NULL;
     }
@@ -1682,7 +1730,7 @@ static int on_message(pm_msg *m)
         SetAttrs(btn_cancel, MUIA_Disabled, !m->can_cancel || quit_pending, TAG_DONE);
         return 0;
     }
-    if (m->kind == PM_DONE && cur.kind == JOB_COMMON_INSTALL) {
+    if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_INSTALL || cur.kind == JOB_RUN)) {
         in_flight = 0; common_waiting = 0; confirm_close();
         if (common_preview_text) { FreeVec(common_preview_text); common_preview_text = NULL; }
         if (active) finish(active, m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
@@ -1692,8 +1740,9 @@ static int on_message(pm_msg *m)
             MUI_Request(app, win, 0, (STRPTR)"Package recovery required", (STRPTR)"OK",
                         (STRPTR)"The operation needs recovery. Retained evidence:\n%s", m->common_record ? m->common_record : root);
             status("Recovery required; retained package data was preserved");
-        } else status(m->common_status == APKG_OK ? "Signed package installed" : m->common_status == APKG_CANCELLED ? "Signed installation cancelled" : "Signed installation refused");
+        } else status(m->common_status == APKG_OK ? "Operation completed" : m->common_status == APKG_CANCELLED ? "Operation cancelled" : "Operation refused");
         if (m->common_record) { FreeVec(m->common_record); m->common_record = NULL; }
+        if(m->common_status==APKG_OK)refill("",NULL,"common operation complete");
         return quit_pending;
     }
 #endif
@@ -2529,9 +2578,11 @@ static int real_main(int argc, char **argv)
                     Child, (str_common_package = StringObject,
                         MUIA_String_Contents, (IPTR)"",
                         MUIA_String_MaxLen, 4096,
-                        MUIA_ShortHelp, (IPTR)"Folder containing descriptor.json and signature.json",
+                        MUIA_ShortHelp, (IPTR)"Signed folder, package name, or retained history folder for the chosen operation",
                     End),
-                    Child, (btn_common_install = SimpleButton("Install signed package")),
+                    Child, (cyc_common_action=CycleObject,MUIA_Cycle_Entries,(IPTR)common_actions,End),
+                    Child, (str_common_pool=StringObject,MUIA_String_MaxLen,4096,MUIA_ShortHelp,(IPTR)"Optional folder of signed package folders for dependency resolution",End),
+                    Child, (btn_common_install = SimpleButton("Review operation")),
                 End),
 #endif
                 Child, (gauge = GaugeObject,
@@ -2689,7 +2740,7 @@ static int real_main(int argc, char **argv)
         if (sigs) {
             sigs = Wait(sigs | portsig | rxsig | SIGBREAKF_CTRL_C);
             if (sigs & SIGBREAKF_CTRL_C) {
-                if (confirming) { decline("declined (break)"); break; }
+                if (confirming) { decline("declined (break)"); if(in_flight)close_requested(); else break; }
                 if (in_flight) close_requested(); else break;
             }
             if (sigs & portsig) {
@@ -2721,6 +2772,7 @@ static int real_main(int argc, char **argv)
     rexx_close("CLOSING PkgManager has quit");
 #ifdef APKG_FUSION
     if (common_preview_text) FreeVec(common_preview_text);
+    if(common_detail_text)apkg_client_text_free(common_detail_text);
 #endif
     MUI_DisposeObject(app);
     pkg_entries_free(&rows);

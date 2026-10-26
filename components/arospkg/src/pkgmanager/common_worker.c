@@ -33,7 +33,8 @@ static int ask(void *user, const apkg_plan *plan, const char *text) {
     m->kind = PM_COMMON_PREVIEW;
     post(j, m);
     /* Keep context/plan alive on this worker Process until its UI responds.
-     * Nothing is re-resolved and no malloc-owned handle crosses process exit. */
+     * Nothing is re-resolved and no malloc-owned handle crosses process exit.
+     */
     while (!j->common_decision && !j->cancel)
         Delay(1);
     return j->common_decision == 1 && !j->cancel;
@@ -59,11 +60,20 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     apkg_status status;
     pkg_status legacy;
     if (apkg_cancel_create(&cancel) != APKG_OK) {
+        if (error) {
+            memset(error, 0, sizeof *error);
+            error->status = PKG_E_NOMEM;
+            snprintf(error->summary, sizeof error->summary, "out of memory");
+        }
         j->done->common_status = APKG_NOMEM;
         return PKG_E_NOMEM;
     }
     observer.cancel = cancel;
-    status = apkg_client_install(j->root, j->common_package, ask, j, &observer, &result, &detail);
+    status = j->kind == JOB_RUN
+                 ? apkg_client_run(j->root, j->id, &detail)
+                 : apkg_client_apply((apkg_client_action)j->common_action,
+                                     j->root, j->common_package, j->common_pool,
+                                     ask, j, &observer, &result, &detail);
     if (status == APKG_CANCELLED && j->done->common_status == APKG_NOMEM)
         status = APKG_NOMEM;
     j->done->common_status = status;
@@ -88,11 +98,12 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
         error->status = legacy;
         if (detail) {
             const apkg_error_view *v = apkg_error_get(detail);
-            snprintf(error->summary, sizeof error->summary, "%.*s", (int)v->message.size,
+            snprintf(error->summary, sizeof error->summary, "%.*s",
+                     (int)v->message.size,
                      v->message.data ? v->message.data : "");
         } else if (status != APKG_OK)
-            snprintf(error->summary, sizeof error->summary, "signed installation refused (code %d)",
-                     (int)status);
+            snprintf(error->summary, sizeof error->summary,
+                     "signed installation refused (code %d)", (int)status);
     }
     apkg_error_free(detail);
     apkg_result_free(result);

@@ -171,7 +171,10 @@ release verdict.
    power-loss qualification. Complete those platform gates before release.
 3. Subsequent work remains the separately bounded operation families, relations,
    migration, full authoring/channels and the other platform/release obligations.
-   The current authorization covers the six-lot path, not those later batches.
+   The operator subsequently authorized repair, upgrade, rollback, package
+   relations and their CLI/PkgManager/bundle integration, with transactional
+   removal as a prerequisite. Native AROS execution is deferred while its
+   repositories are cleaned. See the [operations profile](docs/fusion/operations.md).
 
 ## Bounded execution batches
 
@@ -194,7 +197,7 @@ Complexity is relative engineering scope, not a token or time estimate.
 | JOURNAL | PLAN-INSTALL | Journal/recovery protocol specification and fault-injection cases. | Specify every durable boundary, root locking, commit decision, interrupted recovery, offline retained data and self-update recovery in the common journal. High-reasoning review before implementation. No claim that the inherited journal already satisfies this. | Medium |
 | INSTALL | JOURNAL | One signed-package plan executor and journal recovery. | Install, write failure, cancellation and process termination produce stated outcomes; retry is idempotent; stale plan writes nothing. Keep OS power-loss qualification separate. No dependency solver, upgrades or UI redesign. | Large; split normal execution and injected recovery |
 | GUI-INSTALL | INSTALL | One PkgManager worker path for preview/confirm/install, preserving DOS Process ownership. | UI shows and executes the same plan; progress/cancel/results match CLI and disk state. Retain the existing UI. No general rework of browsing or settings. | Medium |
-| OPERATIONS | INSTALL | Separate tasks for upgrade, remove, repair and rollback, each with tests and configuration preservation. | Complete one operation per task. Edited/foreign files and retained rollback bytes are covered. Never implement all four in a single unattended batch. | Four medium tasks |
+| OPERATIONS | INSTALL | Separate tasks for upgrade, remove, repair and rollback, each with tests and configuration preservation. | Complete one operation per task. Edited/foreign files and retained rollback bytes are covered. Keep separate evaluation gates; an explicitly authorized sequence may span these tasks. | Four medium tasks |
 | RELATIONS | OPERATIONS | Separate tasks for dependency closure, installed-provider preference, conflicts/replaces and recommends; then plan execution across packages. | Use shared fixtures from both engines; prove loader compatibility and interruption outcomes. Each relation family is its own stopping point. | Several medium tasks |
 | BUNDLE-LAUNCH | CONTEXT | Native launch of an unregistered application folder. | Check containment, icons, executable target and loader requirements on AROS. No database membership or successful package installation is required. Parser acceptance alone is insufficient. | Medium |
 | BUNDLE-MANAGE | INSTALL + BUNDLE-LAUNCH | Separate tasks for managed adoption and movement. | Ownership, update identity and recovery follow the common context model while standalone launching remains possible. | Two medium tasks |

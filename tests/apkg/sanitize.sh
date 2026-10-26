@@ -13,6 +13,6 @@ set -- -DPKG_FS_LOCAL_ONLY -std=c99 -O1 -g -fsanitize=address,undefined -fno-omi
 # shellcheck disable=SC2086
 "$CC" "$@" src/apkg/main.c $sources -o build/common-sanitized/apkg-core
 # shellcheck disable=SC2086
-"$CC" "$@" -DAPKG_FUSION -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c $sources -o build/common-sanitized/pm-worker
+"$CC" "$@" -DAPKG_FUSION -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $sources -o build/common-sanitized/pm-worker
 ./build/common-sanitized/memory
 APKG_CLI="$PWD/build/common-sanitized/apkg-core" APKG_PM_WORKER="$PWD/build/common-sanitized/pm-worker" python3 -m unittest discover -s tests/apkg -p test_client.py -v

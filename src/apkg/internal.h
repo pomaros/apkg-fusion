@@ -20,6 +20,16 @@ typedef struct {
     size_t size, count, capacity;
     ak_token *tokens;
 } ak_json;
+typedef struct {
+    char *data;
+    size_t size, cap, max;
+    int bad;
+} ak_buf;
+typedef struct {
+    char path[AK_PATH];
+    int token;
+} ak_tree_row;
+int ak_buf_add(ak_buf *, const char *, ...);
 int ak_text_path_valid(const char *, size_t);
 int ak_json_parse(const void *, size_t, ak_json *);
 void ak_json_free(ak_json *);
@@ -42,6 +52,15 @@ int ak_remove_tree(const char *);
 int ak_exists(const char *); /* -1 error, 0 absent, 1 present */
 int ak_resolve(const char *, char *, struct stat *);
 int ak_physical(const char *, const struct stat *);
+char *ak_slice(const ak_json *, int);
+apkg_status ak_tree_read(const char *, size_t, char **, struct stat *);
+apkg_status ak_changes_format(const apkg_plan *, char **);
+int ak_relations_valid(const ak_json *, int);
+int ak_requirement_matches(const ak_json *, int, const apkg_package *);
+apkg_status ak_relations_check(apkg_package *const *, size_t);
+apkg_status ak_verified_entry(apkg_ctx *, const char *, apkg_package **);
+int ak_version_compare(const char *, const char *);
+int ak_tree_find(const ak_json *, const char *);
 struct apkg_ctx {
     char root[AK_PATH], anchor[AK_PATH];
     struct stat binding;
@@ -84,6 +103,7 @@ struct apkg_plan {
     unsigned char session[16];
     apkg_digest before;
     int absent;
+    char *changes, *before_state;
 };
 struct apkg_approval {
     unsigned char session[16];
@@ -101,6 +121,12 @@ struct apkg_event_copy {
     apkg_event view;
     char *strings[4];
 };
+apkg_status ak_plan_records(apkg_ctx *, const apkg_snapshot *, const char *,
+                            apkg_plan_kind, const char *, apkg_plan **,
+                            apkg_error **);
+apkg_status ak_make_plan(apkg_ctx *, const apkg_snapshot *, const char *,
+                         const char *, const char *, apkg_plan **,
+                         apkg_error **);
 int ak_cancelled(const apkg_observer *);
 int ak_descriptor(const ak_json *);
 int ak_valid_name(const char *);

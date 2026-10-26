@@ -33,7 +33,8 @@ void ak_hash(const void *p, size_t n, apkg_digest *d) {
     pkg_sha256_update(&h, p, n);
     pkg_sha256_final(&h, d->bytes);
 }
-apkg_status ak_fail(apkg_error **e, apkg_status c, const char *msg, const char *subject) {
+apkg_status ak_fail(apkg_error **e, apkg_status c, const char *msg,
+                    const char *subject) {
     if (e) {
         *e = calloc(1, sizeof **e);
         if (*e) {
@@ -61,7 +62,8 @@ void apkg_error_free(apkg_error *e) {
     }
 }
 int ak_path(char *o, const char *a, const char *b) {
-    int n = snprintf(o, AK_PATH, "%s%s%s", a, (*a && a[strlen(a) - 1] == ':') ? "" : "/", b);
+    int n = snprintf(o, AK_PATH, "%s%s%s", a,
+                     (*a && a[strlen(a) - 1] == ':') ? "" : "/", b);
     return n < 0 || n >= AK_PATH ? -1 : 0;
 }
 int ak_exists(const char *p) {
@@ -75,8 +77,9 @@ int ak_physical(const char *p, const struct stat *old) {
     char canonical[AK_PATH];
     /* A moved root reached through a new symlink could otherwise retain its
      * inode while acquiring a different parent lock/coordinator location. */
-    return pkg_fs_canonical_dir(p, canonical, sizeof canonical) == 0 && !strcmp(p, canonical) &&
-           stat(p, &now) == 0 && old->st_dev == now.st_dev && old->st_ino == now.st_ino;
+    return pkg_fs_canonical_dir(p, canonical, sizeof canonical) == 0 &&
+           !strcmp(p, canonical) && stat(p, &now) == 0 &&
+           old->st_dev == now.st_dev && old->st_ino == now.st_ino;
 }
 int ak_resolve(const char *p, char *o, struct stat *binding) {
     if (pkg_fs_canonical_dir(p, o, AK_PATH))
@@ -97,7 +100,8 @@ int ak_read(const char *p, unsigned char **out, size_t *size, size_t max) {
     fd = open(p, O_RDONLY);
     if (fd < 0)
         return -1;
-    if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size < 0 || (uint64_t)st.st_size > max) {
+    if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size < 0 ||
+        (uint64_t)st.st_size > max) {
         close(fd);
         errno = EFBIG;
         return -1;
@@ -201,7 +205,8 @@ int ak_remove_tree(const char *p) {
     closedir(d);
     return bad ? -1 : rmdir(p);
 }
-apkg_status apkg_open(const apkg_open_options *o, apkg_ctx **out, apkg_error **err) {
+apkg_status apkg_open(const apkg_open_options *o, apkg_ctx **out,
+                      apkg_error **err) {
     apkg_ctx *c;
     char p[AK_PATH], *slash;
     size_t n;
@@ -220,10 +225,12 @@ apkg_status apkg_open(const apkg_open_options *o, apkg_ctx **out, apkg_error **e
     if (!c)
         return APKG_NOMEM;
     c->object_max = o->max_object_bytes ? (size_t)o->max_object_bytes : AK_MAX;
-    c->memory_max = o->max_memory_bytes ? (size_t)o->max_memory_bytes : 64u * 1024u * 1024u;
+    c->memory_max =
+        o->max_memory_bytes ? (size_t)o->max_memory_bytes : 64u * 1024u * 1024u;
     if ((o->max_object_bytes && o->max_object_bytes > SIZE_MAX) ||
-        (o->max_memory_bytes && o->max_memory_bytes > SIZE_MAX) || c->object_max > AK_MAX ||
-        c->object_max > c->memory_max || c->memory_max < 1048576u) {
+        (o->max_memory_bytes && o->max_memory_bytes > SIZE_MAX) ||
+        c->object_max > AK_MAX || c->object_max > c->memory_max ||
+        c->memory_max < 1048576u) {
         free(c);
         return ak_fail(err, APKG_LIMIT, "unsupported resource budget", "");
     }
@@ -243,7 +250,8 @@ apkg_status apkg_open(const apkg_open_options *o, apkg_ctx **out, apkg_error **e
             strcpy(c->root, p);
             strcpy(p, ".");
         } else {
-            if (!slash[1] || !strcmp(slash + 1, ".") || !strcmp(slash + 1, "..")) {
+            if (!slash[1] || !strcmp(slash + 1, ".") ||
+                !strcmp(slash + 1, "..")) {
                 free(c);
                 return APKG_INVALID;
             }
@@ -340,7 +348,8 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
     ak_json j = {0};
     int pend, pend2, exists, b, arr;
     size_t i;
-    static const char *const fields[] = {"generation", "installed", "policy", "root_id", "target"};
+    static const char *const fields[] = {"generation", "installed", "policy",
+                                         "root_id", "target"};
     errno = 0;
     if (pending(c, &pend))
         return ak_fail(err, APKG_IO, "cannot inspect recovery state", c->root);
@@ -354,7 +363,8 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
     if (!ak_physical(c->anchor, &c->binding))
         goto stale;
     /* An absent-root handle binds its ancestor, not a root another process
-     * created later. Explicit initialization/recovery rebinds its own handle. */
+     * created later. Explicit initialization/recovery rebinds its own handle.
+     */
     if (strcmp(c->anchor, c->root) && ak_exists(c->root) != 0)
         goto stale;
     if (ak_path(meta, c->root, ".apkg") || ak_path(path, meta, "state"))
@@ -371,7 +381,9 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
         d = ak_exists(legacy);
         if (a < 0 || d < 0)
             goto io;
-        s->view.state = pend ? APKG_ROOT_PENDING : (a || d) ? APKG_ROOT_LEGACY : APKG_ROOT_ABSENT;
+        s->view.state = pend       ? APKG_ROOT_PENDING
+                        : (a || d) ? APKG_ROOT_LEGACY
+                                   : APKG_ROOT_ABSENT;
         if (a || d) {
             uint64_t legacy_count = 0;
             if (a && legacy_pending(c, &legacy_count))
@@ -380,8 +392,10 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
                 s->view.state = APKG_ROOT_PENDING;
                 s->view.pending_count.value += legacy_count;
             }
-            s->view.pending_count.state = legacy_count ? APKG_KNOWN : APKG_UNKNOWN;
-            s->view.diagnostic = text("legacy metadata needs validated migration");
+            s->view.pending_count.state =
+                legacy_count ? APKG_KNOWN : APKG_UNKNOWN;
+            s->view.diagnostic =
+                text("legacy metadata needs validated migration");
         }
         if (pending(c, &pend2))
             goto io;
@@ -401,8 +415,8 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
             goto io;
         if (a || d) {
             s->view.state = APKG_ROOT_INVALID;
-            s->view.diagnostic =
-                text("common and legacy databases coexist; validated cutover required");
+            s->view.diagnostic = text("common and legacy databases coexist; "
+                                      "validated cutover required");
             *out = s;
             return APKG_OK;
         }
@@ -424,7 +438,8 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
         goto limit;
     if (ak_json_parse(raw, len, &j))
         goto invalid;
-    if (!ak_object(&j, "root") || !ak_fields(&j, ak_member(&j, 0, "body"), fields, 5))
+    if (!ak_object(&j, "root") ||
+        !ak_fields(&j, ak_member(&j, 0, "body"), fields, 5))
         goto unsupported;
     b = ak_member(&j, 0, "body");
     {
@@ -432,7 +447,8 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
         uint64_t generation;
         if (ak_string(&j, ak_member(&j, b, "root_id"), id, sizeof id) ||
             ak_hex(id, s->view.root_id.bytes, 16) ||
-            ak_u64(&j, ak_member(&j, b, "generation"), &generation) || !generation ||
+            ak_u64(&j, ak_member(&j, b, "generation"), &generation) ||
+            !generation ||
             ak_string(&j, ak_member(&j, b, "target"), target, sizeof target) ||
             pkg_target_parse(target, NULL, NULL, 0))
             goto invalid;
@@ -474,18 +490,26 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
     }
     {
         size_t row = 0;
-        for (i = (size_t)arr + 1; i < j.tokens[arr].next; i = j.tokens[i].next) {
+        for (i = (size_t)arr + 1; i < j.tokens[arr].next;
+             i = j.tokens[i].next) {
             apkg_installed_view *r = &s->rows[row];
             int desc = ak_member(&j, (int)i, "descriptor"), body;
             char temp[256];
             uint64_t revision;
-            static const char *const entry_fields[] = {"descriptor", "signature"};
-            if (!ak_fields(&j, (int)i, entry_fields, 2) || desc < 0)
+            static const char *const entry_fields[] = {"descriptor",
+                                                       "signature"};
+            if ((!ak_fields(&j, (int)i, entry_fields, 2) &&
+                 !ak_fields(
+                     &j, (int)i,
+                     (const char *const[]){"descriptor", "reason", "signature"},
+                     3)) ||
+                desc < 0)
                 goto invalid;
             {
                 ak_json d = {0};
                 if (ak_json_parse(j.text + j.tokens[desc].start,
-                                  j.tokens[desc].end - j.tokens[desc].start, &d) ||
+                                  j.tokens[desc].end - j.tokens[desc].start,
+                                  &d) ||
                     !ak_descriptor(&d)) {
                     ak_json_free(&d);
                     goto invalid;
@@ -493,15 +517,17 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
                 ak_json_free(&d);
             }
             body = ak_member(&j, desc, "body");
-            s->records[row] =
-                ak_copy(j.text + j.tokens[i].start, j.tokens[i].end - j.tokens[i].start);
+            s->records[row] = ak_copy(j.text + j.tokens[i].start,
+                                      j.tokens[i].end - j.tokens[i].start);
             if (!s->records[row])
                 goto nomem;
             r->record.data = (unsigned char *)s->records[row];
             r->record.size = strlen(s->records[row]);
-            /* Views into independently allocated strings are freed with the row. */
+            /* Views into independently allocated strings are freed with the
+             * row. */
             {
-                apkg_text_fact *f[] = {&r->authority, &r->name, &r->version, &r->target};
+                apkg_text_fact *f[] = {&r->authority, &r->name, &r->version,
+                                       &r->target};
                 const char *k[] = {"authority", "name", "version", "target"};
                 size_t x;
                 for (x = 0; x < 4; x++) {
@@ -518,6 +544,16 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
             r->revision.state = APKG_KNOWN;
             r->revision.value = revision;
             r->reason = APKG_REASON_EXPLICIT;
+            if (ak_member(&j, (int)i, "reason") >= 0) {
+                if (ak_equal(&j, ak_member(&j, (int)i, "reason"), "dependency"))
+                    r->reason = APKG_REASON_DEPENDENCY;
+                else if (ak_equal(&j, ak_member(&j, (int)i, "reason"),
+                                  "recommendation"))
+                    r->reason = APKG_REASON_RECOMMENDATION;
+                else if (!ak_equal(&j, ak_member(&j, (int)i, "reason"),
+                                   "explicit"))
+                    goto invalid;
+            }
             if (ak_string(&j, ak_member(&j, body, "name"), temp, sizeof temp))
                 goto invalid;
             {
@@ -587,7 +623,8 @@ nomem:
     apkg_snapshot_free(s);
     return APKG_NOMEM;
 }
-apkg_status apkg_snapshot_read(apkg_ctx *c, apkg_snapshot **out, apkg_error **e) {
+apkg_status apkg_snapshot_read(apkg_ctx *c, apkg_snapshot **out,
+                               apkg_error **e) {
     unsigned i;
     apkg_status r;
     if (e)
@@ -604,10 +641,15 @@ apkg_status apkg_snapshot_read(apkg_ctx *c, apkg_snapshot **out, apkg_error **e)
     }
     return ak_fail(e, APKG_BUSY, "root changed during read", c->root);
 }
-const apkg_root_view *apkg_snapshot_root(const apkg_snapshot *s) { return &s->view; }
-uint64_t apkg_snapshot_installed_count(const apkg_snapshot *s) { return s->nrows; }
+const apkg_root_view *apkg_snapshot_root(const apkg_snapshot *s) {
+    return &s->view;
+}
+uint64_t apkg_snapshot_installed_count(const apkg_snapshot *s) {
+    return s->nrows;
+}
 apkg_status apkg_snapshot_installed_at(const apkg_snapshot *s, uint64_t i,
-                                       const apkg_installed_view **out, apkg_error **e) {
+                                       const apkg_installed_view **out,
+                                       apkg_error **e) {
     if (e)
         *e = NULL;
     if (!out)
