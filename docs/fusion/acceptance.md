@@ -10,6 +10,9 @@ completed and outstanding work against the [architecture](architecture.md).
 | Capability | Common behavior | Acceptance evidence |
 |---|---|---|
 | One library | Clients share contexts, resolution, ownership and transactions. | Link and integration checks exclude a second mutation engine; CLI and GUI produce equivalent state. |
+| Root and snapshot identity | Bind root id, physical root, committed generation/snapshot and live preconditions. | Aliases, cloned/restored roots, stale plans and independent user edits cannot silently redirect or authorize writes. |
+| Publishing identity | Keep authority/name, signing keys, channel and exact build identity distinct. | Same-name authors, mirrors, key rotation, conflicting same-version content and explicit legacy adoption follow the [data model](data-model.md). |
+| Legacy uncertainty | Preserve unknown/invalid facts and evidence separately from effective compatibility defaults. | Missing ABI/reason/relations, wrong-version catalogue fallback and unavailable rollback bytes never become fabricated verified facts. |
 | Read-only access | Browsing and diagnostics create no root state. | Filesystem comparisons around reads of existing, absent and interrupted roots. |
 | PkgManager browsing | Preserve search, filtering, details, recent additions, updates and settings. | Native UI/ARexx scenarios on supported distributions. |
 | PkgManager operations | Preserve plans, cancellation, Run and folder opening; expose repair, system writes and signer facts. | Native scenarios inspect resulting state, close-during-work and allocation-failure outcomes. |

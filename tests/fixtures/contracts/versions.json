@@ -1,0 +1,201 @@
+{
+  "scheme": "aros-numeric-v1 plus opaque exact identity",
+  "provenance": "Synthetic cases informed by imported test_upgrade.c and pkg dotted-numeric rules",
+  "cases": [
+    {
+      "from": {
+        "version": "1.9",
+        "revision": 1
+      },
+      "to": {
+        "version": "1.10",
+        "revision": 1
+      },
+      "inherited_compare": -1,
+      "common_compare": "less",
+      "automatic_upgrade": true
+    },
+    {
+      "from": {
+        "version": "1.2",
+        "revision": 1
+      },
+      "to": {
+        "version": "1.2.0",
+        "revision": 2
+      },
+      "inherited_compare": 0,
+      "common_compare": "equal",
+      "automatic_upgrade": false
+    },
+    {
+      "from": {
+        "version": "1.02",
+        "revision": 1
+      },
+      "to": {
+        "version": "1.2",
+        "revision": 2
+      },
+      "inherited_compare": 0,
+      "common_compare": "equal",
+      "automatic_upgrade": false
+    },
+    {
+      "from": {
+        "version": "2.9",
+        "revision": 1
+      },
+      "to": {
+        "version": "2.9",
+        "revision": 2
+      },
+      "inherited_compare": 0,
+      "common_compare": "equal",
+      "automatic_upgrade": true
+    },
+    {
+      "from": {
+        "version": "2.9",
+        "revision": 2
+      },
+      "to": {
+        "version": "2.9",
+        "revision": 1
+      },
+      "inherited_compare": 0,
+      "common_compare": "equal",
+      "automatic_upgrade": false
+    },
+    {
+      "from": {
+        "version": "0.9.0-test2-r2",
+        "revision": 1
+      },
+      "to": {
+        "version": "0.9.0-test4",
+        "revision": 1
+      },
+      "inherited_compare": -1,
+      "common_compare": "less",
+      "automatic_upgrade": true
+    },
+    {
+      "from": {
+        "version": "0.7.0-preview1",
+        "revision": 1
+      },
+      "to": {
+        "version": "0.7.0-test1",
+        "revision": 1
+      },
+      "inherited_compare": 2,
+      "common_compare": "unordered",
+      "automatic_upgrade": false
+    },
+    {
+      "from": {
+        "version": "0.1.0-rc3",
+        "revision": 1
+      },
+      "to": {
+        "version": "0.1.0",
+        "revision": 1
+      },
+      "inherited_compare": -1,
+      "common_compare": "less",
+      "automatic_upgrade": true
+    },
+    {
+      "from": {
+        "version": "1.0",
+        "revision": 1
+      },
+      "to": {
+        "version": "1.0-r2",
+        "revision": 1
+      },
+      "inherited_compare": -1,
+      "common_compare": "less",
+      "automatic_upgrade": true
+    },
+    {
+      "from": {
+        "version": "2.0",
+        "revision": 1
+      },
+      "to": {
+        "version": "1.9",
+        "revision": 9
+      },
+      "inherited_compare": 1,
+      "common_compare": "greater",
+      "automatic_upgrade": false
+    },
+    {
+      "from": {
+        "version": "1.0",
+        "revision": 0
+      },
+      "to": {
+        "version": "1.0",
+        "revision": 1
+      },
+      "inherited_compare": 0,
+      "common_compare": "equal",
+      "automatic_upgrade": true
+    },
+    {
+      "from": {
+        "version": "v1.0",
+        "revision": 1
+      },
+      "to": {
+        "version": "v1.1",
+        "revision": 1
+      },
+      "inherited_compare": 2,
+      "common_compare": "unordered",
+      "automatic_upgrade": false
+    },
+    {
+      "from": {
+        "version": "v1.0",
+        "revision": 1
+      },
+      "to": {
+        "version": "v1.0",
+        "revision": 2
+      },
+      "inherited_compare": 2,
+      "common_compare": "equal",
+      "automatic_upgrade": true
+    },
+    {
+      "from": {
+        "version": "1.2.3.4.5.6.7.8",
+        "revision": 1
+      },
+      "to": {
+        "version": "1.2.3.4.5.6.7.9",
+        "revision": 1
+      },
+      "inherited_compare": -1,
+      "common_compare": "less",
+      "automatic_upgrade": true
+    },
+    {
+      "from": {
+        "version": "1234567890",
+        "revision": 1
+      },
+      "to": {
+        "version": "2",
+        "revision": 1
+      },
+      "inherited_compare": 2,
+      "common_compare": "unordered",
+      "automatic_upgrade": false
+    }
+  ]
+}

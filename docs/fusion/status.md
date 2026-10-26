@@ -50,13 +50,41 @@ Pre-0.6 catalogue relation fallback also needs provenance/exact-version handling
 Distribution/APKG/DOS/handler identity and real settings/scripts remain follow-up
 items. They do not block contract work, per operator direction.
 
-Next batch: CONTRACT, first the data model, then the public context API draft.
-MAP stops before schema/importer implementation. BASE CI evidence remains
-unchanged; MAP changes documentation and inert fixtures only.
+MAP stopped before schema/importer implementation. BASE CI evidence remains
+unchanged; MAP changed documentation and inert fixtures only.
 Validation: five JSON files parsed; inventory paths/source references and
 synthetic edited-file/self-update hashes checked; documentation link check
 covered 58 files with zero broken links. No runtime suite was rerun for these
 documentation/fixture-only changes.
+
+## CONTRACT data model completed; API pending
+
+The [data-model decision](data-model.md) defines the logical common database,
+root/generation/snapshot identities, authority and build identity, versions and
+revisions, target constraints, complete payload inventory, ownership/reasons,
+relations, trust/qualification provenance and immutable-plan/history inputs.
+It assigns modules to the selected arospkg context skeleton and pkg services.
+This is a design deliverable; no common database writer or importer exists yet.
+
+A focused review covered missing legacy facts, authority rotation/name clashes,
+cloned roots, generation versus live-file edits, reserved database paths,
+shared system ownership, version spelling ties, missing rollback bytes and
+multi-root self-update. The contract requires explicit handling of each.
+This was an in-session design review, not independent maintainer approval.
+
+The [decision corpus](../../tests/fixtures/contracts/README.md) contains 15
+version cases and 8 concrete-target cases. A temporary C99 host harness compiled
+with `-Wall -Wextra -Werror` passed 54 assertions against the existing arospkg
+comparison/upgrade functions and common target parser/matcher. Exact opaque
+identity is a documented common-model distinction; its future implementation
+was not tested. Documentation links: 59 files, zero broken links. No full
+engine/portal/runtime suite was needed or rerun for documentation and inert
+fixtures; BASE remains the previously recorded implementation evidence.
+
+Next task is CONTRACT API: types, bounds, ownership/lifetimes, consistent
+queries, events/cancellation/results, serialization/signature framing and
+executable consumer examples. CONTRACT as a whole remains incomplete until
+that task is reviewed. CONTEXT implementation follows afterward.
 
 ## Implemented integration pieces
 

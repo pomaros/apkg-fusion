@@ -164,9 +164,10 @@ release verdict.
 
 1. BASE is qualified and MAP's source mapping/fixture inventory is recorded in
    [status](docs/fusion/status.md) and [migration](docs/fusion/migration.md).
-2. Execute CONTRACT as two bounded tasks: data model first, public context API
-   second. Preserve unknown legacy facts explicitly; use the MAP cases and
-   obtain real distribution captures before migration qualification.
+2. CONTRACT data-model decisions are in [data-model](docs/fusion/data-model.md).
+   Next complete the public context API, bounds/lifetimes and serialization
+   framing, with executable consumer examples. Obtain real distribution
+   captures before migration qualification.
 3. Implement CONTEXT, then signed reading and the first immutable install plan.
    Journal specification and failure cases precede the mutating executor.
 
@@ -233,6 +234,7 @@ common contract, but parallel agents are not the default execution policy.
 
 Suggested task prompt:
 
-> Execute batch MAP from PLAN.md using one agent. Read the recorded audit and
-> only the files needed for that batch. Produce its mapping and fixture inventory,
-> check the document links, then stop. Do not implement migration or begin CONTRACT.
+> Execute the CONTRACT API task from PLAN.md using one agent. Read data-model.md
+> and the recorded MAP findings. Define the public context API, bounds and
+> lifetimes, serialization/signature framing and executable consumer examples.
+> Validate the draft, update status, then stop before CONTEXT implementation.

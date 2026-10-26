@@ -27,6 +27,10 @@ upstream maintainers. Development proceeds without waiting for that agreement
 or missing distribution information. Review and alignment are tracked in the
 [maintainer handoff](maintainer-agreement.md); resulting changes remain possible.
 
+The [common data model](data-model.md) defines logical identities, preservation
+rules and plan inputs. Its implementation and API status are tracked separately
+from the imported source layout.
+
 ## One engine, explicit contexts
 
 CLI, PkgManager, installers and embedded consumers share one library. A context

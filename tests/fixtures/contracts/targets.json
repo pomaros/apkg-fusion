@@ -1,0 +1,61 @@
+{
+  "provenance": "Synthetic concrete-target syntax/matching cases; no runtime qualification",
+  "cases": [
+    {
+      "left": "x86_64-aros-v11-native",
+      "right": "x86_64-aros-v11-native",
+      "left_valid": true,
+      "right_valid": true,
+      "matches": true
+    },
+    {
+      "left": "x86_64-aros-v11-native",
+      "right": "x86_64-aros-v1-native",
+      "left_valid": true,
+      "right_valid": true,
+      "matches": false
+    },
+    {
+      "left": "aarch64-aros-v11-native",
+      "right": "aarch64-aros-v11-hosted",
+      "left_valid": true,
+      "right_valid": true,
+      "matches": false
+    },
+    {
+      "left": "aarch64-aros-v11-raspi",
+      "right": "aarch64-aros-v11-native",
+      "left_valid": true,
+      "right_valid": true,
+      "matches": false
+    },
+    {
+      "left": "i386-aros-v0-native",
+      "right": "x86_64-aros-v11-native",
+      "left_valid": true,
+      "right_valid": true,
+      "matches": false
+    },
+    {
+      "left": "x86_64",
+      "right": "x86_64",
+      "left_valid": false,
+      "right_valid": false,
+      "matches": false
+    },
+    {
+      "left": "generic",
+      "right": "generic",
+      "left_valid": false,
+      "right_valid": false,
+      "matches": false
+    },
+    {
+      "left": "x86_64-aros-v11-raspi",
+      "right": "x86_64-aros-v11-native",
+      "left_valid": false,
+      "right_valid": true,
+      "matches": false
+    }
+  ]
+}
