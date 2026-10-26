@@ -335,7 +335,11 @@ semantics and a complete author/package/installed inventory round trip remain
 required. Native explicit-metadata mutation refuses before staging pending
 adapter/runtime qualification. No AROS execution or OS changes occurred; no
 portal code, live data or deployment was changed. Exact-source Linux/macOS CI
-must independently qualify this published revision.
+must independently qualify this published revision. The preceding documentation
+revision's Linux job timed out installing recommended font packages from its
+Ubuntu mirror before compilation; macOS and portal passed. The dependency step
+now installs required packages without optional recommendations, retaining all
+regression commands and its existing timeout.
 
 ## Implemented integration pieces
 
