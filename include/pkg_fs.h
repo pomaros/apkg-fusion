@@ -13,6 +13,8 @@
 #include <stddef.h>
 
 /* Return 0, or -1 with errno set. */
+/* Read-only preflight for atomic replacement of an existing state file. */
+int pkg_fs_atomic_replace_supported(void);
 int  pkg_fs_read(const char *path, unsigned char **buf, size_t *len);
 int  pkg_fs_write_atomic(const char *path, const void *buf, size_t len);
 /* Writes a file straight under its name, parents made: for a directory only

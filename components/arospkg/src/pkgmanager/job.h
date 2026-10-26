@@ -12,7 +12,7 @@
 typedef enum { JOB_NONE, JOB_INSTALL, JOB_REMOVE, JOB_UPDATE,
                JOB_PREVIEW_UPGRADE, JOB_UPGRADE, JOB_PREVIEW_ROLLBACK, JOB_ROLLBACK,
                JOB_CHECK_RELEASE, JOB_VERIFY, JOB_RUN,
-               JOB_SU_LOCATE, JOB_SU_STAGE } job_kind;
+               JOB_SU_LOCATE, JOB_SU_STAGE, JOB_COMMON_INSTALL } job_kind;
 
 /* Updating arospkg (libpkg/selfup.h): what the worker finds and stages for
    the window, which shows it and decides. Too big for a message, and only
@@ -49,13 +49,15 @@ typedef struct {
        an operation must never end with nothing to say so because memory ran
        out after the work was done. */
     struct pm_msg_s *done;
+    char            common_package[4096]; /* signed local package directory */
+    volatile int    common_decision;      /* 0 waiting, 1 approve, -1 decline */
     su_job         *su;         /* JOB_SU_*: the window's record of the update */
 } job;
 
 /* Every message the worker sends. PM_PROGRESS carries one pkg_progress_ev,
  * copied, because the event's strings belong to the worker's stack frame.
  * PM_DONE carries the outcome. The window frees each with FreeVec. */
-enum { PM_PROGRESS = 1, PM_DONE = 2 };
+enum { PM_PROGRESS = 1, PM_DONE = 2, PM_COMMON_PREVIEW = 3, PM_COMMON_PROGRESS = 4 };
 
 typedef struct pm_msg_s {
     struct Message msg;
@@ -73,6 +75,9 @@ typedef struct pm_msg_s {
     char          *listing;     /* JOB_VERIFY: one line per file, AllocVec'd; the window frees it */
     pkg_run_result run;         /* JOB_RUN: what was started */
     pkg_removal    rem;         /* JOB_REMOVE: what was kept in place */
+    char          *common_preview, *common_record; /* AllocVec ownership to UI */
+    unsigned long long common_done, common_total;
+    int            common_total_known, common_status, common_outcome;
     char           note[200];   /* a replacement recovery finished when the root was opened */
 } pm_msg;
 
@@ -80,6 +85,9 @@ typedef struct pm_msg_s {
  * send PM_DONE exactly once, whatever happens. -1 when the final message or
  * the process could not be had; nothing was started then. */
 int job_start(job *j);
+#ifdef APKG_FUSION
+pkg_status pm_common_install(job *, pkg_err *);
+#endif
 
 /* The steps of an install plan as one string, so the worker can tell the
    plan it is about to run from the one the user accepted. */

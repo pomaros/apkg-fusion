@@ -905,3 +905,5 @@ int pkg_net_send(const char *method, const char *url, const char *body_file,
     if (*code == 0) { snprintf(err, errlen, "no answer from %s", url); return -1; }
     return 0;
 }
+
+int pkg_fs_atomic_replace_supported(void) { return 1; }

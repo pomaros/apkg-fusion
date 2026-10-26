@@ -33,6 +33,9 @@ rules and plan inputs. The [API contract](api.md) and
 tranche. Their implementation status is tracked separately
 from the imported source layout.
 
+The [initial common engine](initial-engine.md) now implements the first signed
+install path; the full acceptance obligations below remain in force.
+
 ## One engine, explicit contexts
 
 CLI, PkgManager, installers and embedded consumers share one library. A context

@@ -3,9 +3,10 @@
 
 # Public context API contract
 
-Revision 1, a source API draft. The [header](api/apkg.h) is deliberately kept
-outside installed headers and production builds. It defines the first context,
-query and signed-install tranche; declarations are not implementations.
+Revision 1, a source API under development. The [header](../../include/apkg.h)
+is now implemented for the [initial common engine profile](initial-engine.md).
+The former contract path forwards to it. Unsupported operation families remain
+explicit refusals; this is not a stable release ABI.
 [Data model](data-model.md) owns semantics, [serialization](serialization.md)
 owns framing, and [status](status.md) owns measured evidence.
 
@@ -52,7 +53,7 @@ absent root), checks resource options and allocates a context. Neither READ nor
 WRITE creates paths, locks, recovers, fetches, initializes an id or writes logs.
 WRITE grants eligibility for explicit mutation; it does not start mutation.
 Initialization is an explicit planned operation, not a side effect of
-open or query. The first CONTEXT task does not implement that operation.
+open or query. The initialization planner/executor now implements that operation in the initial profile.
 
 `apkg_snapshot_read` returns ABSENT, LEGACY, READY, PENDING or INVALID facts.
 An inaccessible root returns IO rather than ABSENT. Unsupported schema or
@@ -67,7 +68,9 @@ Snapshots capture one committed generation and digest with its installed rows.
 The backend uses a consistent immutable committed-record set or detects a
 concurrent change and retries up to three times, then returns BUSY. Reading must
 not take a write lock or create lock files. A snapshot is never refreshed in
-place. Its row count and indexed getters are stable; out-of-range returns
+place. If a root opened as physically absent is created by another writer,
+reopen its context to bind the new root; the old handle refuses inspection
+until then. Its own explicit initialization/recovery rebinds on success. Its row count and indexed getters are stable; out-of-range returns
 NOT_FOUND. Root target, pending facts and rows share that observation. External
 user edits remain separately sampled live observations, not an atomic filesystem
 snapshot; planning/execution revalidate them.
@@ -141,7 +144,7 @@ ownership/preservation policy and preconditions in its full record. The client
 must show all material effects and blockers, including privilege/trust/system
 changes in later operation families; a summary count alone is insufficient.
 
-After caller confirmation, `apkg_plan_approve` requires the exact displayed
+After caller confirmation, `apkg_plan_approve` requires a WRITE context and the exact displayed
 plan digest and an executable plan from that session/root. It returns an opaque
 single-use approval. It cannot detect whether a human really confirmed; the
 caller is the authorization boundary. Serialized bytes, a copied digest or a
@@ -209,12 +212,13 @@ verification, planning or mutation engine. Plan/execute client flow is separatel
 compiled to check declarations. These checks establish client usage/lifetimes
 in the scenarios simulated; they cannot establish runtime engine behavior.
 
+The implementation profile and `make test-apkg` now provide real engine tests.
+The original contract examples remain useful declaration checks.
 Run `python3 tests/contracts/check.py`. It also checks serialization/signature
-transcript vectors and strict rejection cases. Existing production clients
-continue using their existing headers. CONTEXT implements only open/close and
-read-only snapshots with independent-root/absent-root/pending-state tests;
-later APIs must refuse UNSUPPORTED until their batches implement them. No stub
-or fake is linked into the product to pretend those features exist.
+transcript vectors and strict rejection cases. The existing provisional clients remain regression baselines; the common CLI
+and fusion PkgManager path use the new API. No contract fake is linked into
+the common product. See the implementation profile for supported schemas and
+conservative materialization budgets.
 
 Design review checks: snapshot stability after context close, errors without
 allocation, GUI callbacks after window cancellation, generation versus live

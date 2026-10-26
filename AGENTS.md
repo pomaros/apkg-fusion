@@ -49,4 +49,6 @@ The root README and fusion documents describe this integration workspace.
 Execution budget: follow the bounded batches in PLAN.md. Keep delegation
 limited and follow the operator's selected models and reasoning budget.
 Give sub-agents only the context needed for their files. Stop at the assigned
-batch boundary.
+batch boundary. When the operator explicitly authorizes a sequence of batches,
+that authorization spans their boundaries: evaluate each gate, fix failures,
+and continue through the authorized sequence without asking again.

@@ -3,8 +3,9 @@
 
 # Common data model
 
-Status: CONTRACT data-model decision, revision 1. This is the logical contract
-for implementation, not an implemented database or published wire format.
+Status: CONTRACT data-model decision, revision 1. This defines the full logical
+contract. The [initial engine profile](initial-engine.md) identifies the
+implemented database/schema subset and its remaining restrictions.
 It refines [architecture](architecture.md) using [MAP](migration.md).
 The [public API draft](api.md) specifies ownership/lifetimes and event
 interfaces; [serialization](serialization.md) specifies object/signature
@@ -356,6 +357,7 @@ in [status](status.md); this is not independent maintainer approval.
 The API and serialization drafts complete the initial CONTRACT design scope.
 Object-family schemas and required-feature gates must be frozen and tested in
 their owning implementation batches before they can authorize operations.
-CONTEXT starts with read-only root inspection; no mutation engine exists yet.
+The initial engine now implements context inspection, signed reads and a
+journalled first install; broader mutation families remain separate work.
 Real-distribution and filesystem evidence remains in the
 [follow-up register](status.md#follow-up-verification-register).

@@ -6,8 +6,8 @@
 This is a development integration workspace. It does not replace released APKG
 installations. The checkout starts from pkg with an arospkg import. The
 [architecture](architecture.md#implementation-skeleton) selects arospkg’s
-context-based core as the skeleton; porting the services remains implementation
-work, independently of the provisional source layout.
+context-based core as the skeleton. The initial common installation path is
+implemented below; remaining service/operation integration is listed separately.
 
 ## BASE qualification
 
@@ -64,7 +64,8 @@ root/generation/snapshot identities, authority and build identity, versions and
 revisions, target constraints, complete payload inventory, ownership/reasons,
 relations, trust/qualification provenance and immutable-plan/history inputs.
 It assigns modules to the selected arospkg context skeleton and pkg services.
-This is a design deliverable; no common database writer or importer exists yet.
+This was a design deliverable. The six-lot implementation below now supplies
+an initial common writer; the importer remains unimplemented.
 
 A focused review covered missing legacy facts, authority rotation/name clashes,
 cloned roots, generation versus live-file edits, reserved database paths,
@@ -90,16 +91,15 @@ contexts, consistent independent snapshots, owning objects and borrowed views,
 approval and authoritative recovery outcomes. Explicit initialization includes
 seed trust grants and an absent-root precondition; open/read never initializes.
 Object-family schemas remain implementation-batch gates before those operations
-can run. This completes the initial CONTRACT design, not the common engine.
+can run. This completed the initial CONTRACT design; implementation evidence follows below.
 
 `make test-contract` runs an executable inspection/UI event example against a
 labelled in-memory test double, compiles initialization/install client flows,
 checks 54 inherited version/target assertions and checks golden canonical
 bytes/signature transcripts plus 19 malformed-input/integer rejection cases.
 The same checks pass with AddressSanitizer and UBSan. Documentation link check:
-61 files, zero broken links. No production API implementation, actual signature
-verification, AROS worker execution or filesystem behavior is established by
-these examples. The fake is outside all production source/install lists.
+61 files, zero broken links. These contract examples alone establish no production API implementation,
+actual signature verification, AROS worker execution or filesystem behavior. The fake is outside all production source/install lists.
 
 Focused design review resolved explicit first-root initialization/trust,
 unknown snapshot identity, post-commit cancellation, approval lifetime/reuse,
@@ -107,34 +107,52 @@ callback ownership and allocation failure after mutation. No independent
 maintainer approval or full engine/platform CI result is claimed for this task.
 The contract check is included in `test-fusion` for subsequent CI runs.
 
-Next batch: CONTEXT. Implement only explicit context open/close and read-only
-root snapshots, with independent roots, absent-root no-write behavior, snapshot
-consistency and pending-recovery reporting. Legacy/unsupported state remains
-inspectable; planning, initialization, recovery and signatures follow in their
-own batches. The provisional production backend is still unchanged.
+## Six-lot implementation and evaluation
 
-## CONTEXT: read-only skeleton correction, in progress
+The requested CONTEXT → SIGNED-READ → PLAN-INSTALL → JOURNAL → INSTALL →
+GUI-INSTALL sequence is implemented for the bounded
+[initial engine profile](initial-engine.md). It produces `build/libapkg.a`,
+`build/apkg-core` and a fusion PkgManager worker path. The common product does
+not link the provisional global request backend or test fault controls. This
+is a first local signed-install implementation, not the full merged product.
 
-The imported arospkg `pkg_open(..., PKG_OPEN_READ, ...)` now returns before
-creating the root, database, cache or temporary directories. Write/doctor modes
-still perform their existing setup. The focused host test compiles the actual
-imported `core.c` against a test-only DOS adapter and checks an absent root,
-two independent contexts, a pending transaction, an unreadable known transaction
-directory and absence of write/recovery calls. The pre-change core fails this test; the corrected core passes normally
-and under ASan/UBSan. `make test-fusion` passes, including the new test.
-The imported host suite also reported `ALL HOST TESTS PASS`; it does not
-exercise the AROS DOS adapter or establish native runtime compatibility.
+| Lot | Evaluation before advancing; subsequent hardening retained |
+|---|---|
+| CONTEXT | Actual open/read API and owned snapshots pass absent-root, independent-root, close/lifetime, permissions, pending state, malformed input, aliases and root replacement tests. Read-only contexts need no entropy source. Unknown legacy state remains explicit. |
+| SIGNED-READ | Existing SHA-256/Ed25519 verify real test signatures; tampering, wrong signer/trust, signature domain, target tuple, contradictory ELF CPU, unsafe paths and unknown required semantics are refused. No installation was used to accept this lot. |
+| PLAN-INSTALL | Initialization includes seed trust and exact root/target; installation binds exact descriptor/signature, state generation/digest, physical root and every effect. Tests establish no writes during planning, foreign-destination refusal, session-bound approval and stale-state refusal. |
+| JOURNAL | Protocol/fault boundaries reviewed before executor implementation. Intent precedes publication, decision is distinct, and init is journalled before root creation. Completed records are atomically archived; no incremental deletion of authoritative intent. The spec also owns future self-update coordination and both legacy update mechanisms. |
+| INSTALL | Success, I/O failure, process death before/after decision, recovery interrupted again, unknown/changed live content, lock contention, cancellation/late cancellation, approval reuse and callback-time state changes are covered. Hidden files/empty directories survive. Retained history supplies offline recovery. |
+| GUI-INSTALL | The actual signed worker bridge passes shared CLI/worker state equivalence, confirmation, decline, close/cancel, progress-message allocation failure and balanced native-message ownership tests. It retains the same plan/context on one DOS Process while awaiting UI confirmation. CLI and PkgManager cross-compile/link for hosted AROS aarch64; native GUI/runtime acceptance remains a platform gate. |
 
-Evaluation: CONTEXT is **not complete**. This corrects the inherited skeleton;
-it does not implement the draft `apkg_` context API, persistent common-root
-schema, consistent immutable snapshots or typed reporting of inaccessible roots.
-The legacy path now refuses a failed listing when the directory is known to
-exist. Its `u_exists` cannot distinguish every inaccessible path from absence,
-and its directory reader can return a partial list on allocation or iteration
-failure. The common adapter must distinguish these cases and fail closed. Native AROS execution and DOS handler behavior are not tested here.
-SIGNED-READ and subsequent batches have not been started. In particular, the
-existing PkgManager worker replans with its inherited signature checks, not the
-approved common immutable plan; it is not evidence for GUI-INSTALL.
+Measured local checks: 31 common-engine/client test groups with additional
+fault/cancellation matrix cases and 293 allocation-failure positions; `make test-fusion`; the imported client host
+suite; common/provisional symbol checks; ASan/UBSan lifetime and CLI/worker
+scenarios. The inherited engine suite exposed a documentation fixture's fixed
+port collision with another local service; its runner now substitutes an
+OS-assigned port and retains the documented command/readiness assertions.
+The old-DOS atomic-write test now additionally covers an SDK without the
+replacement operation, preserving its negative control and destination checks.
+The complete local `make test`, `make test-fusion`, imported host tests,
+ASan/UBSan checks, public-symbol checks and documentation links pass.
+The branch CI links above provide exact-commit Linux/macOS and portal results.
+
+The public implementation [profile](initial-engine.md) freezes this tranche's
+supported schemas and explicit refusals. It uses bounded inline-payload local
+descriptors; existing author TOML/channel/container adapters, dependencies,
+upgrades, shared system placement, general UI query integration and migration
+remain later batches. It does not silently drop their semantics. Legacy
+mutations/self-update are disabled in the fusion GUI profile rather than routed
+through another writer. The independent non-fusion baseline remains available
+for regression work.
+
+Platform limits: AROS cross-builds are compilation/linking evidence, not a run on
+either distribution. No OS was launched or altered by this task. Atomic state
+replacement needs an exposing SDK plus dos.library >= 50.84, and file/handler
+flush support must succeed. Missing filesystem identities refuse mutation.
+Power-loss, distribution GUI/runtime and cross-volume activation remain
+unqualified. Portal deployment and operational consumer adaptation were not
+performed.
 
 ## Implemented integration pieces
 
@@ -174,13 +192,13 @@ common product. Released APKG users require a tested migration path.
 
 ## Remaining integration
 
-- Connect PkgManager to the common engine, preserving typed browsing, news,
+- Complete PkgManager common-engine wiring beyond the signed-install path, preserving typed browsing, news,
   plans, cancellation, Run, folder opening and settings.
-- Replace global operation state with explicit contexts and shared typed
-  results for clients and embedded consumers.
-- Implement immutable plans, complete precondition validation and execution
-  of exactly the approved content, providers, destinations and trust changes.
-- Unify transactions and recovery; qualify atomic replacement, write ordering
+- Port the remaining legacy services/operations to the common contexts and
+  typed results; the first common path is independent of global request state.
+- Extend immutable plans and precondition validation to the remaining operation
+  families, providers, system destinations and trust changes.
+- Extend common transactions/recovery to remaining operations; qualify atomic replacement, write ordering
   and durability, including initial roots and interrupted recovery.
 - Preserve complete version/revision and package/capability semantics with
   loader-compatible provider selection.

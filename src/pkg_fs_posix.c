@@ -2,6 +2,9 @@
  * Copyright (c) 2026 John Knipper
  */
 
+#ifdef __AROS__
+#define __AROS_ENABLE_ALLOCA__
+#endif
 #define _POSIX_C_SOURCE 200809L
 /* flock, and the nanosecond modification time .ameta writers compare. */
 #if defined(__APPLE__)
@@ -31,6 +34,7 @@
 #include <sys/file.h>
 #endif
 #ifdef __AROS__
+#include <alloca.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
 #include <exec/execbase.h>
@@ -39,6 +43,20 @@
 
 /* Atomic regular-file publication. Unsupported AROS handlers fail with the
  * destination intact; deleting it would violate the operation's contract. */
+int pkg_fs_atomic_replace_supported(void)
+{
+#ifdef __AROS__
+#ifdef ReplaceObject
+    const struct Library *dos = (const struct Library *)__aros_getbase_DOSBase();
+    return dos && (dos->lib_Version > 50 || (dos->lib_Version == 50 && dos->lib_Revision >= 84));
+#else
+    return 0; /* This SDK cannot express the required DOS operation. */
+#endif
+#else
+    return 1;
+#endif
+}
+
 static int replace_file(const char *from, const char *to)
 {
 #ifdef __AROS__
@@ -48,8 +66,14 @@ static int replace_file(const char *from, const char *to)
         errno = ENOTSUP;
         return -1;
     }
+#ifdef ReplaceObject
     if (ReplaceObject((CONST_STRPTR)from, (CONST_STRPTR)to))
         return 0;
+#else
+    (void)from; (void)to;
+    errno = ENOTSUP;
+    return -1;
+#endif
     errno = EIO;
     return -1;
 #else
@@ -373,9 +397,11 @@ int pkg_fs_random_typed(void *buf, size_t len)
 }
 #endif
 
+#ifndef PKG_FS_LOCAL_ONLY
 void (*pkg_fs_on_transfer)(long long done, long long total);
 void (*pkg_fs_on_wait)(const char *host);
 void (*pkg_fs_on_tick)(void);
+#endif
 
 /* Milliseconds, for the activity line's pace, the progress events' and the
  * trace's own account of where a request's time went. Only differences are
@@ -394,12 +420,15 @@ long long pkg_fs_now_ms(void)
     return (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
+#ifndef PKG_FS_LOCAL_ONLY
 /* What pkg is waiting for, where it can say so and nothing else can. */
 static void waiting(const char *host)
 {
     if (pkg_fs_on_wait != NULL)
         pkg_fs_on_wait(host);
 }
+
+#endif
 
 int pkg_fs_random(void *buf, size_t len)
 {
@@ -988,6 +1017,7 @@ void pkg_fs_unlock_root(void *lock)
 }
 #endif
 
+#ifndef PKG_FS_LOCAL_ONLY
 /* ---- the network ------------------------------------------------------ */
 
 static int net_connect(int s, const void *address, unsigned int length);
@@ -2054,3 +2084,5 @@ int pkg_net_get(const char *url, const char *dest, char *err, size_t errlen)
     free(tmp);
     return rc;
 }
+
+#endif /* !PKG_FS_LOCAL_ONLY */

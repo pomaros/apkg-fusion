@@ -24,6 +24,8 @@ jobs:
         run: brew install lhasa netpbm
       - name: Build and test common integration
         run: make test-fusion
+      - name: Common context memory checks
+        run: sh tests/apkg/sanitize.sh
       - name: Inherited engine regression suite
         run: make test
       - name: Inherited client and authoring host suite

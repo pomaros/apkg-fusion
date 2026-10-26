@@ -31,7 +31,7 @@ build/apkg: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(
 test-contract:
 	python3 tests/contracts/check.py
 
-test-fusion: test-contract build/apkg build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
+test-fusion: test-contract test-apkg build/apkg build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
 	python3 tests/test_http_fixture.py
 	./build/test_target
 	./build/test_application
@@ -117,11 +117,13 @@ build/libpkg.a: $(LIB) $(CORE) $(HOST) $(HDR)
 # describes the old interface and is not installed as guidance for apkg.
 PREFIX ?= $(HOME)/.local
 
-install: build/apkg build/libpkg.a
+install: build/apkg build/libpkg.a build/apkg-core build/libapkg.a
 	@mkdir -p $(PREFIX)/bin $(PREFIX)/include $(PREFIX)/lib
 	cp build/apkg $(PREFIX)/bin/apkg
-	cp include/pkg.h include/pkg_environment.h include/pkg_target.h include/pkg_application.h $(PREFIX)/include/
+	cp build/apkg-core $(PREFIX)/bin/apkg-core
+	cp include/pkg.h include/pkg_environment.h include/pkg_target.h include/pkg_application.h include/apkg.h include/apkg_client.h $(PREFIX)/include/
 	cp build/libpkg.a $(PREFIX)/lib/libpkg.a
+	cp build/libapkg.a $(PREFIX)/lib/libapkg.a
 	@echo "installed development apkg into $(PREFIX)/bin"
 
 # A channel that puts Pkg itself on AROS machines: `make aros-channel
@@ -367,3 +369,41 @@ check-aros: build/pkg
 
 clean:
 	rm -rf build
+
+# Common context engine, separate from the provisional global-state backend.
+APKG_ENGINE = src/apkg/alloc.c src/apkg/json.c src/apkg/context.c src/apkg/schema.c src/apkg/signed.c src/apkg/plan.c src/apkg/events.c src/apkg/execute.c src/apkg/client.c
+APKG_SERVICES = src/pkg_sha256.c src/pkg_sha512.c src/pkg_ed25519.c src/pkg_target.c src/pkg_application.c src/pkg_fs_posix.c
+build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h src/apkg/internal.h
+	@mkdir -p build
+	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_TESTING -fPIC -shared -Iinclude -Isrc/apkg $(APKG_ENGINE) $(APKG_SERVICES) -o $@
+
+.PHONY: test-apkg
+test-apkg: build/libapkg-test.dylib build/apkg-core build/test_pm_common build/libapkg.a check-common-symbols
+	python3 -m unittest discover -s tests/apkg -v
+
+build/apkg-core: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h src/apkg/internal.h
+	@mkdir -p build
+	$(CC) -std=c99 -Wall -Wextra -Werror -O2 -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
+
+build/test_pm_common: tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h components/arospkg/src/pkgmanager/job.h
+	@mkdir -p build
+	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_FUSION -Iinclude -Isrc/apkg -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
+
+APKG_OBJECTS = $(patsubst %.c,build/common/%.o,$(APKG_ENGINE) $(APKG_SERVICES))
+all: build/apkg-core build/libapkg.a
+build/libapkg.a: $(APKG_OBJECTS)
+	rm -f $@
+	ar rcs $@ $(APKG_OBJECTS)
+
+build/common/%.o: %.c include/apkg.h include/apkg_client.h include/pkg_fs.h src/apkg/internal.h
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg -c $< -o $@
+
+.PHONY: print-apkg-sources
+print-apkg-sources:
+	@echo $(APKG_ENGINE) $(APKG_SERVICES)
+
+.PHONY: check-common-symbols
+check-common-symbols: build/libapkg.a build/apkg-core
+	@bad=$$(nm -g build/libapkg.a | awk 'NF==3 && $$2 != "U" {print $$3}' | sed 's/^_//' | grep -vE '^(apkg_|ak_|pkg_)' | sort -u); 	if [ -n "$$bad" ]; then echo "unexpected common-library globals: $$bad"; exit 1; fi
+	@if nm -g build/libapkg.a build/apkg-core | grep -E 'apkg_test_|pkgi_' >/dev/null; then echo "test hooks or provisional request backend in common product"; exit 1; fi

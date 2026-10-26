@@ -162,20 +162,24 @@ release verdict.
 
 ## Immediate work sequence
 
-1. BASE is qualified and MAP's source mapping/fixture inventory is recorded in
-   [status](docs/fusion/status.md) and [migration](docs/fusion/migration.md).
-2. CONTRACT design is recorded in [data-model](docs/fusion/data-model.md),
-   [API](docs/fusion/api.md) and [serialization](docs/fusion/serialization.md),
-   with host consumer examples. Next implement CONTEXT read-only inspection.
-   Obtain real distribution captures before migration qualification.
-3. Implement CONTEXT, then signed reading and the first immutable install plan.
-   Journal specification and failure cases precede the mutating executor.
+1. BASE, MAP and CONTRACT are recorded in the fusion documents. The first six
+   implementation lots now have code and per-lot evaluation in
+   [status](docs/fusion/status.md) and the
+   [initial engine profile](docs/fusion/initial-engine.md).
+2. Keep host and native evidence distinct: the common engine/CLI/worker bridge
+   have host suites; an AROS cross-build is not distribution GUI/runtime or
+   power-loss qualification. Complete those platform gates before release.
+3. Subsequent work remains the separately bounded operation families, relations,
+   migration, full authoring/channels and the other platform/release obligations.
+   The current authorization covers the six-lot path, not those later batches.
 
 ## Bounded execution batches
 
 Use this section to assign work without reopening the whole architecture.
 Each batch ends with its artifact, targeted test result and a short handoff.
-Implementation stops at that boundary. The next batch requires a new task.
+One batch is the default task boundary. When the operator explicitly authorizes
+a sequence, evaluate each batch, resolve failures and continue through that
+sequence; do not stop merely because the next batch needs implementation.
 Complexity is relative engineering scope, not a token or time estimate.
 
 | Batch | Dependency | Concrete deliverable and paths | Acceptance and stop boundary | Scope |
@@ -234,8 +238,7 @@ common contract, but parallel agents are not the default execution policy.
 
 Suggested task prompt:
 
-> Execute CONTEXT from PLAN.md using one agent. Implement open/close and
-> read-only root snapshots against the API/data-model contract. Test independent
-> roots, absent-root reads, consistent snapshots and pending recovery reporting.
-> Keep mutation/planning/signature services out of scope; report unsupported
-> features explicitly. Update status and stop before SIGNED-READ.
+> Execute the next explicitly assigned operation family from PLAN.md using one
+> agent. Reuse the recorded common-engine evaluation, preserve its tests and
+> add the operation's refusal/recovery cases. Report implementation and native
+> runtime evidence separately. Do not expand into other operation families.

@@ -69,6 +69,11 @@ static void worker_main(void)
     pkg_test_slow(slow_ms);
     /* The release check reads the network and nothing in the root: no
        lock, so it never waits for, or blocks, a package operation. */
+#ifdef APKG_FUSION
+    if (j->kind == JOB_COMMON_INSTALL) {
+        st = pm_common_install(j, &e);
+    } else
+#endif
     if (j->kind == JOB_CHECK_RELEASE) {
         st = pkg_release_check(su_base(), NULL, j->current, &j->done->rel, &e);
         if (st == PKG_OK && j->su) {

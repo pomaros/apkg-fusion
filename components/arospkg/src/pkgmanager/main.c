@@ -3,6 +3,9 @@
  * worker process through libpkg, and the only decisions here are which
  * button is enabled. Pattern after ~/Work/AROS/src/hello2.c. */
 #include "job.h"
+#ifdef APKG_FUSION
+#include "apkg.h"
+#endif
 #include "rexx.h"
 #include "rexxcmd.h"
 #include "../about.h"
@@ -35,6 +38,12 @@ enum { ID_SEARCH = 1, ID_INSTALL, ID_REMOVE, ID_UPDATE, ID_CANCEL, ID_SELECT, ID
        ID_UPGRADE, ID_ROLLBACK, ID_PROCEED, ID_DECLINE, ID_ABOUT, ID_ABOUT_CLOSE, ID_OPEN, ID_RUN, ID_VERIFY,
        ID_CHECK, ID_BUY, ID_THUMB0, ID_THUMB1, ID_THUMB2, ID_THUMB3, ID_SELFUPDATE };
 
+#ifdef APKG_FUSION
+static Object *str_common_package, *btn_common_install;
+static int common_waiting;
+static char *common_preview_text;
+#define ID_COMMON_INSTALL 1001
+#endif
 static Object *app, *win, *str_search, *cyc_cat, *cyc_state, *lst, *txt_detail,
               *txt_status, *gauge, *btn_install, *btn_remove, *btn_update, *btn_cancel,
               *btn_upgrade, *btn_rollback, *win_confirm, *txt_confirm, *btn_proceed, *btn_decline,
@@ -1049,6 +1058,10 @@ static void open_folder(const char *id)
 
 static void busy(int on)
 {
+#ifdef APKG_FUSION
+    SetAttrs(btn_common_install, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(str_common_package, MUIA_Disabled, on, TAG_DONE);
+#endif
     SetAttrs(btn_update,  MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_check,   MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_selfupdate, MUIA_Disabled, on || !su_offer, TAG_DONE);
@@ -1069,6 +1082,7 @@ static const char *opname(job_kind k)
 {
     switch (k) {
     case JOB_INSTALL: return "install";
+    case JOB_COMMON_INSTALL: return "signed-install";
     case JOB_REMOVE:  return "remove";
     case JOB_UPDATE:  return "update";
     case JOB_PREVIEW_UPGRADE: case JOB_UPGRADE: return "upgrade";
@@ -1139,9 +1153,17 @@ static int start(job_kind kind, const char *id)
     snprintf(cur.current, sizeof cur.current, "%s", PM_VERSION);
     cur.reply = port;
     cur.su = &sujob;
+#ifdef APKG_FUSION
+    if (kind == JOB_COMMON_INSTALL) {
+        IPTR folder = 0;
+        GetAttr(MUIA_String_Contents, str_common_package, &folder);
+        if (!folder || !*(const char *)folder || strlen((const char *)folder) >= sizeof cur.common_package) return -1;
+        memcpy(cur.common_package, (const char *)folder, strlen((const char *)folder) + 1);
+    }
+#endif
     last_phase[0] = 0; last_can_cancel = 0;
     busy(1);
-    status(kind == JOB_INSTALL ? "installing..." : kind == JOB_REMOVE ? "removing..." :
+    status(kind == JOB_COMMON_INSTALL ? "checking signed package..." : kind == JOB_INSTALL ? "installing..." : kind == JOB_REMOVE ? "removing..." :
            kind == JOB_UPDATE ? "updating the index..." :
            kind == JOB_UPGRADE ? "upgrading..." : kind == JOB_ROLLBACK ? "rolling back..." :
            kind == JOB_PREVIEW_UPGRADE ? "working out what the upgrade would do..." :
@@ -1162,6 +1184,12 @@ static void proceed(const char *how);
 
 static rx_job *begin(job_kind kind, const char *pkg, const char *origin)
 {
+#ifdef APKG_FUSION
+    if (kind == JOB_INSTALL || kind == JOB_REMOVE || kind == JOB_UPDATE || kind == JOB_UPGRADE || kind == JOB_ROLLBACK) {
+        status("This development build uses signed plans; legacy mutations need migration");
+        return NULL;
+    }
+#endif
     rx_job *j;
     if (busy_now()) return NULL;
     j = &jobs[(next_job - 1) % MAXJOBS];
@@ -1248,6 +1276,9 @@ static void su_decline(const char *how);
 static void proceed(const char *how)
 {
     rx_job *j = active;
+#ifdef APKG_FUSION
+    if (common_waiting) { common_waiting = 0; cur.common_decision = 1; confirm_close(); return; }
+#endif
     if (su_confirming) { su_proceed(); return; }
     if (!confirming || !j) return;
     confirm_close();
@@ -1263,6 +1294,9 @@ static void proceed(const char *how)
 static void decline(const char *how)
 {
     rx_job *j = active;
+#ifdef APKG_FUSION
+    if (common_waiting) { common_waiting = 0; cur.common_decision = -1; confirm_close(); return; }
+#endif
     if (su_confirming) { su_decline(how); return; }
     if (!confirming || !j) return;
     confirm_close();
@@ -1562,6 +1596,10 @@ static void su_decline(const char *how)
 /* Update arospkg, pressed in About. */
 static void su_begin(void)
 {
+#ifdef APKG_FUSION
+    status("Common self-update is not available in this development build");
+    return;
+#endif
     char run[SU_MAXCAND][PKG_MAXPATH];
     int un = 0, n = su_running_pkgmanagers(run, SU_MAXCAND, &un), i, mine = 0;
     for (i = 0; i < n; i++) if (!strcasecmp(run[i], self_drawer)) mine++;
@@ -1626,6 +1664,39 @@ static int on_message(pm_msg *m)
         logline("message for job %ld ignored: job %ld is out%s", m->seq, cur.seq, in_flight ? "" : " (none)");
         return 0;
     }
+#ifdef APKG_FUSION
+    if (m->kind == PM_COMMON_PREVIEW) {
+        if (quit_pending || cur.cancel) { cur.common_decision = -1; FreeVec(m->common_preview); return 0; }
+        if (common_preview_text) FreeVec(common_preview_text);
+        common_preview_text = m->common_preview; m->common_preview = NULL;
+        common_waiting = confirming = 1;
+        SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)common_preview_text, TAG_DONE);
+        SetAttrs(win_confirm, MUIA_Window_Open, TRUE, TAG_DONE);
+        status("Review every signed package effect, then confirm or decline");
+        return 0;
+    }
+    if (m->kind == PM_COMMON_PROGRESS) {
+        unsigned long pct = m->common_total_known && m->common_total
+            ? (m->common_done >= m->common_total ? 100 : (unsigned long)((double)m->common_done * 100.0 / (double)m->common_total)) : 0;
+        SetAttrs(gauge, MUIA_Gauge_Current, pct, MUIA_Gauge_InfoText, (IPTR)"Installing signed package", TAG_DONE);
+        SetAttrs(btn_cancel, MUIA_Disabled, !m->can_cancel || quit_pending, TAG_DONE);
+        return 0;
+    }
+    if (m->kind == PM_DONE && cur.kind == JOB_COMMON_INSTALL) {
+        in_flight = 0; common_waiting = 0; confirm_close();
+        if (common_preview_text) { FreeVec(common_preview_text); common_preview_text = NULL; }
+        if (active) finish(active, m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
+                           m->common_status == APKG_OK ? "" : "COMMONINSTALL", m->err.summary);
+        busy(0);
+        if (m->common_outcome == APKG_NEEDS_RECOVERY) {
+            MUI_Request(app, win, 0, (STRPTR)"Package recovery required", (STRPTR)"OK",
+                        (STRPTR)"The operation needs recovery. Retained evidence:\n%s", m->common_record ? m->common_record : root);
+            status("Recovery required; retained package data was preserved");
+        } else status(m->common_status == APKG_OK ? "Signed package installed" : m->common_status == APKG_CANCELLED ? "Signed installation cancelled" : "Signed installation refused");
+        if (m->common_record) { FreeVec(m->common_record); m->common_record = NULL; }
+        return quit_pending;
+    }
+#endif
     if (m->kind == PM_PROGRESS) {
         unsigned long pct = m->total ? (m->done * 100UL) / m->total : (m->done ? 100 : 0);
         if (m->total) snprintf(info, sizeof info, "%s %lu%%", m->phase, pct);
@@ -2453,6 +2524,16 @@ static int real_main(int argc, char **argv)
                     Child, (btn_buy      = SimpleButton("Buy...")),
                     Child, (btn_cancel   = SimpleButton("Cancel")),
                 End),
+#ifdef APKG_FUSION
+                Child, (HGroup,
+                    Child, (str_common_package = StringObject,
+                        MUIA_String_Contents, (IPTR)"",
+                        MUIA_String_MaxLen, 4096,
+                        MUIA_ShortHelp, (IPTR)"Folder containing descriptor.json and signature.json",
+                    End),
+                    Child, (btn_common_install = SimpleButton("Install signed package")),
+                End),
+#endif
                 Child, (gauge = GaugeObject,
                     MUIA_Frame, MUIV_Frame_Gauge,
                     MUIA_Gauge_Horiz, TRUE,
@@ -2521,6 +2602,9 @@ static int real_main(int argc, char **argv)
     DoMethod(btn_check, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHECK);
     DoMethod(btn_selfupdate, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_SELFUPDATE);
     DoMethod(win_about, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_ABOUT_CLOSE);
+#ifdef APKG_FUSION
+    DoMethod(btn_common_install, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_COMMON_INSTALL);
+#endif
     DoMethod(btn_install, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_INSTALL);
     DoMethod(btn_remove,  MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_REMOVE);
     DoMethod(btn_open,    MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_OPEN);
@@ -2581,6 +2665,9 @@ static int real_main(int argc, char **argv)
         } break;
         case ID_SELECT:  show_detail(); break;
         case ID_UPDATE:  logline("update pressed"); begin(JOB_UPDATE, NULL, "window"); break;
+#ifdef APKG_FUSION
+        case ID_COMMON_INSTALL: if (!busy_now()) begin(JOB_COMMON_INSTALL, NULL, "window"); break;
+#endif
         case ID_INSTALL: { pkg_entry *e = selected(); if (e) { logline("install pressed for %s", e->id); begin(JOB_INSTALL, e->id, "window"); } } break;
         case ID_REMOVE:  { pkg_entry *e = selected(); if (e) { logline("remove pressed for %s", e->id); begin(JOB_REMOVE, e->id, "window"); } } break;
         case ID_OPEN:    { pkg_entry *e = selected(); if (e) open_folder(e->id); } break;
@@ -2619,9 +2706,22 @@ static int real_main(int argc, char **argv)
        has left the system is a separate fact, measured here before the code
        it ran is unloaded. */
     logline("worker task gone %ld ms after done", job_wait_gone(3000, still_waiting));
+#ifdef APKG_FUSION
+    { pm_msg *pending;
+      while ((pending = (pm_msg *)GetMsg(port))) {
+          if (pending->common_preview) FreeVec(pending->common_preview);
+          if (pending->common_record) FreeVec(pending->common_record);
+          if (pending->listing) FreeVec(pending->listing);
+          FreeVec(pending);
+      }
+    }
+#endif
     for (i = 0; i < MAXWAITS; i++)
         if (waits[i].m) { rexx_reply(waits[i].m, RX_RC_ERROR, NULL, "CLOSING PkgManager has quit"); waits[i].m = NULL; }
     rexx_close("CLOSING PkgManager has quit");
+#ifdef APKG_FUSION
+    if (common_preview_text) FreeVec(common_preview_text);
+#endif
     MUI_DisposeObject(app);
     pkg_entries_free(&rows);
     pkg_updates_free(&upd);

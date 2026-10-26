@@ -108,3 +108,10 @@ adapted to the common design.
 The projects' own code is MIT licensed. Original notices are preserved;
 bundled dependencies retain their respective licences. See [LICENSE](LICENSE)
 and [provenance](docs/fusion/provenance.md).
+
+The first [common context engine](docs/fusion/initial-engine.md) is available as
+`build/libapkg.a` and the experimental `build/apkg-core`. It supports explicit
+initialization, signed local-package preview/install and journal recovery, with
+a PkgManager worker path enabled in fusion GUI builds. Its supported schema,
+resource limits and platform qualification are documented separately from the
+existing regression baseline. Run `make test-apkg` for its implementation tests.

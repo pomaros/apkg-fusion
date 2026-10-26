@@ -14,7 +14,7 @@ are shown, not run: AmigaDOS, and services that keep running.
 
 --write puts each command's actual output under it in docs/*.md, except
 where the old text differs only in hexadecimal (keys, digests)."""
-import http.server, os, re, shlex, shutil, subprocess, sys, tempfile, threading
+import http.server, os, re, shlex, shutil, socket, subprocess, sys, tempfile, threading
 
 PORTAL = "https://aros-pkg.azurewebsites.net"
 here = os.path.dirname(os.path.abspath(__file__))
@@ -88,9 +88,17 @@ for path in files:
     os.makedirs(work)
     shutil.copytree(os.path.join(fix, "drawers"), work, dirs_exist_ok=True)
     shutil.copytree(os.path.join(fix, "channel"), os.path.join(work, "channel"))
+    # Run the documented serving command with an OS-assigned local port.
+    # Never depend on, or stop, a service another session owns on port 8765.
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        example_port = listener.getsockname()[1]
+    example_url = "http://127.0.0.1:%d" % example_port
     script = ["set +e"]
     for n, (_, c) in enumerate(cmds):
-        script.append("{ %s\n} > .out%d 2>&1 < /dev/null; echo $? > .rc%d" % (c.replace(PORTAL, local), n, n))
+        command = c.replace(PORTAL, local).replace("http://127.0.0.1:8765", example_url)
+        command = command.replace("--directory channel 8765", "--directory channel %d" % example_port)
+        script.append("{ %s\n} > .out%d 2>&1 < /dev/null; echo $? > .rc%d" % (command, n, n))
     env = dict(os.environ, PATH=os.path.dirname(pkg) + os.pathsep + os.environ["PATH"],
                HOME=work, PKG_CACHE=os.path.join(work, ".cache"),
                # the examples register environments: never in the person's own
@@ -103,7 +111,7 @@ for path in files:
     for n, (k, c) in enumerate(cmds):
         checks += 1
         rc = int(open(os.path.join(work, ".rc%d" % n)).read().strip() or "-1")
-        out = open(os.path.join(work, ".out%d" % n)).read().replace(local, PORTAL).replace(work + "/", "")
+        out = open(os.path.join(work, ".out%d" % n)).read().replace(local, PORTAL).replace(example_url, "http://127.0.0.1:8765").replace(work + "/", "")
         outputs[k] = out.rstrip("\n").split("\n") if out.strip() else []
         if rc != expected(c):
             fails += 1
