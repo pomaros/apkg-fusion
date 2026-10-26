@@ -37,6 +37,24 @@ def run(engine,*args):
  return done.stdout
 
 def inventory(engine,path):return json.loads(run(engine,'source-inventory',path))
+def selected_entry(engine,path):return json.loads(run(engine,'source-entry',path))
+def physical_record(record):
+ return {key:value for key,value in record.items() if key!='amiga'}
+
+def verify_snapshot(original,copied):
+ # Some host copy primitives omit xattrs. Their validated semantic values
+ # remain in the signed inventory; actual file/control bytes and modes must
+ # still agree. A newly introduced or altered copied value is a conflict.
+ if original['mode']!=copied['mode'] or original['controls']!=copied['controls']:
+  raise Refusal('source mode or metadata controls changed during snapshot')
+ before=original['files'];after=copied['files']
+ if [physical_record(row) for row in before]!=[physical_record(row) for row in after]:
+  raise Refusal('source files changed while preparing their snapshot')
+ pairs=[(original,copied),*zip(before,after)]
+ for expected,actual in pairs:
+  if 'amiga' in actual and actual['amiga']!=expected.get('amiga'):
+   raise Refusal('copied semantic metadata conflicts with the source')
+
 def header_cpu(path):
  with path.open('rb') as f:head=f.read(64)
  if head[:4]==b'\x7fELF':
@@ -78,21 +96,25 @@ def build(args):
  output=output.parent.resolve(strict=True)/output.name
  if output.exists() or output.is_symlink():raise Refusal('output already exists')
  if output.is_relative_to(source) or key.is_relative_to(source):raise Refusal('key and output must be outside the source drawer')
- if (source.parent/'.ameta').exists() or (source.parent/'.ameta').is_symlink():raise Refusal('parent .ameta needs explicit drawer/icon metadata selection before building')
  if (source/RESERVED).exists() or (source/RESERVED).is_symlink():raise Refusal(f'{RESERVED} is reserved for unchanged author provenance')
  # The initial inventory refuses links, unknown host attributes and malformed
  # controls before copying; the staged inventory catches changes during copy.
+ root_entry=selected_entry(args.engine,source)
  original=inventory(args.engine,source)
  icon=m.get('icon')
  if icon and icon!=source.name+'.info':raise Refusal('icon must name the drawer sibling NAME.info')
- if icon:regular(source.parent/icon)
+ selected={source.name:root_entry}
+ if icon:
+  regular(source.parent/icon)
+  selected[icon]=selected_entry(args.engine,source.parent/icon)
  configs=m.get('config',[])
  if not isinstance(configs,list) or any(not isinstance(p,str) for p in configs) or len(set(configs))!=len(configs):raise Refusal('config must be a list of unique relative file paths')
  with tempfile.TemporaryDirectory(prefix='apkg-build-') as temporary:
   temp=Path(temporary);payload=temp/'payload';payload.mkdir(mode=0o700);drawer=payload/source.name
   shutil.copytree(source,drawer,symlinks=True)
   copied=inventory(args.engine,drawer)
-  if copied!=original:raise Refusal('source changed while preparing its snapshot')
+  verify_snapshot(original,copied)
+  if inventory(args.engine,source)!=original:raise Refusal('source changed during its snapshot')
   if icon:shutil.copy2(source.parent/icon,payload/icon,follow_symlinks=False)
   drawer_mode=drawer.stat().st_mode&0o777
   drawer.chmod(drawer_mode|0o700)
@@ -107,7 +129,18 @@ def build(args):
   elif (drawer/'application.json').exists():raise Refusal('application.json requires matching TOML launch fields')
   (drawer/RESERVED).write_bytes(author);(drawer/RESERVED).chmod(0o644)
   drawer.chmod(drawer_mode)
+  for name,expected in selected.items():
+   if selected_entry(args.engine,source.parent/name)!=expected:raise Refusal('selected source metadata or icon changed during snapshot')
   observed=inventory(args.engine,payload);files=observed['files'];found=set();objects={}
+  expected_entries={source.name+'/'+entry['path']:{**entry,'path':source.name+'/'+entry['path']} for entry in original['files']}
+  expected_entries.update(selected)
+  for entry in files:
+   expected=expected_entries.get(entry['path'])
+   if expected is None:continue
+   if physical_record(entry)!=physical_record(expected):raise Refusal('selected entry bytes or mode changed during snapshot')
+   if 'amiga' in entry and entry['amiga']!=expected.get('amiga'):raise Refusal('selected entry metadata changed during snapshot')
+   if 'amiga' in expected:entry['amiga']=expected['amiga']
+
   for entry in files:
    if entry['type']!='file':continue
    path=payload/entry['path'];cpu=header_cpu(path)

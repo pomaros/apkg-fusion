@@ -43,3 +43,17 @@ class Sources(unittest.TestCase):
      try:code=lib.ak_source_inventory(os.fsencode(source),C.byref(out),None)
      finally:lib.apkg_test_fail_alloc(0)
      self.assertIn(code,(0,4));self.assertEqual(bool(out),code==0);lib.apkg_client_text_free(out);self.assertEqual(file.read_bytes(),b'data');self.assertEqual(control.read_text(),'ameta 1\nfile file\ncomment hello\ncolour red\n')
+
+ def test_selected_entry_rejects_conflicting_and_malformed_parent_controls(self):
+  with tempfile.TemporaryDirectory() as d:
+   d=Path(d);source=d/'source';source.mkdir();value=attrs(comment='live',protection='0');setattrs(source,value);control=d/'.ameta';control.write_text('ameta 1\nfile source\ncomment conflicting\n');self.assertEqual(cli('source-entry',source).returncode,14);self.assertEqual(observed(source),value);control.write_text('bad header\n');self.assertEqual(cli('source-entry',source).returncode,1);control.unlink();self.assertEqual(json.loads(cli('source-entry',source).stdout)['amiga'],value);self.assertEqual(json.loads(cli('source-inventory',source).stdout)['amiga'],value)
+ def test_selected_entry_allocation_failures_are_typed_and_readonly(self):
+  lib.ak_source_entry.argtypes=[C.c_char_p,C.POINTER(C.c_void_p),C.c_void_p];lib.ak_source_entry.restype=C.c_int;lib.apkg_client_text_free.argtypes=[C.c_void_p]
+  with tempfile.TemporaryDirectory() as d:
+   d=Path(d);source=d/'source';source.mkdir();control=d/'.ameta';text='ameta 1\nfile source\ncomment selected\nuid 42\n';control.write_text(text);setattrs(source,attrs(comment='selected',protection='0',uid='42',gid=None))
+   for nth in range(1,141):
+    with self.subTest(nth=nth):
+     out=C.c_void_p();lib.apkg_test_fail_alloc(nth)
+     try:code=lib.ak_source_entry(os.fsencode(source),C.byref(out),None)
+     finally:lib.apkg_test_fail_alloc(0)
+     self.assertIn(code,(0,4));self.assertEqual(bool(out),code==0);lib.apkg_client_text_free(out);self.assertEqual(control.read_text(),text);self.assertEqual(list(source.iterdir()),[])

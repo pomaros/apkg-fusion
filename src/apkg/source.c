@@ -98,7 +98,7 @@ apkg_status ak_source_inventory(const char *base, char **out,
     if (!base || strlen(base) >= AK_PATH ||
         !ak_text_path_valid(base, strlen(base)))
         return APKG_INVALID;
-    code = ak_tree_read(base, result.max, &raw, &identity);
+    code = ak_tree_source_read(base, result.max, &raw, &identity);
     if (code)
         goto done;
     int parsed = ak_json_parse(raw, strlen(raw), &tree);
@@ -191,7 +191,30 @@ apkg_status ak_source_inventory(const char *base, char **out,
     }
     if (used > 1)
         qsort(metadata, used, sizeof *metadata, meta_cmp);
-    ak_buf_add(&result, "{\"files\":[");
+    ak_buf_add(&result, "{");
+    int rootattrs = ak_member(&tree, 0, "amiga");
+    if (rootattrs >= 0)
+        ak_buf_add(
+            &result, "\"amiga\":%.*s,",
+            (int)(tree.tokens[rootattrs].end - tree.tokens[rootattrs].start),
+            tree.text + tree.tokens[rootattrs].start);
+    /* Bind source snapshots to the actual control bytes as well as their
+     * effective attributes. Controls are not payload entries. */
+    ak_buf_add(&result, "\"controls\":[");
+    size_t control_count = 0;
+    for (size_t i = (size_t)arr + 1; i < tree.tokens[arr].next;
+         i = tree.tokens[i].next) {
+        char path[AK_PATH], sha[65], size[24];
+        ak_string(&tree, ak_member(&tree, (int)i, "path"), path, sizeof path);
+        if (!control_path(path))
+            continue;
+        ak_string(&tree, ak_member(&tree, (int)i, "sha256"), sha, sizeof sha);
+        ak_string(&tree, ak_member(&tree, (int)i, "size"), size, sizeof size);
+        ak_buf_add(&result,
+                   "%s{\"path\":\"%s\",\"sha256\":\"%s\",\"size\":\"%s\"}",
+                   control_count++ ? "," : "", path, sha, size);
+    }
+    ak_buf_add(&result, "],\"files\":[");
     size_t emitted = 0;
     for (size_t i = (size_t)arr + 1; i < tree.tokens[arr].next;
          i = tree.tokens[i].next) {
@@ -282,5 +305,119 @@ done:
         return ak_fail(error, code,
                        "source inventory or .ameta cannot be preserved",
                        base ? base : "");
+    return code;
+}
+
+/* Parent controls describe siblings outside the selected payload too. Parse
+ * their syntax, but select only the named entry; never inventory other files.
+ */
+apkg_status ak_source_entry(const char *path, char **out, apkg_error **error) {
+    char parent[AK_PATH], control[AK_PATH], *raw = NULL, *attributes = NULL,
+                                            *live = NULL;
+    unsigned char *bytes = NULL;
+    size_t size = 0;
+    struct pkg_ameta metadata;
+    ak_json entry = {0};
+    ak_buf result = {0};
+    apkg_status code = APKG_INVALID;
+    *out = NULL;
+    if (error)
+        *error = NULL;
+    pkg_ameta_init(&metadata);
+    result.max = 32768;
+    if (!path || strlen(path) >= AK_PATH ||
+        !ak_text_path_valid(path, strlen(path)))
+        goto done;
+    strcpy(parent, path);
+    char *slash = strrchr(parent, '/');
+    const char *name = slash ? slash + 1 : parent;
+    char leaf[AK_PATH];
+    strcpy(leaf, name);
+    if (!ak_valid_path(leaf) || strchr(leaf, '/') || !strcmp(leaf, ".ameta"))
+        goto done;
+    if (slash) {
+        if (slash == parent)
+            slash[1] = 0;
+        else
+            *slash = 0;
+    } else
+        strcpy(parent, ".");
+    code = ak_tree_entry(path, leaf, &raw);
+    if (code)
+        goto done;
+    int parsed = ak_json_parse(raw, strlen(raw), &entry);
+    if (parsed) {
+        code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+        goto done;
+    }
+    if (ak_path(control, parent, ".ameta")) {
+        code = APKG_LIMIT;
+        goto done;
+    }
+    int present = ak_exists(control);
+    if (present < 0) {
+        code = APKG_IO;
+        goto done;
+    }
+    if (present) {
+        if (ak_read(control, &bytes, &size, 1024 * 1024)) {
+            code = errno == ENOMEM  ? APKG_NOMEM
+                   : errno == EFBIG ? APKG_LIMIT
+                                    : APKG_IO;
+            goto done;
+        }
+        if (pkg_ameta_parse(bytes, size, &metadata)) {
+            code = APKG_NOMEM;
+            goto done;
+        }
+        if (!metadata.usable || metadata.nr) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        struct pkg_ameta_entry *selected = pkg_ameta_find(
+            &metadata, (const unsigned char *)leaf, strlen(leaf));
+        if (selected) {
+            uint64_t mode;
+            ak_u64(&entry, ak_member(&entry, 0, "mode"), &mode);
+            code = convert(selected, mode, &attributes);
+            if (code)
+                goto done;
+            int at = ak_member(&entry, 0, "amiga");
+            if (at >= 0) {
+                live = ak_slice(&entry, at);
+                if (!live) {
+                    code = APKG_NOMEM;
+                    goto done;
+                }
+                if (!attributes || strcmp(live, attributes)) {
+                    code = APKG_CONFLICT;
+                    goto done;
+                }
+            }
+            ak_buf_add(&result, "{");
+            if (attributes)
+                ak_buf_add(&result, "\"amiga\":%s,", attributes);
+            size_t start = at >= 0 ? entry.tokens[at].end + 1 : 1;
+            ak_buf_add(&result, "%s", raw + start);
+        }
+    }
+    if (!result.data)
+        ak_buf_add(&result, "%s", raw);
+    code = (apkg_status)result.bad;
+    if (!code) {
+        *out = result.data;
+        result.data = NULL;
+    }
+done:
+    free(raw);
+    free(attributes);
+    free(live);
+    free(bytes);
+    free(result.data);
+    pkg_ameta_free(&metadata);
+    ak_json_free(&entry);
+    if (code && error)
+        return ak_fail(error, code, "selected source entry cannot be preserved",
+                       path ? path : "");
     return code;
 }

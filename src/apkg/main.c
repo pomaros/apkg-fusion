@@ -53,6 +53,7 @@ int main(int argc, char **argv) {
             "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
+            "source-entry PATH | "
             "keygen|key-public KEYFILE | sign-object KEYFILE descriptor "
             "JSONFILE\n");
         return APKG_INVALID;
@@ -67,10 +68,13 @@ int main(int argc, char **argv) {
         free(text);
         return (int)code;
     }
-    if (!strcmp(argv[1], "source-inventory")) {
+    if (!strcmp(argv[1], "source-inventory") ||
+        !strcmp(argv[1], "source-entry")) {
         if (argc != 3)
             return APKG_INVALID;
-        code = ak_source_inventory(argv[2], &text, &e);
+        code = !strcmp(argv[1], "source-entry")
+                   ? ak_source_entry(argv[2], &text, &e)
+                   : ak_source_inventory(argv[2], &text, &e);
         if (!code)
             puts(text);
         else

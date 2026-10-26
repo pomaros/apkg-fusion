@@ -390,6 +390,44 @@ replacement, legacy import and portal migration rehearsal remain outstanding.
 No native execution, OS changes, live portal data or deployment occurred.
 Exact-source CI for this new checkpoint is required separately from b40bcb4.
 
+## FUSION-ALPHA progress: selected parent and snapshot metadata
+
+The [authoring profile](authoring.md#source-and-metadata) now supports the
+source drawer's nondefault semantic metadata and the declared sibling icon's
+entry from a parent `.ameta`. The new read-only `source-entry PATH` selects
+exactly one file/drawer. It checks the parent control's syntax without reading
+unselected sibling file content or publishing their records. Unselected names
+outside the payload may be absent; malformed controls and conflicting selected
+live/control facts still refuse.
+
+Source-root metadata is observed separately, then becomes an explicit authored
+directory entry in the signed payload. It does not widen the mutation contract
+for the engine-managed outer package folder. The builder rechecks selected
+metadata and icon facts after copying. It also compares exact control-file
+SHA-256/size observations and re-observes the source snapshot. Equivalent-looking
+control edits still refuse when their bytes changed during copy.
+
+Recognized semantic xattrs can be lost by a host's copy primitive. Validated
+source facts are retained independently in the signed descriptor; file bytes,
+paths, modes and control bytes must still agree. Newly introduced or conflicting
+copied metadata refuses. Tests explicitly discard copied carriers and verify
+installed directory/file facts, leaving source carriers intact.
+
+Local evaluation passes `make test-fusion` with 108 common methods, including
+140 additional selected-entry allocation-injection positions, plus the existing
+contract, target, application, first-install, context, CLI and publishing checks.
+ASan/UBSan lifetime and all 28 client/source/authoring methods pass. Focused
+CLI/worker scenarios install drawer/icon metadata, preserve a personal drawer
+comment through an authored update and repair, and retain configuration.
+An unreadable private sibling and stale unselected parent entry never enter the
+archive. Documentation links cover 66 files with zero broken links.
+
+The parent-control and source-root refusals recorded at the preceding checkpoint
+are resolved for this profile. Timestamps, wider metadata/platform fidelity and
+the subsequent channel, default-client, legacy-import and portal gates remain
+open. No AROS execution, OS changes, live portal changes or release claims were
+made. This checkpoint requires its own exact-source Linux/macOS CI result.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

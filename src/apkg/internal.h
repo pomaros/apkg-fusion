@@ -39,6 +39,9 @@ apkg_status ak_attributes_write(const char *, const char *, uint64_t);
 int ak_attributes_equal(const ak_json *, int, const ak_json *, int);
 apkg_status ak_attributes_merge(const ak_json *, int, const ak_json *, int,
                                 const ak_json *, int, uint64_t, char **);
+apkg_status ak_source_entry(const char *, char **, apkg_error **);
+apkg_status ak_tree_entry(const char *, const char *, char **);
+apkg_status ak_tree_source_read(const char *, size_t, char **, struct stat *);
 apkg_status ak_source_inventory(const char *, char **, apkg_error **);
 apkg_status ak_author_command(int, char **, char **);
 int ak_buf_add(ak_buf *, const char *, ...);

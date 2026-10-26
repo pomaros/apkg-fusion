@@ -233,13 +233,14 @@ static int records(const void *a, const void *b) {
     return strcmp(((const ak_tree_row *)a)->path,
                   ((const ak_tree_row *)b)->path);
 }
-apkg_status ak_tree_read(const char *base, size_t max, char **out,
-                         struct stat *identity) {
+static apkg_status tree_read(const char *base, size_t max, char **out,
+                             struct stat *identity, int source) {
     ak_buf files = {0}, result = {0};
     ak_json j = {0};
     ak_tree_row *rows = NULL;
     size_t count = 0, i, k = 0;
     int code;
+    char *rootattrs = NULL;
     *out = NULL;
     files.max = result.max = max;
     if (lstat(base, identity)) {
@@ -251,10 +252,9 @@ apkg_status ak_tree_read(const char *base, size_t max, char **out,
     }
     if (!S_ISDIR(identity->st_mode) || !metadata_supported(base, identity))
         return APKG_UNSUPPORTED;
-    char *rootattrs = NULL;
     code = ak_attributes_read(base, (uint64_t)(identity->st_mode & 0777),
                               &rootattrs);
-    if (code || rootattrs) {
+    if (code || (rootattrs && !source)) {
         free(rootattrs);
         return code ? code : APKG_UNSUPPORTED;
     }
@@ -302,7 +302,10 @@ apkg_status ak_tree_read(const char *base, size_t max, char **out,
     free(files.data);
     memset(&files, 0, sizeof files);
     files.max = max;
-    ak_buf_add(&files, "{\"files\":[");
+    ak_buf_add(&files, "{");
+    if (rootattrs)
+        ak_buf_add(&files, "\"amiga\":%s,", rootattrs);
+    ak_buf_add(&files, "\"files\":[");
     for (i = 0; i < count; i++) {
         int t = rows[i].token;
         ak_buf_add(&files, "%s%.*s", i ? "," : "",
@@ -317,6 +320,7 @@ apkg_status ak_tree_read(const char *base, size_t max, char **out,
         files.data = NULL;
     }
 done:
+    free(rootattrs);
     if (rows)
         for (i = 0; i < count; i++)
             free(rows[i].path);
@@ -326,6 +330,63 @@ done:
     ak_json_free(&j);
     if (code == APKG_NOMEM)
         errno = ENOMEM;
+    return code;
+}
+apkg_status ak_tree_read(const char *base, size_t max, char **out,
+                         struct stat *identity) {
+    return tree_read(base, max, out, identity, 0);
+}
+apkg_status ak_tree_source_read(const char *base, size_t max, char **out,
+                                struct stat *identity) {
+    return tree_read(base, max, out, identity, 1);
+}
+/* Observe exactly one selected authoring entry, without enumerating siblings
+ * or reading their content. The caller supplies a validated relative name. */
+apkg_status ak_tree_entry(const char *path, const char *name, char **out) {
+    struct stat st;
+    ak_buf b = {0};
+    char *attributes = NULL;
+    apkg_status code;
+    *out = NULL;
+    b.max = 32768;
+    if (lstat(path, &st))
+        return errno == ENOENT ? APKG_NOT_FOUND : APKG_IO;
+    if (!metadata_supported(path, &st) ||
+        (!S_ISDIR(st.st_mode) && (!S_ISREG(st.st_mode) || st.st_nlink != 1)))
+        return APKG_UNSUPPORTED;
+    if (!(st.st_mode & 0400) || (S_ISDIR(st.st_mode) && !(st.st_mode & 0100)))
+        return APKG_UNSUPPORTED;
+    code = ak_attributes_read(path, (uint64_t)(st.st_mode & 0777), &attributes);
+    if (code)
+        return code;
+    ak_buf_add(&b, "{");
+    if (attributes)
+        ak_buf_add(&b, "\"amiga\":%s,", attributes);
+    free(attributes);
+    if (S_ISDIR(st.st_mode))
+        ak_buf_add(&b,
+                   "\"mode\":\"%u\",\"path\":\"%s\",\"type\":\"directory\"}",
+                   (unsigned)(st.st_mode & 0777), name);
+    else {
+        uint64_t size;
+        char sha[65];
+        unsigned char head[64];
+        size_t count;
+        code = ak_stream_hash(path, &size, sha, head, &count);
+        if (code) {
+            free(b.data);
+            return code;
+        }
+        ak_buf_add(&b,
+                   "\"blob\":\"%s\",\"mode\":\"%u\",\"path\":\"%s\",\"sha256\":"
+                   "\"%s\",\"size\":\"%" PRIu64 "\",\"type\":\"file\"}",
+                   sha, (unsigned)(st.st_mode & 0777), name, sha, size);
+    }
+    code = (apkg_status)b.bad;
+    if (code)
+        free(b.data);
+    else
+        *out = b.data;
     return code;
 }
 int ak_tree_find(const ak_json *j, const char *path) {

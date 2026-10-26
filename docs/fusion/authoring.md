@@ -23,7 +23,9 @@ public key. `key-public` reports the public identity of an existing key.
 ## Source and metadata
 
 `apkg-core source-inventory FOLDER` emits one canonical JSON observation on
-success, without a status footer. It hashes regular files in chunks, records
+success, without a status footer. Its `controls` array binds each interpreted
+`.ameta` path to exact SHA-256 and size; these are source observations, not
+additional payload entries. It hashes regular files in chunks, records
 explicit directories and ordinary modes, and interprets per-directory `.ameta`
 using the existing portable C parser. This interpretation is confined to source
 observation: installed-tree operations never guess that an arbitrary personal
@@ -39,23 +41,36 @@ bounded to 2 MiB. Unsupported paths, links and unknown live metadata refuse.
 The source wrapper's allocation tests instrument its own allocations; the
 inherited standalone `.ameta` service retains its own allocator.
 
-The source drawer is copied privately, then observed again before generated
-files are added. A mismatch refuses the snapshot. The payload contains the
-named drawer, any explicitly declared sibling icon, a byte-exact
-`Package.arospkg.toml` provenance copy and the generated `application.json`
-when `[launch]` is present. Hidden files and empty directories remain entries.
-`.ameta` controls become signed semantic metadata, not ordinary payload files.
-A mismatching pre-existing `application.json` refuses rather than being replaced.
-Temporary owner-write permission allows generated files inside a private copy
-of a read-only drawer; its original mode is restored before signing. Source
-bytes and modes remain untouched.
+The source drawer is copied privately. File bytes, paths, modes and control-file
+hashes must agree with the first observation, and a second observation confirms
+that the source did not change during copying. A changed control refuses even
+when it spells the same effective protection word differently. Some hosts omit
+xattrs during copy; missing recognized semantic carriers are supplied from the
+validated source inventory, while new or conflicting copied values refuse.
+
+The payload contains the named drawer, any explicitly declared sibling icon,
+a byte-exact `Package.arospkg.toml` provenance copy and generated
+`application.json` when `[launch]` is present. Hidden files and empty directories
+remain entries. `.ameta` controls become signed semantic metadata, not ordinary
+payload files. A mismatching pre-existing `application.json` refuses rather than
+being replaced. Temporary owner-write permission allows generated files inside
+a private copy of a read-only drawer; its original mode is restored before
+signing. Source bytes and modes remain untouched.
+
+`apkg-core source-entry PATH` observes only one named file/drawer and selects its
+entry from the parent `.ameta`. It validates the parent control's syntax but
+never inventories sibling file content. Unselected records, including names
+absent outside the selected payload, are not imported or published. Selected
+parent metadata must agree with any nondefault live semantic carrier; ambiguity
+refuses. The builder re-observes selected drawer/icon facts after copying and
+binds them explicitly into the signed payload. This preserves source-drawer
+metadata even if the host copy primitive omits its carrier xattr.
 
 The [host metadata profile](payload.md#host-semantic-metadata-profile) defines
-protection, UTF-8 comments, Amiga ownership facts and opaque extensions. Parent
-`.ameta` selection for the source drawer/sibling icon is not implemented: a
-parent control file causes an explicit refusal. Nondefault metadata on the
-source root itself also remains outside this profile. These are remaining
-fidelity obligations, not permission to omit declared metadata.
+protection, UTF-8 comments, Amiga ownership facts and opaque extensions. Source
+root metadata is supported as an explicitly named authored drawer in the
+payload. The engine-managed outer package folder remains a separate boundary;
+this authoring change does not authorize arbitrary metadata on that container.
 
 ## TOML and signatures
 
