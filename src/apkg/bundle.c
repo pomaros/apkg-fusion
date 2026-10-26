@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 John Knipper */
+#define _POSIX_C_SOURCE 200809L
 #include "apkg_client.h"
 #include "internal.h"
 #include "pkg_application.h"

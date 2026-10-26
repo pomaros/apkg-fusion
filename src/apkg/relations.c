@@ -251,7 +251,7 @@ apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
         }
         ak_buf_add(&record, "{\"descriptor\":%s,\"signature\":%s}", p->raw,
                    p->signature);
-        code = record.bad ? record.bad
+        code = record.bad ? (apkg_status)record.bad
                           : ak_verified_entry(c, record.data,
                                               &s.pool[s.installed + i]);
         free(record.data);
@@ -318,7 +318,7 @@ apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
                 s.pool[i]->signature);
         }
     ak_buf_add(&entries, "]");
-    code = entries.bad ? entries.bad
+    code = entries.bad ? (apkg_status)entries.bad
                        : ak_plan_records(c, snapshot, entries.data,
                                          APKG_PLAN_RESOLVE, NULL, out, e);
 done:
