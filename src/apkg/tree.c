@@ -117,7 +117,7 @@ static int scan(const char *base, const char *rel, ak_buf *out,
         char **next;
         if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
             continue;
-        if (n >= AK_TOKENS) {
+        if (n >= AK_TOKENS || n >= out->max / sizeof(ak_tree_row)) {
             bad = APKG_LIMIT;
             break;
         }
@@ -168,33 +168,20 @@ static int scan(const char *base, const char *rel, ak_buf *out,
                 out->size ? "," : "", (unsigned)(st.st_mode & 0777), sub);
             bad = scan(base, sub, out, depth + 1);
         } else if (S_ISREG(st.st_mode) && st.st_nlink == 1) {
-            unsigned char *bytes = NULL;
-            size_t len = 0;
-            char *hex;
-            apkg_digest h;
+            uint64_t len = 0;
+            unsigned char head[64];
+            size_t hn = 0;
             char sha[65];
-            if (ak_read(full, &bytes, &len, out->max / 2)) {
-                bad = errno == ENOMEM  ? APKG_NOMEM
-                      : errno == EFBIG ? APKG_LIMIT
-                                       : APKG_IO;
+            bad = ak_stream_hash(full, &len, sha, head, &hn);
+            if (bad)
                 break;
-            }
-            hex = malloc(len * 2 + 1);
-            if (!hex) {
-                free(bytes);
-                bad = APKG_NOMEM;
-                break;
-            }
-            ak_tohex(bytes, len, hex);
-            ak_hash(bytes, len, &h);
-            ak_tohex(h.bytes, 32, sha);
-            free(bytes);
             ak_buf_add(out,
-                       "%s{\"data\":\"%s\",\"mode\":\"%u\",\"path\":\"%s\","
-                       "\"sha256\":\"%s\",\"size\":\"%zu\",\"type\":\"file\"}",
-                       out->size ? "," : "", hex, (unsigned)(st.st_mode & 0777),
+                       "%s{\"blob\":\"%s\",\"mode\":\"%u\",\"path\":\"%s\","
+                       "\"sha256\":\"%s\",\"size\":\"%" PRIu64
+                       "\",\"type\":\"file\"}",
+                       out->size ? "," : "", sha, (unsigned)(st.st_mode & 0777),
                        sub, sha, len);
-            free(hex);
+
         } else
             bad = APKG_UNSUPPORTED;
         if (out->bad)
@@ -298,4 +285,145 @@ int ak_tree_find(const ak_json *j, const char *path) {
         if (ak_equal(j, ak_member(j, (int)i, "path"), path))
             return (int)i;
     return -1;
+}
+/* Normalize old inline journal inventories to metadata-only inventories for
+ * comparison. This retains recovery compatibility without reading file bytes
+ * into memory or changing already approved journal records. */
+apkg_status ak_tree_normalize(const char *raw, char **out) {
+    ak_json j = {0};
+    ak_buf b = {0};
+    int arr;
+    size_t i;
+    apkg_status code;
+    char mode[24], previous[AK_PATH] = "";
+    uint64_t permissions;
+    *out = NULL;
+    b.max = AK_MAX;
+    int parsed = ak_json_parse(raw, strlen(raw), &j);
+    if (parsed)
+        return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+    if (!strcmp(raw, "null")) {
+        *out = ak_copy(raw, 4);
+        code = *out ? APKG_OK : APKG_NOMEM;
+        goto done;
+    }
+    arr = ak_member(&j, 0, "files");
+    if (!ak_fields(&j, 0, (const char *const[]){"files", "mode"}, 2) ||
+        arr < 0 || j.tokens[arr].type != '[' ||
+        ak_u64(&j, ak_member(&j, 0, "mode"), &permissions) ||
+        permissions > 0777 ||
+        ak_string(&j, ak_member(&j, 0, "mode"), mode, sizeof mode)) {
+        code = APKG_INVALID;
+        goto done;
+    }
+    ak_buf_add(&b, "{\"files\":[");
+    for (i = (size_t)arr + 1; i < j.tokens[arr].next; i = j.tokens[i].next) {
+        char path[AK_PATH], fm[24], sha[65], size[24];
+        if (ak_string(&j, ak_member(&j, (int)i, "path"), path, sizeof path) ||
+            !ak_valid_path(path) ||
+            ak_string(&j, ak_member(&j, (int)i, "mode"), fm, sizeof fm)) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        if ((*previous && strcmp(previous, path) >= 0) ||
+            ak_u64(&j, ak_member(&j, (int)i, "mode"), &permissions) ||
+            permissions > 0777) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        strcpy(previous, path);
+        int directory =
+                ak_equal(&j, ak_member(&j, (int)i, "type"), "directory"),
+            data = ak_member(&j, (int)i, "data");
+        const char *const dir_fields[] = {"mode", "path", "type"};
+        const char *const blob_fields[] = {"blob",   "mode", "path",
+                                           "sha256", "size", "type"};
+        const char *const data_fields[] = {"data",   "mode", "path",
+                                           "sha256", "size", "type"};
+        if (!ak_fields(&j, (int)i,
+                       directory   ? dir_fields
+                       : data >= 0 ? data_fields
+                                   : blob_fields,
+                       directory ? 3 : 6) ||
+            (!directory &&
+             !ak_equal(&j, ak_member(&j, (int)i, "type"), "file"))) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        if (ak_equal(&j, ak_member(&j, (int)i, "type"), "directory"))
+            ak_buf_add(
+                &b,
+                "%s{\"mode\":\"%s\",\"path\":\"%s\",\"type\":\"directory\"}",
+                i == (size_t)arr + 1 ? "" : ",", fm, path);
+        else {
+            if (ak_string(&j, ak_member(&j, (int)i, "sha256"), sha,
+                          sizeof sha) ||
+                ak_string(&j, ak_member(&j, (int)i, "size"), size,
+                          sizeof size)) {
+                code = APKG_INVALID;
+                goto done;
+            }
+            unsigned char digest[32];
+            uint64_t n;
+            if (ak_hex(sha, digest, 32) ||
+                ak_u64(&j, ak_member(&j, (int)i, "size"), &n)) {
+                code = APKG_INVALID;
+                goto done;
+            }
+            if (data < 0 && !ak_equal(&j, ak_member(&j, (int)i, "blob"), sha)) {
+                code = APKG_INVALID;
+                goto done;
+            }
+            if (data >= 0) {
+                if (n > AK_MAX || j.tokens[data].type != '"' ||
+                    j.tokens[data].end - j.tokens[data].start - 2 != n * 2) {
+                    code = APKG_INVALID;
+                    goto done;
+                }
+                struct pkg_sha256 hash;
+                unsigned char chunk[65536];
+                uint64_t pos = 0;
+                char actual[65];
+                pkg_sha256_init(&hash);
+                while (pos < n) {
+                    size_t take = n - pos > sizeof chunk ? sizeof chunk
+                                                         : (size_t)(n - pos);
+                    for (size_t x = 0; x < take; x++) {
+                        size_t at =
+                            j.tokens[data].start + 1 + (size_t)(pos + x) * 2;
+                        char hex[3] = {j.text[at], j.text[at + 1], 0};
+                        if (ak_hex(hex, &chunk[x], 1)) {
+                            code = APKG_INVALID;
+                            goto done;
+                        }
+                    }
+                    pkg_sha256_update(&hash, chunk, take);
+                    pos += take;
+                }
+                pkg_sha256_final(&hash, digest);
+                ak_tohex(digest, 32, actual);
+                if (strcmp(actual, sha)) {
+                    code = APKG_INTEGRITY;
+                    goto done;
+                }
+            }
+            ak_buf_add(&b,
+                       "%s{\"blob\":\"%s\",\"mode\":\"%s\",\"path\":\"%s\","
+                       "\"sha256\":\"%s\",\"size\":\"%s\",\"type\":\"file\"}",
+                       i == (size_t)arr + 1 ? "" : ",", sha, fm, path, sha,
+                       size);
+        }
+    }
+    ak_buf_add(&b, "],\"mode\":\"%s\"}", mode);
+    code = (apkg_status)b.bad;
+    if (!code) {
+        *out = b.data;
+        b.data = NULL;
+    }
+done:
+    free(b.data);
+    ak_json_free(&j);
+    if (code == APKG_NOMEM)
+        errno = ENOMEM;
+    return code;
 }

@@ -242,6 +242,41 @@ execution, actual UI/launch behavior and power-loss qualification remain deferre
 per operator direction. No operating-system source repository was modified.
 The SDK atomic-replacement restriction documented above still applies.
 
+## FUSION-ALPHA progress: streaming transport
+
+ALPHA-PAYLOAD is in progress; this checkpoint implements real archive transport
+and removes payload-byte duplication from observed tree plans/history. It does
+not complete the alpha goal, the metadata-fidelity gate or later authoring,
+channel, default-client, migration and portal gates in [PLAN](../../PLAN.md).
+See the [transport profile](payload.md) for format, limits and retention rules.
+
+Actual PKG/1 archives carry verified signed metadata plus SHA-256-addressed
+objects. The common library, CLI and PkgManager worker import/install them.
+Large observed files are streamed through hashing, retention, staging and
+recovery. Old inline journal inventories remain recoverable. Partial cache
+imports never create a managed commit or silently initialize a root.
+
+Local evidence includes an archive containing a file above 32 MiB installed
+with database/plan records below 10 KiB and individual instrumented engine
+allocations below 1 MiB. This measures the tested allocation boundary, not an
+unmeasured peak-RSS or platform-durability claim. Large-file upgrade, repair,
+offline rollback and removal preserve personal configuration; history plans
+stay bounded independently of the file sizes.
+
+The test additions exercise hidden/empty paths, zero/shared blobs, signed CPU
+mismatch, missing/extra/duplicate/traversal/truncated members, cold and corrupt
+cache entries, corruption after approval, cancellable progress, import I/O and
+process termination/retry, allocation failures and normalized old-journal
+recovery without a cache. Existing common/inherited assertions remain enabled.
+Host/native evidence remains distinct; no OS source was changed and no AROS
+execution or portal deployment was performed.
+
+Remaining ALPHA-PAYLOAD obligations include full declared metadata fidelity and
+its round-trip inventory checks. Cache GC/reclamation and additional archive
+formats are unimplemented and cannot be inferred from these tests. The private
+object store includes before-images and must never be bulk-published as a channel.
+Exact-source verification is recorded with the published implementation revision.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

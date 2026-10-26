@@ -22,25 +22,9 @@ static apkg_status open_root(const char *root, apkg_mode mode, apkg_ctx **c,
     return apkg_open(&o, c, e);
 }
 static apkg_status read_package(apkg_ctx *c, const char *dir,
+                                const apkg_observer *observer,
                                 apkg_package **out, apkg_error **e) {
-    char path[AK_PATH];
-    unsigned char *d = NULL, *s = NULL;
-    size_t dn, sn;
-    apkg_status code;
-    if (ak_path(path, dir, "descriptor.json") ||
-        ak_read(path, &d, &dn, c->object_max) ||
-        ak_path(path, dir, "signature.json") ||
-        ak_read(path, &s, &sn, c->object_max))
-        code = errno == ENOMEM  ? APKG_NOMEM
-               : errno == EFBIG ? APKG_LIMIT
-                                : APKG_IO;
-    else {
-        apkg_bytes db = {d, dn}, sb = {s, sn};
-        code = apkg_package_read(c, db, sb, out, e);
-    }
-    free(d);
-    free(s);
-    return code;
+    return ak_package_source(c, dir, observer, out, e);
 }
 static int compare_package(const void *a, const void *b) {
     const apkg_package *x = *(apkg_package *const *)a,
@@ -94,7 +78,7 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     else if (action == APKG_CLIENT_ROLLBACK)
         code = apkg_plan_rollback(c, snapshot, argument, &p, e);
     else {
-        code = read_package(c, arg, &package, e);
+        code = read_package(c, arg, observer, &package, e);
         if (code)
             goto done;
         if (action == APKG_CLIENT_UPGRADE)
@@ -119,11 +103,12 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
                         goto done;
                     }
                     if (ak_path(child, pool, entry->d_name) ||
-                        lstat(child, &st) || !S_ISDIR(st.st_mode)) {
+                        lstat(child, &st) ||
+                        (!S_ISDIR(st.st_mode) && !S_ISREG(st.st_mode))) {
                         code = APKG_UNSUPPORTED;
                         goto done;
                     }
-                    code = read_package(c, child, &candidates[n], e);
+                    code = read_package(c, child, observer, &candidates[n], e);
                     if (code)
                         goto done;
                     n++;

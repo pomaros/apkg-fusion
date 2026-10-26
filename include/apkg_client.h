@@ -12,7 +12,8 @@ apkg_status apkg_plan_format(const apkg_plan *, char **text);
 void apkg_client_text_free(char *);
 typedef int (*apkg_confirm_fn)(void *, const apkg_plan *,
                                const char *presentation);
-/* Local signed package directory: descriptor.json and signature.json.
+/* Local signed folder (descriptor.json/signature.json) or PKG/1 archive.
+ * Explicit archive imports may populate a sibling verified-object store.
  * No shell, no network and no implicit initialization/trust expansion. */
 apkg_status apkg_client_install(const char *root, const char *package_dir,
                                 apkg_confirm_fn, void *, const apkg_observer *,
@@ -30,7 +31,8 @@ apkg_status apkg_client_apply(apkg_client_action, const char *root,
                               const char *argument, const char *pool,
                               apkg_confirm_fn, void *, const apkg_observer *,
                               apkg_result **, apkg_error **);
-apkg_status apkg_client_folder(const char *, const char *, char **, apkg_error **);
+apkg_status apkg_client_folder(const char *, const char *, char **,
+                               apkg_error **);
 apkg_status apkg_client_run(const char *, const char *, apkg_error **);
 apkg_status apkg_client_query(const char *root, const char *match, char **,
                               apkg_error **);

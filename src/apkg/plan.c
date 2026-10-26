@@ -262,6 +262,9 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
             c->root);
     if (ak_cancelled(observer))
         return APKG_CANCELLED;
+    r = ak_package_payload_check(c, p);
+    if (r)
+        return r;
     if (!c->binding.st_ino)
         return ak_fail(e, APKG_UNSUPPORTED,
                        "filesystem does not expose stable root identity",

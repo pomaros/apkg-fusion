@@ -30,6 +30,30 @@ typedef struct {
     int token;
 } ak_tree_row;
 int ak_buf_add(ak_buf *, const char *, ...);
+apkg_status ak_tree_normalize(const char *, char **);
+apkg_status ak_blob_retain(apkg_ctx *, const char *, uint64_t, const char *);
+int ak_fault(int);
+int ak_publish(const char *, const char *);
+apkg_status ak_stream_hash(const char *, uint64_t *, char[65],
+                           unsigned char[64], size_t *);
+apkg_status ak_blob_path(apkg_ctx *, const char *, char *);
+apkg_status ak_blob_check(apkg_ctx *, const char *, uint64_t, const char *);
+apkg_status ak_blob_copy(apkg_ctx *, const char *, uint64_t, const char *,
+                         const char *);
+apkg_status ak_blob_inline(apkg_ctx *, const ak_json *, int);
+typedef struct {
+    const apkg_observer *observer;
+    apkg_id operation_id;
+    uint64_t sequence, completed, total, last_emitted;
+    long long last_ms;
+    const char *subject;
+} ak_import_progress;
+apkg_status ak_import_tick(ak_import_progress *, uint64_t);
+apkg_status ak_blob_ingest(apkg_ctx *, const char *, uint64_t, int,
+                           ak_import_progress *);
+apkg_status ak_package_payload_check(apkg_ctx *, const apkg_package *);
+apkg_status ak_package_source(apkg_ctx *, const char *, const apkg_observer *,
+                              apkg_package **, apkg_error **);
 int ak_text_path_valid(const char *, size_t);
 int ak_json_parse(const void *, size_t, ak_json *);
 void ak_json_free(ak_json *);

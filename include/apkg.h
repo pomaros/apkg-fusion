@@ -19,6 +19,7 @@ typedef struct apkg_result apkg_result;
 typedef struct apkg_error apkg_error;
 typedef struct apkg_cancel apkg_cancel;
 typedef struct apkg_event_copy apkg_event_copy;
+typedef struct apkg_observer apkg_observer;
 /* Length excludes terminator. Text is UTF-8, no embedded NUL; bytes are opaque.
  * A zero length permits NULL. All returned views are borrowed, never free(). */
 typedef struct {
@@ -149,6 +150,12 @@ apkg_status apkg_snapshot_installed_at(const apkg_snapshot *, uint64_t,
 apkg_status apkg_package_read(apkg_ctx *, apkg_bytes descriptor,
                               apkg_bytes signature_envelope, apkg_package **,
                               apkg_error **);
+/* Explicit write-mode import of an AROS PKG/1 envelope containing the signed
+ * descriptor, signature and exact content-addressed blobs. Managed state is
+ * unchanged; verified objects are retained in the context's sibling store. */
+apkg_status apkg_package_import(apkg_ctx *, apkg_text archive,
+                                const apkg_observer *, apkg_package **,
+                                apkg_error **);
 void apkg_package_free(apkg_package *);
 /* Exact immutable descriptor reference for CLI/UI presentation. */
 apkg_bytes apkg_package_descriptor(const apkg_package *);
@@ -175,11 +182,11 @@ typedef struct {
 } apkg_event;
 typedef enum { APKG_CONTINUE = 0, APKG_REQUEST_CANCEL } apkg_event_action;
 typedef apkg_event_action (*apkg_event_fn)(void *, const apkg_event *);
-typedef struct {
+struct apkg_observer {
     apkg_event_fn event;
     void *user;
     apkg_cancel *cancel;
-} apkg_observer;
+};
 apkg_status apkg_cancel_create(apkg_cancel **);
 void apkg_cancel_request(apkg_cancel *); /* only cross-thread mutation API */
 void apkg_cancel_free(apkg_cancel *);

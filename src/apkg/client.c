@@ -8,7 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-static int append(char *out, size_t cap, size_t *used, const char *format, ...) {
+static int append(char *out, size_t cap, size_t *used, const char *format,
+                  ...) {
     int n;
     va_list ap;
     va_start(ap, format);
@@ -31,7 +32,8 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
     *out = NULL;
     if (!p)
         return APKG_INVALID;
-    if(p->changes)return ak_changes_format(p,out);
+    if (p->changes)
+        return ak_changes_format(p, out);
     if (p->view.effect_count > (AK_MAX - 4096) / (AK_PATH + 512))
         return APKG_LIMIT;
     cap = 4096 + (size_t)p->view.effect_count * (AK_PATH + 512);
@@ -54,9 +56,10 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
         return APKG_INVALID;
     }
     if (append(text, cap, &used,
-               "%s\nRoot folder: %s\nRoot identity: %s\nTarget: %s\nApproved plan: %s\n\n",
-               p->absent ? "Initialize package root" : "Install signed package", p->root, root,
-               target, digest))
+               "%s\nRoot folder: %s\nRoot identity: %s\nTarget: %s\nApproved "
+               "plan: %s\n\n",
+               p->absent ? "Initialize package root" : "Install signed package",
+               p->root, root, target, digest))
         goto limit;
     if (!p->absent) {
         int arr = ak_member(&j, b, "installed");
@@ -65,31 +68,42 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
         for (i = (size_t)arr + 1; i < j.tokens[arr].next; i = j.tokens[i].next)
             last = i;
         {
-            int d = ak_member(&j, (int)last, "descriptor"), body = ak_member(&j, d, "body"),
+            int d = ak_member(&j, (int)last, "descriptor"),
+                body = ak_member(&j, d, "body"),
                 sig = ak_member(&j, (int)last, "signature");
-            if (ak_string(&j, ak_member(&j, body, "authority"), authority, sizeof authority) ||
-                ak_string(&j, ak_member(&j, sig, "public_key"), key, sizeof key))
+            if (ak_string(&j, ak_member(&j, body, "authority"), authority,
+                          sizeof authority) ||
+                ak_string(&j, ak_member(&j, sig, "public_key"), key,
+                          sizeof key))
                 goto limit;
         }
         if (append(text, cap, &used,
-                   "Package: %s\nPublisher: %s\nSignature: verified, authorized key %s\nReview: no "
-                   "independent review asserted here\nRuntime test: no runtime qualification "
+                   "Package: %s\nPublisher: %s\nSignature: verified, "
+                   "authorized key %s\nReview: no "
+                   "independent review asserted here\nRuntime test: no runtime "
+                   "qualification "
                    "asserted here\n\n",
                    p->name, authority, key))
             goto limit;
     } else {
         int policy = ak_member(&j, b, "policy"),
-            authorities = ak_member(&j, ak_member(&j, policy, "body"), "authorities");
-        for (i = (size_t)authorities + 1; i < j.tokens[authorities].next; i = j.tokens[i].next) {
+            authorities =
+                ak_member(&j, ak_member(&j, policy, "body"), "authorities");
+        for (i = (size_t)authorities + 1; i < j.tokens[authorities].next;
+             i = j.tokens[i].next) {
             char authority[33];
             int keys = ak_member(&j, (int)i, "keys");
             size_t k;
-            if (ak_string(&j, ak_member(&j, (int)i, "id"), authority, sizeof authority))
+            if (ak_string(&j, ak_member(&j, (int)i, "id"), authority,
+                          sizeof authority))
                 goto limit;
-            for (k = (size_t)keys + 1; k < j.tokens[keys].next; k = j.tokens[k].next) {
+            for (k = (size_t)keys + 1; k < j.tokens[keys].next;
+                 k = j.tokens[k].next) {
                 char key[65];
-                if (ak_string(&j, ak_member(&j, (int)k, "public_key"), key, sizeof key) ||
-                    append(text, cap, &used, "Authorize publisher %s with key %s\n", authority,
+                if (ak_string(&j, ak_member(&j, (int)k, "public_key"), key,
+                              sizeof key) ||
+                    append(text, cap, &used,
+                           "Authorize publisher %s with key %s\n", authority,
                            key))
                     goto limit;
             }
@@ -109,7 +123,8 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
             ak_json f = {0};
             char hash[65], size[21], mode[21];
             {
-                int parsed = ak_json_parse(effect->record.data, effect->record.size, &f);
+                int parsed =
+                    ak_json_parse(effect->record.data, effect->record.size, &f);
                 if (parsed) {
                     ak_json_free(&j);
                     free(text);
@@ -117,10 +132,14 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
                 }
             }
             if (ak_equal(&f, ak_member(&f, 0, "type"), "file")) {
-                if (ak_string(&f, ak_member(&f, 0, "sha256"), hash, sizeof hash) ||
-                    ak_string(&f, ak_member(&f, 0, "size"), size, sizeof size) ||
-                    ak_string(&f, ak_member(&f, 0, "mode"), mode, sizeof mode) ||
-                    append(text, cap, &used, "  %s bytes, mode %s (decimal), SHA-256 %s\n", size,
+                if (ak_string(&f, ak_member(&f, 0, "sha256"), hash,
+                              sizeof hash) ||
+                    ak_string(&f, ak_member(&f, 0, "size"), size,
+                              sizeof size) ||
+                    ak_string(&f, ak_member(&f, 0, "mode"), mode,
+                              sizeof mode) ||
+                    append(text, cap, &used,
+                           "  %s bytes, mode %s (decimal), SHA-256 %s\n", size,
                            mode, hash)) {
                     ak_json_free(&f);
                     goto limit;
@@ -138,9 +157,10 @@ limit:
     return APKG_LIMIT;
 }
 void apkg_client_text_free(char *s) { free(s); }
-apkg_status apkg_client_install(const char *root, const char *dir, apkg_confirm_fn confirm,
-                                void *user, const apkg_observer *observer, apkg_result **out,
-                                apkg_error **e) {
+apkg_status apkg_client_install(const char *root, const char *dir,
+                                apkg_confirm_fn confirm, void *user,
+                                const apkg_observer *observer,
+                                apkg_result **out, apkg_error **e) {
     apkg_open_options options = {0};
     apkg_ctx *c = NULL;
     apkg_snapshot *s = NULL;
@@ -148,10 +168,7 @@ apkg_status apkg_client_install(const char *root, const char *dir, apkg_confirm_
     apkg_plan *plan = NULL;
     apkg_approval *approval = NULL;
     apkg_status code;
-    unsigned char *descriptor = NULL, *signature = NULL;
-    size_t dn = 0, sn = 0;
-    char path[AK_PATH], *presentation = NULL;
-    apkg_bytes d, sg;
+    char *presentation = NULL;
     if (e)
         *e = NULL;
     if (!out)
@@ -167,23 +184,10 @@ apkg_status apkg_client_install(const char *root, const char *dir, apkg_confirm_
     code = apkg_open(&options, &c, e);
     if (code)
         goto done;
-    if (ak_path(path, dir, "descriptor.json") || ak_read(path, &descriptor, &dn, AK_MAX) ||
-        ak_path(path, dir, "signature.json") || ak_read(path, &signature, &sn, AK_MAX)) {
-        code = ak_fail(e,
-                       errno == ENOMEM  ? APKG_NOMEM
-                       : errno == EFBIG ? APKG_LIMIT
-                                        : APKG_IO,
-                       "cannot read local signed package", dir);
-        goto done;
-    }
-    d.data = descriptor;
-    d.size = dn;
-    sg.data = signature;
-    sg.size = sn;
     code = apkg_snapshot_read(c, &s, e);
     if (code)
         goto done;
-    code = apkg_package_read(c, d, sg, &package, e);
+    code = ak_package_source(c, dir, observer, &package, e);
     if (code)
         goto done;
     code = apkg_plan_install(c, s, package, observer, &plan, e);
@@ -201,8 +205,6 @@ apkg_status apkg_client_install(const char *root, const char *dir, apkg_confirm_
         goto done;
     code = apkg_execute(c, plan, approval, observer, out, e);
 done:
-    free(descriptor);
-    free(signature);
     apkg_client_text_free(presentation);
     apkg_approval_free(approval);
     apkg_plan_free(plan);

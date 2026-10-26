@@ -3,7 +3,9 @@
 
 # Common operations, local resolution and clients
 
-This extends the [initial engine](initial-engine.md). Native AROS runtime tests
+This extends the [initial engine](initial-engine.md).
+[Streaming payload transport](payload.md) removes the inline-only file-size
+constraint for signed archives and observed transaction trees. Native AROS runtime tests
 are deferred at the operator's request while its source repositories are being
 cleaned. This work changes only the fusion checkout; it launches no OS and
 performs no portal deployment or legacy migration.

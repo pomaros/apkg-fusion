@@ -5,7 +5,8 @@
 
 This records the first CONTEXT → SIGNED-READ → PLAN-INSTALL → JOURNAL →
 INSTALL → GUI-INSTALL path. It is a development subset, not a merged release.
-The subsequent [operations profile](operations.md) extends this initial subset.
+The subsequent [operations profile](operations.md) and
+[streaming payload transport](payload.md) extend this initial subset.
 [Architecture](architecture.md), [data model](data-model.md) and
 [acceptance](acceptance.md) retain the broader product obligations.
 

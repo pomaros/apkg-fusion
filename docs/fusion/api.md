@@ -229,3 +229,7 @@ The implemented operation, local dependency and client APIs are described in
 [the operations profile](operations.md), including exact observed-tree plans,
 current-trust offline rollback and installation reasons. Native runtime gates
 remain independent from host API and cross-build evidence.
+
+The explicit write-context archive importer and content-reference rules are
+defined in [streaming payload transport](payload.md). Signature/metadata reads
+remain side-effect free; import can retain verified objects before confirmation.

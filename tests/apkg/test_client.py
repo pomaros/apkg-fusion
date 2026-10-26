@@ -59,3 +59,10 @@ class OperationClients(unittest.TestCase):
    def history(root):
     state=(root/'.apkg/state').read_bytes();return next(p for p in root.parent.glob(root.name+'.apkg-history.*') if (p/'decision').exists() and (p/'new-state').read_bytes()==state)
    self.commit('rollback',a,history(a));self.worker(b,history(b),4);self.compare(a,b);self.assertFalse((a/'app').exists());self.assertFalse((b/'provider').exists())
+
+class ArchiveClients(unittest.TestCase):
+ def test_archive_install_preview_and_worker_equivalence(self):
+  from test_payload import archive,blob,desc
+  helper=OperationClients()
+  with tempfile.TemporaryDirectory() as d:
+   a,unused=helper.setup_root_package(d,'archive-cli');b,unused=helper.setup_root_package(d,'archive-worker');source=Path(d)/'file';source.write_bytes(b'archive payload');entry=blob('hello',source);pkg=archive(Path(d)/'signed.pkg',desc([entry]),[('objects/'+entry['blob'],source)]);helper.commit('install',a,pkg);helper.worker(b,pkg,0);helper.compare(a,b)

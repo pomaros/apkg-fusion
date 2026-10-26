@@ -190,7 +190,6 @@ static apkg_status desired(const char *observed, const ak_json *old,
     for (i = 0; i < k; i++) {
         int t = rows[i].token;
         const ak_json *j = t < 0 ? &live : nw;
-        char *raw;
         if (t < 0)
             t = -t - 2;
         if (ak_equal(j, ak_member(j, t, "type"), "directory")) {
@@ -205,22 +204,29 @@ static apkg_status desired(const char *observed, const ak_json *old,
         } else {
             /* Configuration policy belongs to signed metadata, not observed
              * bytes. */
-            char *data = ak_slice(j, ak_member(j, t, "data")), sha[65], sz[24],
-                 fm[24];
-            if (!data) {
-                code = APKG_NOMEM;
-                goto done;
-            }
+            char sha[65], sz[24], fm[24];
             ak_string(j, ak_member(j, t, "sha256"), sha, sizeof sha);
             ak_string(j, ak_member(j, t, "size"), sz, sizeof sz);
             ak_string(j, ak_member(j, t, "mode"), fm, sizeof fm);
-            raw = data;
-            ak_buf_add(
-                &b,
-                "%s{\"data\":%s,\"mode\":\"%s\",\"path\":\"%s\",\"sha256\":\"%"
-                "s\",\"size\":\"%s\",\"type\":\"file\"}",
-                i ? "," : "", raw, fm, rows[i].path, sha, sz);
-            free(raw);
+            int data = ak_member(j, t, "data");
+            if (data >= 0) {
+                char *bytes = ak_slice(j, data);
+                if (!bytes) {
+                    code = APKG_NOMEM;
+                    goto done;
+                }
+                ak_buf_add(
+                    &b,
+                    "%s{\"data\":%s,\"mode\":\"%s\",\"path\":\"%s\",\"sha256\":"
+                    "\"%s\",\"size\":\"%s\",\"type\":\"file\"}",
+                    i ? "," : "", bytes, fm, rows[i].path, sha, sz);
+                free(bytes);
+            } else
+                ak_buf_add(
+                    &b,
+                    "%s{\"blob\":\"%s\",\"mode\":\"%s\",\"path\":\"%s\","
+                    "\"sha256\":\"%s\",\"size\":\"%s\",\"type\":\"file\"}",
+                    i ? "," : "", sha, fm, rows[i].path, sha, sz);
         }
     }
     ak_buf_add(&b, "],\"mode\":\"%s\"}", mode);
@@ -403,6 +409,13 @@ apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
                     break;
             if (x < s->nrows)
                 continue;
+        }
+        if (nw) {
+            code = ak_package_payload_check(c, nw);
+            if (code) {
+                apkg_package_free(old);
+                goto done;
+            }
         }
         if (ak_path(path, c->root, name)) {
             apkg_package_free(old);

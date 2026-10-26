@@ -19,10 +19,17 @@ static int tree_matches(apkg_ctx *c, const char *path, const char *expected,
     char *got = NULL;
     apkg_status status = ak_tree_read(path, change_limit(c), &got, &st);
     int bad = status != APKG_OK;
+    char *normalized = NULL;
+    if (!bad) {
+        status = ak_tree_normalize(expected, &normalized);
+        if (status)
+            bad = 1;
+    }
     if (!bad)
         bad =
-            strcmp(got, expected) ||
+            strcmp(got, normalized) ||
             (ino && ((uint64_t)st.st_ino != ino || (uint64_t)st.st_dev != dev));
+    free(normalized);
     free(got);
     if (status == APKG_NOMEM)
         errno = ENOMEM;
@@ -48,14 +55,15 @@ static int new_identity(const char *txn, size_t i, const char *tree,
     free(bytes);
     return bad;
 }
-static int inventory_stage(const char *tree, const char *raw) {
+static int inventory_stage(apkg_ctx *c, const char *tree, const char *raw,
+                           const char *fallback) {
     ak_json j = {0};
     size_t i;
     int arr, bad = 0;
     uint64_t mode;
     if (ak_json_parse(raw, strlen(raw), &j))
         return -1;
-    if (mkdir(tree, 0700) || stage_package(tree, &j)) {
+    if (mkdir(tree, 0700) || stage_package(c, tree, &j, fallback)) {
         bad = 1;
         goto done;
     }
@@ -78,6 +86,8 @@ static int inventory_stage(const char *tree, const char *raw) {
         bad = 1;
 done:
     ak_json_free(&j);
+    if (!bad)
+        bad = tree_matches(c, tree, raw, 0, 0);
     return bad;
 }
 static int changes_validate(apkg_ctx *c, const ak_json *plan, int *array) {
@@ -151,7 +161,7 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
         strcmp(before, hex))
         goto done;
     decision = has(txn, "decision");
-    if (decision < 0 || fault(6))
+    if (decision < 0 || ak_fault(6))
         goto done;
     if (decision) {
         if (exact_file(state, old, on) && exact_file(state, next, nn))
@@ -211,30 +221,30 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
             change_path(restored, txn, "restored", index);
             if (ak_exists(backup) == 1) {
                 if (ak_exists(live) == 1 &&
-                    (publish_dir(live, restored) || ak_sync_dir(c->root) ||
+                    (ak_publish(live, restored) || ak_sync_dir(c->root) ||
                      ak_sync_dir(txn)))
                     goto done;
-                if (publish_dir(backup, live) || ak_sync_dir(c->root) ||
+                if (ak_publish(backup, live) || ak_sync_dir(c->root) ||
                     ak_sync_dir(txn))
                     goto done;
             } else if (was_absent && ak_exists(live) == 1) {
-                if (publish_dir(live, restored) || ak_sync_dir(c->root) ||
+                if (ak_publish(live, restored) || ak_sync_dir(c->root) ||
                     ak_sync_dir(txn))
                     goto done;
             }
-            if (fault(106))
+            if (ak_fault(106))
                 goto done;
         }
     } else if (exact_file(state, next, nn) &&
                state_publish(state, txn, change_limit(c)))
         goto done;
-    if (ak_sync_dir(c->root) || fault(7))
+    if (ak_sync_dir(c->root) || ak_fault(7))
         goto done;
     {
         char archived[AK_PATH], parent[AK_PATH];
         if (snprintf(archived, sizeof archived, "%s.apkg-history.%s", c->root,
                      id) >= (int)sizeof archived ||
-            publish_dir(txn, archived) || parent_path(c->root, parent) ||
+            ak_publish(txn, archived) || parent_path(c->root, parent) ||
             ak_sync_dir(parent))
             goto done;
         strcpy(r->record, archived);
@@ -337,17 +347,68 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         write_in(txn, "plan-sha", hex, 64) ||
         write_in(txn, "old-state", s->raw, s->view.source_record.size) ||
         write_in(txn, "new-state", p->root_record, strlen(p->root_record)) ||
-        fault(1))
+        ak_fault(1))
         goto prepare_fail;
+    {
+        int body = ak_member(&j, 0, "body"),
+            state_token = ak_member(&j, body, "new_state"),
+            installed =
+                ak_member(&j, ak_member(&j, state_token, "body"), "installed");
+        for (size_t row = (size_t)installed + 1; row < j.tokens[installed].next;
+             row = j.tokens[row].next) {
+            int desc = ak_member(&j, (int)row, "descriptor"),
+                files = ak_member(&j, ak_member(&j, desc, "body"), "files");
+            for (size_t file = (size_t)files + 1; file < j.tokens[files].next;
+                 file = j.tokens[file].next) {
+                apkg_status retained = ak_blob_inline(c, &j, (int)file);
+                if (retained) {
+                    code = retained;
+                    goto prepare_fail;
+                }
+            }
+        }
+    }
     for (i = (size_t)arr + 1; i < j.tokens[arr].next;
          i = j.tokens[i].next, index++) {
-        char staged[AK_PATH],
+        char staged[AK_PATH], origin[AK_PATH], name[256],
             *raw = ak_slice(&j, ak_member(&j, (int)i, "next"));
+        if (ak_string(&j, ak_member(&j, (int)i, "name"), name, sizeof name) ||
+            ak_path(origin, c->root, name)) {
+            free(raw);
+            goto prepare_fail;
+        }
         if (!raw || change_path(staged, txn, "new", index)) {
             free(raw);
             goto prepare_fail;
         }
-        if (strcmp(raw, "null") && (inventory_stage(staged, raw) ||
+        {
+            int before = ak_member(&j, (int)i, "before"),
+                files = ak_member(&j, before, "files");
+            if (files >= 0)
+                for (size_t file = (size_t)files + 1;
+                     file < j.tokens[files].next; file = j.tokens[file].next) {
+                    char rel[AK_PATH], source[AK_PATH], sha[65];
+                    uint64_t size;
+                    if (!ak_equal(&j, ak_member(&j, (int)file, "type"), "file"))
+                        continue;
+                    if (ak_string(&j, ak_member(&j, (int)file, "path"), rel,
+                                  sizeof rel) ||
+                        ak_path(source, origin, rel) ||
+                        ak_string(&j, ak_member(&j, (int)file, "sha256"), sha,
+                                  sizeof sha) ||
+                        ak_u64(&j, ak_member(&j, (int)file, "size"), &size)) {
+                        free(raw);
+                        goto prepare_fail;
+                    }
+                    apkg_status retained = ak_blob_retain(c, sha, size, source);
+                    if (retained) {
+                        free(raw);
+                        errno = retained == APKG_NOMEM ? ENOMEM : EIO;
+                        goto prepare_fail;
+                    }
+                }
+        }
+        if (strcmp(raw, "null") && (inventory_stage(c, staged, raw, origin) ||
                                     new_identity(txn, index, staged, 1))) {
             free(raw);
             goto prepare_fail;
@@ -359,7 +420,7 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         ak_sync_dir(parent))
         goto prepare_fail;
     ready = 1;
-    if (fault(2))
+    if (ak_fault(2))
         goto fail;
     if (emit(o, r, &seq, APKG_PHASE_STAGE, 1, c->root)) {
         code = APKG_CANCELLED;
@@ -380,16 +441,16 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         change_path(backup, txn, "old", index);
         change_path(staged, txn, "new", index);
         if (j.tokens[before].type != 'n' &&
-            (publish_dir(live, backup) || ak_sync_dir(c->root) ||
+            (ak_publish(live, backup) || ak_sync_dir(c->root) ||
              ak_sync_dir(txn)))
             goto fail;
-        if (fault(101))
+        if (ak_fault(101))
             goto fail;
         if (j.tokens[next].type != 'n' &&
-            (publish_dir(staged, live) || ak_sync_dir(c->root) ||
+            (ak_publish(staged, live) || ak_sync_dir(c->root) ||
              ak_sync_dir(txn)))
             goto fail;
-        if (fault(102) || fault(3))
+        if (ak_fault(102) || ak_fault(3))
             goto fail;
         if (emit(o, r, &seq, APKG_PHASE_APPLY, 1, name)) {
             code = APKG_CANCELLED;
@@ -404,8 +465,8 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
     if (marker(txn, "decision"))
         goto fail;
     emit(o, r, &seq, APKG_PHASE_COMMIT, 0, c->root);
-    if (changes_preflight(c, p, &j, arr, 1) || fault(4) ||
-        state_publish(state, txn, change_limit(c)) || fault(5))
+    if (changes_preflight(c, p, &j, arr, 1) || ak_fault(4) ||
+        state_publish(state, txn, change_limit(c)) || ak_fault(5))
         goto fail;
     code = recover_changes_locked(c, r, txn, &j);
     if (!code) {
@@ -414,7 +475,11 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
     }
     goto done;
 prepare_fail:
-    code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+    code = errno == ENOMEM    ? APKG_NOMEM
+           : errno == EILSEQ  ? APKG_INTEGRITY
+           : errno == ENOEXEC ? APKG_TARGET
+           : errno == ENOENT  ? APKG_NOT_FOUND
+                              : APKG_IO;
     if (ak_remove_tree(txn)) {
         code = APKG_RECOVERY_REQUIRED;
         result_set(r, code, APKG_NEEDS_RECOVERY);

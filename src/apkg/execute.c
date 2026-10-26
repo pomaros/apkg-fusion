@@ -26,7 +26,7 @@ void apkg_test_fault(int point, int action) {
     test_point = point;
     test_action = action;
 }
-static int fault(int point) {
+int ak_fault(int point) {
     if (point != test_point)
         return 0;
     if (test_action == 2)
@@ -35,7 +35,7 @@ static int fault(int point) {
     return test_action == 1;
 }
 #else
-static int fault(int point) {
+int ak_fault(int point) {
     (void)point;
     return 0;
 }
@@ -58,7 +58,7 @@ static int parent_path(const char *root, char *out) {
     }
     return -1;
 }
-static int publish_dir(const char *from, const char *to) {
+int ak_publish(const char *from, const char *to) {
 #ifdef __APPLE__
     return renamex_np(from, to, RENAME_EXCL);
 #elif defined(__linux__) && defined(SYS_renameat2)
@@ -120,12 +120,13 @@ static int paths(apkg_ctx *c, char *txn, char *state) {
     return n < 0 || n >= AK_PATH || ak_path(meta, c->root, ".apkg") ||
            ak_path(state, meta, "state");
 }
-static int write_in(const char *base, const char *name, const void *p, size_t n) {
+static int write_in(const char *base, const char *name, const void *p,
+                    size_t n) {
     char path[AK_PATH];
     return ak_path(path, base, name) || ak_write(path, p, n, 1);
 }
-static int read_in_limit(const char *base, const char *name, unsigned char **p, size_t *n,
-                         size_t max) {
+static int read_in_limit(const char *base, const char *name, unsigned char **p,
+                         size_t *n, size_t max) {
     char path[AK_PATH];
     return ak_path(path, base, name) || ak_read(path, p, n, max);
 }
@@ -156,7 +157,8 @@ static int mkdir_parents(const char *base, const char *rel) {
         }
     return 0;
 }
-static int stage_package(const char *tree, const ak_json *j) {
+static int stage_package(apkg_ctx *c, const char *tree, const ak_json *j,
+                         const char *fallback) {
     int body = ak_member(j, 0, "body");
     int arr = ak_member(j, body < 0 ? 0 : body, "files");
     size_t i;
@@ -177,6 +179,37 @@ static int stage_package(const char *tree, const ak_json *j) {
         if (ak_u64(j, ak_member(j, (int)i, "size"), &n) ||
             ak_u64(j, ak_member(j, (int)i, "mode"), &mode))
             return -1;
+        int blob = ak_member(j, (int)i, "blob");
+        if (blob >= 0) {
+            char sha[65], source[AK_PATH];
+            const char *origin = NULL;
+            if (ak_string(j, blob, sha, sizeof sha))
+                return -1;
+            if (fallback) {
+                if (ak_path(source, fallback, rel))
+                    return -1;
+                origin = source;
+            }
+            apkg_status code = ak_blob_copy(c, sha, n, origin, path);
+            if (code) {
+                errno = code == APKG_NOMEM       ? ENOMEM
+                        : code == APKG_NOT_FOUND ? ENOENT
+                        : code == APKG_INTEGRITY ? EILSEQ
+                        : code == APKG_TARGET    ? ENOEXEC
+                                                 : EIO;
+                return -1;
+            }
+            if (chmod(path, (mode_t)mode))
+                return -1;
+            int fd = open(path, O_RDONLY);
+            if (fd < 0)
+                return -1;
+            int flushed = fsync(fd);
+            int closed = close(fd);
+            if (flushed || closed)
+                return -1;
+            continue;
+        }
         data = ak_member(j, (int)i, "data");
         hex = ak_copy(j->text + j->tokens[data].start + 1, (size_t)n * 2);
         bytes = malloc((size_t)n + 1);
@@ -185,8 +218,8 @@ static int stage_package(const char *tree, const ak_json *j) {
             free(bytes);
             return -1;
         }
-        if (ak_hex(hex, bytes, (size_t)n) || ak_write(path, bytes, (size_t)n, 1) ||
-            chmod(path, (mode_t)mode)) {
+        if (ak_hex(hex, bytes, (size_t)n) ||
+            ak_write(path, bytes, (size_t)n, 1) || chmod(path, (mode_t)mode)) {
             free(hex);
             free(bytes);
             return -1;
@@ -214,8 +247,9 @@ static int known_path(const ak_json *j, const char *rel, int directory) {
         char path[AK_PATH];
         ak_string(j, ak_member(j, (int)i, "path"), path, sizeof path);
         if (!strcmp(path, rel))
-            return directory ? ak_equal(j, ak_member(j, (int)i, "type"), "directory")
-                             : ak_equal(j, ak_member(j, (int)i, "type"), "file");
+            return directory
+                       ? ak_equal(j, ak_member(j, (int)i, "type"), "directory")
+                       : ak_equal(j, ak_member(j, (int)i, "type"), "file");
         if (directory && !strncmp(path, rel, n) && path[n] == '/')
             return 1;
     }
@@ -252,8 +286,8 @@ static int walk_known(const char *base, const char *prefix, const ak_json *j) {
             }
             strcpy(rel, e->d_name);
         }
-        if (ak_path(full, base, rel) || lstat(full, &st) || S_ISLNK(st.st_mode) ||
-            !known_path(j, rel, S_ISDIR(st.st_mode)) ||
+        if (ak_path(full, base, rel) || lstat(full, &st) ||
+            S_ISLNK(st.st_mode) || !known_path(j, rel, S_ISDIR(st.st_mode)) ||
             (S_ISDIR(st.st_mode) && walk_known(base, rel, j))) {
             result = -1;
             break;
@@ -273,10 +307,9 @@ static int verify_tree(const char *tree, const ak_json *j) {
         return -1;
     for (i = (size_t)arr + 1; i < j->tokens[arr].next; i = j->tokens[i].next) {
         char rel[AK_PATH], path[AK_PATH], hex[65];
-        unsigned char *bytes = NULL;
-        size_t n = 0;
-        uint64_t mode;
-        apkg_digest digest;
+        uint64_t n = 0, mode;
+        unsigned char head[64];
+        size_t hn = 0;
         struct stat st;
         ak_string(j, ak_member(j, (int)i, "path"), rel, sizeof rel);
         if (ak_path(path, tree, rel) || lstat(path, &st))
@@ -286,17 +319,14 @@ static int verify_tree(const char *tree, const ak_json *j) {
                 return -1;
             continue;
         }
-        {
-            uint64_t expected_size;
-            if (ak_u64(j, ak_member(j, (int)i, "size"), &expected_size) || expected_size > AK_MAX ||
-                ak_read(path, &bytes, &n, (size_t)expected_size))
-                return -1;
-        }
-        ak_hash(bytes, n, &digest);
-        free(bytes);
-        ak_tohex(digest.bytes, 32, hex);
+        uint64_t expected_size;
+        if (ak_u64(j, ak_member(j, (int)i, "size"), &expected_size) ||
+            ak_stream_hash(path, &n, hex, head, &hn) != APKG_OK ||
+            n != expected_size)
+            return -1;
         if (!ak_equal(j, ak_member(j, (int)i, "sha256"), hex) ||
-            ak_u64(j, ak_member(j, (int)i, "mode"), &mode) || (st.st_mode & 0777) != (mode_t)mode)
+            ak_u64(j, ak_member(j, (int)i, "mode"), &mode) ||
+            (st.st_mode & 0777) != (mode_t)mode)
             return -1;
     }
     return 0;
@@ -309,12 +339,13 @@ static int tree_identity(const char *txn, const char *tree, int save) {
     int len, result;
     if (lstat(tree, &st) || !S_ISDIR(st.st_mode))
         return -1;
-    len = snprintf(text, sizeof text,
-                   "%"
-                   "llu"
-                   ":%"
-                   "llu",
-                   (unsigned long long)st.st_dev, (unsigned long long)st.st_ino);
+    len =
+        snprintf(text, sizeof text,
+                 "%"
+                 "llu"
+                 ":%"
+                 "llu",
+                 (unsigned long long)st.st_dev, (unsigned long long)st.st_ino);
     if (save)
         return write_in(txn, "tree-id", text, (size_t)len);
     if (read_in_limit(txn, "tree-id", &bytes, &n, 128))
@@ -391,7 +422,8 @@ static int state_publish(const char *state, const char *txn, size_t max) {
 #endif
     return ak_sync_dir(meta);
 }
-static int exact_file(const char *path, const unsigned char *expected, size_t n) {
+static int exact_file(const char *path, const unsigned char *expected,
+                      size_t n) {
     unsigned char *bytes = NULL;
     size_t len;
     int r;
@@ -405,13 +437,16 @@ static void result_set(apkg_result *r, apkg_status code, apkg_outcome outcome) {
     r->view.status = code;
     r->view.outcome = outcome;
 }
-static int emit(const apkg_observer *, apkg_result *, uint64_t *, apkg_phase, int, const char *);
+static int emit(const apkg_observer *, apkg_result *, uint64_t *, apkg_phase,
+                int, const char *);
 #include "changes.inc"
 /* Caller holds the parent lock. No parser accepts an arbitrary write path. */
 static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
     char txn[AK_PATH], state[AK_PATH], tree[AK_PATH], live[AK_PATH], name[256],
-        root_hex[AK_PATH * 2 + 1], expected_root[AK_PATH * 2 + 1], before[65], sha[65], actual[65];
-    unsigned char *raw = NULL, *newstate = NULL, *oldstate = NULL, *recorded_sha = NULL;
+        root_hex[AK_PATH * 2 + 1], expected_root[AK_PATH * 2 + 1], before[65],
+        sha[65], actual[65];
+    unsigned char *raw = NULL, *newstate = NULL, *oldstate = NULL,
+                  *recorded_sha = NULL;
     size_t n = 0, nn = 0, on = 0, sn = 0;
     ak_json plan = {0}, newjson = {0}, descriptor = {0};
     int body, init, decision;
@@ -442,7 +477,9 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
     }
     if (pkg_fs_path_is_link(txn) != 0 || has(txn, "ready") != 1 ||
         read_in_limit(txn, "plan", &raw, &n,
-                      c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32) ||
+                      c->object_max < c->memory_max / 32
+                          ? c->object_max
+                          : c->memory_max / 32) ||
         read_in_limit(txn, "plan-sha", &recorded_sha, &sn, 64) || sn != 64 ||
         ak_json_parse(raw, n, &plan) || !ak_object(&plan, "plan"))
         goto done;
@@ -456,8 +493,9 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         goto done;
     }
     {
-        static const char *const f[] = {"action",     "anchor_dev", "anchor_ino", "before",
-                                        "generation", "new_state",  "root_path",  "target_path"};
+        static const char *const f[] = {"action",    "anchor_dev", "anchor_ino",
+                                        "before",    "generation", "new_state",
+                                        "root_path", "target_path"};
         uint64_t dev, ino;
         struct stat st;
         char parent[AK_PATH];
@@ -465,16 +503,18 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             ak_u64(&plan, ak_member(&plan, body, "anchor_dev"), &dev) ||
             ak_u64(&plan, ak_member(&plan, body, "anchor_ino"), &ino))
             goto done;
-        if (stat(c->root, &st) || (uint64_t)st.st_dev != dev || (uint64_t)st.st_ino != ino) {
-            if (parent_path(c->root, parent) || stat(parent, &st) || (uint64_t)st.st_dev != dev ||
-                (uint64_t)st.st_ino != ino)
+        if (stat(c->root, &st) || (uint64_t)st.st_dev != dev ||
+            (uint64_t)st.st_ino != ino) {
+            if (parent_path(c->root, parent) || stat(parent, &st) ||
+                (uint64_t)st.st_dev != dev || (uint64_t)st.st_ino != ino)
                 goto done;
         }
     }
     {
         unsigned char *id = NULL;
         size_t id_size;
-        if (read_in_limit(txn, "archive-id", &id, &id_size, 32) || id_size != 32 ||
+        if (read_in_limit(txn, "archive-id", &id, &id_size, 32) ||
+            id_size != 32 ||
             ak_hex((char *)id, result->view.operation_id.bytes, 16)) {
             free(id);
             goto done;
@@ -482,17 +522,22 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         free(id);
     }
     ak_tohex((unsigned char *)c->root, strlen(c->root), expected_root);
-    if (ak_string(&plan, ak_member(&plan, body, "root_path"), root_hex, sizeof root_hex) ||
+    if (ak_string(&plan, ak_member(&plan, body, "root_path"), root_hex,
+                  sizeof root_hex) ||
         strcmp(root_hex, expected_root) ||
-        ak_string(&plan, ak_member(&plan, body, "target_path"), name, sizeof name) ||
-        ak_string(&plan, ak_member(&plan, body, "before"), before, sizeof before))
+        ak_string(&plan, ak_member(&plan, body, "target_path"), name,
+                  sizeof name) ||
+        ak_string(&plan, ak_member(&plan, body, "before"), before,
+                  sizeof before))
         goto done;
     init = ak_equal(&plan, ak_member(&plan, body, "action"), "initialize");
     if (!init && !ak_equal(&plan, ak_member(&plan, body, "action"), "install"))
         goto done;
     if ((init && *name) || (!init && !ak_valid_name(name)) ||
         read_in_limit(txn, "new-state", &newstate, &nn,
-                      c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32) ||
+                      c->object_max < c->memory_max / 32
+                          ? c->object_max
+                          : c->memory_max / 32) ||
         ak_json_parse(newstate, nn, &newjson) || !ak_object(&newjson, "root"))
         goto done;
     {
@@ -506,7 +551,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         goto done;
     if (ak_path(tree, txn, "tree"))
         goto done;
-    if (fault(6))
+    if (ak_fault(6))
         goto done;
     if (!ak_physical(c->anchor, &c->binding))
         goto done;
@@ -516,28 +561,33 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             goto done;
         if (!decision) {
             if (ak_exists(meta) != 0)
-                goto done; /* nothing managed was published before init decision */
-        } else if (exact_file(state, newstate, nn) == 0) { /* already committed */
+                goto done; /* nothing managed was published before init decision
+                            */
+        } else if (exact_file(state, newstate, nn) ==
+                   0) { /* already committed */
         } else if (ak_exists(c->root) == 0) {
-            if (tree_identity(txn, tree, 0) || publish_dir(tree, c->root))
+            if (tree_identity(txn, tree, 0) || ak_publish(tree, c->root))
                 goto done;
         } else {
             char staged_meta[AK_PATH];
             if (ak_exists(meta) != 0 || ak_path(staged_meta, tree, ".apkg") ||
-                tree_identity(txn, tree, 0) || publish_dir(staged_meta, meta))
+                tree_identity(txn, tree, 0) || ak_publish(staged_meta, meta))
                 goto done;
         }
     } else {
         int installed, files;
         size_t i, last = 0;
         if (read_in_limit(txn, "old-state", &oldstate, &on,
-                          c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32))
+                          c->object_max < c->memory_max / 32
+                              ? c->object_max
+                              : c->memory_max / 32))
             goto done;
         ak_hash(oldstate, on, &hash);
         ak_tohex(hash.bytes, 32, actual);
         if (strcmp(actual, before))
             goto done;
-        installed = ak_member(&newjson, ak_member(&newjson, 0, "body"), "installed");
+        installed =
+            ak_member(&newjson, ak_member(&newjson, 0, "body"), "installed");
         if (installed < 0 || newjson.tokens[installed].type != '[')
             goto done;
         for (i = (size_t)installed + 1; i < newjson.tokens[installed].next;
@@ -548,11 +598,15 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         files = ak_member(&newjson, (int)last, "descriptor");
         if (files < 0 ||
             ak_json_parse(newjson.text + newjson.tokens[files].start,
-                          newjson.tokens[files].end - newjson.tokens[files].start, &descriptor) ||
+                          newjson.tokens[files].end -
+                              newjson.tokens[files].start,
+                          &descriptor) ||
             !ak_descriptor(&descriptor))
             goto done;
         if (!ak_equal(&descriptor,
-                      ak_member(&descriptor, ak_member(&descriptor, 0, "body"), "name"), name) ||
+                      ak_member(&descriptor, ak_member(&descriptor, 0, "body"),
+                                "name"),
+                      name) ||
             ak_path(live, c->root, name))
             goto done;
         if (!decision) {
@@ -560,9 +614,11 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
                 goto done;
             if (ak_exists(live) == 1) {
                 char held[AK_PATH];
-                if (ak_path(held, txn, "restored-payload") || tree_identity(txn, live, 0) ||
-                    verify_tree(live, &descriptor) || publish_dir(live, held) ||
-                    verify_tree(held, &descriptor) || ak_sync_dir(c->root) || ak_sync_dir(txn))
+                if (ak_path(held, txn, "restored-payload") ||
+                    tree_identity(txn, live, 0) ||
+                    verify_tree(live, &descriptor) || ak_publish(live, held) ||
+                    verify_tree(held, &descriptor) || ak_sync_dir(c->root) ||
+                    ak_sync_dir(txn))
                     goto done;
             }
         } else {
@@ -571,8 +627,9 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             if (exact_file(state, newstate, nn)) {
                 if (exact_file(state, oldstate, on) ||
                     state_publish(state, txn,
-                                  c->object_max < c->memory_max / 32 ? c->object_max
-                                                                     : c->memory_max / 32))
+                                  c->object_max < c->memory_max / 32
+                                      ? c->object_max
+                                      : c->memory_max / 32))
                     goto done;
             }
         }
@@ -581,7 +638,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         if (ak_sync_dir(c->root))
             goto done;
     }
-    if (fault(7))
+    if (ak_fault(7))
         goto done;
     if (init && decision && ak_resolve(c->root, c->anchor, &c->binding))
         goto done;
@@ -595,13 +652,14 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             free(id);
             goto done;
         }
-        if (snprintf(archived, sizeof archived, "%s.apkg-history.%s", c->root, id) >=
-            (int)sizeof archived) {
+        if (snprintf(archived, sizeof archived, "%s.apkg-history.%s", c->root,
+                     id) >= (int)sizeof archived) {
             free(id);
             goto done;
         }
         free(id);
-        if (publish_dir(txn, archived) || parent_path(c->root, parent) || ak_sync_dir(parent))
+        if (ak_publish(txn, archived) || parent_path(c->root, parent) ||
+            ak_sync_dir(parent))
             goto done;
         strcpy(result->record, archived);
         result->view.record.size = strlen(archived);
@@ -620,9 +678,12 @@ done:
         result_set(result, r, APKG_NEEDS_RECOVERY);
     return r;
 }
-const apkg_result_view *apkg_result_get(const apkg_result *r) { return &r->view; }
+const apkg_result_view *apkg_result_get(const apkg_result *r) {
+    return &r->view;
+}
 void apkg_result_free(apkg_result *r) { free(r); }
-apkg_status apkg_recover(apkg_ctx *c, const apkg_observer *o, apkg_result **out, apkg_error **e) {
+apkg_status apkg_recover(apkg_ctx *c, const apkg_observer *o, apkg_result **out,
+                         apkg_error **e) {
     mutation_lock lock;
     apkg_result *r;
     apkg_status code;
@@ -655,8 +716,8 @@ apkg_status apkg_recover(apkg_ctx *c, const apkg_observer *o, apkg_result **out,
     lock_drop(&lock);
     return code;
 }
-static int emit(const apkg_observer *o, apkg_result *r, uint64_t *seq, apkg_phase phase,
-                int cancellable, const char *subject) {
+static int emit(const apkg_observer *o, apkg_result *r, uint64_t *seq,
+                apkg_phase phase, int cancellable, const char *subject) {
     apkg_event ev = {0};
     ev.operation_id = r->view.operation_id;
     ev.sequence = ++*seq;
@@ -676,14 +737,15 @@ static int emit(const apkg_observer *o, apkg_result *r, uint64_t *seq, apkg_phas
         r->view.cancellation_requested = 1;
     return cancellable && r->view.cancellation_requested;
 }
-static int preconditions(apkg_ctx *c, const apkg_plan *p, const apkg_snapshot *s, const char *state,
+static int preconditions(apkg_ctx *c, const apkg_plan *p,
+                         const apkg_snapshot *s, const char *state,
                          int before_payload) {
     char path[AK_PATH];
     errno = 0;
     if (!ak_physical(p->anchor, &p->binding))
         return 0;
-    if (ak_path(path, c->root, "db") || ak_exists(path) != 0 || ak_path(path, c->root, ".pkg") ||
-        ak_exists(path) != 0)
+    if (ak_path(path, c->root, "db") || ak_exists(path) != 0 ||
+        ak_path(path, c->root, ".pkg") || ak_exists(path) != 0)
         return 0;
     if (p->absent) {
         if (strcmp(p->anchor, c->root) && ak_exists(c->root) != 0)
@@ -695,15 +757,18 @@ static int preconditions(apkg_ctx *c, const apkg_plan *p, const apkg_snapshot *s
         if (ak_path(path, c->root, ".pkg") || ak_exists(path) != 0)
             return 0;
     } else {
-        if (exact_file(state, (const unsigned char *)s->raw, s->view.source_record.size))
+        if (exact_file(state, (const unsigned char *)s->raw,
+                       s->view.source_record.size))
             return 0;
-        if (before_payload && (ak_path(path, c->root, p->name) || ak_exists(path) != 0))
+        if (before_payload &&
+            (ak_path(path, c->root, p->name) || ak_exists(path) != 0))
             return 0;
     }
     return 1;
 }
-apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, const apkg_observer *o,
-                         apkg_result **out, apkg_error **e) {
+apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
+                         const apkg_observer *o, apkg_result **out,
+                         apkg_error **e) {
     apkg_result *r;
     apkg_snapshot *s = NULL;
     mutation_lock lock;
@@ -734,7 +799,8 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, cons
     }
     if (memcmp(c->session, a->session, 16) ||
         memcmp(a->digest.bytes, p->view.plan_digest.bytes, 32) ||
-        memcmp(c->session, p->session, 16) || !ak_physical(p->anchor, &p->binding)) {
+        memcmp(c->session, p->session, 16) ||
+        !ak_physical(p->anchor, &p->binding)) {
         result_set(r, APKG_STALE, APKG_UNCHANGED);
         return APKG_STALE;
     }
@@ -758,8 +824,9 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, cons
         goto done;
     }
     if ((p->absent && s->view.state != APKG_ROOT_ABSENT) ||
-        (!p->absent && (s->view.state != APKG_ROOT_READY ||
-                        memcmp(s->view.snapshot_digest.bytes, p->before.bytes, 32)))) {
+        (!p->absent &&
+         (s->view.state != APKG_ROOT_READY ||
+          memcmp(s->view.snapshot_digest.bytes, p->before.bytes, 32)))) {
         code = APKG_STALE;
         goto done;
     }
@@ -793,12 +860,13 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, cons
         if (write_in(txn, "archive-id", archive_id, 32))
             goto prepare_fail;
     }
-    if (fault(1) || write_in(txn, "plan", p->raw, p->view.canonical.size))
+    if (ak_fault(1) || write_in(txn, "plan", p->raw, p->view.canonical.size))
         goto prepare_fail;
     ak_tohex(p->view.plan_digest.bytes, 32, hex);
     if (write_in(txn, "plan-sha", hex, 64) ||
         write_in(txn, "new-state", p->root_record, strlen(p->root_record)) ||
-        (!p->absent && write_in(txn, "old-state", s->raw, s->view.source_record.size)) ||
+        (!p->absent &&
+         write_in(txn, "old-state", s->raw, s->view.source_record.size)) ||
         ak_path(tree, txn, "tree") || mkdir(tree, 0700))
         goto prepare_fail;
     if (p->absent) {
@@ -808,14 +876,14 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, cons
             goto prepare_fail;
     } else {
         if (ak_json_parse(p->package, p->package_size, &descriptor) ||
-            stage_package(tree, &descriptor))
+            stage_package(c, tree, &descriptor, NULL))
             goto prepare_fail;
     }
-    if (sync_tree(tree) || tree_identity(txn, tree, 1) || marker(txn, "ready") ||
-        ak_sync_dir(lock.parent))
+    if (sync_tree(tree) || tree_identity(txn, tree, 1) ||
+        marker(txn, "ready") || ak_sync_dir(lock.parent))
         goto prepare_fail;
     ready = 1;
-    if (fault(2))
+    if (ak_fault(2))
         goto fail;
     if (emit(o, r, &seq, APKG_PHASE_STAGE, 1, p->name)) {
         code = APKG_CANCELLED;
@@ -826,9 +894,10 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, cons
         goto fail;
     }
     if (!p->absent) {
-        if (ak_path(path, c->root, p->name) || publish_dir(tree, path) || ak_sync_dir(c->root))
+        if (ak_path(path, c->root, p->name) || ak_publish(tree, path) ||
+            ak_sync_dir(c->root))
             goto fail;
-        if (fault(3))
+        if (ak_fault(3))
             goto fail;
         if (emit(o, r, &seq, APKG_PHASE_APPLY, 1, p->name)) {
             code = APKG_CANCELLED;
@@ -843,25 +912,26 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, cons
     if (marker(txn, "decision"))
         goto fail;
     emit(o, r, &seq, APKG_PHASE_COMMIT, 0, p->name);
-    if (fault(4))
+    if (ak_fault(4))
         goto fail;
     if (!preconditions(c, p, s, state, 0))
         goto fail;
     if (p->absent) {
         if (ak_exists(c->root) == 0) {
-            if (publish_dir(tree, c->root))
+            if (ak_publish(tree, c->root))
                 goto fail;
         } else {
             char meta[AK_PATH], staged[AK_PATH];
-            if (ak_path(meta, c->root, ".apkg") || ak_path(staged, tree, ".apkg") ||
-                publish_dir(staged, meta))
+            if (ak_path(meta, c->root, ".apkg") ||
+                ak_path(staged, tree, ".apkg") || ak_publish(staged, meta))
                 goto fail;
         }
     } else if (state_publish(state, txn,
-                             c->object_max < c->memory_max / 32 ? c->object_max
-                                                                : c->memory_max / 32))
+                             c->object_max < c->memory_max / 32
+                                 ? c->object_max
+                                 : c->memory_max / 32))
         goto fail;
-    if (ak_sync_dir(c->root) || fault(5))
+    if (ak_sync_dir(c->root) || ak_fault(5))
         goto fail;
     if (p->absent) {
         if (ak_resolve(c->root, c->anchor, &c->binding))
@@ -880,7 +950,11 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a, cons
     code = APKG_OK;
     goto done;
 prepare_fail: /* No managed publication has occurred. */
-    code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+    code = errno == ENOMEM    ? APKG_NOMEM
+           : errno == EILSEQ  ? APKG_INTEGRITY
+           : errno == ENOEXEC ? APKG_TARGET
+           : errno == ENOENT  ? APKG_NOT_FOUND
+                              : APKG_IO;
     if (ak_remove_tree(txn) || ak_sync_dir(lock.parent)) {
         result_set(r, APKG_IO, APKG_NEEDS_RECOVERY);
     } else

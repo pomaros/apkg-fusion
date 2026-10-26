@@ -229,17 +229,35 @@ int ak_descriptor(const ak_json *j) {
                 return 0;
             continue;
         }
-        if ((!ak_fields(j, (int)i, filef, 6) &&
-             !(ak_member(j, (int)i, "config") >= 0 &&
-               ak_equal(j, ak_member(j, (int)i, "config"), "preserve") &&
-               ak_fields(j, (int)i,
-                         (const char *const[]){"config", "data", "mode", "path",
-                                               "sha256", "size", "type"},
-                         7))) ||
+        int blob = ak_member(j, (int)i, "blob") >= 0,
+            config = ak_member(j, (int)i, "config") >= 0;
+        const char *const blobf[] = {"blob",   "mode", "path",
+                                     "sha256", "size", "type"};
+        const char *const blobconfig[] = {"blob",   "config", "mode", "path",
+                                          "sha256", "size",   "type"};
+        const char *const inlineconfig[] = {"config", "data", "mode", "path",
+                                            "sha256", "size", "type"};
+        if (!ak_fields(j, (int)i,
+                       blob ? (config ? blobconfig : blobf)
+                            : (config ? inlineconfig : filef),
+                       config ? 7 : 6) ||
+            (config &&
+             !ak_equal(j, ak_member(j, (int)i, "config"), "preserve")) ||
             !ak_equal(j, ak_member(j, (int)i, "type"), "file") ||
-            ak_u64(j, ak_member(j, (int)i, "size"), &v) || v > AK_MAX ||
+            ak_u64(j, ak_member(j, (int)i, "size"), &v) ||
             ak_u64(j, ak_member(j, (int)i, "mode"), &mode) ||
             (mode != 420 && mode != 493))
+            return 0;
+        if (blob) {
+            char sha[65];
+            unsigned char hashbytes[32];
+            if (ak_string(j, ak_member(j, (int)i, "sha256"), sha, sizeof sha) ||
+                ak_hex(sha, hashbytes, 32) ||
+                !ak_equal(j, ak_member(j, (int)i, "blob"), sha))
+                return 0;
+            continue;
+        }
+        if (v > AK_MAX)
             return 0;
         data = ak_member(j, (int)i, "data");
         if (data < 0 || j->tokens[data].type != '"')
