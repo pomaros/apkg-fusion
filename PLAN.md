@@ -164,10 +164,10 @@ release verdict.
 
 1. BASE is qualified and MAP's source mapping/fixture inventory is recorded in
    [status](docs/fusion/status.md) and [migration](docs/fusion/migration.md).
-2. CONTRACT data-model decisions are in [data-model](docs/fusion/data-model.md).
-   Next complete the public context API, bounds/lifetimes and serialization
-   framing, with executable consumer examples. Obtain real distribution
-   captures before migration qualification.
+2. CONTRACT design is recorded in [data-model](docs/fusion/data-model.md),
+   [API](docs/fusion/api.md) and [serialization](docs/fusion/serialization.md),
+   with host consumer examples. Next implement CONTEXT read-only inspection.
+   Obtain real distribution captures before migration qualification.
 3. Implement CONTEXT, then signed reading and the first immutable install plan.
    Journal specification and failure cases precede the mutating executor.
 
@@ -186,7 +186,7 @@ Complexity is relative engineering scope, not a token or time estimate.
 | CONTRACT | MAP | `docs/fusion/data-model.md` and a public context API draft. Detail the selected arospkg skeleton and the module boundaries for pkg services. | Decide database identity, version/revision, target, payload fidelity and trust; define context/query/plan/result lifetimes. Review once with high reasoning. No broad source rewrite. | Large; split data model and API into separate tasks |
 | CONTEXT | CONTRACT | Common context creation/closing and read-only root inspection; one module and its tests. | Two roots remain independent; absent-root reads create nothing; pending recovery is reported. No mutating operation and no GUI changes. | Medium |
 | SIGNED-READ | CONTEXT | Connect existing signing, channel and manifest readers to the context API. | Read a signed package with explicit target; reject tampering, wrong key and wrong target. Preserve existing cryptographic implementations. No installation. | Medium |
-| PLAN-INSTALL | SIGNED-READ | Engine-owned install plan, typed inspection and preconditions. | Plan identifies exact bytes, signer, root, target, writes and permissions. Changes invalidate it. Tests use one package without dependencies. No filesystem mutation. | Medium |
+| PLAN-INSTALL | SIGNED-READ | Engine-owned initialization/install plans, typed inspection and preconditions. | Plan identifies exact bytes, signer, root, target, writes and permissions. Changes invalidate it. Cover explicit first-root initialization with seed trust policy and one package without dependencies. No filesystem mutation. | Medium |
 | JOURNAL | PLAN-INSTALL | Journal/recovery protocol specification and fault-injection cases. | Specify every durable boundary, root locking, commit decision, interrupted recovery, offline retained data and self-update recovery in the common journal. High-reasoning review before implementation. No claim that the inherited journal already satisfies this. | Medium |
 | INSTALL | JOURNAL | One signed-package plan executor and journal recovery. | Install, write failure, cancellation and process termination produce stated outcomes; retry is idempotent; stale plan writes nothing. Keep OS power-loss qualification separate. No dependency solver, upgrades or UI redesign. | Large; split normal execution and injected recovery |
 | GUI-INSTALL | INSTALL | One PkgManager worker path for preview/confirm/install, preserving DOS Process ownership. | UI shows and executes the same plan; progress/cancel/results match CLI and disk state. Retain the existing UI. No general rework of browsing or settings. | Medium |
@@ -234,7 +234,8 @@ common contract, but parallel agents are not the default execution policy.
 
 Suggested task prompt:
 
-> Execute the CONTRACT API task from PLAN.md using one agent. Read data-model.md
-> and the recorded MAP findings. Define the public context API, bounds and
-> lifetimes, serialization/signature framing and executable consumer examples.
-> Validate the draft, update status, then stop before CONTEXT implementation.
+> Execute CONTEXT from PLAN.md using one agent. Implement open/close and
+> read-only root snapshots against the API/data-model contract. Test independent
+> roots, absent-root reads, consistent snapshots and pending recovery reporting.
+> Keep mutation/planning/signature services out of scope; report unsupported
+> features explicitly. Update status and stop before SIGNED-READ.

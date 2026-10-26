@@ -27,8 +27,11 @@ build/apkg: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(
 	@mkdir -p build
 	$(CC) $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST)
 
-.PHONY: test-fusion
-test-fusion: build/apkg build/pkg build/test_target build/test_application build/test_first_install
+.PHONY: test-fusion test-contract
+test-contract:
+	python3 tests/contracts/check.py
+
+test-fusion: test-contract build/apkg build/pkg build/test_target build/test_application build/test_first_install
 	python3 tests/test_http_fixture.py
 	./build/test_target
 	./build/test_application

@@ -57,7 +57,7 @@ synthetic edited-file/self-update hashes checked; documentation link check
 covered 58 files with zero broken links. No runtime suite was rerun for these
 documentation/fixture-only changes.
 
-## CONTRACT data model completed; API pending
+## CONTRACT data model
 
 The [data-model decision](data-model.md) defines the logical common database,
 root/generation/snapshot identities, authority and build identity, versions and
@@ -81,10 +81,37 @@ was not tested. Documentation links: 59 files, zero broken links. No full
 engine/portal/runtime suite was needed or rerun for documentation and inert
 fixtures; BASE remains the previously recorded implementation evidence.
 
-Next task is CONTRACT API: types, bounds, ownership/lifetimes, consistent
-queries, events/cancellation/results, serialization/signature framing and
-executable consumer examples. CONTRACT as a whole remains incomplete until
-that task is reviewed. CONTEXT implementation follows afterward.
+## CONTRACT API and framing design completed
+
+The [API contract](api.md), [draft C99 header](api/apkg.h) and
+[serialization/signature framing](serialization.md) define explicit read/write
+contexts, consistent independent snapshots, owning objects and borrowed views,
+64-bit progress, event-copy ownership, cancellation boundaries, immutable-plan
+approval and authoritative recovery outcomes. Explicit initialization includes
+seed trust grants and an absent-root precondition; open/read never initializes.
+Object-family schemas remain implementation-batch gates before those operations
+can run. This completes the initial CONTRACT design, not the common engine.
+
+`make test-contract` runs an executable inspection/UI event example against a
+labelled in-memory test double, compiles initialization/install client flows,
+checks 54 inherited version/target assertions and checks golden canonical
+bytes/signature transcripts plus 19 malformed-input/integer rejection cases.
+The same checks pass with AddressSanitizer and UBSan. Documentation link check:
+61 files, zero broken links. No production API implementation, actual signature
+verification, AROS worker execution or filesystem behavior is established by
+these examples. The fake is outside all production source/install lists.
+
+Focused design review resolved explicit first-root initialization/trust,
+unknown snapshot identity, post-commit cancellation, approval lifetime/reuse,
+callback ownership and allocation failure after mutation. No independent
+maintainer approval or full engine/platform CI result is claimed for this task.
+The contract check is included in `test-fusion` for subsequent CI runs.
+
+Next batch: CONTEXT. Implement only explicit context open/close and read-only
+root snapshots, with independent roots, absent-root no-write behavior, snapshot
+consistency and pending-recovery reporting. Legacy/unsupported state remains
+inspectable; planning, initialization, recovery and signatures follow in their
+own batches. The provisional production backend is still unchanged.
 
 ## Implemented integration pieces
 

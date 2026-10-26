@@ -28,7 +28,9 @@ or missing distribution information. Review and alignment are tracked in the
 [maintainer handoff](maintainer-agreement.md); resulting changes remain possible.
 
 The [common data model](data-model.md) defines logical identities, preservation
-rules and plan inputs. Its implementation and API status are tracked separately
+rules and plan inputs. The [API contract](api.md) and
+[serialization framing](serialization.md) define the first implementation
+tranche. Their implementation status is tracked separately
 from the imported source layout.
 
 ## One engine, explicit contexts

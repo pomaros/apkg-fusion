@@ -6,8 +6,9 @@
 Status: CONTRACT data-model decision, revision 1. This is the logical contract
 for implementation, not an implemented database or published wire format.
 It refines [architecture](architecture.md) using [MAP](migration.md).
-The public C API, ownership/lifetimes and event interfaces are the next
-CONTRACT task. Journal ordering and durable writes belong to JOURNAL.
+The [public API draft](api.md) specifies ownership/lifetimes and event
+interfaces; [serialization](serialization.md) specifies object/signature
+framing. Journal ordering and durable writes belong to JOURNAL.
 
 ## Decisions and module ownership
 
@@ -352,8 +353,9 @@ rollback retention and self-update participants. The resulting constraints are
 normative for the API draft. Review evidence and measured checks are recorded
 in [status](status.md); this is not independent maintainer approval.
 
-Remaining CONTRACT work: public API types, bounds, object lifetimes, snapshot
-consistency, cancellation/events, typed errors, serialization/signature framing
-and executable client examples. No engine implementation should assume these
-are already defined. Real-distribution and filesystem evidence remains in the
+The API and serialization drafts complete the initial CONTRACT design scope.
+Object-family schemas and required-feature gates must be frozen and tested in
+their owning implementation batches before they can authorize operations.
+CONTEXT starts with read-only root inspection; no mutation engine exists yet.
+Real-distribution and filesystem evidence remains in the
 [follow-up register](status.md#follow-up-verification-register).

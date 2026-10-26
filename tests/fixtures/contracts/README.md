@@ -24,3 +24,10 @@ Validation uses the existing `components/arospkg/src/libpkg/upgrade.c` and
 `src/pkg_target.c` in a temporary host harness. It checks inherited decisions
 and target syntax/matching, not future database serialization, the common opaque
 comparison implementation, signatures, migration, or runtime compatibility.
+
+`wire-vectors.json` fixes canonical bytes and the domain-separated signature
+transcript for a framing-only synthetic object. It contains public-key bytes
+but no private key or valid signature. Run `make test-contract` (or
+`python3 tests/contracts/check.py --sanitize`) to reproduce the corpus checks,
+framing rejection cases, executable consumer/test-double and compile-only plan
+client checks. No fake is linked into the production library.
