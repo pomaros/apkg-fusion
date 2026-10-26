@@ -113,6 +113,29 @@ consistency and pending-recovery reporting. Legacy/unsupported state remains
 inspectable; planning, initialization, recovery and signatures follow in their
 own batches. The provisional production backend is still unchanged.
 
+## CONTEXT: read-only skeleton correction, in progress
+
+The imported arospkg `pkg_open(..., PKG_OPEN_READ, ...)` now returns before
+creating the root, database, cache or temporary directories. Write/doctor modes
+still perform their existing setup. The focused host test compiles the actual
+imported `core.c` against a test-only DOS adapter and checks an absent root,
+two independent contexts, a pending transaction, an unreadable known transaction
+directory and absence of write/recovery calls. The pre-change core fails this test; the corrected core passes normally
+and under ASan/UBSan. `make test-fusion` passes, including the new test.
+The imported host suite also reported `ALL HOST TESTS PASS`; it does not
+exercise the AROS DOS adapter or establish native runtime compatibility.
+
+Evaluation: CONTEXT is **not complete**. This corrects the inherited skeleton;
+it does not implement the draft `apkg_` context API, persistent common-root
+schema, consistent immutable snapshots or typed reporting of inaccessible roots.
+The legacy path now refuses a failed listing when the directory is known to
+exist. Its `u_exists` cannot distinguish every inaccessible path from absence,
+and its directory reader can return a partial list on allocation or iteration
+failure. The common adapter must distinguish these cases and fail closed. Native AROS execution and DOS handler behavior are not tested here.
+SIGNED-READ and subsequent batches have not been started. In particular, the
+existing PkgManager worker replans with its inherited signature checks, not the
+approved common immutable plan; it is not evidence for GUI-INSTALL.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

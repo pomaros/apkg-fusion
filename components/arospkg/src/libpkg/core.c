@@ -275,9 +275,6 @@ pkg_status pkg_open(const char *root, pkg_mode mode, pkg_ctx **out, pkg_err *e)
     snprintf(c->tmp,       sizeof c->tmp,       "%s/tmp", root);
     snprintf(c->lock_owner,sizeof c->lock_owner,"%s/db/lock.owner", root);
 
-    u_mkpath(c->root); u_mkdir(c->db); u_mkdir(c->installed);
-    u_mkdir(c->txns);  u_mkdir(c->doctor); u_mkdir(c->cache); u_mkdir(c->tmp);
-
     if (mode == PKG_OPEN_READ) {
         /* Read-only never recovers and never locks, but it must not present a
          * half-finished transaction as a settled state. Count them so the
@@ -292,10 +289,19 @@ pkg_status pkg_open(const char *root, pkg_mode mode, pkg_ctx **out, pkg_err *e)
                 if (!u_exists(m)) c->pending++;
             }
             u_freelist(names, n);
+        } else if (u_exists(c->txns)) {
+            /* A known transaction directory we cannot list is not empty. */
+            pkg_status err = pkg_fail(e, PKG_E_IO, "cannot inspect pending transactions", "", c->txns);
+            free(c);
+            return err;
         }
         *out = c;
         return PKG_OK;
     }
+
+    /* A read-only open above must not create the root or any database paths. */
+    u_mkpath(c->root); u_mkdir(c->db); u_mkdir(c->installed);
+    u_mkdir(c->txns);  u_mkdir(c->doctor); u_mkdir(c->cache); u_mkdir(c->tmp);
 
     st = lock_take(c, e);
     if (st != PKG_OK) { free(c); return st; }

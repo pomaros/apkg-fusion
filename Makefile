@@ -31,13 +31,22 @@ build/apkg: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(
 test-contract:
 	python3 tests/contracts/check.py
 
-test-fusion: test-contract build/apkg build/pkg build/test_target build/test_application build/test_first_install
+test-fusion: test-contract build/apkg build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
 	python3 tests/test_http_fixture.py
 	./build/test_target
 	./build/test_application
 	./build/test_first_install ./build/pkg
+	./build/test_arospkg_read
 	python3 tests/fusion-cli.py
 	python3 tests/fusion-publish.py
+
+# Compile the imported AROS core with a host-only DOS adapter; no test double
+# is linked into either product. This checks the real pkg_open implementation.
+AROSPKG_READ_TEST_SOURCES = tests/test_arospkg_read.c components/arospkg/src/libpkg/core.c components/arospkg/src/libpkg/json.c components/arospkg/src/libpkg/err.c components/arospkg/src/libpkg/sha256.c
+AROSPKG_READ_TEST_HEADERS = $(wildcard components/arospkg/src/libpkg/*.h tests/context_stubs/proto/*.h tests/context_stubs/exec/*.h tests/context_stubs/dos/*.h)
+build/test_arospkg_read: $(AROSPKG_READ_TEST_SOURCES) $(AROSPKG_READ_TEST_HEADERS)
+	@mkdir -p build
+	$(CC) -D_DARWIN_C_SOURCE -std=c99 -Wall -Wextra -Itests/context_stubs -Icomponents/arospkg/src/libpkg -o $@ $(AROSPKG_READ_TEST_SOURCES)
 
 build/test_first_install: tests/test_first_install.c $(LIB) $(CORE) $(HOST) $(HDR)
 	@mkdir -p build
