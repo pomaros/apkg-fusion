@@ -324,9 +324,11 @@ Local macOS evaluation:
   boundaries with repeat recovery and offline rollback.
 - 400 metadata-planner and 350 metadata-executor allocation-injection positions
   preserve data or produce explicit recoverable outcomes, in addition to the
-  existing injection suites.
-- ASan/UBSan lifetime and six existing client groups pass. The added actual
-  CLI/worker metadata scenario also passes with both sanitized executables.
+  existing injection suites. Executor injection also includes a nonempty
+  read-only directory. Private abandoned staging can be made writable for
+  disposal; live directories and retained history keep their declared modes.
+- ASan/UBSan lifetime and all seven client groups, including actual CLI/worker
+  metadata equivalence, pass with both sanitized executables.
 - Documentation links: 65 files, zero broken links.
 
 This is a partial ALPHA-PAYLOAD checkpoint, not gate completion. Tests still

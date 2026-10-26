@@ -186,6 +186,11 @@ int ak_remove_tree(const char *p) {
         return errno == ENOENT ? 0 : -1;
     if (!S_ISDIR(st.st_mode))
         return unlink(p);
+    /* This helper only discards private transaction staging, never live trees
+     * or retained history. A declared read-only drawer must not strand an
+     * incomplete preparation after a later allocation or I/O failure. */
+    if ((st.st_mode & 0700) != 0700 && chmod(p, (st.st_mode & 0777) | 0700))
+        return -1;
     d = opendir(p);
     if (!d)
         return -1;

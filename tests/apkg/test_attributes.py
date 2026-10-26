@@ -100,13 +100,13 @@ class Attributes(unittest.TestCase):
  def test_metadata_executor_allocation_failures_preserve_or_recover(self):
   for nth in range(1,351):
    with self.subTest(nth=nth),tempfile.TemporaryDirectory() as d:
-    root=Path(d)/'root';c=init(root);install(c,desc([entry()]));file=root/'demo/program';setattrs(file,attrs(comment='personal'));file.write_text('damage');code,p=op(c,'repair');self.assertEqual(code,0);code,a=approve(c,p);self.assertEqual(code,0);pid=os.fork()
+    root=Path(d)/'root';c=init(root);install(c,desc([entry(),dict(path='readonly',type='directory',mode='320'),payload('readonly/file','retained')]));file=root/'demo/program';setattrs(file,attrs(comment='personal'));file.write_text('damage');code,p=op(c,'repair');self.assertEqual(code,0);code,a=approve(c,p);self.assertEqual(code,0);pid=os.fork()
     if pid==0:
      exitcode=120
      try:
       lib.apkg_test_fail_alloc(nth);code,outcome=execute(c,p,a);lib.apkg_test_fail_alloc(0);exitcode=0 if code in (0,4,9) else 100+code
      finally:os._exit(exitcode)
-    _,status=os.waitpid(pid,0);self.assertEqual(os.waitstatus_to_exitcode(status),0);self.assertEqual(recover(c)[0],0);self.assertEqual(recover(c),(0,0));self.assertIn(file.read_text(),('damage','first'));self.assertEqual(observed(file),attrs(comment='personal'));lib.apkg_approval_free(a);lib.apkg_plan_free(p);lib.apkg_close(c)
+    _,status=os.waitpid(pid,0);self.assertEqual(os.waitstatus_to_exitcode(status),0);self.assertEqual(recover(c)[0],0);self.assertEqual(recover(c),(0,0));self.assertIn(file.read_text(),('damage','first'));self.assertEqual(observed(file),attrs(comment='personal'));self.assertEqual((root/'demo/readonly').stat().st_mode&0o777,0o500);self.assertEqual((root/'demo/readonly/file').read_text(),'retained');lib.apkg_approval_free(a);lib.apkg_plan_free(p);lib.apkg_close(c)
  def test_actual_cli_and_worker_install_identical_metadata(self):
   import test_client as clients
   with tempfile.TemporaryDirectory() as d:

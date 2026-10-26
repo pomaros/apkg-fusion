@@ -133,7 +133,9 @@ Files now accept ordinary POSIX modes through 0777 with owner read required.
 Directories can declare an optional `mode`, default 0700, with owner read and
 traverse required. Special bits remain unsupported. A declared mode is applied
 exactly, never reduced to 0644/0755. These read/traverse requirements permit
-verification and recovery under the current user's identity.
+verification and recovery under the current user's identity. Failed-preparation
+cleanup may add owner permissions to private staging it is discarding; it does
+not alter live trees or retained history.
 
 Signed baseline, incoming baseline and actual metadata are merged independently
 from file contents. A personal comment does not pin old program bytes during
