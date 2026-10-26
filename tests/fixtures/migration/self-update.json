@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "from": "0.7.0",
+  "to": "0.7.1",
+  "root": "Work:Packages",
+  "managed_to": "0.7.1",
+  "files": [
+    {
+      "path": "C:apkg",
+      "from": "be5921329f6a6a2c6cc84a007ab5db1e8cd3075d33eec982074d30a3cce954b6",
+      "to": "9dd5705a50137d908b547dbb9429c7ff4e3913fa2a899104f5816967bff5b7d7"
+    }
+  ]
+}

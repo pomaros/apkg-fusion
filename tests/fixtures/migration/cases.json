@@ -1,0 +1,55 @@
+{
+  "kind": "synthetic migration expectations; not an installed database",
+  "root": "Work:Packages",
+  "distribution": null,
+  "dos_library": null,
+  "handler": null,
+  "cases": [
+    {
+      "id": "edited-and-foreign",
+      "record": "registry-current.json",
+      "observed_files": {
+        "Demo": "synthetic program\n",
+        "settings.cfg": "theme=user\n",
+        "notes.txt": "personal\n"
+      },
+      "expected": {
+        "Demo": "matches-record",
+        "settings.cfg": "edited-preserve",
+        "notes.txt": "foreign-preserve"
+      },
+      "icon": "kept-existing: never claim ownership"
+    },
+    {
+      "id": "missing-history",
+      "record": "registry-current.json",
+      "previous_registry_present": false,
+      "previous_archive_present": false,
+      "expected": "retain references; report rollback unavailable"
+    },
+    {
+      "id": "legacy-unknown",
+      "record": "registry-legacy.json",
+      "expected": "ABI, reason and relations are unrecorded; revision has legacy reader default 0; no new qualification"
+    },
+    {
+      "id": "interrupted-self-update",
+      "record": "self-update.json",
+      "observed": {
+        "C:apkg": "missing",
+        "C:apkg.old": "old client",
+        "C:apkg.new": "new client"
+      },
+      "expected": "pending recovery; preserve all files and journal; do not import as settled"
+    },
+    {
+      "id": "incomplete-inventory",
+      "record": "registry-current.json",
+      "unrecorded_payload": [
+        ".hidden",
+        "empty/"
+      ],
+      "expected": "inventory absence is not proof of foreign origin; preserve and report uncertainty"
+    }
+  ]
+}

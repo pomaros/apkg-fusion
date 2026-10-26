@@ -162,13 +162,13 @@ release verdict.
 
 ## Immediate work sequence
 
-1. Finish verification of the integrated baseline and publish it with an
-   accurate status, provenance and this plan.
-2. Obtain representative APKG registry/script fixtures and write the common
-   context, database, version and immutable-plan contracts against them.
-3. Implement the context engine's first complete signed-install transaction
-   with stale-plan rejection and interruption recovery, then connect the same
-   operation to PkgManager before expanding the operation set.
+1. BASE is qualified and MAP's source mapping/fixture inventory is recorded in
+   [status](docs/fusion/status.md) and [migration](docs/fusion/migration.md).
+2. Execute CONTRACT as two bounded tasks: data model first, public context API
+   second. Preserve unknown legacy facts explicitly; use the MAP cases and
+   obtain real distribution captures before migration qualification.
+3. Implement CONTEXT, then signed reading and the first immutable install plan.
+   Journal specification and failure cases precede the mutating executor.
 
 ## Bounded execution batches
 

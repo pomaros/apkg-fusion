@@ -34,19 +34,29 @@ copy semantics, locale ordering, archive member order, server readiness and
 ELF fixture targeting. CI installs the native verifier and archive/image tools
 required by the existing suites. Test assertions and memory limits were retained.
 
-## MAP handoff
+## MAP inventory completed
 
-The next bounded task is MAP from [PLAN](../../PLAN.md#bounded-execution-batches).
-Start with `components/arospkg/src/libpkg/pkg.h`, `core.c`, `ops.c`, `swap.c`,
-`relations_io.c` and the self-update record readers. Produce
-`docs/fusion/migration.md` and a provenance-labelled fixture inventory under
-`tests/fixtures/migration/`. Cover roots, edits, settings, versions/revisions,
-launch metadata, installation reasons, relations, rollback and self-update state.
-Distinguish synthetic fixtures from actual distribution records. Distribution
-identity and DOS measurements remain explicit follow-up fields; development can
-proceed while they are unknown. Stop before implementing an importer or starting
-CONTRACT. No MAP implementation or operational-consumer migration is included
-in BASE.
+[Migration mapping](migration.md) records roots, schema-1 records and legacy
+omissions, edited files, icons/settings/launch metadata, reasons, relations,
+prior-revision retention, pending transactions and both self-update mechanisms.
+The [fixture inventory](../../tests/fixtures/migration/README.md) distinguishes
+new synthetic records from the upstream guide fixture. No independent
+real-distribution capture is available and no importer was implemented or run.
+
+Two concrete constraints feed the next batches: imported `pkg_open` creates
+paths even in read mode (CONTEXT must correct this), and pkg self-update has
+staging/backup state rather than a persistent journal equivalent to arospkg's.
+Pre-0.6 catalogue relation fallback also needs provenance/exact-version handling.
+Distribution/APKG/DOS/handler identity and real settings/scripts remain follow-up
+items. They do not block contract work, per operator direction.
+
+Next batch: CONTRACT, first the data model, then the public context API draft.
+MAP stops before schema/importer implementation. BASE CI evidence remains
+unchanged; MAP changes documentation and inert fixtures only.
+Validation: five JSON files parsed; inventory paths/source references and
+synthetic edited-file/self-update hashes checked; documentation link check
+covered 58 files with zero broken links. No runtime suite was rerun for these
+documentation/fixture-only changes.
 
 ## Implemented integration pieces
 

@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "name": "map-demo",
+  "version": "1.0.0-rc1",
+  "revision": 2,
+  "arch": "x86_64",
+  "abi": "v11",
+  "subdir": "Demo",
+  "installed": "2026-10-01T00:00:00Z",
+  "origin": "https://example.invalid/demo.lha",
+  "archive_sha256": "4b91099863664d94026ca2947397634f76255912231ae6873d9a2914a2ac1124",
+  "archive_size": 42,
+  "reason": "dependency",
+  "relations_schema": 1,
+  "dir": "map-demo",
+  "requires_system": [],
+  "icon": {
+    "state": "kept-existing",
+    "sha256": "",
+    "size": 0,
+    "member": ""
+  },
+  "previous": {
+    "registry": "Work:Packages/db/previous/map-demo.json",
+    "archive": "Work:Packages/cache/previous/map-demo.lha"
+  },
+  "launch": {
+    "mode": "shell",
+    "executable": "Demo",
+    "working_directory": "."
+  },
+  "contents": [
+    {
+      "path": "Demo",
+      "sha256": "39a3a5d0e6a61bd0242581510b05e1676968909ba4512e7d436d18b7216da3db",
+      "size": 18
+    },
+    {
+      "path": "settings.cfg",
+      "sha256": "a1a0b71494ca9a60fc7192b67df5a38f0aa57541e69543d9b720d95bd56dedcd",
+      "size": 15
+    }
+  ]
+}

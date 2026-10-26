@@ -1,0 +1,37 @@
+{
+  "licence": "MIT",
+  "copyright": "Copyright (c) 2026 John Knipper",
+  "upstream_arospkg": "8e6ab1858b32bbf7a80f2f1c885a11af69aeb9f7",
+  "entries": [
+    {
+      "path": "registry-current.json",
+      "provenance": "synthetic",
+      "source": "components/arospkg/src/libpkg/ops.c",
+      "purpose": "schema-1 current writer shape, launch, dependency reason, edited baseline and missing rollback bytes"
+    },
+    {
+      "path": "registry-legacy.json",
+      "provenance": "synthetic",
+      "source": "components/arospkg/src/libpkg/swap.c",
+      "purpose": "omitted fields understood by legacy readers; not an exact historical release capture"
+    },
+    {
+      "path": "self-update.json",
+      "provenance": "synthetic",
+      "source": "components/arospkg/src/libpkg/selfup.c",
+      "purpose": "format-1 journal with old/new file hashes"
+    },
+    {
+      "path": "cases.json",
+      "provenance": "synthetic",
+      "source": "docs/fusion/migration.md",
+      "purpose": "external observations and expected migration classifications"
+    },
+    {
+      "path": "components/arospkg/tests/fixtures/docs-walk-registry.json",
+      "provenance": "upstream documentation fixture; distribution capture unverified",
+      "source": "components/arospkg/docs/guide/metadata.md",
+      "purpose": "full upstream guide registry, referenced in place; preserve upstream notices"
+    }
+  ]
+}
