@@ -277,6 +277,24 @@ formats are unimplemented and cannot be inferred from these tests. The private
 object store includes before-images and must never be bulk-published as a channel.
 Exact-source verification is recorded with the published implementation revision.
 
+## Streaming transport source qualification
+
+Source [03f9403](https://github.com/pomaros/apkg-fusion/commit/03f94033e70c6973ff50f6220cbbd0d037aadf3f)
+passes the complete [Host integration run](https://github.com/pomaros/apkg-fusion/actions/runs/40410182172):
+
+| Job | Result |
+|---|---|
+| Linux fusion | All 76 common test groups, including 793 allocation-injection positions, pass. ASan/UBSan lifetime and six CLI/worker groups, full fusion checks, both inherited suites, symbols and documentation links pass. |
+| macOS fusion | The same complete gate passes. |
+| Portal | All 107 tests pass, zero failures or skips. |
+
+This qualifies the streaming transport checkpoint only. ALPHA-PAYLOAD remains
+open for full declared metadata fidelity and its author/package/installed
+inventory round trips. Before advancing, also revisit metadata row allocation
+bounds for realistic large file counts and add invalid path-text input coverage
+to the new public import API. Those checks remain explicit work, not implied
+passes. All later alpha gates and deferred native/release obligations remain.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
