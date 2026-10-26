@@ -66,6 +66,10 @@ application cannot implicitly authorize unrelated system modifications.
 Execution uses that plan under lock. Changed inputs or preconditions invalidate
 it and require a fresh plan. Re-resolving silently after confirmation is
 forbidden. Package-name/version lists alone are insufficient plan identities.
+File/HTTP selections bind their source facts into canonical plan bytes, including
+selected dependency origins. The [source-bound plan contract](channels.md#source-bound-approved-plans)
+requires rechecking before the commit decision; recovery and retained offline
+operations never require remote revalidation after that decision.
 
 The journal records intent before mutation and distinguishes the commit decision
 from observations of completed actions. Recovery examines both the journal and

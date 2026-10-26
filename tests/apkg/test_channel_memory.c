@@ -4,7 +4,52 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+/* Exercise owned source/plan lifetimes in an instrumented native process. */
+static int prepared_plan(char **argv) {
+    apkg_open_options options = {0};
+    apkg_ctx *ctx = NULL;
+    apkg_channel *channel = NULL;
+    apkg_package *package = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_plan *plan = NULL;
+    apkg_approval *approval = NULL;
+    apkg_result *result = NULL;
+    apkg_id id;
+    assert(!ak_hex(argv[3], id.bytes, 16));
+    options.contract_version = 1;
+    options.struct_size = sizeof options;
+    options.mode = APKG_WRITE;
+    options.root.data = argv[1];
+    options.root.size = strlen(argv[1]);
+    assert(apkg_open(&options, &ctx, NULL) == APKG_OK);
+    apkg_text source = {argv[2], strlen(argv[2])};
+    apkg_status code =
+        ak_http_url(argv[2])
+            ? apkg_channel_open_http(ctx, source, &id, 1, NULL, &channel, NULL)
+            : apkg_channel_open_file(ctx, source, &id, 1, &channel, NULL);
+    assert(code == APKG_OK);
+    assert(apkg_channel_fetch(ctx, channel, 0, NULL, &package, NULL) ==
+           APKG_OK);
+    assert(apkg_snapshot_read(ctx, &snapshot, NULL) == APKG_OK);
+    assert(apkg_plan_install(ctx, snapshot, package, NULL, &plan, NULL) ==
+           APKG_OK);
+    apkg_package_free(package);
+    apkg_channel_free(channel);
+    apkg_snapshot_free(snapshot);
+    const apkg_plan_view *view = apkg_plan_get(plan);
+    assert(apkg_plan_approve(ctx, plan, &view->plan_digest, &approval, NULL) ==
+           APKG_OK);
+    assert(apkg_execute(ctx, plan, approval, NULL, &result, NULL) == APKG_OK);
+    assert(apkg_result_get(result)->outcome == APKG_COMMITTED);
+    apkg_result_free(result);
+    apkg_approval_free(approval);
+    apkg_plan_free(plan);
+    apkg_close(ctx);
+    return 0;
+}
 int main(int argc, char **argv) {
+    if (argc == 5 && !strcmp(argv[4], "--plan"))
+        return prepared_plan(argv);
     apkg_open_options options = {0};
     apkg_ctx *ctx = NULL;
     apkg_channel *channel = NULL;

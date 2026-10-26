@@ -16,7 +16,7 @@ completed and outstanding work against the [architecture](architecture.md).
 | Read-only access | Browsing and diagnostics create no root state. | Filesystem comparisons around reads of existing, absent and interrupted roots. |
 | PkgManager browsing | Preserve search, filtering, details, recent additions, updates and settings. | Native UI/ARexx scenarios on supported distributions. |
 | PkgManager operations | Preserve plans, cancellation, Run and folder opening; expose repair, system writes and signer facts. | Native scenarios inspect resulting state, close-during-work and allocation-failure outcomes. |
-| Exact plans | Execute approved digests, providers, destinations and trust changes. | Change channel, root, content, signer or provider after preview; refuse before mutation. |
+| Exact plans | Execute approved digests, providers, destinations and trust changes. | Change channel, root, content, signer or selected provider after preview; refuse before mutation. Changes during staging/apply restore local state; decided recovery, retained rollback and repair remain offline. |
 | CLI workflows | Preserve installation, diagnostics, environments, authoring, signing, publishing and automation. | Scripted commands cover success, refusals, structured output, arguments and exit codes. |
 | Existing APKG scripts | Provide a working command and behavior upgrade path. | Representative scripts and output/exit-code contracts from both existing distributions. |
 | Authoring | One TOML description drives validation, bundles and signed publication. | End-to-end round trip preserves metadata, files, attributes and launch description with untouched inputs. |

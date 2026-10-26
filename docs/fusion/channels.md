@@ -231,6 +231,34 @@ installed state or advance database generation.
 
 The explicit CLI is `apkg-core channel-fetch ROOT ENDPOINT CHANNEL-ID INDEX
 [MIN-SEQUENCE]`; `channel-open` accepts either a local directory or an HTTP(S)
-URL. Observer phases distinguish checking from transfer. Source checks currently
-end when fetch returns: approved plans do not yet retain channel preconditions.
-The default production client switch remains a separate alpha gate.
+URL. Observer phases distinguish checking from transfer. Selected packages
+retain the source facts described below. The default production client switch
+remains a separate alpha gate.
+
+## Source-bound approved plans
+
+Packages selected from file/HTTP channels retain owned origin records. Fetch
+preserves those records after verifying the actual archive. Install, upgrade
+and dependency resolution copy the origins of selected packages into the
+canonical plan and its approval digest. Exact duplicates are folded in a stable
+order; unused candidates impose no source obligation. Each record binds the
+channel id, sequence, immutable snapshot digest, signer key, endpoint/transport, root id,
+root/anchor paths and physical identity, policy digest and target. Paths are
+hex-encoded local bytes, not executable commands. Raw immutable metadata supplied
+directly to `apkg_channel_read` has no mutable endpoint to bind.
+
+Planning verifies those facts. Execution rechecks reference, immutable object,
+channel signature/role and current root policy during its CHECK phase, after
+staging and before the commit decision. Snapshot bytes must still match the
+original authenticated digest. Changed inputs require explicit approval of a
+fresh applicable plan; network errors and cancellation do not authorize using
+stale source facts. Checks run under the common mutation lock and bounded host
+transport; they do not lock an external publisher. After the recorded commit
+decision, source availability is irrelevant to completing local recovery.
+
+Plan records own their bytes after channel/package objects are freed. Origins
+remain in local plan/history records and are not copied into installed-state
+records. Repair/removal and rollback from verified retained history therefore
+work without a channel. Older journal plans without origins remain recoverable;
+new origin fields are structurally validated without contacting a source during
+recovery. No durable channel replay high-water mark is implemented yet.

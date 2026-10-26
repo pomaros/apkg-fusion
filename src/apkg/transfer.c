@@ -272,6 +272,13 @@ apkg_status apkg_channel_fetch(apkg_ctx *ctx, const apkg_channel *channel,
         code = APKG_CANCELLED;
         goto done;
     }
+    if (selected->origin) {
+        actual->origin = ak_copy(selected->origin, strlen(selected->origin));
+        if (!actual->origin) {
+            code = APKG_NOMEM;
+            goto done;
+        }
+    }
     if (!exists) {
         if (ak_fault(1102)) {
             code = APKG_IO;

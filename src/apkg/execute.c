@@ -521,7 +521,9 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         uint64_t dev, ino;
         struct stat st;
         char parent[AK_PATH];
-        if (!ak_fields(&plan, body, f, 8) ||
+        if (!ak_fields_optional(&plan, body, f, 8,
+                                (const char *const[]){"origins"}, 1) ||
+            !ak_origins_valid(&plan, ak_member(&plan, body, "origins")) ||
             ak_u64(&plan, ak_member(&plan, body, "anchor_dev"), &dev) ||
             ak_u64(&plan, ak_member(&plan, body, "anchor_ino"), &ino))
             goto done;
@@ -866,6 +868,10 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
         code = APKG_CANCELLED;
         goto done;
     }
+    code = ak_plan_origins_check(c, p, o);
+    if (code)
+        goto done;
+    code = APKG_IO;
     if (!preconditions(c, p, s, state, 1)) {
         code = errno == ENOMEM ? APKG_NOMEM : APKG_STALE;
         goto done;
@@ -911,6 +917,10 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
         code = APKG_CANCELLED;
         goto fail;
     }
+    code = ak_plan_origins_check(c, p, o);
+    if (code)
+        goto fail;
+    code = APKG_IO;
     if (!preconditions(c, p, s, state, 1)) {
         code = errno == ENOMEM ? APKG_NOMEM : APKG_STALE;
         goto fail;
@@ -926,6 +936,10 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
             goto fail;
         }
     }
+    code = ak_plan_origins_check(c, p, o);
+    if (code)
+        goto fail;
+    code = APKG_IO;
     if (!preconditions(c, p, s, state, 0)) {
         code = errno == ENOMEM ? APKG_NOMEM : APKG_STALE;
         goto fail;
@@ -987,12 +1001,7 @@ fail:
     if (!decision && ready) {
         apkg_status recovered = recover_locked(c, r);
         if (recovered == APKG_OK)
-            result_set(r,
-                       code == APKG_CANCELLED ? APKG_CANCELLED
-                       : code == APKG_STALE   ? APKG_STALE
-                       : code == APKG_NOMEM   ? APKG_NOMEM
-                                              : APKG_IO,
-                       APKG_RESTORED);
+            result_set(r, code, APKG_RESTORED);
         else
             result_set(r, APKG_RECOVERY_REQUIRED, APKG_NEEDS_RECOVERY);
     } else

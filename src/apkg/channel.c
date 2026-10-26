@@ -15,6 +15,7 @@ struct apkg_channel {
     char root[AK_PATH], anchor[AK_PATH];
     struct stat binding;
     int remote;
+    unsigned char key[32];
     apkg_id root_id;
 };
 static apkg_bytes node_bytes(const ak_json *j, int token) {
@@ -183,6 +184,7 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
                               &channel->view.snapshot_digest);
     if (code)
         goto done;
+    memcpy(channel->key, key, 32);
     body = ak_member(&channel->json, 0, "body");
     if (ak_string(&channel->json, ak_member(&channel->json, body, "id"), id,
                   sizeof id) ||
@@ -542,6 +544,182 @@ done:
         ak_fail(error, code, "file channel refused", input);
     return code;
 }
+/* Source provenance is copied into selected packages, then into plan bytes.
+ * It is never written into installed records or consulted by recovery. */
+static apkg_status package_origin(const apkg_channel *channel,
+                                  apkg_package *package) {
+    if (!channel->endpoint)
+        return APKG_OK;
+    char anchor[AK_PATH * 2 + 1], root[AK_PATH * 2 + 1],
+        endpoint[AK_PATH * 2 + 1], id[33], root_id[33], policy[65],
+        snapshot[65], signer[65];
+    apkg_digest digest;
+    ak_tohex((const unsigned char *)channel->anchor, strlen(channel->anchor),
+             anchor);
+    ak_tohex((const unsigned char *)channel->root, strlen(channel->root), root);
+    ak_tohex((const unsigned char *)channel->endpoint,
+             strlen(channel->endpoint), endpoint);
+    ak_tohex(channel->view.id.bytes, 16, id);
+    ak_tohex(channel->root_id.bytes, 16, root_id);
+    ak_tohex(channel->key, 32, signer);
+    ak_hash(channel->policy, strlen(channel->policy), &digest);
+    ak_tohex(digest.bytes, 32, policy);
+    ak_tohex(channel->view.snapshot_digest.bytes, 32, snapshot);
+    ak_buf b = {0};
+    b.max = 32768;
+    ak_buf_add(
+        &b,
+        "{\"anchor_dev\":\"%llu\",\"anchor_ino\":\"%llu\","
+        "\"anchor_path\":\"%s\",\"endpoint\":\"%s\",\"id\":\"%s\","
+        "\"policy_sha256\":\"%s\",\"root_id\":\"%s\",\"root_path\":\"%s\","
+        "\"sequence\":\"%" PRIu64
+        "\",\"signer\":\"%s\",\"snapshot_sha256\":\"%s\","
+        "\"target\":\"%s\",\"transport\":\"%s\"}",
+        (unsigned long long)channel->binding.st_dev,
+        (unsigned long long)channel->binding.st_ino, anchor, endpoint, id,
+        policy, root_id, root, channel->view.sequence, signer, snapshot,
+        channel->target, channel->remote ? "http" : "file");
+    if (b.bad) {
+        free(b.data);
+        return b.bad;
+    }
+    package->origin = b.data;
+    return APKG_OK;
+}
+static int origin_path(const ak_json *j, int row, const char *key,
+                       char out[AK_PATH]) {
+    char hex[AK_PATH * 2 + 1];
+    if (ak_string(j, ak_member(j, row, key), hex, sizeof hex))
+        return -1;
+    size_t n = strlen(hex) / 2;
+    if (n >= AK_PATH || ak_hex(hex, (unsigned char *)out, n))
+        return -1;
+    out[n] = 0;
+    return 0;
+}
+apkg_status ak_origin_check(apkg_ctx *ctx, const ak_json *j, int row,
+                            const apkg_observer *observer) {
+    char anchor[AK_PATH], root[AK_PATH], endpoint[AK_PATH], text[65];
+    uint64_t dev, ino, sequence;
+    apkg_id identity;
+    apkg_snapshot *state = NULL;
+    apkg_digest digest;
+    apkg_status code = APKG_STALE;
+    unsigned char *document = NULL, *signature = NULL;
+    size_t dn = 0, sn = 0;
+    ak_json policy = {0};
+    if (ak_cancelled(observer))
+        return APKG_CANCELLED;
+    if (origin_path(j, row, "anchor_path", anchor) ||
+        origin_path(j, row, "root_path", root) ||
+        origin_path(j, row, "endpoint", endpoint) ||
+        ak_u64(j, ak_member(j, row, "anchor_dev"), &dev) ||
+        ak_u64(j, ak_member(j, row, "anchor_ino"), &ino) ||
+        ak_u64(j, ak_member(j, row, "sequence"), &sequence) ||
+        ak_string(j, ak_member(j, row, "id"), text, sizeof text) ||
+        ak_hex(text, identity.bytes, 16))
+        return APKG_INVALID;
+    if (strcmp(ctx->anchor, anchor) || strcmp(ctx->root, root) ||
+        dev != (uint64_t)ctx->binding.st_dev ||
+        ino != (uint64_t)ctx->binding.st_ino ||
+        !ak_physical(ctx->anchor, &ctx->binding))
+        return APKG_STALE;
+    code = apkg_snapshot_read(ctx, &state, NULL);
+    if (code)
+        goto done;
+    /* Execute owns the root lock and may already have staged its journal.
+     * Only validated, unchanged local state is needed; recovery never calls us.
+     */
+    if (!state->policy || !state->target) {
+        code = APKG_STALE;
+        goto done;
+    }
+    ak_hash(state->policy, strlen(state->policy), &digest);
+    ak_tohex(digest.bytes, 32, text);
+    if (!ak_equal(j, ak_member(j, row, "policy_sha256"), text) ||
+        !ak_equal(j, ak_member(j, row, "target"), state->target)) {
+        code = APKG_STALE;
+        goto done;
+    }
+    ak_tohex(state->view.root_id.bytes, 16, text);
+    if (!ak_equal(j, ak_member(j, row, "root_id"), text)) {
+        code = APKG_STALE;
+        goto done;
+    }
+    apkg_channel bound = {0};
+    bound.endpoint = endpoint;
+    bound.remote = ak_equal(j, ak_member(j, row, "transport"), "http");
+    if (ak_string(j, ak_member(j, row, "snapshot_sha256"), text, sizeof text) ||
+        ak_hex(text, bound.view.snapshot_digest.bytes, 32)) {
+        code = APKG_INVALID;
+        goto done;
+    }
+    apkg_observer silent = {0};
+    if (observer)
+        silent.cancel = observer->cancel;
+    code = source_current(&bound, &silent);
+    if (code)
+        goto done;
+    char member[128], path[AK_PATH];
+    snprintf(member, sizeof member, "snapshots/%s/channel.json", text);
+    if (bound.remote) {
+        ak_import_progress progress = {0};
+        progress.observer = &silent;
+        progress.total = AK_MAX / 8 + 16384;
+        code = ak_http_path(endpoint, member, path);
+        if (!code)
+            code = ak_http_get(path, AK_MAX / 8, -1, &document, &dn, &progress);
+        snprintf(member, sizeof member, "snapshots/%s/channel.signature.json",
+                 text);
+        if (!code)
+            code = ak_http_path(endpoint, member, path);
+        if (!code)
+            code = ak_http_get(path, 16384, -1, &signature, &sn, &progress);
+    } else {
+        if (ak_path(path, endpoint, member) ||
+            ak_read(path, &document, &dn, AK_MAX / 8))
+            code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+        snprintf(member, sizeof member, "snapshots/%s/channel.signature.json",
+                 text);
+        if (!code && (ak_path(path, endpoint, member) ||
+                      ak_read(path, &signature, &sn, 16384)))
+            code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+    }
+    if (code)
+        goto done;
+    unsigned char key[32];
+    apkg_bytes object = {document, dn}, envelope = {signature, sn};
+    code = ak_signature_check(object, envelope, "channel", key, &digest);
+    if (code)
+        goto done;
+    if (memcmp(digest.bytes, bound.view.snapshot_digest.bytes, 32)) {
+        code = APKG_STALE;
+        goto done;
+    }
+    int parsed = ak_json_parse(state->policy, strlen(state->policy), &policy);
+    if (parsed) {
+        code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+        goto done;
+    }
+    char identity_hex[33];
+    ak_tohex(identity.bytes, 16, identity_hex);
+    ak_tohex(key, 32, text);
+    if (!ak_equal(j, ak_member(j, row, "signer"), text)) {
+        code = APKG_STALE;
+        goto done;
+    }
+    if (!ak_channel_policy(&policy, identity_hex, text)) {
+        code = APKG_TRUST;
+        goto done;
+    }
+    code = source_current(&bound, &silent);
+done:
+    free(document);
+    free(signature);
+    ak_json_free(&policy);
+    apkg_snapshot_free(state);
+    return code;
+}
 apkg_status ak_channel_select(apkg_ctx *ctx, const apkg_channel *channel,
                               uint64_t index, const apkg_observer *observer,
                               apkg_package **out, apkg_error **error) {
@@ -576,9 +754,17 @@ apkg_status ak_channel_select(apkg_ctx *ctx, const apkg_channel *channel,
     apkg_snapshot_free(snapshot);
     if (code)
         return code;
-    return apkg_package_read(ctx, channel->rows[index].descriptor,
-                             channel->rows[index].signature_envelope, out,
-                             error);
+    code =
+        apkg_package_read(ctx, channel->rows[index].descriptor,
+                          channel->rows[index].signature_envelope, out, error);
+    if (!code) {
+        code = package_origin(channel, *out);
+        if (code) {
+            apkg_package_free(*out);
+            *out = NULL;
+        }
+    }
+    return code;
 }
 apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
                                  uint64_t index, apkg_package **out,

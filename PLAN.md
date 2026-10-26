@@ -184,9 +184,9 @@ and unresolved facts belong in [status](docs/fusion/status.md).
 The [signed-channel profile](docs/fusion/channels.md) divides ALPHA-CHANNEL
 into authenticated metadata, atomic file publication, context-owned file/HTTP
 transport/freshness, and independent qualifications/client discovery. Metadata
-validation and atomic local publication are implemented checkpoints; HTTP
-transfer, persistent freshness, qualifications and client integration still
-prevent that gate from passing.
+validation, atomic local publication, host HTTP transfer and source-bound
+approved plans are implemented checkpoints. Persistent freshness, qualifications,
+native adapters and client integration still prevent that gate from passing.
 
 Final acceptance is one automated clean-workspace scenario: author a bundle and
 its dependency, package/sign/publish through a real channel, discover through

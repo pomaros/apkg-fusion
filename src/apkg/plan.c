@@ -382,6 +382,13 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
              gen + 1, entries, entries_size ? "," : "", p->raw, p->signature,
              s->policy, id, s->target);
     r = ak_make_plan(c, s, record, p->raw, p->name, out, e);
+    if (!r) {
+        r = ak_plan_bind(c, *out, &p, 1);
+        if (r) {
+            apkg_plan_free(*out);
+            *out = NULL;
+        }
+    }
     free(record);
     free(entries);
     ak_json_free(&j);
@@ -416,6 +423,7 @@ void apkg_plan_free(apkg_plan *p) {
     free(p->name);
     free(p->changes);
     free(p->before_state);
+    free(p->origins);
     free(p);
 }
 apkg_status apkg_plan_approve(apkg_ctx *c, const apkg_plan *p,

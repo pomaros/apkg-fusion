@@ -207,7 +207,8 @@ apkg_status apkg_channel_entry_at(const apkg_channel *, uint64_t,
                                   const apkg_channel_entry_view **,
                                   apkg_error **);
 /* Recheck the bound root policy/target and decode a selected descriptor. This
- * is metadata only: archive transfer and blob availability are separate. */
+ * is metadata only: archive transfer and blob availability are separate.
+ * File/HTTP selections retain owned origins which bind subsequent plans. */
 apkg_status apkg_channel_package(apkg_ctx *, const apkg_channel *, uint64_t,
                                  apkg_package **, apkg_error **);
 void apkg_channel_free(apkg_channel *);

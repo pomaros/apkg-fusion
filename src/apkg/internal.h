@@ -142,7 +142,7 @@ apkg_status ak_snapshot(apkg_ctx *, apkg_snapshot **, apkg_error **);
 int ak_policy(const ak_json *, int, const char *, const char *);
 int ak_policy_valid(const ak_json *);
 struct apkg_package {
-    char *raw, *signature, *name, *version, *authority, *target;
+    char *raw, *signature, *name, *version, *authority, *target, *origin;
     size_t raw_size;
     uint64_t revision;
     ak_json json;
@@ -159,7 +159,7 @@ struct apkg_plan {
     unsigned char session[16];
     apkg_digest before;
     int absent;
-    char *changes, *before_state;
+    char *changes, *before_state, *origins;
 };
 struct apkg_approval {
     unsigned char session[16];
@@ -183,6 +183,13 @@ apkg_status ak_plan_records(apkg_ctx *, const apkg_snapshot *, const char *,
 apkg_status ak_make_plan(apkg_ctx *, const apkg_snapshot *, const char *,
                          const char *, const char *, apkg_plan **,
                          apkg_error **);
+apkg_status ak_origin_check(apkg_ctx *, const ak_json *, int,
+                            const apkg_observer *);
+apkg_status ak_plan_bind(apkg_ctx *, apkg_plan *, const apkg_package *const *,
+                         size_t);
+apkg_status ak_plan_origins_check(apkg_ctx *, const apkg_plan *,
+                                  const apkg_observer *);
+int ak_origins_valid(const ak_json *, int);
 int ak_cancelled(const apkg_observer *);
 int ak_descriptor(const ak_json *);
 int ak_valid_name(const char *);

@@ -560,10 +560,48 @@ Documentation links pass for
 67 files with zero broken links. Exact-source Linux/macOS CI must separately
 qualify this checkpoint.
 
-ALPHA-CHANNEL remains open: approved-plan origin preconditions, durable replay
-high-water state, independent qualifications, native adapters and shared client
+At that transport checkpoint, approved-plan origin preconditions remained open;
+the following checkpoint implements them. Durable replay high-water state,
+independent qualifications, native adapters and shared client
 selection still require implementation. No default backend switch, portal
 migration, deployment or AROS execution occurs in this checkpoint.
+
+## FUSION-ALPHA progress: source-bound approved plans
+
+File/HTTP selections now retain owned channel origins. Common install, upgrade
+and dependency resolution include selected origins in canonical approval bytes,
+deduplicate identical sources and exclude unused candidates. Fetch preserves
+provenance through full archive verification. A plan therefore continues to
+own its source facts after channel/package objects are freed.
+
+The [source-bound plan contract](channels.md#source-bound-approved-plans) checks
+root identity/policy/target, current reference, immutable snapshot bytes and
+channel signature/role before mutation, after staging and before decision.
+A changed source after live application restores the original local state.
+Network errors cannot silently downgrade to unchecked cached installation.
+Origins stay in plan/history records; installed-state records remain independent
+of mutable endpoints. Decided recovery, retained rollback and repair use local
+verified content without reopening a channel.
+
+New scenarios cover both initial-install and multi-change transaction paths,
+changed heads before planning/after approval/during staging and application,
+HTTP immutable-object tampering, replacement by another already granted channel
+signer, selected dependency versus unused candidate
+origins, upgrade refusal/retry, source deletion at the commit decision followed
+by offline recovery/rollback, offline repair, 400 allocation-failure positions,
+and native file/HTTP execution after freeing input objects. Native instrumented
+runs exercise owned plan lifetimes rather than relying only on ctypes tests.
+Local evaluation passes `make test-fusion`: 150 common methods plus the
+existing contract/target/application/context/first-install/CLI/publish checks.
+The sanitizer harness passes 70 methods, including native file/HTTP plan
+lifetime/execution under ASan/UBSan; direct ctypes cases use the ordinary test
+library. Documentation links pass for 67 files with zero broken links.
+Exact-source Linux/macOS CI must separately qualify this checkpoint.
+
+This is a checkpoint, not ALPHA-CHANNEL completion. Durable replay high-water
+tracking, independent qualifications, default client integration and native HTTP
+adapters remain open. No OS changes, AROS execution or live portal operation
+occurred. Host process/recovery tests do not establish power-loss durability.
 
 ## Implemented integration pieces
 

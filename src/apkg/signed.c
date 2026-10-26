@@ -169,6 +169,7 @@ void apkg_package_free(apkg_package *p) {
     if (p) {
         free(p->raw);
         free(p->signature);
+        free(p->origin);
         free(p->name);
         free(p->version);
         free(p->authority);

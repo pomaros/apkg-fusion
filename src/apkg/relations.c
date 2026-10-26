@@ -257,6 +257,14 @@ apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
         free(record.data);
         if (code)
             goto done;
+        if (p->origin) {
+            s.pool[s.installed + i]->origin =
+                ak_copy(p->origin, strlen(p->origin));
+            if (!s.pool[s.installed + i]->origin) {
+                code = APKG_NOMEM;
+                goto done;
+            }
+        }
     }
     for (i = s.installed; i < s.installed + nrequested; i++) {
         for (k = 0; k < i; k++)
@@ -321,6 +329,18 @@ apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
     code = entries.bad ? (apkg_status)entries.bad
                        : ak_plan_records(c, snapshot, entries.data,
                                          APKG_PLAN_RESOLVE, NULL, out, e);
+    if (!code) {
+        const apkg_package *chosen[256];
+        size_t count = 0;
+        for (i = s.installed; i < s.count; i++)
+            if (s.selected[i])
+                chosen[count++] = s.pool[i];
+        code = ak_plan_bind(c, *out, chosen, count);
+        if (code) {
+            apkg_plan_free(*out);
+            *out = NULL;
+        }
+    }
 done:
     if (s.pool)
         for (i = 0; i < n; i++)

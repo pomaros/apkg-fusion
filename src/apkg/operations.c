@@ -605,6 +605,13 @@ static apkg_status one(apkg_ctx *c, const apkg_snapshot *s, apkg_text name,
     else
         code = ak_plan_records(c, s, entries.data, kind, key, out, e);
     free(entries.data);
+    if (!code && nw) {
+        code = ak_plan_bind(c, *out, &nw, 1);
+        if (code) {
+            apkg_plan_free(*out);
+            *out = NULL;
+        }
+    }
     return code;
 }
 apkg_status apkg_plan_remove(apkg_ctx *c, const apkg_snapshot *s,
