@@ -181,6 +181,11 @@ and unresolved facts belong in [status](docs/fusion/status.md).
 | ALPHA-IMPORT | Legacy validation, import/commit and command-compatibility rehearsals preserve originals and provenance. | At least one fully specified pinned fixture migrates and remains operable; ambiguity refuses with diagnostics. Interrupted import/retry preserves old usability and retained records. Unknown distribution identities remain unknown; fixture passes do not certify either live distribution. |
 | ALPHA-PORTAL | Portal consumes/publishes the common contracts with independent qualifications; migration tooling and a backup/restore/cutover-rollback rehearsal are reviewable. | Portal tests and an end-to-end publication/consumption scenario pass. Rehearsal preserves publisher/trust identities, object identity, URLs and review provenance; no live data or credentials enter the public repository. |
 
+The [signed-channel profile](docs/fusion/channels.md) divides ALPHA-CHANNEL
+into authenticated metadata, atomic file publication, context-owned file/HTTP
+transport/freshness, and independent qualifications/client discovery. Metadata
+validation alone does not pass that gate.
+
 Final acceptance is one automated clean-workspace scenario: author a bundle and
 its dependency, package/sign/publish through a real channel, discover through
 both client paths, preview/approve/install, preserve a personal configuration

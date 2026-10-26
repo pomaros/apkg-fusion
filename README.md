@@ -49,6 +49,10 @@ aarch64, plus macOS, Linux and Windows host tools. Each needs its own evidence.
 
 ## Author once, publish openly
 
+The [signed-channel metadata checkpoint](docs/fusion/channels.md) adds common
+read-only discovery and separate channel/author trust. Atomic publication,
+network fetching and default-client channel integration remain in progress.
+
 The [common authoring checkpoint](docs/fusion/authoring.md) builds a signed
 PKG/1 artifact directly from TOML and `.ameta` using `tools/apkg-build` and
 `build/apkg-core`. Channel publication from this new path remains integration

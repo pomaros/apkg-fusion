@@ -41,19 +41,12 @@ int ak_valid_path(const char *s) {
     }
     return 1;
 }
-int ak_policy_valid(const ak_json *j) {
-    int b, arr;
+static int grants_valid(const ak_json *j, int arr) {
     size_t i;
     char last[33] = "", id[33];
-    static const char *const bf[] = {"authorities"},
-                             *const af[] = {"id", "keys"},
-                             *const kf[] = {"algorithm", "public_key"};
-    if (!ak_object(j, "policy"))
-        return 0;
-    b = ak_member(j, 0, "body");
-    if (!ak_fields(j, b, bf, 1))
-        return 0;
-    arr = ak_member(j, b, "authorities");
+    static const char *const af[] = {"id", "keys"}, *const kf[] = {
+                                                        "algorithm",
+                                                        "public_key"};
     if (arr < 0 || j->tokens[arr].type != '[')
         return 0;
     for (i = (size_t)arr + 1; i < j->tokens[arr].next; i = j->tokens[i].next) {
@@ -82,14 +75,24 @@ int ak_policy_valid(const ak_json *j) {
     }
     return 1;
 }
-int ak_policy(const ak_json *j, int unused, const char *authority,
-              const char *key) {
+int ak_policy_valid(const ak_json *j) {
+    if (!ak_object(j, "policy"))
+        return 0;
+    int b = ak_member(j, 0, "body"), channels = ak_member(j, b, "channels");
+    return ak_fields_optional(j, b, (const char *const[]){"authorities"}, 1,
+                              (const char *const[]){"channels"}, 1) &&
+           grants_valid(j, ak_member(j, b, "authorities")) &&
+           (channels < 0 || grants_valid(j, channels));
+}
+static int role_key(const ak_json *j, const char *role, const char *authority,
+                    const char *key) {
     int arr;
     size_t i;
-    (void)unused;
     if (!ak_policy_valid(j))
         return 0;
-    arr = ak_member(j, ak_member(j, 0, "body"), "authorities");
+    arr = ak_member(j, ak_member(j, 0, "body"), role);
+    if (arr < 0)
+        return 0;
     for (i = (size_t)arr + 1; i < j->tokens[arr].next; i = j->tokens[i].next)
         if (ak_equal(j, ak_member(j, (int)i, "id"), authority)) {
             int ks = ak_member(j, (int)i, "keys");
@@ -100,6 +103,14 @@ int ak_policy(const ak_json *j, int unused, const char *authority,
                     return 1;
         }
     return 0;
+}
+int ak_policy(const ak_json *j, int unused, const char *authority,
+              const char *key) {
+    (void)unused;
+    return role_key(j, "authorities", authority, key);
+}
+int ak_channel_policy(const ak_json *j, const char *id, const char *key) {
+    return role_key(j, "channels", id, key);
 }
 static int compare_paths(const void *a, const void *b) {
     return strcmp(*(const char *const *)a, *(const char *const *)b);

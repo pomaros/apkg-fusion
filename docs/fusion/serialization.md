@@ -44,12 +44,19 @@ The initialization seed `policy` body's first supported subset has
 `authorities`: an array of objects with `id` (128-bit lowercase hex) and
 `keys`: a nonempty array of `{ "algorithm": "ed25519", "public_key": "..." }`.
 Authorities sort by id, keys by raw public-key bytes; duplicate ids/keys are
-refused. An empty authorities array grants no package trust. Only these fields
-and optional descriptive `extensions` are permitted in this subset. Each key
+refused. An empty authorities array grants no package trust. Only the implemented role arrays are permitted in this policy subset;
+descriptive policy extensions remain unsupported. Each key
 authorizes only package signatures for its named authority, not channel/reviewer
 privileges or arbitrary system writes. Unsupported policy features are required
 features, never ignored fields. Root initialization shows/persists these grants;
 subsequent key or role changes need separately approved policy plans.
+
+The [signed-channel checkpoint](channels.md) extends this policy subset with an
+optional `channels` grant array of the same sorted id/keys shape. It authorizes
+only discovery signatures for the configured channel id. Authority and channel
+roles are checked separately, including when the operator explicitly grants
+both roles to one identity. The channel body and metadata limits are specified
+in that profile; the framing envelope alone is insufficient to accept entries.
 
 Unknown optional descriptive extension bytes survive unchanged. Unknown
 required features refuse execution. Distinct byte spellings of an equivalent

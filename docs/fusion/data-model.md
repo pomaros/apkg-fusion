@@ -281,6 +281,10 @@ reuse the existing SHA-256/Ed25519 implementations; signing new descriptor
 formats requires an explicitly versioned transcript. Old payload/manifest
 signatures remain verifiable in their source format.
 
+The first [signed-channel metadata profile](channels.md) implements discovery
+signature/role checks and exact immutable views; transport, durable freshness
+tracking and qualification remain separate obligations.
+
 A channel has a stable configured identity, endpoints, snapshot reference and
 its own authentication/trust policy. Channel signatures authenticate discovery;
 they do not replace package signatures. Local directory/share channels and

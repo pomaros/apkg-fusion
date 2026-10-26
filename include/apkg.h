@@ -13,6 +13,7 @@ extern "C" {
 typedef struct apkg_ctx apkg_ctx;
 typedef struct apkg_snapshot apkg_snapshot;
 typedef struct apkg_package apkg_package;
+typedef struct apkg_channel apkg_channel;
 typedef struct apkg_plan apkg_plan;
 typedef struct apkg_approval apkg_approval;
 typedef struct apkg_result apkg_result;
@@ -159,6 +160,41 @@ apkg_status apkg_package_import(apkg_ctx *, apkg_text archive,
 void apkg_package_free(apkg_package *);
 /* Exact immutable descriptor reference for CLI/UI presentation. */
 apkg_bytes apkg_package_descriptor(const apkg_package *);
+
+/* Authenticated discovery is separate from package authorization. Reading a
+ * channel creates no files and never grants author/reviewer privileges.
+ * Views borrow immutable channel-owned bytes until apkg_channel_free(). */
+typedef struct {
+    apkg_id id;
+    uint64_t sequence, entry_count;
+    apkg_digest snapshot_digest;
+    apkg_signature_state signature;
+    apkg_trust_state trust;
+    apkg_fact_state
+        freshness; /* UNKNOWN: signature/floor is not online freshness */
+} apkg_channel_view;
+typedef struct {
+    apkg_text authority, name, version, target;
+    uint64_t revision, archive_bytes;
+    apkg_digest descriptor_digest, archive_digest;
+    apkg_signature_state signature;
+    apkg_trust_state author_trust;
+    int target_matches;
+    apkg_bytes descriptor, signature_envelope;
+} apkg_channel_entry_view;
+apkg_status apkg_channel_read(apkg_ctx *, const apkg_id *expected_id,
+                              uint64_t minimum_sequence, apkg_bytes object,
+                              apkg_bytes signature, apkg_channel **,
+                              apkg_error **);
+const apkg_channel_view *apkg_channel_get(const apkg_channel *);
+apkg_status apkg_channel_entry_at(const apkg_channel *, uint64_t,
+                                  const apkg_channel_entry_view **,
+                                  apkg_error **);
+/* Recheck the bound root policy/target and decode a selected descriptor. This
+ * is metadata only: archive transfer and blob availability are separate. */
+apkg_status apkg_channel_package(apkg_ctx *, const apkg_channel *, uint64_t,
+                                 apkg_package **, apkg_error **);
+void apkg_channel_free(apkg_channel *);
 
 typedef enum {
     APKG_PHASE_CHECK = 0,

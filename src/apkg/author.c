@@ -65,7 +65,8 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
         ak_buf_add(&b, "{\"public_key\":\"%s\"}", publichex);
         goto output;
     }
-    if (strcmp(argv[3], "descriptor")) {
+    int channel = !strcmp(argv[3], "channel");
+    if (strcmp(argv[3], "descriptor") && !channel) {
         code = APKG_UNSUPPORTED;
         goto done;
     }
@@ -78,22 +79,28 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
         code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
         goto done;
     }
-    if (!ak_descriptor(&j)) {
-        code = errno == ENOMEM ? APKG_NOMEM : APKG_UNSUPPORTED;
-        goto done;
-    }
-    char version[256];
-    ak_string(&j, ak_member(&j, ak_member(&j, 0, "body"), "version"), version,
-              sizeof version);
-    if (ak_version_compare(version, version) != 0) {
-        code = APKG_UNSUPPORTED;
-        goto done;
+    if (channel) {
+        code = ak_channel_validate(&j);
+        if (code)
+            goto done;
+    } else {
+        if (!ak_descriptor(&j)) {
+            code = errno == ENOMEM ? APKG_NOMEM : APKG_UNSUPPORTED;
+            goto done;
+        }
+        char version[256];
+        ak_string(&j, ak_member(&j, ak_member(&j, 0, "body"), "version"),
+                  version, sizeof version);
+        if (ak_version_compare(version, version) != 0) {
+            code = APKG_UNSUPPORTED;
+            goto done;
+        }
     }
     apkg_digest digest;
     ak_hash(bytes, size, &digest);
     ak_tohex(digest.bytes, 32, hashhex);
     memcpy(message, "APKG-SIG\0\1", 10);
-    message[10] = 1;
+    message[10] = channel ? 2 : 1;
     for (size_t i = 0; i < 8; i++)
         message[11 + i] = (unsigned char)((uint64_t)size >> (56 - 8 * i));
     memcpy(message + 19, digest.bytes, 32);
@@ -101,10 +108,11 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
     pkg_ed25519_sign(signature, message, sizeof message, sk);
     ak_tohex(signature, 64, sighex);
     ak_buf_add(&b,
-               "{\"bytes\":\"%zu\",\"domain\":\"descriptor\",\"format\":\"apkg-"
+               "{\"bytes\":\"%zu\",\"domain\":\"%s\",\"format\":\"apkg-"
                "signature-1\",\"public_key\":\"%s\",\"sha256\":\"%s\","
                "\"signature\":\"%s\"}",
-               size, publichex, hashhex, sighex);
+               size, channel ? "channel" : "descriptor", publichex, hashhex,
+               sighex);
 output:
     code = (apkg_status)b.bad;
     if (!code) {

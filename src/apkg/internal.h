@@ -44,6 +44,12 @@ apkg_status ak_tree_entry(const char *, const char *, char **);
 apkg_status ak_tree_source_read(const char *, size_t, char **, struct stat *);
 apkg_status ak_source_inventory(const char *, char **, apkg_error **);
 apkg_status ak_author_command(int, char **, char **);
+apkg_status ak_signature_check(apkg_bytes, apkg_bytes, const char *,
+                               unsigned char[32], apkg_digest *);
+int ak_channel_policy(const ak_json *, const char *, const char *);
+apkg_status ak_channel_validate(const ak_json *);
+apkg_status ak_channel_inspect(const char *, const char *, const char *,
+                               uint64_t, char **, apkg_error **);
 int ak_buf_add(ak_buf *, const char *, ...);
 apkg_status ak_tree_normalize(const char *, char **);
 apkg_status ak_blob_retain(apkg_ctx *, const char *, uint64_t, const char *);

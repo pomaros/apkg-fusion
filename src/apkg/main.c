@@ -2,6 +2,7 @@
  * Copyright (c) 2026 John Knipper */
 #include "apkg_client.h"
 #include "internal.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,9 +55,34 @@ int main(int argc, char **argv) {
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
-            "keygen|key-public KEYFILE | sign-object KEYFILE descriptor "
+            "channel-inspect ROOT DIRECTORY CHANNEL-ID [MIN-SEQUENCE]\n"
+            "keygen|key-public KEYFILE | sign-object KEYFILE "
+            "descriptor|channel "
             "JSONFILE\n");
         return APKG_INVALID;
+    }
+    if (!strcmp(argv[1], "channel-inspect")) {
+        if (argc != 5 && argc != 6)
+            return APKG_INVALID;
+        uint64_t floor = 0;
+        if (argc == 6) {
+            char *end;
+            for (const char *q = argv[5]; *q; q++)
+                if (*q < '0' || *q > '9')
+                    return APKG_INVALID;
+            errno = 0;
+            floor = strtoull(argv[5], &end, 10);
+            if (errno || !*argv[5] || *end)
+                return APKG_INVALID;
+        }
+        code = ak_channel_inspect(argv[2], argv[3], argv[4], floor, &text, &e);
+        if (!code)
+            puts(text);
+        else
+            report(code, NULL, e);
+        free(text);
+        apkg_error_free(e);
+        return (int)code;
     }
     if (!strcmp(argv[1], "keygen") || !strcmp(argv[1], "key-public") ||
         !strcmp(argv[1], "sign-object")) {

@@ -428,6 +428,55 @@ the subsequent channel, default-client, legacy-import and portal gates remain
 open. No AROS execution, OS changes, live portal changes or release claims were
 made. This checkpoint requires its own exact-source Linux/macOS CI result.
 
+## Parent/snapshot metadata source qualification
+
+Source [9e183cb](https://github.com/pomaros/apkg-fusion/commit/9e183cbbb82b9c6d9ef74719b93ee7d7d91c2b60)
+passes the complete [Host integration run](https://github.com/pomaros/apkg-fusion/actions/runs/40415726785).
+Linux, macOS and portal jobs pass, including common integration, memory checks,
+both inherited suites, public symbols and documentation links. This qualifies
+the parent/snapshot metadata checkpoint, without promoting it to native runtime
+or complete alpha qualification.
+
+## FUSION-ALPHA progress: authenticated channel metadata
+
+The [signed-channel metadata profile](channels.md) adds public immutable channel
+views and selected-descriptor decoding through the common context API. Discovery
+checks channel identity, role-authorized signature, sequence floor, every
+embedded descriptor/signature and conflicting build identities. Foreign targets
+and locally unauthorized authors remain visible as explicit blocked facts.
+Selecting a package rechecks the bound root, target and exact policy; channel
+trust never substitutes for package-author authorization.
+
+Policy now optionally includes independent channel-key grants. Initialization
+shows and persists both role arrays under the approved plan. Existing policies
+grant no implicit channel rights. Tests include shared identities across roles,
+domain confusion, unauthorized keys, forged qualifications and stale policy or
+sequence inputs. Cryptographic verification is factored into a shared pure
+verifier while preserving the existing descriptor transcript and typed failures.
+
+The common CLI can sign a channel object and inspect a supplied signed snapshot
+folder. A fixture uses an actual TOML-built PKG descriptor and native channel
+signing. This is metadata inspection only: archive availability and online
+freshness remain explicitly unchecked/unknown. It performs no fetching, cache
+creation, root initialization, trust changes or recovery.
+
+Local evaluation passes `make test-fusion` with 118 common methods, including
+240 additional channel-read allocation-injection positions, plus existing
+contract and inherited integration checks. The sanitizer harness passes 38
+client/source/authoring/channel methods. A dedicated native C runner checks
+channel/package lifetimes after freeing input buffers, context and channel in
+sequence under ASan/UBSan; Python allocation hooks continue to exercise the
+ordinary test library. Native CLI refusal tests cover signature, role and schema
+cleanup paths. Sanitizer errors halt execution. Documentation links cover 67
+files with zero broken links.
+
+ALPHA-CHANNEL is not complete. Atomic file publication, file/HTTP transport,
+archive/descriptor binding, durable sequence high-water tracking, independent
+qualifications and shared client discovery remain required. The profile records
+these next batches explicitly. All other open alpha/release obligations remain;
+no native execution, OS changes or live portal operations occurred. This source
+requires its own exact-source Linux/macOS CI qualification.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

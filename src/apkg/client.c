@@ -37,6 +37,12 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
     if (p->view.effect_count > (AK_MAX - 4096) / (AK_PATH + 512))
         return APKG_LIMIT;
     cap = 4096 + (size_t)p->view.effect_count * (AK_PATH + 512);
+    if (p->absent) {
+        size_t policy_size = strlen(p->root_record);
+        if (policy_size > (AK_MAX - cap) / 2)
+            return APKG_LIMIT;
+        cap += policy_size * 2;
+    }
     text = malloc(cap);
     if (!text)
         return APKG_NOMEM;
@@ -86,26 +92,31 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
                    p->name, authority, key))
             goto limit;
     } else {
-        int policy = ak_member(&j, b, "policy"),
-            authorities =
-                ak_member(&j, ak_member(&j, policy, "body"), "authorities");
-        for (i = (size_t)authorities + 1; i < j.tokens[authorities].next;
-             i = j.tokens[i].next) {
-            char authority[33];
-            int keys = ak_member(&j, (int)i, "keys");
-            size_t k;
-            if (ak_string(&j, ak_member(&j, (int)i, "id"), authority,
-                          sizeof authority))
-                goto limit;
-            for (k = (size_t)keys + 1; k < j.tokens[keys].next;
-                 k = j.tokens[k].next) {
-                char key[65];
-                if (ak_string(&j, ak_member(&j, (int)k, "public_key"), key,
-                              sizeof key) ||
-                    append(text, cap, &used,
-                           "Authorize publisher %s with key %s\n", authority,
-                           key))
+        int policy = ak_member(&j, b, "policy");
+        const char *roles[] = {"authorities", "channels"};
+        for (size_t role = 0; role < 2; role++) {
+            int authorities =
+                ak_member(&j, ak_member(&j, policy, "body"), roles[role]);
+            if (authorities < 0)
+                continue;
+            for (i = (size_t)authorities + 1; i < j.tokens[authorities].next;
+                 i = j.tokens[i].next) {
+                char authority[33];
+                int keys = ak_member(&j, (int)i, "keys");
+                size_t k;
+                if (ak_string(&j, ak_member(&j, (int)i, "id"), authority,
+                              sizeof authority))
                     goto limit;
+                for (k = (size_t)keys + 1; k < j.tokens[keys].next;
+                     k = j.tokens[k].next) {
+                    char key[65];
+                    if (ak_string(&j, ak_member(&j, (int)k, "public_key"), key,
+                                  sizeof key) ||
+                        append(text, cap, &used,
+                               "Authorize %s %s with key %s\n",
+                               role ? "channel" : "publisher", authority, key))
+                        goto limit;
+                }
             }
         }
     }
