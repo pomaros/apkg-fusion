@@ -18,7 +18,10 @@ jobs:
           python-version: '3.14'
       - name: Linux archive test dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y lhasa netpbm zlib1g-dev
+        timeout-minutes: 5
+        run: |
+          sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y lhasa netpbm zlib1g-dev
       - name: macOS archive test dependencies
         if: runner.os == 'macOS'
         run: brew install lhasa netpbm
