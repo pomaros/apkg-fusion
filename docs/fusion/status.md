@@ -290,10 +290,52 @@ passes the complete [Host integration run](https://github.com/pomaros/apkg-fusio
 
 This qualifies the streaming transport checkpoint only. ALPHA-PAYLOAD remains
 open for full declared metadata fidelity and its author/package/installed
-inventory round trips. Before advancing, also revisit metadata row allocation
-bounds for realistic large file counts and add invalid path-text input coverage
-to the new public import API. Those checks remain explicit work, not implied
-passes. All later alpha gates and deferred native/release obligations remain.
+inventory round trips. The following checkpoint addresses the row-allocation
+and path-text audit items; all later alpha gates remain open.
+
+## FUSION-ALPHA progress: host metadata and inventory scale
+
+The [host semantic metadata profile](payload.md#host-semantic-metadata-profile)
+adds signed per-entry Amiga protection, comments, owner facts and ordered opaque
+extension records. Host installation preserves these facts without assigning
+Amiga principals as host users. Ordinary file modes and explicit directory modes
+are preserved subject to read/traverse requirements. CLI and actual worker
+previews use the same engine result and expose these facts.
+
+Metadata participates in observed before-images, approval preconditions,
+staging checks, history and offline rollback. Three-way merging preserves
+personal metadata independently of updated file bytes; protection merges per
+bit. Pristine removal removes the tree, while metadata edits retain the
+otherwise pristine file. Unknown host metadata remains a refusal.
+
+Path rows now own exact-size strings instead of fixed 4 KiB arrays. Directory
+name storage grows geometrically and carries a cumulative metadata budget. The
+1,200-file fixture installs, repairs and removes while preserving an added
+personal file. Invalid UTF-8/control/NUL import paths refuse before I/O.
+
+Local macOS evaluation:
+
+- `make test-fusion` passes: 87 common methods, contract checks, inherited target
+  (118), application (315), first-install (27), read-only context adapter,
+  CLI (110) and publication (78) checks.
+- The new metadata cases include archive round trips, nondefault directory/file
+  modes, UTF-8 comments, full uint64 protection, uint32 owner boundaries,
+  opaque extensions, personal edits, stale approval and four process-death
+  boundaries with repeat recovery and offline rollback.
+- 400 metadata-planner and 350 metadata-executor allocation-injection positions
+  preserve data or produce explicit recoverable outcomes, in addition to the
+  existing injection suites.
+- ASan/UBSan lifetime and six existing client groups pass. The added actual
+  CLI/worker metadata scenario also passes with both sanitized executables.
+- Documentation links: 65 files, zero broken links.
+
+This is a partial ALPHA-PAYLOAD checkpoint, not gate completion. Tests still
+construct descriptors directly: source `.ameta`/TOML authoring, timestamp
+semantics and a complete author/package/installed inventory round trip remain
+required. Native explicit-metadata mutation refuses before staging pending
+adapter/runtime qualification. No AROS execution or OS changes occurred; no
+portal code, live data or deployment was changed. Exact-source Linux/macOS CI
+must independently qualify this published revision.
 
 ## Implemented integration pieces
 

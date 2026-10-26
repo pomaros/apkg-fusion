@@ -76,7 +76,8 @@ static int inventory_stage(apkg_ctx *c, const char *tree, const char *raw,
         if (ak_string(&j, ak_member(&j, (int)i, "path"), rel, sizeof rel) ||
             !ak_valid_path(rel) || ak_path(path, tree, rel) ||
             ak_u64(&j, ak_member(&j, (int)i, "mode"), &mode) || mode > 0777 ||
-            chmod(path, (mode_t)mode)) {
+            chmod(path, (mode_t)mode) ||
+            stage_attributes(path, &j, (int)i, mode)) {
             bad = 1;
             goto done;
         }

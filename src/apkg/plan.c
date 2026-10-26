@@ -300,6 +300,16 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
     ak_json_free(&policy);
     int related =
         ak_member(&p->json, ak_member(&p->json, 0, "body"), "relations") >= 0;
+    int payload_files =
+        ak_member(&p->json, ak_member(&p->json, 0, "body"), "files");
+    for (size_t file = (size_t)payload_files + 1;
+         file < p->json.tokens[payload_files].next;
+         file = p->json.tokens[file].next)
+        if (ak_member(&p->json, (int)file, "amiga") >= 0 ||
+            (ak_equal(&p->json, ak_member(&p->json, (int)file, "type"),
+                      "directory") &&
+             ak_member(&p->json, (int)file, "mode") >= 0))
+            related = 1;
     for (size_t row = 0; row < s->nrows && !related; row++) {
         ak_json entry = {0};
         if (ak_json_parse(s->records[row], strlen(s->records[row]), &entry))

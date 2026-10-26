@@ -315,3 +315,27 @@ int ak_object(const ak_json *j, const char *type) {
            ak_empty(j, ak_member(j, 0, "requires")) &&
            j->tokens[ak_member(j, 0, "body")].type == '{';
 }
+
+int ak_fields_optional(const ak_json *j, int obj, const char *const *required,
+                       size_t nr, const char *const *optional, size_t no) {
+    size_t i, k, count = 0;
+    if (obj < 0 || j->tokens[obj].type != '{')
+        return 0;
+    for (k = 0; k < nr; k++)
+        if (ak_member(j, obj, required[k]) < 0)
+            return 0;
+    for (i = (size_t)obj + 1; i < j->tokens[obj].next;) {
+        int known = 0;
+        for (k = 0; k < nr; k++)
+            if (ak_equal(j, (int)i, required[k]))
+                known = 1;
+        for (k = 0; k < no; k++)
+            if (ak_equal(j, (int)i, optional[k]))
+                known = 1;
+        if (!known)
+            return 0;
+        count++;
+        i = j->tokens[i + 1].next;
+    }
+    return count >= nr;
+}

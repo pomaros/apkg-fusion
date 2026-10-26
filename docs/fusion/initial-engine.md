@@ -76,7 +76,8 @@ there is no global clone registry or automatic clone-id reassignment in this
 profile. Cross-root plan/approval transfer is refused.
 
 Descriptor files are sorted by exact relative path. A regular entry has exactly
-`data` (lowercase hex bytes), `mode` (decimal `420` or `493`, POSIX 0644/0755),
+`data` (lowercase hex bytes), `mode` (originally decimal `420` or `493`;
+expanded by the [host payload profile](payload.md#host-semantic-metadata-profile)),
 `path`, `sha256`, `size` (uint64 decimal string), `type` (`file`). A directory has
 exactly `path` and `type` (`directory`). All parents must be explicit directory
 entries. Hidden files and empty directories are preserved. Case-fold collisions,

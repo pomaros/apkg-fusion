@@ -304,8 +304,14 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
                               sizeof size);
                     ak_buf_add(&b, "; %s bytes, mode %s, SHA-256 %s", size,
                                mode, sha);
-                } else
-                    ak_buf_add(&b, " (directory)");
+                } else {
+                    ak_string(j, ak_member(j, (int)k, "mode"), mode,
+                              sizeof mode);
+                    ak_buf_add(&b, " (directory, mode %s)", mode);
+                }
+                apkg_status metadata = ak_attributes_format(j, (int)k, &b);
+                if (metadata)
+                    b.bad = metadata;
                 ak_buf_add(&b, "\n");
             }
         }

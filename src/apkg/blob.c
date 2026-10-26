@@ -401,6 +401,12 @@ apkg_status ak_blob_copy(apkg_ctx *c, const char *sha, uint64_t size,
 apkg_status ak_package_payload_check(apkg_ctx *c, const apkg_package *p) {
     int arr = ak_member(&p->json, ak_member(&p->json, 0, "body"), "files");
     size_t i;
+#ifdef __AROS__
+    for (i = (size_t)arr + 1; i < p->json.tokens[arr].next;
+         i = p->json.tokens[i].next)
+        if (ak_member(&p->json, (int)i, "amiga") >= 0)
+            return APKG_UNSUPPORTED;
+#endif
     for (i = (size_t)arr + 1; i < p->json.tokens[arr].next;
          i = p->json.tokens[i].next)
         if (ak_member(&p->json, (int)i, "blob") >= 0) {

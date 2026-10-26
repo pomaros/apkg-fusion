@@ -157,6 +157,26 @@ static int mkdir_parents(const char *base, const char *rel) {
         }
     return 0;
 }
+static int stage_attributes(const char *path, const ak_json *j, int entry,
+                            uint64_t mode) {
+    int at = ak_member(j, entry, "amiga");
+    if (at < 0)
+        return 0;
+    char *raw = ak_slice(j, at);
+    if (!raw) {
+        errno = ENOMEM;
+        return -1;
+    }
+    apkg_status code = ak_attributes_write(path, raw, mode);
+    free(raw);
+    if (code) {
+        errno = code == APKG_NOMEM         ? ENOMEM
+                : code == APKG_UNSUPPORTED ? ENOTSUP
+                                           : EIO;
+        return -1;
+    }
+    return 0;
+}
 static int stage_package(apkg_ctx *c, const char *tree, const ak_json *j,
                          const char *fallback) {
     int body = ak_member(j, 0, "body");
@@ -199,7 +219,8 @@ static int stage_package(apkg_ctx *c, const char *tree, const ak_json *j,
                                                  : EIO;
                 return -1;
             }
-            if (chmod(path, (mode_t)mode))
+            if (chmod(path, (mode_t)mode) ||
+                stage_attributes(path, j, (int)i, mode))
                 return -1;
             int fd = open(path, O_RDONLY);
             if (fd < 0)
@@ -219,7 +240,8 @@ static int stage_package(apkg_ctx *c, const char *tree, const ak_json *j,
             return -1;
         }
         if (ak_hex(hex, bytes, (size_t)n) ||
-            ak_write(path, bytes, (size_t)n, 1) || chmod(path, (mode_t)mode)) {
+            ak_write(path, bytes, (size_t)n, 1) || chmod(path, (mode_t)mode) ||
+            stage_attributes(path, j, (int)i, mode)) {
             free(hex);
             free(bytes);
             return -1;

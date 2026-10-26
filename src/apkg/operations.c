@@ -124,11 +124,23 @@ static apkg_status desired(const char *observed, const ak_json *old,
                 }
                 rows[k].token = keep ? -l - 2 : n;
             } else {
-                if (o >= 0 && same_file(&live, l, old, o))
-                    continue;
+                if (o >= 0 && same_file(&live, l, old, o)) {
+                    int equal = ak_attributes_equal(&live, l, old, o);
+                    if (equal < 0) {
+                        code = APKG_NOMEM;
+                        goto done;
+                    }
+                    if (equal)
+                        continue;
+                }
                 rows[k].token = -l - 2;
             }
-            strcpy(rows[k++].path, path);
+            rows[k].path = ak_copy(path, strlen(path));
+            if (!rows[k].path) {
+                code = APKG_NOMEM;
+                goto done;
+            }
+            k++;
         }
     }
     /* Add old directories needed by preserved descendants. */
@@ -154,7 +166,11 @@ static apkg_status desired(const char *observed, const ak_json *old,
                         needed = 1;
                 }
                 if (!present && needed) {
-                    strcpy(rows[k].path, path);
+                    rows[k].path = ak_copy(path, strlen(path));
+                    if (!rows[k].path) {
+                        code = APKG_NOMEM;
+                        goto done;
+                    }
                     rows[k++].token = -(int)i - 2;
                 }
             }
@@ -192,15 +208,27 @@ static apkg_status desired(const char *observed, const ak_json *old,
         const ak_json *j = t < 0 ? &live : nw;
         if (t < 0)
             t = -t - 2;
+        uint64_t entrymode = 0700;
+        if (ak_member(j, t, "mode") >= 0)
+            ak_u64(j, ak_member(j, t, "mode"), &entrymode);
+        char *attributes = NULL;
+        code = ak_attributes_merge(
+            old, find_file(old, rows[i].path), nw, find_file(nw, rows[i].path),
+            &live, find_file(&live, rows[i].path), entrymode, &attributes);
+        if (code)
+            goto done;
+        ak_buf_add(&b, "%s{", i ? "," : "");
+        if (attributes)
+            ak_buf_add(&b, "\"amiga\":%s,", attributes);
+        free(attributes);
         if (ak_equal(j, ak_member(j, t, "type"), "directory")) {
             char dm[24] = "448";
             int mt = ak_member(j, t, "mode");
             if (mt >= 0)
                 ak_string(j, mt, dm, sizeof dm);
             ak_buf_add(
-                &b,
-                "%s{\"mode\":\"%s\",\"path\":\"%s\",\"type\":\"directory\"}",
-                i ? "," : "", dm, rows[i].path);
+                &b, "\"mode\":\"%s\",\"path\":\"%s\",\"type\":\"directory\"}",
+                dm, rows[i].path);
         } else {
             /* Configuration policy belongs to signed metadata, not observed
              * bytes. */
@@ -217,16 +245,16 @@ static apkg_status desired(const char *observed, const ak_json *old,
                 }
                 ak_buf_add(
                     &b,
-                    "%s{\"data\":%s,\"mode\":\"%s\",\"path\":\"%s\",\"sha256\":"
+                    "\"data\":%s,\"mode\":\"%s\",\"path\":\"%s\",\"sha256\":"
                     "\"%s\",\"size\":\"%s\",\"type\":\"file\"}",
-                    i ? "," : "", bytes, fm, rows[i].path, sha, sz);
+                    bytes, fm, rows[i].path, sha, sz);
                 free(bytes);
             } else
                 ak_buf_add(
                     &b,
-                    "%s{\"blob\":\"%s\",\"mode\":\"%s\",\"path\":\"%s\","
+                    "\"blob\":\"%s\",\"mode\":\"%s\",\"path\":\"%s\","
                     "\"sha256\":\"%s\",\"size\":\"%s\",\"type\":\"file\"}",
-                    i ? "," : "", sha, fm, rows[i].path, sha, sz);
+                    sha, fm, rows[i].path, sha, sz);
         }
     }
     ak_buf_add(&b, "],\"mode\":\"%s\"}", mode);
@@ -236,6 +264,9 @@ static apkg_status desired(const char *observed, const ak_json *old,
         b.data = NULL;
     }
 done:
+    if (rows)
+        for (i = 0; i < count; i++)
+            free(rows[i].path);
     free(rows);
     free(b.data);
     ak_json_free(&live);

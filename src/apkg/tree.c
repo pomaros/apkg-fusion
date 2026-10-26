@@ -56,30 +56,38 @@ char *ak_slice(const ak_json *j, int t) {
                  : ak_copy(j->text + j->tokens[t].start,
                            j->tokens[t].end - j->tokens[t].start);
 }
-/* The current tree representation cannot round-trip links, special mode bits,
- * foreign ownership, ACLs, AROS comments/protection or extended attributes.
- * Refuse such a participant before writes instead of stripping metadata. */
+/* Unknown host metadata cannot be round-tripped. The recognized Amiga xattr
+ * is validated separately and becomes part of every observed inventory. */
 static int metadata_supported(const char *path, const struct stat *st) {
-    unsigned long long protection = 0;
-    char comment[256];
     if (st->st_mode & 07000)
         return 0;
 #ifndef __AROS__
     if (st->st_uid != geteuid() || st->st_gid != getegid())
         return 0;
 #endif
-    int amiga = pkg_fs_amiga_get(path, &protection, comment, sizeof comment);
-    if (amiga < 0 || (amiga > 0 && (protection || *comment)))
-        return 0;
+#if defined(__APPLE__) || defined(__linux__)
+    char names[16384];
+    ssize_t n;
 #ifdef __APPLE__
-    char attributes[256];
-    ssize_t attr_size =
-        listxattr(path, attributes, sizeof attributes, XATTR_NOFOLLOW);
-    /* macOS attaches its own process provenance to newly created files. It is
-     * OS bookkeeping, excluded from managed package metadata on this host. */
-    if (attr_size != 0 &&
-        !(attr_size == 21 && !memcmp(attributes, "com.apple.provenance", 21)))
+    n = listxattr(path, names, sizeof names, XATTR_NOFOLLOW);
+#else
+    n = llistxattr(path, names, sizeof names);
+#endif
+    if (n < 0 && errno != ENOTSUP)
         return 0;
+    for (ssize_t pos = 0; pos < n;) {
+        size_t len = strnlen(names + pos, (size_t)(n - pos));
+        if (len == (size_t)(n - pos))
+            return 0;
+        if (strcmp(names + pos, "user.apkg.amiga")
+#ifdef __APPLE__
+            && strcmp(names + pos, "com.apple.provenance")
+#endif
+        )
+            return 0;
+        pos += (ssize_t)len + 1;
+    }
+#ifdef __APPLE__
     acl_t acl = acl_get_file(path, ACL_TYPE_EXTENDED);
     if (acl) {
         acl_entry_t entry;
@@ -88,27 +96,26 @@ static int metadata_supported(const char *path, const struct stat *st) {
         if (present == 0)
             return 0;
     }
-#elif defined(__linux__)
-    ssize_t attributes = llistxattr(path, NULL, 0);
-    if (attributes > 0 || (attributes < 0 && errno != ENOTSUP))
-        return 0;
+#endif
 #endif
     return 1;
 }
 static int names(const void *a, const void *b) {
     return strcmp(*(char *const *)a, *(char *const *)b);
 }
-static int scan(const char *base, const char *rel, ak_buf *out,
-                unsigned depth) {
+static int scan(const char *base, const char *rel, ak_buf *out, unsigned depth,
+                size_t *names_memory) {
     char path[AK_PATH];
     DIR *d;
     struct dirent *e;
     char **list = NULL;
-    size_t n = 0, i;
+    size_t n = 0, i, capacity = 0, held = 0;
     int bad = 0;
     if (depth > 32 ||
         (*rel ? ak_path(path, base, rel) : (strcpy(path, base), 0)))
         return APKG_LIMIT;
+    if (out->bad)
+        return out->bad;
     d = opendir(path);
     if (!d)
         return APKG_IO;
@@ -117,24 +124,33 @@ static int scan(const char *base, const char *rel, ak_buf *out,
         char **next;
         if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
             continue;
-        if (n >= AK_TOKENS || n >= out->max / sizeof(ak_tree_row)) {
+        size_t cost = strlen(e->d_name) + 1 + 2 * sizeof(char *);
+        if (n >= AK_TOKENS || cost > out->max - *names_memory) {
             bad = APKG_LIMIT;
             break;
         }
-        next = malloc((n + 1) * sizeof *next);
-        if (!next) {
-            bad = APKG_NOMEM;
-            break;
+        if (n == capacity) {
+            size_t cap = capacity ? capacity * 2 : 16;
+            if (cap > AK_TOKENS)
+                cap = AK_TOKENS;
+            next = malloc(cap * sizeof *next);
+            if (!next) {
+                bad = APKG_NOMEM;
+                break;
+            }
+            if (n)
+                memcpy(next, list, n * sizeof *next);
+            free(list);
+            list = next;
+            capacity = cap;
         }
-        if (n)
-            memcpy(next, list, n * sizeof *next);
-        free(list);
-        list = next;
         list[n] = ak_copy(e->d_name, strlen(e->d_name));
         if (!list[n]) {
             bad = APKG_NOMEM;
             break;
         }
+        *names_memory += cost;
+        held += cost;
         n++;
         errno = 0;
     }
@@ -161,35 +177,55 @@ static int scan(const char *base, const char *rel, ak_buf *out,
             bad = APKG_UNSUPPORTED;
             break;
         }
+        char *attributes = NULL;
+        bad = ak_attributes_read(full, (uint64_t)(st.st_mode & 0777),
+                                 &attributes);
+        if (bad)
+            break;
+        ak_buf prefix = {0};
+        prefix.max = 32768;
+        if (attributes)
+            ak_buf_add(&prefix, "\"amiga\":%s,", attributes);
+        free(attributes);
+        if (prefix.bad) {
+            bad = prefix.bad;
+            free(prefix.data);
+            break;
+        }
+        const char *meta = prefix.data ? prefix.data : "";
         if (S_ISDIR(st.st_mode)) {
             ak_buf_add(
                 out,
-                "%s{\"mode\":\"%u\",\"path\":\"%s\",\"type\":\"directory\"}",
-                out->size ? "," : "", (unsigned)(st.st_mode & 0777), sub);
-            bad = scan(base, sub, out, depth + 1);
+                "%s{%s\"mode\":\"%u\",\"path\":\"%s\",\"type\":\"directory\"}",
+                out->size ? "," : "", meta, (unsigned)(st.st_mode & 0777), sub);
+            bad = scan(base, sub, out, depth + 1, names_memory);
         } else if (S_ISREG(st.st_mode) && st.st_nlink == 1) {
             uint64_t len = 0;
             unsigned char head[64];
             size_t hn = 0;
             char sha[65];
             bad = ak_stream_hash(full, &len, sha, head, &hn);
-            if (bad)
+            if (bad) {
+                free(prefix.data);
                 break;
+            }
             ak_buf_add(out,
-                       "%s{\"blob\":\"%s\",\"mode\":\"%u\",\"path\":\"%s\","
+                       "%s{%s\"blob\":\"%s\",\"mode\":\"%u\",\"path\":\"%s\","
                        "\"sha256\":\"%s\",\"size\":\"%" PRIu64
                        "\",\"type\":\"file\"}",
-                       out->size ? "," : "", sha, (unsigned)(st.st_mode & 0777),
-                       sub, sha, len);
+                       out->size ? "," : "", meta, sha,
+                       (unsigned)(st.st_mode & 0777), sub, sha, len);
 
         } else
             bad = APKG_UNSUPPORTED;
+        free(prefix.data);
         if (out->bad)
             bad = out->bad;
     }
     for (i = 0; i < n; i++)
         free(list[i]);
     free(list);
+    *names_memory -= held;
     return bad;
 }
 /* Entries are globally sorted after the walk: DFS order differs for a.b/a/x. */
@@ -215,7 +251,15 @@ apkg_status ak_tree_read(const char *base, size_t max, char **out,
     }
     if (!S_ISDIR(identity->st_mode) || !metadata_supported(base, identity))
         return APKG_UNSUPPORTED;
-    code = scan(base, "", &files, 0);
+    char *rootattrs = NULL;
+    code = ak_attributes_read(base, (uint64_t)(identity->st_mode & 0777),
+                              &rootattrs);
+    if (code || rootattrs) {
+        free(rootattrs);
+        return code ? code : APKG_UNSUPPORTED;
+    }
+    size_t names_memory = 0;
+    code = scan(base, "", &files, 0, &names_memory);
     if (code)
         goto done;
     /* Parse an array to sort complete records without changing their bytes. */
@@ -241,9 +285,14 @@ apkg_status ak_tree_read(const char *base, size_t max, char **out,
         goto done;
     }
     for (i = 1; i < j.tokens[0].next; i = j.tokens[i].next) {
-        if (ak_string(&j, ak_member(&j, (int)i, "path"), rows[k].path,
-                      AK_PATH)) {
+        char path[AK_PATH];
+        if (ak_string(&j, ak_member(&j, (int)i, "path"), path, sizeof path)) {
             code = APKG_INVALID;
+            goto done;
+        }
+        rows[k].path = ak_copy(path, strlen(path));
+        if (!rows[k].path) {
+            code = APKG_NOMEM;
             goto done;
         }
         rows[k++].token = (int)i;
@@ -268,6 +317,9 @@ apkg_status ak_tree_read(const char *base, size_t max, char **out,
         files.data = NULL;
     }
 done:
+    if (rows)
+        for (i = 0; i < count; i++)
+            free(rows[i].path);
     free(rows);
     free(files.data);
     free(result.data);
@@ -340,21 +392,33 @@ apkg_status ak_tree_normalize(const char *raw, char **out) {
                                            "sha256", "size", "type"};
         const char *const data_fields[] = {"data",   "mode", "path",
                                            "sha256", "size", "type"};
-        if (!ak_fields(&j, (int)i,
-                       directory   ? dir_fields
-                       : data >= 0 ? data_fields
-                                   : blob_fields,
-                       directory ? 3 : 6) ||
+        if (!ak_fields_optional(&j, (int)i,
+                                directory   ? dir_fields
+                                : data >= 0 ? data_fields
+                                            : blob_fields,
+                                directory ? 3 : 6,
+                                (const char *const[]){"amiga"}, 1) ||
+            !ak_attributes_valid(&j, ak_member(&j, (int)i, "amiga"),
+                                 permissions) ||
             (!directory &&
              !ak_equal(&j, ak_member(&j, (int)i, "type"), "file"))) {
             code = APKG_INVALID;
             goto done;
         }
+        int at = ak_member(&j, (int)i, "amiga");
+        char *attributes = at < 0 ? NULL : ak_slice(&j, at);
+        if (at >= 0 && !attributes) {
+            code = APKG_NOMEM;
+            goto done;
+        }
+        ak_buf_add(&b, "%s{", i == (size_t)arr + 1 ? "" : ",");
+        if (attributes)
+            ak_buf_add(&b, "\"amiga\":%s,", attributes);
+        free(attributes);
         if (ak_equal(&j, ak_member(&j, (int)i, "type"), "directory"))
             ak_buf_add(
-                &b,
-                "%s{\"mode\":\"%s\",\"path\":\"%s\",\"type\":\"directory\"}",
-                i == (size_t)arr + 1 ? "" : ",", fm, path);
+                &b, "\"mode\":\"%s\",\"path\":\"%s\",\"type\":\"directory\"}",
+                fm, path);
         else {
             if (ak_string(&j, ak_member(&j, (int)i, "sha256"), sha,
                           sizeof sha) ||
@@ -408,10 +472,9 @@ apkg_status ak_tree_normalize(const char *raw, char **out) {
                 }
             }
             ak_buf_add(&b,
-                       "%s{\"blob\":\"%s\",\"mode\":\"%s\",\"path\":\"%s\","
+                       "\"blob\":\"%s\",\"mode\":\"%s\",\"path\":\"%s\","
                        "\"sha256\":\"%s\",\"size\":\"%s\",\"type\":\"file\"}",
-                       i == (size_t)arr + 1 ? "" : ",", sha, fm, path, sha,
-                       size);
+                       sha, fm, path, sha, size);
         }
     }
     ak_buf_add(&b, "],\"mode\":\"%s\"}", mode);

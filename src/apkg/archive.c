@@ -83,6 +83,7 @@ apkg_status apkg_package_import(apkg_ctx *c, apkg_text archive,
         return APKG_INVALID;
     *out = NULL;
     if (!c || !archive.data || !archive.size || archive.size >= sizeof path ||
+        !ak_text_path_valid(archive.data, archive.size) ||
         memchr(archive.data, 0, archive.size))
         return APKG_INVALID;
     if (c->mode != APKG_WRITE)

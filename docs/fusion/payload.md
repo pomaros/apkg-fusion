@@ -13,7 +13,7 @@ still require their own implementation and evidence.
 
 A regular file can use `blob` in place of inline `data`. All other file fields
 retain their meaning: `mode`, `path`, `sha256`, `size`, `type`, and optionally
-`config: "preserve"`. The blob value must equal its lowercase SHA-256. Sizes are
+`config: "preserve"` and `amiga` (below). The blob value must equal its lowercase SHA-256. Sizes are
 uint64 decimal strings. Blob references do not embed or allocate the file bytes.
 Unknown fields and unsafe/colliding paths remain refusals. Inline descriptors
 remain readable as bounded development/compatibility inputs.
@@ -96,8 +96,65 @@ objects, never bulk-publish this store or its history.
 All prior journal rules remain: one parent-lock domain, exact approval and
 preconditions, retained evidence, rollback before decision and roll-forward
 after it. Unsupported live metadata is still refused rather than stripped.
-General timestamp, protection/comment, attribute and authoring fidelity remains
-a required part of ALPHA-PAYLOAD; native execution/durability remains deferred.
+General timestamp and authoring fidelity remain required parts of
+ALPHA-PAYLOAD. The host metadata profile below adds protection/comment/owner
+facts; native execution/durability remains deferred.
+
+## Host semantic metadata profile
+
+A file or directory can declare an optional canonical `amiga` object:
+
+```json
+{"comment":"636166c3a9","extra":[],"gid":null,"protection":"2","uid":null}
+```
+
+All five keys are required when the object is present. `comment` is lower-hex
+UTF-8, limited to the native 79 Latin-1 characters with no DOS control bytes.
+`protection` preserves an unsigned 64-bit word as decimal text; its owner execute
+inhibit bit (2) must agree with the POSIX owner execute bit. `uid` and `gid` are
+null (unspecified) or uint32 decimal strings. They identify Amiga principals;
+installing them on a host does not call `chown` or interpret them as host users.
+`extra` preserves ordered opaque `.ameta` extension facts as objects containing
+hex-encoded UTF-8 `key` and `value` strings. Reserved semantic keys cannot be
+smuggled into extensions. Values remain inert and do not execute operations.
+The complete metadata object is bounded to 16 KiB. Unknown semantic fields and
+unrepresentable text are refusals.
+
+On Linux/macOS the recognized `user.apkg.amiga` xattr stores this canonical
+semantic object. The actual host execute mode controls the mirrored execute
+inhibit bit on observation. An omitted or explicit default object means an
+empty comment, no extensions, unspecified owners and only the mode-derived
+execute inhibit bit. The xattr is a local fidelity carrier, not a trust mark.
+Other xattrs, ACLs, special bits, foreign host ownership and links remain
+unsupported before tree mutation. The top-level package folder's nondefault
+Amiga metadata is refused until that folder has its own declared contract.
+
+Files now accept ordinary POSIX modes through 0777 with owner read required.
+Directories can declare an optional `mode`, default 0700, with owner read and
+traverse required. Special bits remain unsupported. A declared mode is applied
+exactly, never reduced to 0644/0755. These read/traverse requirements permit
+verification and recovery under the current user's identity.
+
+Signed baseline, incoming baseline and actual metadata are merged independently
+from file contents. A personal comment does not pin old program bytes during
+upgrade. Changed protection bits are preserved individually; comment, uid, gid
+and the ordered extension list each retain the actual value when edited since
+the delivered baseline. Otherwise they take the incoming value. Removing an
+otherwise pristine file with edited metadata retains it. Exact observations
+bind approval, staging verification, retained before-images and offline rollback.
+CLI and worker previews expose the resulting metadata facts.
+
+This is host qualification only. Native mutation of descriptors with explicit
+`amiga` metadata currently refuses in payload preflight pending adapter/runtime
+qualification, including native owner/extension handling. The authoring adapter
+from actual `.ameta` files, timestamps and full source/package/installed
+inventory agreement remain unfinished ALPHA-PAYLOAD obligations. The tests
+construct signed descriptors directly and must not be cited as TOML or `.ameta`
+authoring evidence.
+
+Inventories allocate path strings to their actual length; directory-name arrays
+grow geometrically within the metadata budget. The scale fixture installs,
+repairs and removes 1,200 files while preserving a foreign personal file.
 
 ## Verification
 

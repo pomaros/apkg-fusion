@@ -225,7 +225,14 @@ int ak_descriptor(const ak_json *j) {
             return 0;
         strcpy(previous, s);
         if (ak_equal(j, ak_member(j, (int)i, "type"), "directory")) {
-            if (!ak_fields(j, (int)i, dirf, 2))
+            mode = 0700;
+            if (!ak_fields_optional(j, (int)i, dirf, 2,
+                                    (const char *const[]){"amiga", "mode"},
+                                    2) ||
+                (ak_member(j, (int)i, "mode") >= 0 &&
+                 ak_u64(j, ak_member(j, (int)i, "mode"), &mode)) ||
+                mode > 0777 || (mode & 0500) != 0500 ||
+                !ak_attributes_valid(j, ak_member(j, (int)i, "amiga"), mode))
                 return 0;
             continue;
         }
@@ -237,16 +244,18 @@ int ak_descriptor(const ak_json *j) {
                                           "sha256", "size",   "type"};
         const char *const inlineconfig[] = {"config", "data", "mode", "path",
                                             "sha256", "size", "type"};
-        if (!ak_fields(j, (int)i,
-                       blob ? (config ? blobconfig : blobf)
-                            : (config ? inlineconfig : filef),
-                       config ? 7 : 6) ||
+        if (!ak_fields_optional(j, (int)i,
+                                blob ? (config ? blobconfig : blobf)
+                                     : (config ? inlineconfig : filef),
+                                config ? 7 : 6, (const char *const[]){"amiga"},
+                                1) ||
             (config &&
              !ak_equal(j, ak_member(j, (int)i, "config"), "preserve")) ||
             !ak_equal(j, ak_member(j, (int)i, "type"), "file") ||
             ak_u64(j, ak_member(j, (int)i, "size"), &v) ||
             ak_u64(j, ak_member(j, (int)i, "mode"), &mode) ||
-            (mode != 420 && mode != 493))
+            (mode > 0777 || !(mode & 0400)) ||
+            !ak_attributes_valid(j, ak_member(j, (int)i, "amiga"), mode))
             return 0;
         if (blob) {
             char sha[65];
