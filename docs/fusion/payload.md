@@ -148,11 +148,11 @@ CLI and worker previews expose the resulting metadata facts.
 
 This is host qualification only. Native mutation of descriptors with explicit
 `amiga` metadata currently refuses in payload preflight pending adapter/runtime
-qualification, including native owner/extension handling. The authoring adapter
-from actual `.ameta` files, timestamps and full source/package/installed
-inventory agreement remain unfinished ALPHA-PAYLOAD obligations. The tests
-construct signed descriptors directly and must not be cited as TOML or `.ameta`
-authoring evidence.
+qualification, including native owner/extension handling. The [common authoring checkpoint](authoring.md) now reads actual `.ameta` and
+TOML files and supplies source/package/installed round-trip fixtures. Parent
+control selection, source-root metadata, timestamps and broader fidelity still
+remain unfinished ALPHA-PAYLOAD obligations. Direct-descriptor fixtures remain
+separate from those new authoring cases.
 
 Inventories allocate path strings to their actual length; directory-name arrays
 grow geometrically within the metadata budget. The scale fixture installs,

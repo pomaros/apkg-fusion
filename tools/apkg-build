@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Build a common-engine PKG/1 archive from an apkg-pack TOML drawer.
+
+No managed root, channel or source file is changed. Cryptography and .ameta
+interpretation use the common executable; payload transport uses bounded I/O.
+"""
+import argparse
+import contextlib
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import runpy
+import shutil
+import stat
+import struct
+import subprocess
+import sys
+import tempfile
+import tomllib
+
+HERE=Path(__file__).resolve().parents[1]
+PACK=runpy.run_path(str(HERE/'components/arospkg/tools/apkg-pack'),run_name='apkg_pack_library')
+RULES=PACK['mkindex']
+ALLOWED=set(PACK['ORDER'])|{'launch','requires_system','source','config','recommends'}
+RESERVED='Package.arospkg.toml'
+
+class Refusal(Exception):pass
+
+def encode(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()
+def run(engine,*args):
+ done=subprocess.run([str(engine),*map(str,args)],capture_output=True,text=True)
+ if done.returncode:raise Refusal((done.stderr+done.stdout).strip() or f'engine status {done.returncode}')
+ return done.stdout
+
+def inventory(engine,path):return json.loads(run(engine,'source-inventory',path))
+def header_cpu(path):
+ with path.open('rb') as f:head=f.read(64)
+ if head[:4]==b'\x7fELF':
+  if len(head)<20 or head[5] not in (1,2):raise Refusal(f'{path.name}: malformed executable header')
+  machine=int.from_bytes(head[18:20],'little' if head[5]==1 else 'big')
+  cpu=PACK['EM_ARCH'].get(machine)
+  if not cpu:raise Refusal(f'{path.name}: unsupported executable CPU {machine}')
+  return cpu
+ if head[:4]==b'\x00\x00\x03\xf3':return 'm68k'
+ return None
+
+def regular(path):
+ st=path.lstat()
+ if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1:raise Refusal(f'{path.name}: a regular unlinked file is required')
+ return st
+
+def build(args):
+ source=Path(args.drawer).absolute()
+ if source.is_symlink() or not source.is_dir():raise Refusal('drawer must be a regular directory')
+ source=source.resolve();manifest_path=source.with_name(source.name+'.arospkg.toml');regular(manifest_path)
+ if manifest_path.stat().st_size>1024*1024:raise Refusal('author TOML exceeds 1 MiB')
+ with manifest_path.open('rb') as manifest_file:author=manifest_file.read(1024*1024+1)
+ if len(author)>1024*1024:raise Refusal('author TOML exceeds 1 MiB')
+ m=tomllib.loads(author.decode('utf-8'))
+ unknown=set(m)-ALLOWED
+ if unknown:raise Refusal('unsupported author fields: '+', '.join(sorted(unknown)))
+ for key in ('requires_system','installs_on','runs_on','does_not_run_on','post_install_notes'):
+  if m.get(key):raise Refusal(f'{key}: common execution/presentation is not implemented')
+ if m.get('kind') not in ('app','tool','data'):raise Refusal('system package destinations are not implemented')
+ if 'source' in m and (not isinstance(m['source'],dict) or set(m['source'])-{'repository'} or not isinstance(m['source'].get('repository',''),str)):raise Refusal('source: only source.repository is implemented')
+ with contextlib.redirect_stdout(sys.stderr):errors=RULES.check(m,'author')
+ if errors:raise Refusal('; '.join(errors))
+ if m.get('subdir')!=source.name:raise Refusal('subdir must name the source drawer')
+ if not re.fullmatch('[0-9a-f]{32}',args.authority):raise Refusal('authority must be 32 lowercase hex digits')
+ target=f"{m['arch']}-aros-{m['abi']}-{args.runtime}"
+ if args.runtime=='raspi' and m['arch'] not in ('arm','aarch64'):raise Refusal('raspi requires an ARM target')
+ key=Path(args.sign).absolute();regular(key);key=key.resolve()
+ output=Path(args.output).absolute()
+ output=output.parent.resolve(strict=True)/output.name
+ if output.exists() or output.is_symlink():raise Refusal('output already exists')
+ if output.is_relative_to(source) or key.is_relative_to(source):raise Refusal('key and output must be outside the source drawer')
+ if (source.parent/'.ameta').exists() or (source.parent/'.ameta').is_symlink():raise Refusal('parent .ameta needs explicit drawer/icon metadata selection before building')
+ if (source/RESERVED).exists() or (source/RESERVED).is_symlink():raise Refusal(f'{RESERVED} is reserved for unchanged author provenance')
+ # The initial inventory refuses links, unknown host attributes and malformed
+ # controls before copying; the staged inventory catches changes during copy.
+ original=inventory(args.engine,source)
+ icon=m.get('icon')
+ if icon and icon!=source.name+'.info':raise Refusal('icon must name the drawer sibling NAME.info')
+ if icon:regular(source.parent/icon)
+ configs=m.get('config',[])
+ if not isinstance(configs,list) or any(not isinstance(p,str) for p in configs) or len(set(configs))!=len(configs):raise Refusal('config must be a list of unique relative file paths')
+ with tempfile.TemporaryDirectory(prefix='apkg-build-') as temporary:
+  temp=Path(temporary);payload=temp/'payload';payload.mkdir(mode=0o700);drawer=payload/source.name
+  shutil.copytree(source,drawer,symlinks=True)
+  copied=inventory(args.engine,drawer)
+  if copied!=original:raise Refusal('source changed while preparing its snapshot')
+  if icon:shutil.copy2(source.parent/icon,payload/icon,follow_symlinks=False)
+  drawer_mode=drawer.stat().st_mode&0o777
+  drawer.chmod(drawer_mode|0o700)
+  if 'launch' in m:
+   application=PACK['app_json_bytes'](m)
+   existing=drawer/'application.json'
+   if existing.exists():
+    if existing.stat().st_size!=len(application) or existing.read_bytes()!=application:raise Refusal('application.json differs from the TOML launch description')
+   else:existing.write_bytes(application)
+   # Common native inspection validates containment, target, program and icon.
+   run(args.engine,'bundle-check',drawer,target)
+  elif (drawer/'application.json').exists():raise Refusal('application.json requires matching TOML launch fields')
+  (drawer/RESERVED).write_bytes(author);(drawer/RESERVED).chmod(0o644)
+  drawer.chmod(drawer_mode)
+  observed=inventory(args.engine,payload);files=observed['files'];found=set();objects={}
+  for entry in files:
+   if entry['type']!='file':continue
+   path=payload/entry['path'];cpu=header_cpu(path)
+   if cpu and cpu!=m['arch']:raise Refusal(f"{entry['path']}: executable CPU {cpu} differs from {m['arch']}")
+   relative=entry['path'].removeprefix(source.name+'/')
+   if relative in configs:
+    entry['config']='preserve';found.add(relative)
+   objects.setdefault(entry['blob'],path)
+  if found!=set(configs):raise Refusal('config names a missing, directory or authoring-control entry')
+  names={entry['path']+('/' if entry['type']=='directory' else '') for entry in files}
+  errors=RULES.check_members(m,names,'the payload')
+  if errors:raise Refusal('; '.join(errors))
+  def requirement(name,version=None):
+   # Existing TOML has no authority/target qualifier: bind every relation to
+   # this explicitly selected publisher and target rather than inventing one.
+   return dict(authority=args.authority,name=name,min_version=version or '0',min_revision='1',target=target)
+  relations={family:[] for family in ('conflicts','depends','recommends','replaces')}
+  for family in relations:
+   for value in m.get(family,[]):
+    if family=='recommends':item=requirement(value['id'],value.get('min_version'))
+    else:
+     parsed=RULES.parse_depend(value)
+     if not parsed:raise Refusal(f'{family}: unsupported relation')
+     item=requirement(*parsed)
+    relations[family].append(item)
+   relations[family].sort(key=lambda r:(r['authority'],r['name']))
+  descriptor=encode(dict(body=dict(authority=args.authority,files=files,kind={'app':'application','tool':'tool','data':'data'}[m['kind']],name=m['id'],relations=relations,revision=str(m.get('revision',1)),target=target,version=m['version']),format='apkg-json-1',requires=[],schema='1',type='descriptor'))
+  descriptor_path=temp/'descriptor.json';descriptor_path.write_bytes(descriptor)
+  signature=json.loads(run(args.engine,'sign-object',key,'descriptor',descriptor_path));signature_bytes=encode(signature)
+  members=[('descriptor.json',descriptor),('signature.json',signature_bytes)]+[('objects/'+sha,path) for sha,path in sorted(objects.items())]
+  def size(value):return value.stat().st_size if isinstance(value,Path) else len(value)
+  total=8+sum(9+len(name.encode())+size(value) for name,value in members)
+  if total>2147483647:raise Refusal('PKG/1 archive exceeds its 2 GiB envelope limit')
+  # Publish only a fully written, flushed artifact, without replacing an old
+  # output. A failed build leaves neither a partial artifact nor source edits.
+  fd,stage=tempfile.mkstemp(prefix='.apkg-build-',dir=output.parent)
+  stage=Path(stage)
+  try:
+   with os.fdopen(fd,'wb') as out:
+    out.write(b'PKG\1'+struct.pack('>I',total))
+    for name,value in members:
+     encoded_name=name.encode();out.write(struct.pack('>I',len(encoded_name))+encoded_name+b'\0'+struct.pack('>I',size(value)))
+     if isinstance(value,Path):
+      digest=hashlib.sha256()
+      with value.open('rb') as src:
+       for chunk in iter(lambda:src.read(65536),b''):digest.update(chunk);out.write(chunk)
+      if digest.hexdigest()!=name.removeprefix('objects/'):raise Refusal('staged payload changed during archive writing')
+     else:out.write(value)
+    out.flush();os.fsync(out.fileno())
+   os.link(stage,output)
+   directory=os.open(output.parent,os.O_RDONLY)
+   try:os.fsync(directory)
+   finally:os.close(directory)
+  finally:stage.unlink(missing_ok=True)
+ return dict(archive=str(output),descriptor_sha256=signature['sha256'],public_key=signature['public_key'],target=target,publication_mode='unpublished',review='not-asserted')
+
+def main():
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('drawer');p.add_argument('--output',required=True);p.add_argument('--sign',required=True);p.add_argument('--authority',required=True);p.add_argument('--runtime',required=True,choices=('native','hosted','raspi'));p.add_argument('--engine',default=str(HERE/'build/apkg-core'));args=p.parse_args()
+ try:print(json.dumps(build(args),sort_keys=True));return 0
+ except (Refusal,OSError,ValueError,KeyError,TypeError) as exc:print(f'apkg-build: {exc}',file=sys.stderr);return 1
+if __name__=='__main__':sys.exit(main())

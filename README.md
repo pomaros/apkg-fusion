@@ -7,11 +7,12 @@ An integration workspace for a common AROS package manager: PkgManager's native
 desktop experience, portable package operations, autonomous application bundles,
 signed publishing, an open portal and a reviewed catalogue.
 
-**This is a development build.** PkgManager has been imported but has not been
-connected to the common engine. The common context API, immutable execution
-plans, transaction recovery, existing-user migration and consumer adaptations
-remain implementation work. See [implementation status](docs/fusion/status.md)
-for the distinction between tested components and release requirements.
+**This is a development build.** The common engine has an experimental CLI and
+PkgManager worker path with signed plans, operations and transaction recovery.
+The default client still uses the provisional backend; channels, existing-user
+migration and consumer adaptations remain implementation work. See
+[implementation status](docs/fusion/status.md) for tested behavior and release
+requirements.
 
 The source layout is provisional. Designs are selected by behavior, evidence
 and maintainability, regardless of their original author. APKG's context-based core is the selected skeleton; pkg contributes portable
@@ -47,6 +48,11 @@ x86_64 ABIv11, i386 ABIv0, mainline x86_64 ABIv1, native Pi aarch64 and hosted
 aarch64, plus macOS, Linux and Windows host tools. Each needs its own evidence.
 
 ## Author once, publish openly
+
+The [common authoring checkpoint](docs/fusion/authoring.md) builds a signed
+PKG/1 artifact directly from TOML and `.ameta` using `tools/apkg-build` and
+`build/apkg-core`. Channel publication from this new path remains integration
+work; the bridge below still uses the inherited development backend.
 
 An application drawer and its sibling `NAME.arospkg.toml` use
 [apkg-pack's authoring format](components/arospkg/docs/guide/authoring.md).

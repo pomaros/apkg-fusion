@@ -52,7 +52,7 @@ static int contained_path(const char *folder, const char *relative, char *out,
 static apkg_status inspect(const char *folder, const char *target,
                            struct pkg_application *app, char *canonical,
                            char *program, char *working, apkg_error **e) {
-    unsigned char *raw = NULL, *binary = NULL;
+    unsigned char *raw = NULL, binary[64];
     size_t len, n;
     char path[AK_PATH], why[256];
     struct pkg_target tuple;
@@ -79,7 +79,10 @@ static apkg_status inspect(const char *folder, const char *target,
                        "launch path escapes bundle or contains a link", folder);
         goto done;
     }
-    if (ak_read(program, &binary, &n, AK_MAX))
+    uint64_t binary_size;
+    char sha[65];
+    code = ak_stream_hash(program, &binary_size, sha, binary, &n);
+    if (code)
         goto done;
     const char *cpu = pkg_application_binary_arch(binary, n);
     if (!*cpu || !pkg_target_cpu_matches(target, cpu)) {
@@ -101,7 +104,6 @@ static apkg_status inspect(const char *folder, const char *target,
     code = APKG_OK;
 done:
     free(raw);
-    free(binary);
     return code;
 }
 apkg_status apkg_bundle_check(const char *folder, const char *target,

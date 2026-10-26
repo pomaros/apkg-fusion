@@ -52,8 +52,32 @@ int main(int argc, char **argv) {
             "DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
             "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | "
-            "bundle-check|run-bundle FOLDER TARGET\n");
+            "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
+            "keygen|key-public KEYFILE | sign-object KEYFILE descriptor "
+            "JSONFILE\n");
         return APKG_INVALID;
+    }
+    if (!strcmp(argv[1], "keygen") || !strcmp(argv[1], "key-public") ||
+        !strcmp(argv[1], "sign-object")) {
+        code = ak_author_command(argc, argv, &text);
+        if (!code)
+            puts(text);
+        else
+            fprintf(stderr, "authoring status=%d\n", (int)code);
+        free(text);
+        return (int)code;
+    }
+    if (!strcmp(argv[1], "source-inventory")) {
+        if (argc != 3)
+            return APKG_INVALID;
+        code = ak_source_inventory(argv[2], &text, &e);
+        if (!code)
+            puts(text);
+        else
+            report(code, NULL, e);
+        free(text);
+        apkg_error_free(e);
+        return (int)code;
     }
     if (!strcmp(argv[1], "folder") || !strcmp(argv[1], "run")) {
         if (argc != 4)

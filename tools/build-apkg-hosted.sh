@@ -21,12 +21,14 @@ mkdir -p "$out"
 cd "$repo"
 build_id=$(python3 - <<'BUILDID'
 import hashlib
+import subprocess
 from pathlib import Path
 paths = set()
 for folder in ('src/apkg', 'components/arospkg/src/libpkg', 'components/arospkg/src/pkgmanager', 'components/arospkg/src/tls'):
     for pattern in ('*.c', '*.h'): paths.update(Path(folder).glob(pattern))
 paths.update(Path('include').glob('*.h'))
-paths.update(Path(p) for p in ('src/pkg_fs_posix.c','src/pkg_sha256.c','src/pkg_sha512.c','src/pkg_ed25519.c','src/pkg_target.c','src/pkg_application.c'))
+paths.update(Path(p) for p in subprocess.check_output(['make', '-s', 'print-apkg-sources'], text=True).split())
+paths.add(Path('src/apkg/changes.inc'))
 h = hashlib.sha256()
 for p in sorted(paths): h.update(str(p).encode()+b'\0'+p.read_bytes())
 print(h.hexdigest()[:16])

@@ -343,6 +343,53 @@ Ubuntu mirror before compilation; macOS and portal passed. The dependency step
 now installs required packages without optional recommendations, retaining all
 regression commands and its existing timeout.
 
+## Host metadata source qualification
+
+Source [b40bcb4](https://github.com/pomaros/apkg-fusion/commit/b40bcb4833e866d402cb6b63f2a473c54b927c73)
+passes the complete [Host integration run](https://github.com/pomaros/apkg-fusion/actions/runs/40413222524).
+Linux and macOS pass common integration, memory checks, both inherited suites,
+public symbols and documentation links. The portal job also passes. This
+qualifies the preceding host-metadata checkpoint; it does not close the alpha
+or the remaining metadata/authoring obligations.
+
+## FUSION-ALPHA progress: real source authoring
+
+The [common authoring checkpoint](authoring.md) adds `tools/apkg-build` and
+context-free source/key/signing commands to the common executable. Actual
+apkg-pack TOML and `.ameta` now produce a signed PKG/1 artifact consumed by the
+common CLI and PkgManager worker. The provisional global backend is absent from
+this path. The existing publishing bridge/default client remain separate work.
+
+Source/package/installed fixtures preserve hidden files, empty drawers, icon
+bytes, ordinary modes, comments, full protection words, Amiga owner facts and
+opaque extensions. Explicit and omitted defaults share one normalization.
+Original TOML is retained byte for byte; versions, revisions, launch generation,
+configuration and implemented relation families become common engine inputs.
+The source remains untouched, including read-only directory modes. Existing pkg
+keys retain the same public identity and produce the engine's signature framing.
+
+The bundle inspector now streams executable inspection instead of loading the
+whole program with a 16 MiB ceiling. A synthetic application above 32 MiB is
+built and installed from its actual TOML; its executable is never run.
+
+Local evaluation includes the complete fusion suite (101 common methods),
+source-wrapper allocation
+injection at 200 positions, ASan/UBSan lifetime and 21 client/source/authoring
+methods, and 66 documentation files with zero broken links. New failure cases
+cover malformed/stale/conflicting metadata, no-overwrite key/artifact creation,
+damaged keys, wrong CPU, unsupported declarations, aliased output inside the
+source, and artifact publication I/O failure/process death followed by retry.
+Interrupted authoring may retain an unpublished private staging file; retry
+does not confuse it with a channel artifact.
+
+ALPHA-PAYLOAD and ALPHA-AUTHOR remain open for the stated broader fidelity and
+consumer obligations. Parent `.ameta` selection for drawer/icon metadata and
+nondefault source-root metadata refuse explicitly. Timestamp semantics are
+still unqualified. File/HTTP channels, independent qualifications, default-client
+replacement, legacy import and portal migration rehearsal remain outstanding.
+No native execution, OS changes, live portal data or deployment occurred.
+Exact-source CI for this new checkpoint is required separately from b40bcb4.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

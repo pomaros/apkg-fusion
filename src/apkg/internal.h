@@ -32,12 +32,15 @@ typedef struct {
 int ak_fields_optional(const ak_json *, int, const char *const *, size_t,
                        const char *const *, size_t);
 apkg_status ak_attributes_format(const ak_json *, int, ak_buf *);
+apkg_status ak_attributes_normalize(const char *, uint64_t, char **);
 int ak_attributes_valid(const ak_json *, int, uint64_t);
 apkg_status ak_attributes_read(const char *, uint64_t, char **);
 apkg_status ak_attributes_write(const char *, const char *, uint64_t);
 int ak_attributes_equal(const ak_json *, int, const ak_json *, int);
 apkg_status ak_attributes_merge(const ak_json *, int, const ak_json *, int,
                                 const ak_json *, int, uint64_t, char **);
+apkg_status ak_source_inventory(const char *, char **, apkg_error **);
+apkg_status ak_author_command(int, char **, char **);
 int ak_buf_add(ak_buf *, const char *, ...);
 apkg_status ak_tree_normalize(const char *, char **);
 apkg_status ak_blob_retain(apkg_ctx *, const char *, uint64_t, const char *);

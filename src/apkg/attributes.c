@@ -138,7 +138,9 @@ int ak_attributes_valid(const ak_json *j, int at, uint64_t mode) {
     }
     return 1;
 }
-static apkg_status normalized(const char *raw, uint64_t mode, char **out) {
+apkg_status ak_attributes_normalize(const char *raw, uint64_t mode,
+                                    char **out) {
+    *out = NULL;
     ak_json j = {0};
     ak_buf b = {0};
     uint64_t word;
@@ -187,7 +189,7 @@ apkg_status ak_attributes_read(const char *path, uint64_t mode, char **out) {
     if (!n || memchr(value, 0, (size_t)n))
         return APKG_INVALID;
     value[n] = 0;
-    return normalized(value, mode, out);
+    return ak_attributes_normalize(value, mode, out);
 #else
     unsigned long long word = 0;
     char comment[256];
