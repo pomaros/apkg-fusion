@@ -49,14 +49,15 @@ aarch64, plus macOS, Linux and Windows host tools. Each needs its own evidence.
 
 ## Author once, publish openly
 
-The [signed-channel metadata checkpoint](docs/fusion/channels.md) adds common
-read-only discovery and separate channel/author trust. Atomic publication,
-network fetching and default-client channel integration remain in progress.
+The [signed-channel profile](docs/fusion/channels.md) adds common read-only
+discovery, separate channel/author trust and atomic local publication through
+`apkg-publish --common`. Network fetching and default-client integration remain
+in progress.
 
 The [common authoring checkpoint](docs/fusion/authoring.md) builds a signed
 PKG/1 artifact directly from TOML and `.ameta` using `tools/apkg-build` and
-`build/apkg-core`. Channel publication from this new path remains integration
-work; the bridge below still uses the inherited development backend.
+`build/apkg-core`. Its common publishing mode uses the atomic file-channel
+producer; the bridge below still uses the inherited development backend.
 
 An application drawer and its sibling `NAME.arospkg.toml` use
 [apkg-pack's authoring format](components/arospkg/docs/guide/authoring.md).

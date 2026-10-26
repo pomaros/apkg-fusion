@@ -97,11 +97,28 @@ int ak_read(const char *p, unsigned char **out, size_t *size, size_t max) {
         errno = ELOOP;
         return -1;
     }
-    fd = open(p, O_RDONLY);
+    int flags = O_RDONLY;
+#ifdef O_NONBLOCK
+    flags |= O_NONBLOCK;
+#endif
+#ifdef O_NOFOLLOW
+    flags |= O_NOFOLLOW;
+#endif
+    fd = open(p, flags);
     if (fd < 0)
         return -1;
-    if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size < 0 ||
-        (uint64_t)st.st_size > max) {
+    if (fstat(fd, &st)) {
+        int saved = errno;
+        close(fd);
+        errno = saved;
+        return -1;
+    }
+    if (!S_ISREG(st.st_mode)) {
+        close(fd);
+        errno = EINVAL;
+        return -1;
+    }
+    if (st.st_size < 0 || (uint64_t)st.st_size > max) {
         close(fd);
         errno = EFBIG;
         return -1;

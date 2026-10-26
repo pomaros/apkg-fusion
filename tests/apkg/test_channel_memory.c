@@ -11,11 +11,13 @@ int main(int argc, char **argv) {
     apkg_package *package = NULL;
     apkg_id id;
     unsigned char *document = NULL, *signature = NULL;
-    size_t dn, sn;
-    assert(argc == 5);
-    assert(!ak_hex(argv[4], id.bytes, 16));
-    assert(!ak_read(argv[2], &document, &dn, AK_MAX / 8));
-    assert(!ak_read(argv[3], &signature, &sn, 16384));
+    size_t dn = 0, sn = 0;
+    assert(argc == 4 || argc == 5);
+    assert(!ak_hex(argv[argc == 4 ? 3 : 4], id.bytes, 16));
+    if (argc == 5) {
+        assert(!ak_read(argv[2], &document, &dn, AK_MAX / 8));
+        assert(!ak_read(argv[3], &signature, &sn, 16384));
+    }
     options.contract_version = 1;
     options.struct_size = sizeof options;
     options.root.data = argv[1];
@@ -23,7 +25,12 @@ int main(int argc, char **argv) {
     options.mode = APKG_READ;
     assert(apkg_open(&options, &ctx, NULL) == APKG_OK);
     apkg_bytes d = {document, dn}, s = {signature, sn};
-    assert(apkg_channel_read(ctx, &id, 1, d, s, &channel, NULL) == APKG_OK);
+    if (argc == 4) {
+        apkg_text endpoint = {argv[2], strlen(argv[2])};
+        assert(apkg_channel_open_file(ctx, endpoint, &id, 1, &channel, NULL) ==
+               APKG_OK);
+    } else
+        assert(apkg_channel_read(ctx, &id, 1, d, s, &channel, NULL) == APKG_OK);
     free(document);
     free(signature);
     const apkg_channel_entry_view *row = NULL;

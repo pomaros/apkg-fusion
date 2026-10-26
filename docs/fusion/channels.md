@@ -1,11 +1,12 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2026 John Knipper -->
 
-# Signed channel metadata checkpoint
+# Signed channels
 
-This is the first ALPHA-CHANNEL implementation batch: authenticated discovery
-and role-separated policy in the common library. It is not complete channel
-publication, fetching, qualification or default-client integration.
+The common library implements authenticated discovery and role-separated policy.
+The local producer now adds verified immutable file publication and an atomic
+current reference. HTTP transport, durable freshness, qualifications and
+default-client integration remain ALPHA-CHANNEL work.
 
 ## Immutable discovery objects
 
@@ -79,28 +80,111 @@ prove the latest online state. The caller supplies the floor; durable high-water
 tracking and revocation observation have not yet been implemented. This is not
 a claim of rollback-resistant subscriptions or current review status.
 
-## Native inspection and next batches
+## Atomic local publication
 
-```sh
-./build/apkg-core sign-object channel.key channel channel.json
-./build/apkg-core channel-inspect ROOT SNAPSHOT-DIRECTORY CHANNEL-ID MIN-SEQUENCE
+`tools/apkg-channel ARCHIVE --directory CHANNEL --id CHANNEL-ID --sign KEY`
+publishes one real PKG/1 artifact. It verifies the entire archive through the
+common engine in a private, discarded validation root. That root authorizes the
+artifact's claimed author key only for cryptographic/content/CPU verification;
+it grants no author/account/channel rights to a client. The producer never
+exports an existing root's private object store or recovery history.
+
+The file layout is:
+
+```text
+CHANNEL/current                              # 64 lowercase SHA-256 hex + LF
+CHANNEL/archives/ARCHIVE-SHA256.pkg
+CHANNEL/snapshots/CHANNEL-SHA256/channel.json
+CHANNEL/snapshots/CHANNEL-SHA256/channel.signature.json
+CHANNEL/.publish.lock
 ```
 
-The inspection directory contains exact `channel.json` and
-`channel.signature.json` bytes. Inspection emits one JSON result, with explicit
-unknown freshness, unchecked payload availability and unasserted qualifications.
-This is inspection of a supplied snapshot, not a safe two-file publication
-procedure. Fixtures include descriptors from actual TOML/PKG builds and native
-channel signing. They do not establish a production publisher or endpoint.
+Archive transfer uses 64 KiB chunks, with length and SHA-256 checks during copy.
+Metadata retains its 2 MiB bound. Objects and metadata files are flushed and
+published exclusively; existing immutable files must match instead of being
+replaced. Parent directories are flushed, including on retry. A partial,
+unreferenced snapshot may have missing files after process death; retry fills
+only the missing files and verifies existing ones. Corrupt existing files refuse.
 
-Remaining ALPHA-CHANNEL batches must provide:
+The sole commit is an atomic replacement of `current`, after the complete signed
+snapshot and archive are retained/flushed. The producer checks that the previous
+reference still matches before replacing it. Cooperative writers hold a stable
+OS file lock across catalogue read/modify/sign/commit; process death releases
+that lock without deleting another writer's lock file. Two concurrent publishers
+therefore retain both entries and advance the sequence serially.
 
-1. Immutable file-channel snapshot/archive publication with one atomic current
-   reference, writer concurrency control, interruption/retry and provenance.
-2. Context-owned file/HTTP opening, bounded cancellable archive fetching and
-   retention, archive-to-selected-descriptor binding, durable sequence floors
-   and changed-input/qualification preconditions in plans.
-3. Independent signed review/runtime facts, issuer policy and stale/revoked
+Before this commit, interruptions preserve the previous complete head. After
+commit, the new head names complete immutable material. A final directory-flush
+failure reports that the reference was updated but durability was not confirmed;
+it does not blindly restore an old head. Idempotent retry verifies the retained
+artifact/snapshot and finishes flushing. A successful identical retry does not
+increment sequence. The same descriptor with different archive/signature bytes,
+or different content under the same build identity, refuses explicitly.
+
+The configured channel id and current signing key must remain continuous.
+Changing a key requires a separate rotation protocol, not implicit acceptance
+of a new signer. Sequence advances relative to the authenticated current head;
+this is not durable external high-water tracking or protection against a server
+replaying an older valid head. Those remain separate consumer/publisher policy
+obligations. This profile uses Linux/macOS POSIX locking, links, atomic replace
+and flush operations. It does not certify Windows, network-filesystem semantics,
+native DOS or power-loss durability.
+
+Process death may leave owned private validation directories or unpublished
+`.incoming-*`/`.current-*` files. Retry ignores unrelated preparations; it never
+guesses that another writer has died or performs automatic garbage collection.
+
+## One TOML publishing command
+
+```sh
+./tools/apkg-publish Drawer --common --channel CHANNEL \
+  --sign author.key --authority AUTHOR-ID --runtime native \
+  --channel-id CHANNEL-ID --channel-sign channel.key
+```
+
+The common mode builds privately with `apkg-build`, then invokes the atomic file
+producer. Both signing keys must be outside the source and public channel;
+source and channel trees must be disjoint. Original source bytes/modes remain
+untouched. Output identifies the exact descriptor/archive/snapshot and asserts
+open publication, with no independent review or runtime qualification.
+The inherited default publishing bridge remains a regression path until the
+separate default-client/consumer switch.
+
+## Native opening and inspection
+
+```sh
+./build/apkg-core channel-open ROOT CHANNEL CHANNEL-ID MIN-SEQUENCE
+./build/apkg-core channel-inspect ROOT SNAPSHOT-DIRECTORY CHANNEL-ID MIN-SEQUENCE
+./build/apkg-core verify-object channel channel.json channel.signature.json
+```
+
+`apkg_channel_open_file` opens `current`, verifies the immutable snapshot and
+its role/sequence policy, checks that the object digest matches the reference,
+then rechecks the reference. It creates no files and fetches no archive.
+Selected package decoding checks the reference again; a changed head requires
+fresh discovery. Borrowed views remain immutable observations of that snapshot.
+Plans made from already decoded package handles do not yet retain channel-head
+preconditions: that belongs to channel-aware transfer/client planning.
+
+The JSON inspection result includes descriptor/archive identities, author trust,
+target verdict, unknown freshness, unchecked payload availability and unasserted
+qualifications. `channel-inspect` reads a supplied immutable snapshot directory
+containing `channel.json` and `channel.signature.json`; it is not a safe mutable
+two-file publishing procedure.
+
+`verify-object` checks metadata cryptography/schema without granting signer
+roles or checking archive bytes. `archive-check ROOT ARCHIVE` explicitly imports
+and verifies a complete artifact against an existing root policy; it may retain
+verified blobs beside that root but changes no managed generation. The publisher
+uses it only with its private validation root. No implicit root initialization or
+trust expansion is performed by the importer.
+
+## Remaining batches
+
+1. Context-owned HTTP opening, bounded cancellable archive fetching/retention,
+   archive-to-selected-descriptor binding, durable sequence floors and channel
+   preconditions in plans.
+2. Independent signed review/runtime facts, issuer policy and stale/revoked
    evidence handling, then shared discovery/selection through CLI and the actual
    PkgManager worker with dependency-aware fetching.
 

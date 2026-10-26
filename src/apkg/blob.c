@@ -22,6 +22,9 @@ static int regular_open(const char *path) {
         errno = ELOOP;
         return -1;
     }
+#ifdef O_NONBLOCK
+    flags |= O_NONBLOCK;
+#endif
 #ifdef O_NOFOLLOW
     flags |= O_NOFOLLOW;
 #endif

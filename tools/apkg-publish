@@ -16,6 +16,7 @@ be explicit. Parsing a target does not qualify that platform for release.
 """
 
 import argparse
+import json
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -153,7 +154,7 @@ def publish(args):
     source = source.resolve()
     channel = Path(args.channel).expanduser().resolve()
     key = Path(args.sign).expanduser().resolve()
-    engine = Path(args.engine).expanduser().resolve()
+    engine = Path(args.engine or HERE / "build/pkg").expanduser().resolve()
     manifest_path = source.with_name(source.name + ".arospkg.toml")
     manifest, author_bytes = read_author(manifest_path)
     target = target_of(manifest, args.runtime)
@@ -225,16 +226,55 @@ def publish(args):
     print(f"target: {target}")
 
 
+def publish_common(args):
+    if not args.authority or not args.channel_id or not args.channel_sign:
+        refuse("--common requires --authority, --channel-id and --channel-sign")
+    source = Path(args.drawer).expanduser().resolve()
+    channel = Path(args.channel).expanduser().resolve()
+    if channel == source or channel.is_relative_to(source) or source.is_relative_to(channel):
+        refuse("source drawer and channel must be separate directory trees")
+    for label, candidate in (("author", args.sign), ("channel", args.channel_sign)):
+        key = Path(candidate).expanduser().resolve()
+        if key.is_relative_to(source) or key.is_relative_to(channel):
+            refuse(f"{label} signing key must be outside the source drawer and public channel")
+    engine = args.engine or HERE / "build/apkg-core"
+    # The artifact is private preparation until the publisher commits its
+    # immutable snapshot/current reference. Neither helper uses legacy pkg.
+    with tempfile.TemporaryDirectory(prefix="apkg-publish-common-") as temporary:
+        archive = Path(temporary) / "package.pkg"
+        built = json.loads(run([sys.executable, HERE / "tools/apkg-build", args.drawer,
+                                "--output", archive, "--sign", args.sign,
+                                "--authority", args.authority, "--runtime", args.runtime,
+                                "--engine", engine], os.environ.copy()))
+        published = json.loads(run([sys.executable, HERE / "tools/apkg-channel", archive,
+                                    "--directory", args.channel, "--id", args.channel_id,
+                                    "--sign", args.channel_sign, "--engine", engine], os.environ.copy()))
+    published.update(authority=args.authority, channel_id=args.channel_id,
+                     author_public_key=built["public_key"],
+                     descriptor_sha256=built["descriptor_sha256"],
+                     publication_mode="open", review="not-asserted", runtime_tests="not-asserted")
+    print(json.dumps(published, sort_keys=True))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("drawer", help="apkg-pack drawer with sibling NAME.arospkg.toml")
     parser.add_argument("--channel", required=True, help="local directory or mounted share")
     parser.add_argument("--sign", required=True, help="author signing key outside the payload and channel")
     parser.add_argument("--runtime", choices=("native", "hosted", "raspi"), required=True)
-    parser.add_argument("--engine", default=str(HERE / "build/pkg"), help="common native engine executable")
+    parser.add_argument("--engine", help="native executable (pkg bridge, or apkg-core with --common)")
+    parser.add_argument("--common", action="store_true", help="use the common TOML/PKG and atomic file-channel workflow")
+    parser.add_argument("--authority", help="persistent common publisher identity")
+    parser.add_argument("--channel-id", help="persistent common channel identity")
+    parser.add_argument("--channel-sign", help="channel signing key outside the public channel")
     args = parser.parse_args()
     try:
-        publish(args)
+        if args.common:
+            publish_common(args)
+        else:
+            if args.authority or args.channel_id or args.channel_sign:
+                refuse("common identity/key options require --common")
+            publish(args)
     except (Refusal, OSError, ValueError, zipfile.BadZipFile) as exc:
         print(f"apkg-publish: {exc}", file=sys.stderr)
         return 1

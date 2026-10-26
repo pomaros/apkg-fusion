@@ -97,6 +97,9 @@ apkg_status apkg_package_import(apkg_ctx *c, apkg_text archive,
     if (pkg_fs_path_is_link(path) != 0)
         return ak_fail(e, APKG_INVALID, "archive path is a link", path);
     int flags = O_RDONLY;
+#ifdef O_NONBLOCK
+    flags |= O_NONBLOCK;
+#endif
 #ifdef O_NOFOLLOW
     flags |= O_NOFOLLOW;
 #endif

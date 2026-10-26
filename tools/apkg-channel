@@ -1,0 +1,311 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Publish a verified PKG/1 archive into an atomic local signed channel.
+
+Publication is independent of catalogue review. Clients must separately trust
+channel and author keys. Only the supplied artifact is exported, never a
+managed root's private recovery/object store.
+"""
+import argparse
+import contextlib
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import struct
+import subprocess
+import sys
+import tempfile
+
+HERE = Path(__file__).resolve().parents[1]
+META_MAX = 2 * 1024 * 1024
+ARCHIVE_MAX = 2147483647
+
+class Refusal(Exception):
+    pass
+
+def encode(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+
+def regular_open(path):
+    fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise Refusal(f'{path.name}: a regular file is required')
+    return os.fdopen(fd, 'rb')
+
+def read_small(path, maximum):
+    with regular_open(path) as stream:
+        data = stream.read(maximum + 1)
+    if len(data) > maximum:
+        raise Refusal(f'{path.name}: metadata exceeds its size limit')
+    return data
+
+def hash_file(path):
+    digest = hashlib.sha256()
+    size = 0
+    with regular_open(path) as stream:
+        for chunk in iter(lambda: stream.read(65536), b''):
+            digest.update(chunk)
+            size += len(chunk)
+            if size > ARCHIVE_MAX:
+                raise Refusal('archive exceeds the PKG/1 envelope limit')
+    return digest.hexdigest(), size
+
+def engine_run(engine, *args):
+    result = subprocess.run([str(engine), *map(str, args)], capture_output=True, text=True)
+    if result.returncode:
+        raise Refusal((result.stderr + result.stdout).strip() or f'engine status {result.returncode}')
+    return result.stdout
+
+def archive_metadata(path):
+    with regular_open(path) as stream:
+        header = stream.read(8)
+        if len(header) != 8 or header[:4] != b'PKG\1':
+            raise Refusal('not a PKG/1 archive')
+        total = struct.unpack('>I', header[4:])[0]
+        if total != os.fstat(stream.fileno()).st_size or not 8 <= total <= ARCHIVE_MAX:
+            raise Refusal('invalid archive length')
+        objects = []
+        for wanted in ('descriptor.json', 'signature.json'):
+            field = stream.read(4)
+            if len(field) != 4:
+                raise Refusal('truncated archive metadata')
+            count = struct.unpack('>I', field)[0]
+            if count != len(wanted):
+                raise Refusal('archive metadata must precede payload objects')
+            name = stream.read(count + 1)
+            field = stream.read(4)
+            if name != wanted.encode() + b'\0' or len(field) != 4:
+                raise Refusal('invalid archive member')
+            size = struct.unpack('>I', field)[0]
+            if size > (META_MAX if wanted == 'descriptor.json' else 16384):
+                raise Refusal('archive metadata exceeds its size limit')
+            data = stream.read(size)
+            if len(data) != size:
+                raise Refusal('truncated archive metadata')
+            objects.append(json.loads(data))
+    return dict(zip(('descriptor', 'signature'), objects))
+
+def flush_dir(path):
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+def directory(path):
+    try:
+        path.mkdir(mode=0o755)
+    except FileExistsError:
+        pass
+    if path.is_symlink() or not path.is_dir():
+        raise Refusal(f'{path.name}: channel directories must not be links')
+    flush_dir(path)
+    flush_dir(path.parent)
+
+@contextlib.contextmanager
+def writer_lock(endpoint):
+    fd = os.open(endpoint / '.publish.lock', os.O_RDWR | os.O_CREAT | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0), 0o600)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise Refusal('invalid publication lock')
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+def current(endpoint):
+    path = endpoint / 'current'
+    try:
+        data = read_small(path, 65)
+    except FileNotFoundError:
+        return None
+    if not re.fullmatch(b'[0-9a-f]{64}\n', data):
+        raise Refusal('invalid channel current reference')
+    return data
+
+def immutable_bytes(path, data):
+    if path.exists() or path.is_symlink():
+        if read_small(path, len(data)) != data:
+            raise Refusal('immutable channel metadata differs')
+        with regular_open(path) as stream:
+            os.fsync(stream.fileno())
+        flush_dir(path.parent)
+        return
+    fd, name = tempfile.mkstemp(prefix='.incoming-', dir=path.parent)
+    staged = Path(name)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+            os.fchmod(stream.fileno(), 0o644)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(staged, path, follow_symlinks=False)
+        flush_dir(path.parent)
+    finally:
+        staged.unlink(missing_ok=True)
+
+
+def retain_archive(path, source, expected):
+    if path.exists() or path.is_symlink():
+        if hash_file(path) != expected:
+            raise Refusal('existing immutable archive is corrupt')
+        with regular_open(path) as stream:
+            os.fsync(stream.fileno())
+        flush_dir(path.parent)
+        return
+    fd, name = tempfile.mkstemp(prefix='.incoming-', dir=path.parent)
+    staged = Path(name)
+    try:
+        digest = hashlib.sha256()
+        count = 0
+        with os.fdopen(fd, 'wb') as output, regular_open(source) as incoming:
+            for chunk in iter(lambda: incoming.read(65536), b''):
+                output.write(chunk)
+                digest.update(chunk)
+                count += len(chunk)
+                if count > expected[1]:
+                    raise Refusal('archive changed while publishing')
+            os.fchmod(output.fileno(), 0o644)
+            output.flush()
+            os.fsync(output.fileno())
+        if (digest.hexdigest(), count) != expected:
+            raise Refusal('archive changed after validation')
+        os.link(staged, path, follow_symlinks=False)
+        flush_dir(path.parent)
+    finally:
+        staged.unlink(missing_ok=True)
+
+
+def replace_current(endpoint, expected_before, digest):
+    fd, name = tempfile.mkstemp(prefix='.current-', dir=endpoint)
+    staged = Path(name)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(digest.encode() + b'\n')
+            os.fchmod(stream.fileno(), 0o644)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if current(endpoint) != expected_before:
+            raise Refusal('channel current reference changed during publication')
+        os.replace(staged, endpoint / 'current')
+        try:
+            flush_dir(endpoint)
+        except OSError as error:
+            raise Refusal('current reference updated; final directory flush failed; retry to verify and finish') from error
+    finally:
+        staged.unlink(missing_ok=True)
+
+
+def publish(args):
+    if fcntl is None:
+        raise Refusal('publisher locking is not implemented on this host')
+    archive = Path(args.archive).absolute()
+    key = Path(args.sign).absolute()
+    if key.is_symlink() or not key.is_file():
+        raise Refusal('signing key must be a regular file')
+    key = key.resolve()
+    endpoint = Path(args.directory).absolute().resolve()
+    if key.is_relative_to(endpoint):
+        raise Refusal('signing key must be outside the public channel')
+    if not re.fullmatch('[0-9a-f]{32}', args.id):
+        raise Refusal('channel id must be 32 lowercase hex digits')
+    public = json.loads(engine_run(args.engine, 'key-public', key))['public_key']
+    extracted = archive_metadata(archive)
+    archive_identity = hash_file(archive)
+    with tempfile.TemporaryDirectory(prefix='apkg-channel-') as temporary:
+        temporary = Path(temporary)
+        # This private validation root grants only the claimed author/target,
+        # so the engine verifies cryptography, every object and executable CPU.
+        # It is discarded; no client or channel-author trust is installed.
+        body = extracted['descriptor']['body']
+        policy = dict(body=dict(authorities=[dict(id=body['authority'], keys=[dict(algorithm='ed25519', public_key=extracted['signature']['public_key'])])]), format='apkg-json-1', requires=[], schema='1', type='policy')
+        seed = temporary / 'policy.json'
+        seed.write_bytes(encode(policy))
+        root = temporary / 'validation-root'
+        engine_run(args.engine, 'init', root, body['target'], seed, '--yes')
+        checked = json.loads(engine_run(args.engine, 'archive-check', root, archive))
+        if checked != extracted:
+            raise Refusal('archive metadata changed during validation')
+        incoming = dict(archive=dict(sha256=archive_identity[0], size=str(archive_identity[1])), **checked)
+        descriptor_digest = hashlib.sha256(encode(incoming['descriptor'])).hexdigest()
+        # Invalid input reaches neither endpoint creation nor its writer lock.
+        endpoint.parent.mkdir(parents=True, exist_ok=True)
+        directory(endpoint)
+        with writer_lock(endpoint):
+            for name in ('archives', 'snapshots'):
+                directory(endpoint / name)
+            before = current(endpoint)
+            entries, sequence = [], 0
+            if before is not None:
+                old_digest = before[:-1].decode()
+                previous = endpoint / 'snapshots' / old_digest
+                if previous.is_symlink() or not previous.is_dir():
+                    raise Refusal('invalid snapshot directory')
+                document = read_small(previous / 'channel.json', META_MAX)
+                if hashlib.sha256(document).hexdigest() != old_digest:
+                    raise Refusal('current snapshot digest mismatch')
+                verification = json.loads(engine_run(args.engine, 'verify-object', 'channel', previous / 'channel.json', previous / 'channel.signature.json'))
+                if verification['public_key'] != public or verification['sha256'] != old_digest:
+                    raise Refusal('current channel signer differs; key rotation requires an explicit protocol')
+                snapshot = json.loads(document)
+                if snapshot['body']['id'] != args.id:
+                    raise Refusal('channel identity differs')
+                entries = snapshot['body']['entries']
+                sequence = int(snapshot['body']['sequence'])
+            for old in entries:
+                if hashlib.sha256(encode(old['descriptor'])).hexdigest() == descriptor_digest:
+                    if old != incoming:
+                        raise Refusal('descriptor already has a different archive or signature')
+                    retain_archive(endpoint / 'archives' / (archive_identity[0] + '.pkg'), archive, archive_identity)
+                    flush_dir(endpoint)
+                    return dict(changed=False, sequence=str(sequence), snapshot=before[:-1].decode(), archive_sha256=archive_identity[0])
+            if sequence == 2**64 - 1:
+                raise Refusal('channel sequence exhausted')
+            entries.append(incoming)
+            entries.sort(key=lambda item: hashlib.sha256(encode(item['descriptor'])).digest())
+            candidate = dict(body=dict(entries=entries, id=args.id, sequence=str(sequence + 1)), format='apkg-json-1', requires=[], schema='1', type='channel')
+            document = encode(candidate)
+            if len(document) > META_MAX:
+                raise Refusal('channel metadata exceeds 2 MiB')
+            description = temporary / 'channel.json'
+            description.write_bytes(document)
+            envelope = encode(json.loads(engine_run(args.engine, 'sign-object', key, 'channel', description)))
+            digest = hashlib.sha256(document).hexdigest()
+            retain_archive(endpoint / 'archives' / (archive_identity[0] + '.pkg'), archive, archive_identity)
+            snapshot = endpoint / 'snapshots' / digest
+            directory(snapshot)
+            immutable_bytes(snapshot / 'channel.json', document)
+            immutable_bytes(snapshot / 'channel.signature.json', envelope)
+            flush_dir(snapshot)
+            flush_dir(endpoint / 'snapshots')
+            replace_current(endpoint, before, digest)
+            return dict(changed=True, sequence=str(sequence + 1), snapshot=digest, archive_sha256=archive_identity[0])
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('archive')
+    parser.add_argument('--directory', required=True)
+    parser.add_argument('--id', required=True)
+    parser.add_argument('--sign', required=True)
+    parser.add_argument('--engine', default=str(HERE / 'build/apkg-core'))
+    args = parser.parse_args()
+    try:
+        print(json.dumps(publish(args), sort_keys=True))
+        return 0
+    except (Refusal, OSError, ValueError, KeyError, TypeError, RecursionError) as error:
+        print(f'apkg-channel: {error}', file=sys.stderr)
+        return 1
+
+if __name__ == '__main__':
+    sys.exit(main())

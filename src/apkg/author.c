@@ -132,3 +132,63 @@ done:
     ak_json_free(&j);
     return code;
 }
+/* Cryptographic metadata verification for publishers. This does not grant any
+ * role to the signer or assert archive contents/review/runtime qualifications.
+ */
+apkg_status ak_verify_command(int argc, char **argv, char **out) {
+    unsigned char *document = NULL, *envelope = NULL, key[32];
+    size_t dn = 0, sn = 0;
+    ak_json object = {0};
+    ak_buf result = {0};
+    apkg_digest digest;
+    apkg_status code = APKG_INVALID;
+    char hex[65], hash[65];
+    *out = NULL;
+    result.max = 16384;
+    if (argc != 5)
+        return APKG_INVALID;
+    if (strcmp(argv[2], "descriptor") && strcmp(argv[2], "channel"))
+        return APKG_UNSUPPORTED;
+    if (ak_read(argv[3], &document, &dn, AK_MAX / 8) ||
+        ak_read(argv[4], &envelope, &sn, 16384)) {
+        code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+        goto done;
+    }
+    int parsed = ak_json_parse(document, dn, &object);
+    if (parsed) {
+        code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+        goto done;
+    }
+    apkg_bytes d = {document, dn}, s = {envelope, sn};
+    code = ak_signature_check(d, s, argv[2], key, &digest);
+    if (code)
+        goto done;
+    if (!strcmp(argv[2], "channel"))
+        code = ak_channel_validate(&object);
+    else {
+        errno = 0;
+        if (!ak_descriptor(&object))
+            code = errno == ENOMEM    ? APKG_NOMEM
+                   : errno == EIO     ? APKG_INTEGRITY
+                   : errno == ENOEXEC ? APKG_TARGET
+                                      : APKG_UNSUPPORTED;
+    }
+    if (code)
+        goto done;
+    ak_tohex(key, 32, hex);
+    ak_tohex(digest.bytes, 32, hash);
+    ak_buf_add(&result,
+               "{\"domain\":\"%s\",\"public_key\":\"%s\",\"sha256\":\"%s\"}",
+               argv[2], hex, hash);
+    code = (apkg_status)result.bad;
+    if (!code) {
+        *out = result.data;
+        result.data = NULL;
+    }
+done:
+    free(document);
+    free(envelope);
+    free(result.data);
+    ak_json_free(&object);
+    return code;
+}

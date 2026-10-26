@@ -19,4 +19,4 @@ set -- -DPKG_FS_LOCAL_ONLY -std=c99 -O1 -g -fsanitize=address,undefined -fno-omi
 # shellcheck disable=SC2086
 "$CC" "$@" tests/apkg/test_channel_memory.c $sources -o build/common-sanitized/channel-memory
 ./build/common-sanitized/memory
-APKG_CHANNEL_MEMORY="$PWD/build/common-sanitized/channel-memory" APKG_CLI="$PWD/build/common-sanitized/apkg-core" APKG_PM_WORKER="$PWD/build/common-sanitized/pm-worker" PYTHONPATH=tests/apkg python3 -m unittest test_client test_attributes.Attributes.test_actual_cli_and_worker_install_identical_metadata test_source test_author test_channel -v
+APKG_CHANNEL_MEMORY="$PWD/build/common-sanitized/channel-memory" APKG_CLI="$PWD/build/common-sanitized/apkg-core" APKG_PM_WORKER="$PWD/build/common-sanitized/pm-worker" PYTHONPATH=tests/apkg python3 -m unittest test_client test_attributes.Attributes.test_actual_cli_and_worker_install_identical_metadata test_source test_author test_channel test_file_channel -v

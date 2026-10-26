@@ -112,9 +112,10 @@ private staging file. Process death can leave an unpublished `.apkg-build-*`
 file; a retry ignores that file and never treats it as a channel publication.
 No automatic stale-file deletion is implied.
 
-This command emits an **unpublished** artifact. File/HTTP channel publication,
-context discovery and qualifications are ALPHA-CHANNEL work. Connecting this
-builder to `tools/apkg-publish`, replacing the default client backend, complete
+This command emits an **unpublished** artifact. The [local signed-channel
+producer](channels.md#atomic-local-publication) publishes it, and
+`tools/apkg-publish --common` connects both steps. HTTP transfer and independent
+qualifications remain ALPHA-CHANNEL work. Replacing the default client backend, complete
 metadata/timestamp coverage, legacy import and portal migration remain open.
 The final FUSION-ALPHA scenario and exact-source Linux/macOS checks are still
 required. No native program is executed by the host authoring fixtures.

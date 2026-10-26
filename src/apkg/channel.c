@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 John Knipper */
 #include "internal.h"
+#include "pkg_fs.h"
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -10,7 +11,7 @@ struct apkg_channel {
     apkg_channel_view view;
     ak_json json;
     apkg_channel_entry_view *rows;
-    char *policy, *target;
+    char *policy, *target, *endpoint;
     char root[AK_PATH], anchor[AK_PATH];
     struct stat binding;
     apkg_id root_id;
@@ -303,6 +304,105 @@ apkg_status apkg_channel_entry_at(const apkg_channel *c, uint64_t index,
     *out = &c->rows[index];
     return APKG_OK;
 }
+static apkg_status current_ref(const char *directory, char digest[65]) {
+    char path[AK_PATH];
+    unsigned char *raw = NULL;
+    size_t size = 0;
+    apkg_status code = APKG_INVALID;
+    if (ak_path(path, directory, "current"))
+        return APKG_LIMIT;
+    if (ak_read(path, &raw, &size, 65))
+        return errno == ENOMEM   ? APKG_NOMEM
+               : errno == ENOENT ? APKG_NOT_FOUND
+               : errno == EFBIG  ? APKG_LIMIT
+                                 : APKG_IO;
+    unsigned char bytes[32];
+    if (size == 65 && raw[64] == '\n') {
+        raw[64] = 0;
+        if (!ak_hex((char *)raw, bytes, 32)) {
+            memcpy(digest, raw, 65);
+            code = APKG_OK;
+        }
+    }
+    free(raw);
+    return code;
+}
+static apkg_status source_current(const apkg_channel *channel) {
+    if (!channel->endpoint)
+        return APKG_OK;
+    char current[65], expected[65];
+    apkg_status code = current_ref(channel->endpoint, current);
+    if (code)
+        return code;
+    ak_tohex(channel->view.snapshot_digest.bytes, 32, expected);
+    return strcmp(current, expected) ? APKG_STALE : APKG_OK;
+}
+apkg_status apkg_channel_open_file(apkg_ctx *ctx, apkg_text directory,
+                                   const apkg_id *id, uint64_t floor,
+                                   apkg_channel **out, apkg_error **error) {
+    char input[AK_PATH], canonical[AK_PATH], digest[65], snapshots[AK_PATH],
+        snapshot[AK_PATH], path[AK_PATH], actual[65];
+    unsigned char *document = NULL, *envelope = NULL;
+    size_t dn = 0, sn = 0;
+    apkg_channel *channel = NULL;
+    apkg_status code = APKG_INVALID;
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!ctx || !id || !directory.data || !directory.size ||
+        directory.size >= AK_PATH ||
+        !ak_text_path_valid(directory.data, directory.size))
+        return APKG_INVALID;
+    memcpy(input, directory.data, directory.size);
+    input[directory.size] = 0;
+    if (pkg_fs_canonical_dir(input, canonical, sizeof canonical))
+        return APKG_IO;
+    code = current_ref(canonical, digest);
+    if (code)
+        goto done;
+    if (ak_path(snapshots, canonical, "snapshots") ||
+        ak_path(snapshot, snapshots, digest) ||
+        ak_path(path, snapshot, "channel.json")) {
+        code = APKG_LIMIT;
+        goto done;
+    }
+    if (ak_read(path, &document, &dn, AK_MAX / 8) ||
+        ak_path(path, snapshot, "channel.signature.json") ||
+        ak_read(path, &envelope, &sn, 16384)) {
+        code = errno == ENOMEM  ? APKG_NOMEM
+               : errno == EFBIG ? APKG_LIMIT
+                                : APKG_IO;
+        goto done;
+    }
+    apkg_bytes d = {document, dn}, s = {envelope, sn};
+    code = apkg_channel_read(ctx, id, floor, d, s, &channel, error);
+    if (code)
+        goto done;
+    ak_tohex(channel->view.snapshot_digest.bytes, 32, actual);
+    if (strcmp(actual, digest)) {
+        code = APKG_INTEGRITY;
+        goto done;
+    }
+    channel->endpoint = ak_copy(canonical, strlen(canonical));
+    if (!channel->endpoint) {
+        code = APKG_NOMEM;
+        goto done;
+    }
+    code = source_current(channel);
+    if (code)
+        goto done;
+    *out = channel;
+    channel = NULL;
+done:
+    free(document);
+    free(envelope);
+    apkg_channel_free(channel);
+    if (code && error && !*error)
+        ak_fail(error, code, "file channel refused", input);
+    return code;
+}
 apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
                                  uint64_t index, apkg_package **out,
                                  apkg_error **error) {
@@ -323,6 +423,9 @@ apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
         ctx->binding.st_dev != channel->binding.st_dev ||
         !ak_physical(ctx->anchor, &ctx->binding))
         return APKG_STALE;
+    code = source_current(channel);
+    if (code)
+        return code;
     code = apkg_snapshot_read(ctx, &snapshot, error);
     if (code)
         return code;
@@ -341,6 +444,7 @@ apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
 void apkg_channel_free(apkg_channel *c) {
     if (!c)
         return;
+    free(c->endpoint);
     free(c->rows);
     free(c->policy);
     free(c->target);
@@ -348,8 +452,8 @@ void apkg_channel_free(apkg_channel *c) {
     free(c);
 }
 apkg_status ak_channel_inspect(const char *root, const char *dir,
-                               const char *identity, uint64_t floor, char **out,
-                               apkg_error **error) {
+                               const char *identity, uint64_t floor,
+                               int current, char **out, apkg_error **error) {
     apkg_ctx *ctx = NULL;
     apkg_channel *channel = NULL;
     unsigned char *object = NULL, *signature = NULL;
@@ -371,31 +475,41 @@ apkg_status ak_channel_inspect(const char *root, const char *dir,
     code = apkg_open(&options, &ctx, error);
     if (code)
         goto done;
-    if (ak_path(path, dir, "channel.json") ||
-        ak_read(path, &object, &dn, AK_MAX / 8) ||
-        ak_path(path, dir, "channel.signature.json") ||
-        ak_read(path, &signature, &sn, 16384)) {
-        code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
-        goto done;
+    if (current) {
+        apkg_text endpoint = {dir, strlen(dir)};
+        code =
+            apkg_channel_open_file(ctx, endpoint, &id, floor, &channel, error);
+        if (code)
+            goto done;
+    } else {
+        if (ak_path(path, dir, "channel.json") ||
+            ak_read(path, &object, &dn, AK_MAX / 8) ||
+            ak_path(path, dir, "channel.signature.json") ||
+            ak_read(path, &signature, &sn, 16384)) {
+            code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+            goto done;
+        }
+        apkg_bytes d = {object, dn}, s = {signature, sn};
+        code = apkg_channel_read(ctx, &id, floor, d, s, &channel, error);
+        if (code)
+            goto done;
     }
-    apkg_bytes d = {object, dn}, s = {signature, sn};
-    code = apkg_channel_read(ctx, &id, floor, d, s, &channel, error);
-    if (code)
-        goto done;
     ak_tohex(channel->view.snapshot_digest.bytes, 32, digest);
     ak_buf_add(&b, "{\"channel_id\":\"%s\",\"entries\":[", identity);
     for (uint64_t i = 0; i < channel->view.entry_count; i++) {
         const apkg_channel_entry_view *r = &channel->rows[i];
-        char sha[65];
+        char sha[65], archive[65];
         ak_tohex(r->descriptor_digest.bytes, 32, sha);
+        ak_tohex(r->archive_digest.bytes, 32, archive);
         ak_buf_add(
             &b,
-            "%s{\"author_trust\":\"%s\",\"authority\":\"%.*s\",\"descriptor_"
+            "%s{\"archive_sha256\":\"%s\",\"archive_size\":\"%" PRIu64
+            "\",\"author_trust\":\"%s\",\"authority\":\"%.*s\",\"descriptor_"
             "sha256\":\"%s\",\"name\":\"%.*s\",\"review\":\"not-asserted\","
             "\"revision\":\"%" PRIu64
             "\",\"runtime_tests\":\"not-asserted\",\"target\":\"%.*s\","
             "\"target_matches\":%s,\"version\":\"%.*s\"}",
-            i ? "," : "",
+            i ? "," : "", archive, r->archive_bytes,
             r->author_trust == APKG_TRUST_ACCEPTED ? "accepted" : "rejected",
             (int)r->authority.size, r->authority.data, sha, (int)r->name.size,
             r->name.data, r->revision, (int)r->target.size, r->target.data,

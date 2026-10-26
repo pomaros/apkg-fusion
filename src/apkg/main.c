@@ -55,13 +55,49 @@ int main(int argc, char **argv) {
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
-            "channel-inspect ROOT DIRECTORY CHANNEL-ID [MIN-SEQUENCE]\n"
+            "channel-inspect|channel-open ROOT DIRECTORY CHANNEL-ID "
+            "[MIN-SEQUENCE]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel "
-            "JSONFILE\n");
+            "JSONFILE\nverify-object descriptor|channel JSONFILE SIGNATURE\n"
+            "archive-check ROOT ARCHIVE\n");
         return APKG_INVALID;
     }
-    if (!strcmp(argv[1], "channel-inspect")) {
+    if (!strcmp(argv[1], "verify-object")) {
+        code = ak_verify_command(argc, argv, &text);
+        if (!code)
+            puts(text);
+        else
+            fprintf(stderr, "verification status=%d\n", (int)code);
+        free(text);
+        return (int)code;
+    }
+    if (!strcmp(argv[1], "archive-check")) {
+        apkg_package *package = NULL;
+        if (argc != 4)
+            return APKG_INVALID;
+        o.contract_version = 1;
+        o.struct_size = sizeof o;
+        o.root.data = argv[2];
+        o.root.size = strlen(argv[2]);
+        o.mode = APKG_WRITE;
+        code = apkg_open(&o, &c, &e);
+        if (!code) {
+            apkg_text archive = {argv[3], strlen(argv[3])};
+            code = apkg_package_import(c, archive, NULL, &package, &e);
+        }
+        if (!code)
+            printf("{\"descriptor\":%s,\"signature\":%s}\n", package->raw,
+                   package->signature);
+        else
+            report(code, NULL, e);
+        apkg_package_free(package);
+        apkg_error_free(e);
+        apkg_close(c);
+        return (int)code;
+    }
+    if (!strcmp(argv[1], "channel-inspect") ||
+        !strcmp(argv[1], "channel-open")) {
         if (argc != 5 && argc != 6)
             return APKG_INVALID;
         uint64_t floor = 0;
@@ -75,7 +111,8 @@ int main(int argc, char **argv) {
             if (errno || !*argv[5] || *end)
                 return APKG_INVALID;
         }
-        code = ak_channel_inspect(argv[2], argv[3], argv[4], floor, &text, &e);
+        code = ak_channel_inspect(argv[2], argv[3], argv[4], floor,
+                                  !strcmp(argv[1], "channel-open"), &text, &e);
         if (!code)
             puts(text);
         else

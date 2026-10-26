@@ -186,6 +186,11 @@ apkg_status apkg_channel_read(apkg_ctx *, const apkg_id *expected_id,
                               uint64_t minimum_sequence, apkg_bytes object,
                               apkg_bytes signature, apkg_channel **,
                               apkg_error **);
+/* Open the atomic current reference of an immutable local channel. No files
+ * are created. Selected lookup refuses a changed reference after opening. */
+apkg_status apkg_channel_open_file(apkg_ctx *, apkg_text directory,
+                                   const apkg_id *, uint64_t minimum_sequence,
+                                   apkg_channel **, apkg_error **);
 const apkg_channel_view *apkg_channel_get(const apkg_channel *);
 apkg_status apkg_channel_entry_at(const apkg_channel *, uint64_t,
                                   const apkg_channel_entry_view **,

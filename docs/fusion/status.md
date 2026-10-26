@@ -477,6 +477,62 @@ these next batches explicitly. All other open alpha/release obligations remain;
 no native execution, OS changes or live portal operations occurred. This source
 requires its own exact-source Linux/macOS CI qualification.
 
+## Authenticated metadata source qualification
+
+Source [643e059](https://github.com/pomaros/apkg-fusion/commit/643e0596ff38eaee4d3308e20193c0865ae2d207)
+passes the complete [Host integration run](https://github.com/pomaros/apkg-fusion/actions/runs/40417208331).
+Both host jobs and portal pass, including inherited suites, common memory checks,
+public symbols and documentation links. This qualifies the metadata checkpoint
+only; file publication and HTTP integration require their own evidence.
+
+## FUSION-ALPHA progress: atomic local publication
+
+The [file-channel profile](channels.md#atomic-local-publication) now has an
+actual producer, `tools/apkg-channel`, and context-owned read-only opening via
+`apkg_channel_open_file` / `apkg-core channel-open`. A new explicit
+`apkg-publish --common` mode connects real TOML/.ameta authoring, archive signing,
+full native archive verification and publication without the legacy backend.
+Author/channel identities and keys remain explicit; both secrets stay outside
+the disjoint source/public-channel trees.
+
+The producer verifies the entire selected archive through a discarded private
+common root, retains SHA-addressed archive/snapshot files exclusively, flushes
+files/directories, then atomically replaces one `current` reference. Stable OS
+locking serializes cooperating publishers; process death releases the lock.
+Retry checks existing immutable bytes instead of overwriting them, can finish
+an unreferenced partial snapshot, and does not advance an identical publication.
+It refuses corrupt retention, conflicting builds, changed references and silent
+channel-id/key replacement. A post-replace flush failure reports the updated
+reference with uncertain durability; retry verifies/finishes rather than
+blindly restoring an older head.
+
+Opening a file channel verifies its reference, snapshot digest, signatures,
+identity, root roles and caller sequence floor, then rechecks the reference.
+Selected descriptor decoding rejects a changed head. Views expose archive
+identity/size without pretending the archive was transferred. Channel-aware
+transfer and approved-plan preconditions remain subsequent work.
+
+Local evaluation passes `make test-fusion` with 131 common methods and the
+existing contract/target/application/context/first-install/CLI/publish checks.
+The sanitizer harness passes 51 methods, with native channel/package lifetime
+checks for both raw metadata and file endpoints. New file-open allocation tests
+cover 280 injected positions without root/channel changes. Scenarios cover two
+simultaneous publishers, four process-death publication boundaries, pre-commit
+I/O and post-commit flush errors, stale-head refusal and retry. A real archive
+above 32 MiB is published, discovered and explicitly installed with small
+catalogue/database metadata; no whole-archive read is required by production
+transport. FIFO inputs/current references refuse without blocking. Documentation
+links cover 67 files with zero broken links.
+
+This qualifies host process/IO behavior locally, not native DOS, Windows,
+network-filesystem or power-loss durability. The inherited publishing bridge
+still passes and remains the default until the consumer switch. ALPHA-CHANNEL
+still requires HTTP/cancellable context transfer, archive/selected-descriptor
+binding, durable high-water tracking, plan preconditions, independent
+qualifications and shared client selection/fetching. All other alpha/release
+obligations remain open; no live portal or OS operation occurred. Exact-source
+Linux/macOS CI must separately qualify this implementation.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
