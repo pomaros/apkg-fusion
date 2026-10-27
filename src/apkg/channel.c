@@ -17,7 +17,8 @@ struct apkg_channel {
     char *policy, *target, *endpoint;
     char root[AK_PATH], anchor[AK_PATH];
     ak_identity binding;
-    int remote;
+    int remote, historical;
+    size_t read_max;
     unsigned char key[32];
     apkg_id root_id;
 };
@@ -181,12 +182,14 @@ done:
     free(identities);
     return code;
 }
-apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
-                              uint64_t floor, apkg_bytes object,
-                              apkg_bytes signature, apkg_channel **out,
-                              apkg_error **error) {
+static apkg_status channel_read(apkg_ctx *c, const apkg_snapshot *captured,
+                              const apkg_channel *origin, int historical,
+                              const apkg_id *expected, uint64_t floor,
+                              apkg_bytes object, apkg_bytes signature,
+                              apkg_channel **out, apkg_error **error) {
     apkg_channel *channel = NULL;
-    apkg_snapshot *snapshot = NULL;
+    apkg_snapshot *owned_snapshot = NULL;
+    const apkg_snapshot *snapshot = captured;
     ak_json policy = {0};
     apkg_status code = APKG_INVALID;
     unsigned char key[32];
@@ -198,10 +201,10 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
     if (!out)
         return APKG_INVALID;
     *out = NULL;
-    if (!c || !expected)
+    if ((!c && (!origin || !captured)) || !expected)
         return APKG_INVALID;
-    size_t max =
-        c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
+    size_t max = c ? (c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32)
+                   : origin->read_max;
     if (object.size > max || signature.size > max)
         return APKG_LIMIT;
     channel = calloc(1, sizeof *channel);
@@ -235,9 +238,11 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         code = APKG_TRUST;
         goto done;
     }
-    code = apkg_snapshot_read(c, &snapshot, error);
-    if (code)
-        goto done;
+    if (!snapshot) {
+        code = apkg_snapshot_read(c, &owned_snapshot, error);
+        if (code) goto done;
+        snapshot = owned_snapshot;
+    }
     if (snapshot->view.state != APKG_ROOT_READY) {
         code = snapshot->view.state == APKG_ROOT_PENDING
                    ? APKG_RECOVERY_REQUIRED
@@ -263,11 +268,12 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         code = APKG_STALE;
         goto done;
     }
-    code = ak_channel_head_check(
-        snapshot, &channel->view.id, channel->view.sequence,
-        &channel->view.snapshot_digest, &channel->view.accepted_sequence);
-    if (code)
-        goto done;
+    if (!historical) {
+        code = ak_channel_head_check(
+            snapshot, &channel->view.id, channel->view.sequence,
+            &channel->view.snapshot_digest, &channel->view.accepted_sequence);
+        if (code) goto done;
+    }
     int published = ak_member(&channel->json, body, "published_on");
     if (published >= 0) channel->view.published_on = node_text(&channel->json, published);
     entries = ak_member(&channel->json, body, "entries");
@@ -345,9 +351,11 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         code = APKG_NOMEM;
         goto done;
     }
-    strcpy(channel->root, c->root);
-    strcpy(channel->anchor, c->anchor);
-    channel->binding = c->binding;
+    strcpy(channel->root, c ? c->root : origin->root);
+    strcpy(channel->anchor, c ? c->anchor : origin->anchor);
+    channel->binding = c ? c->binding : origin->binding;
+    channel->historical = historical;
+    channel->read_max = max;
     channel->root_id = snapshot->view.root_id;
     channel->view.signature = APKG_SIGNATURE_VALID;
     channel->view.trust = APKG_TRUST_ACCEPTED;
@@ -356,12 +364,27 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
     channel = NULL;
     code = APKG_OK;
 done:
-    apkg_snapshot_free(snapshot);
+    apkg_snapshot_free(owned_snapshot);
     ak_json_free(&policy);
     apkg_channel_free(channel);
     if (code && error && !*error)
         ak_fail(error, code, "signed channel refused", "");
     return code;
+}
+apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
+    uint64_t floor, apkg_bytes object, apkg_bytes signature, apkg_channel **out,
+    apkg_error **error) {
+    return channel_read(c,NULL,NULL,0,expected,floor,object,signature,out,error);
+}
+/* Historical observations remain signature/schema/role checked, but are not
+ * source capabilities. Only the news reader retains this private handle. */
+apkg_status ak_channel_history_read(const apkg_snapshot *snapshot,
+    const apkg_channel *current, apkg_bytes object, apkg_bytes signature,
+    apkg_channel **out, apkg_error **error) {
+    if (out) *out = NULL;
+    apkg_status code = ak_channel_snapshot_check(snapshot,current);
+    return code ? code : channel_read(NULL,snapshot,current,1,&current->view.id,
+        0,object,signature,out,error);
 }
 apkg_status apkg_channel_observation(const apkg_channel *channel,
                                      apkg_bytes *object,
@@ -430,6 +453,7 @@ apkg_status ak_channel_snapshot_check(const apkg_snapshot *s,
                                       const apkg_channel *c) {
     if (!s || !c)
         return APKG_INVALID;
+    if (c->historical) return APKG_UNSUPPORTED;
     if (s->view.state != APKG_ROOT_READY)
         return s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
                                                   : APKG_POLICY;
@@ -970,6 +994,7 @@ apkg_status ak_channel_select(apkg_ctx *ctx, const apkg_channel *channel,
     *out = NULL;
     if (!ctx || !channel)
         return APKG_INVALID;
+    if (channel->historical) return APKG_UNSUPPORTED;
     if (index >= channel->view.entry_count)
         return APKG_NOT_FOUND;
     if (strcmp(ctx->root, channel->root) ||
@@ -1006,6 +1031,8 @@ apkg_status ak_channel_metadata(apkg_ctx *ctx, const apkg_channel *channel,
     *out = NULL;
     if (!ctx || !channel || index >= channel->view.entry_count)
         return APKG_INVALID;
+    if (channel->historical)
+        return APKG_UNSUPPORTED;
     apkg_status code =
         apkg_package_read(ctx, channel->rows[index].descriptor,
                           channel->rows[index].signature_envelope, out, error);
@@ -1029,6 +1056,8 @@ apkg_status apkg_plan_channel_accept(apkg_ctx *ctx, const apkg_snapshot *s,
     *out = NULL;
     if (!ctx || !s || !channel)
         return APKG_INVALID;
+    if (channel->historical)
+        return APKG_UNSUPPORTED;
     if (s->view.state != APKG_ROOT_READY)
         return s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
                                                   : APKG_POLICY;

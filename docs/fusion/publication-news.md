@@ -78,10 +78,10 @@ can participate, with their usual distinct action eligibility. Categories and
 search then filter those recent results. The UI labels dates as publisher
 reports, not verification of when an application really first existed.
 
-## Remaining last-refresh integration
+## Last-refresh comparison
 
 Recently added does not establish what changed during the last refresh. That
-view needs two authenticated source observations, an explicit first-observation
-case and retained comparison evidence. It remains unfinished integration work;
-the recent list must not be reused as a fabricated last-refresh delta.
+view uses [two authenticated source observations](last-refresh.md), an explicit
+missing-baseline case and retained comparison evidence. A first-observation
+recent fallback stays labelled as such; it is not a fabricated refresh delta.
 Implementation and test evidence belong in [status](status.md).

@@ -91,6 +91,7 @@ typedef struct {
     int             common_action;
     char            common_pool[4096];
     char            common_executable[4096]; /* JOB_COMMON_SELF_UPDATE: this program */
+    char            common_profile[4096]; /* explicit discovery cache destination */
     volatile int    common_decision;      /* 0 waiting, 1 approve, -1 decline */
 #ifdef APKG_FUSION
     const pm_common_catalogue *common_observation; /* UI retains until PM_DONE */
@@ -128,6 +129,7 @@ typedef struct pm_msg_s {
     unsigned char common_operation_id[16];
     int common_phase;
     int            common_total_known, common_status, common_outcome;
+    int            common_profile_saved; /* successful atomic settings write */
     char           note[200];   /* a replacement recovery finished when the root was opened */
 } pm_msg;
 

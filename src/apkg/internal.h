@@ -62,6 +62,16 @@ apkg_status ak_channel_validate(const ak_json *);
 apkg_status ak_channel_format(const apkg_channel *, char **);
 apkg_status ak_channel_snapshot_check(const apkg_snapshot *, const apkg_channel *);
 apkg_status ak_channel_snapshot_capture(const apkg_snapshot *, apkg_channel *);
+apkg_status ak_channel_history_read(const apkg_snapshot *, const apkg_channel *,
+    apkg_bytes, apkg_bytes, apkg_channel **, apkg_error **);
+typedef struct {
+    uint64_t index;
+    const apkg_channel_entry_view *row;
+    int ambiguous;
+} ak_channel_choice;
+apkg_status ak_channel_choices(const apkg_channel *, ak_channel_choice **, size_t *);
+int ak_entry_same_group(const apkg_channel_entry_view *, const apkg_channel_entry_view *);
+int ak_entry_version_order(const apkg_channel_entry_view *, const apkg_channel_entry_view *);
 apkg_status ak_channel_inspect(const char *, const char *, const char *,
                                uint64_t, int, char **, apkg_error **);
 #if defined(__GNUC__) || defined(__clang__)

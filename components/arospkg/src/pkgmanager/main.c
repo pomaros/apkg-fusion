@@ -207,6 +207,8 @@ AROS_UFH3S(void, installed_display_func,
     }
     array[2] = row ? (char *)row->state : "State";
     IPTR filter = 0; GetAttr(MUIA_Cycle_Active,cyc_state,&filter);
+    if(row&&filter==ST_LAST&&row->news)
+        array[2]=(char *)apkg_news_kind_name(row->news->last_kind);
     if (row && filter == ST_RECENT && row->news) {
         static char recent_label[48];
         snprintf(recent_label,sizeof recent_label,"recently added %s",row->news->app_first_added);
@@ -616,12 +618,23 @@ static void common_main_refill(const char *term, const char *keep_name,
     if(catalogue)SetAttrs(txt_channel_summary,MUIA_Floattext_Text,(IPTR)catalogue->summary,TAG_DONE);
     common_refill();
     static char message[256];
-    if (filter == PM_LIBRARY_RECENT && catalogue)
+    if(filter==PM_LIBRARY_LAST&&catalogue&&catalogue->last_status)
+        snprintf(message,sizeof message,"Last refresh comparison unavailable (code %d); current catalogue remains readable",(int)catalogue->last_status);
+    else if(filter==PM_LIBRARY_LAST&&catalogue&&catalogue->last.has_previous)
+        snprintf(message,sizeof message,"Compared source snapshots %llu -> %llu: %d rows shown; %llu indeterminate groups. Managed files unchanged",
+            (unsigned long long)catalogue->last.previous_sequence,(unsigned long long)catalogue->channel.sequence,shown,
+            (unsigned long long)catalogue->last.indeterminate);
+    else if(filter==PM_LIBRARY_LAST&&catalogue)
+        snprintf(message,sizeof message,"First observation: no comparison; %d recent publisher reports; %llu dates unknown",shown,
+            (unsigned long long)catalogue->last.unknown_dates);
+    else if(filter==PM_LIBRARY_LAST)
+        snprintf(message,sizeof message,"Last refresh unknown: no source observation loaded");
+    else if (filter == PM_LIBRARY_RECENT && catalogue)
         snprintf(message,sizeof message,"%d recent rows; %llu dates unknown; %llu ambiguous build groups. Dates reported by channel publisher; freshness unknown",shown,
             (unsigned long long)catalogue->recent_unknown_dates,(unsigned long long)catalogue->recent_indeterminate);
     else if (filter == PM_LIBRARY_RECENT)
         snprintf(message,sizeof message,"Recent publication dates unknown: no signed catalogue loaded");
-    else snprintf(message,sizeof message,filter>PM_LIBRARY_RECENT ?
+    else snprintf(message,sizeof message,filter>PM_LIBRARY_LAST ?
         "This view is unavailable in this development build" :
         "%d rows shown; %lu installed packages; %s",shown,(unsigned long)installed->count,
         catalogue ? "captured signed catalogue revalidated offline" : "no signed catalogue loaded; availability and updates unknown");
@@ -1044,7 +1057,9 @@ static void show_detail(void)
     const pm_common_row *candidate = selected_common ? selected_common->candidate : NULL;
     SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
     apkg_client_text_free(common_info_text); common_info_text = NULL;
-    apkg_status info_code = row ? apkg_client_info(root, row->view.name.value.data, NULL, &common_info_text, NULL) : APKG_OK;
+    apkg_status info_code = selected_common && state_now()==ST_LAST && selected_common->news
+        ? pm_common_last_detail(selected_common->news,&common_info_text)
+        : row ? apkg_client_info(root, row->view.name.value.data, NULL, &common_info_text, NULL) : APKG_OK;
     if (info_code) snprintf(buf, sizeof buf, "Inspection refused (code %d)", (int)info_code);
     SetAttrs(txt_head,MUIA_Text_Contents,(IPTR)(selected_common?selected_common->name:""),TAG_DONE);
     SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(common_info_text ? common_info_text : info_code ? buf : candidate ? candidate->detail : "Select a package"),TAG_DONE);
@@ -1488,6 +1503,12 @@ static int start(job_kind kind, const char *id)
         strcpy(cur.common_pool, (const char *)identity);
         strcpy(cur.common_executable, sujob.program);
         cur.common_action = kind == JOB_CHECK_RELEASE ? 1 : 0;
+    }
+    if(kind==JOB_COMMON_DISCOVER){
+        IPTR profile=0;GetAttr(MUIA_String_Contents,str_source_profile,&profile);
+        if(profile&&strlen((const char *)profile)>=sizeof cur.common_profile)return -1;
+        if(profile)strcpy(cur.common_profile,(const char *)profile);
+        cur.common_observation=common_catalogue;
     }
     if (kind == JOB_COMMON_SOURCE_LOAD) {
         IPTR path=0; GetAttr(MUIA_String_Contents,str_source_profile,&path);
@@ -2076,13 +2097,13 @@ static int on_message(pm_msg *m)
     }
 #ifdef APKG_FUSION
     if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_DISCOVER || cur.kind == JOB_COMMON_RECOMPARE || cur.kind == JOB_COMMON_SOURCE_LOAD)) {
-        if (cur.cancel && m->common_status == APKG_OK) m->common_status = APKG_CANCELLED;
+        if (cur.cancel && m->common_status == APKG_OK && !m->common_profile_saved) m->common_status = APKG_CANCELLED;
         in_flight = 0;
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         if (active) finish(active,
             rx_common_result(m->common_status, m->common_outcome, cur.cancel ? 0 : cur.common_decision),
             m->common_status == APKG_OK ? "" : "DISCOVERY", m->err.summary);
-        if (m->common_status == APKG_OK && !quit_pending && !cur.cancel) {
+        if (m->common_status == APKG_OK && !quit_pending && (!cur.cancel || m->common_profile_saved)) {
             DoMethod(lst_channel, MUIM_List_Clear);
             SetAttrs(txt_channel_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
             SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
@@ -2098,7 +2119,9 @@ static int on_message(pm_msg *m)
                 SetAttrs(str_channel_id,MUIA_String_Contents,(IPTR)identity,TAG_DONE);
             }
             refill_keep("signed catalogue loaded");
-            status("Signed catalogue loaded; review and runtime testing are not asserted");
+            status(m->common_profile_saved ? "Source observation saved; review and runtime testing are not asserted" : "Signed catalogue loaded; review and runtime testing are not asserted");
+        } else if(m->common_profile_saved){
+            static char saved_status[128];snprintf(saved_status,sizeof saved_status,"Source observation saved; display unavailable (code %d)",(int)m->common_status);status(saved_status);
         } else status(m->common_status == APKG_CANCELLED || cur.cancel ? "Discovery cancelled" : m->err.summary);
         cur.common_observation = NULL;
         FreeVec(m->common_catalogue); m->common_catalogue = NULL;

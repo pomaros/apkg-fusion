@@ -30,9 +30,9 @@ to bypass unfinished non-portal integration or to resume the portal automaticall
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format |
-| Clients/default product | Shared CLI/worker, source profiles, catalogue observations, combined typed rows and common recent publications; default CLI/library/tools use the common engine | Last-refresh comparison, remaining desktop settings/ARexx integration and native/consumer/compatibility qualification |
+| Clients/default product | Shared CLI/worker, persistent current/previous source observations, last-refresh comparison, combined typed rows and common recent publications; default CLI/library/tools use the common engine | Remaining desktop settings/ARexx integration and native/consumer qualification; broader historical continuity is deferred |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
-| Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification |
+| Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Deferred: placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification; see support choices above |
 | Portal | Common channel HTTP members, verified metadata API and authenticated signed-snapshot commits use the common executable; existing service and regression baseline retained | Common self-service link-only publication, publishing client, catalogue/qualification integration and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
@@ -41,6 +41,39 @@ product. The isolated M1 RAM component profile below passes; broader native qual
 remains open. After final candidate qualification, stop with the merge report;
 portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
+
+## Last-refresh comparison and retained observation pairs
+
+The common engine compares two authenticated channel observations, distinguishing
+new applications, target builds, version/revision changes and changed content
+at the same release. Missing baselines are explicit, with recent publications
+as a labelled fallback; a valid unchanged refresh yields zero changes. Historic
+heads may be read below the accepted floor only through the private comparison
+reader, which cannot select packages, prepare metadata or accept a channel.
+Current-head replay protection remains enforced. Baselines are authenticated
+against the captured current policy; invalid signatures, future sequences and
+same-sequence forks refuse.
+
+CLI `news`/`source-news` and PkgManager Last use the same result. Source profiles
+retain both signed observations across restart. Explicit refresh advances the
+pair, including an unchanged source; Save/Save As and offline redisplay preserve
+it. Failed authentication leaves the profile unchanged. Cancellation before
+save leaves it unchanged, while successful persistence followed by display
+allocation failure is reported honestly. Last errors do not fabricate an empty
+comparison or prevent ordinary current-catalogue browsing.
+
+Evaluation: ten new news tests and 30 focused query/profile/browser tests pass.
+`make test-fusion` passes with 396 common tests, 78 default-product CLI checks
+and 78 publication checks. The full ASan/UBSan runner passes its C checks and
+292 selected tests. Both inherited host suites pass (`make test` and
+`components/arospkg/tests/run-host-tests.sh`). GCC 16 strict syntax checks pass
+for changed engine/client/worker and C helpers; native SDK syntax/type checks
+pass for changed engine, CLI, window and adapter modules. Documentation checks
+cover 84 files with no broken links. Native interaction and final candidate
+qualification remain open; these results do not close them.
+
+See [contract](last-refresh.md) and [tests](../../tests/apkg/test_news.py).
+No target access, OS changes, portal adaptation or live publication is included.
 
 ## Publisher chronology and Recently added
 
@@ -75,9 +108,10 @@ suites pass (`make test` and `components/arospkg/tests/run-host-tests.sh`);
 documentation checks cover 82 files with no broken links.
 
 See [contract](publication-news.md) and
-[tests](../../tests/apkg/test_recent.py). Last refresh still needs two
-authenticated observations and retained comparison evidence. Remaining settings,
-ARexx/legacy continuity and the final M1 candidate test are not closed. No target
+[tests](../../tests/apkg/test_recent.py). The subsequent last-refresh checkpoint
+above supplies the two-observation comparison. Remaining settings,
+ARexx and the final M1 candidate test are not closed; legacy continuity is
+deferred. No target
 access, OS changes, portal adaptation or live publication is included.
 
 ## Combined desktop library and primary filters

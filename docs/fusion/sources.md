@@ -5,8 +5,8 @@
 
 A source profile is an explicitly selected client file, separate from managed
 root state, policy, journals and the archive/object stores. It holds one endpoint,
-one channel identity and optionally the exact channel object/signature observed
-there. Multiple profile files can coexist. Precedence across several channels
+one channel identity and optionally the exact current and previous signed
+channel observations. Multiple profile files can coexist. Precedence across several channels
 belongs to the root's own [source list](channels.md#root-source-list), not to
 profiles.
 
@@ -41,7 +41,8 @@ apkg source-outdated ROOT PROFILE [FIELD]
 ```
 
 `source-save` writes settings only. `source-cache` performs read-only discovery
-then saves the settings and verified observation. Discovery failure preserves
+then saves the settings and verified observation, retaining the prior current
+observation for [last-refresh comparison](last-refresh.md). Discovery failure preserves
 the previous profile. `source-show` reports settings and whether bytes are
 retained, without asserting signature validity. `source-outdated` revalidates and
 compares retained metadata with the current root entirely offline, using the
@@ -58,8 +59,12 @@ profiles or unavailable roots.
 Save retains the displayed observation only when its complete endpoint and
 channel identity match the controls, after revalidation against the current
 root. Changing either saves settings without reusing another source's bytes.
-Save is explicit; network discovery, browsing, installation and exit do not
-silently write the profile. A new source configuration grants no trust.
+Save preserves an existing comparison pair. Explicit Refresh/discovery with a
+selected profile advances the pair after authentication; browsing, installation
+and exit do not advance it. A changed endpoint/identity starts without a
+baseline. A new source configuration grants no trust. A completed profile save
+is reported even if subsequent display allocation fails or cancellation arrives;
+it is not falsely reported as undone.
 
 The worker produces a fresh independent native allocation containing all rows,
 summary, provenance and exact selections before handing ownership to the UI.
@@ -91,12 +96,16 @@ qualification.
 ## Local file framing and replacement
 
 This private client file is a byte container rather than a signed common object.
-Its header is 41 bytes: a 13-byte magic (`APKG-SOURCE` then `00 01`), a 16-byte
+Its version-1 header is 41 bytes: a 13-byte magic (`APKG-SOURCE` then `00 01`), a 16-byte
 channel identity, then three unsigned big-endian 32-bit lengths for endpoint,
 channel object and signature. The three byte spans follow in that order, with no
 terminators or trailing bytes. The endpoint is 1–4095 bytes and contains no NUL,
 ASCII control or DEL byte. Object and signature must either both be present or
-both absent. The whole file is bounded to 16 MiB. Unknown versions, truncation,
+both absent. Version 2 changes the final magic byte to `02` and adds two
+big-endian 32-bit lengths for the previous object/signature, giving a 49-byte
+header; those two spans follow the current signature. The previous pair must
+be complete and requires a current pair. Both versions are readable; saves
+without previous evidence use version 1. The whole file is bounded to 16 MiB. Unknown versions, truncation,
 length overflow and trailing bytes refuse. Signed object/envelope bytes retain
 their existing [canonical/signature framing](serialization.md).
 

@@ -31,6 +31,7 @@ The main state filters have these meanings:
 | Not installed | Candidates classified NOT_INSTALLED by the common comparison. A foreign authority colliding with an occupied root name is not silently classified as a missing installable package. |
 | Updates | Candidates classified NEWER. Trust/signature/target blocks remain visible and prevent installation approval through the normal common flow. |
 | Recently added | The newest 25 current-target application additions selected by the common [publication query](publication-news.md), ordered by publisher-reported first day. Unknown dates and ambiguous build groups are counted separately. |
+| Last refresh | The common [observation comparison](last-refresh.md), restored from the profile or captured session observations. Missing baseline and invalid evidence remain distinct from a valid zero-change refresh. |
 
 Search covers full names, authorities, targets, summaries and categories.
 Categories use the full top-level component before `/`, with owned dynamic
@@ -39,11 +40,11 @@ from the whole combined list, so a search with no hits does not erase them.
 The model bounds installed records at 4,096 and combined inputs at 8,192;
 overflow refuses with LIMIT rather than truncating rows or category names.
 
-Last-refresh news, broader settings and remaining automation are unfinished
-integration work. The development UI reports an unavailable view explicitly
-while its model is absent; empty results do not establish that publication
-history is empty. Recently added uses signed publisher claims and never
-substitutes installation time or file modification time for missing dates.
+Broader settings and remaining automation are unfinished integration work.
+Recently added uses signed publisher claims and never substitutes installation
+time or file modification time for missing dates. Last refresh retains its
+actual pair through display filtering and offline recomparison, with explicit
+comparison errors and source changes separate from installed state.
 
 ## Actions and lifetime
 

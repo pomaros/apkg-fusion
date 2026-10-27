@@ -177,7 +177,8 @@ apkg_status pm_common_catalogue_refresh(const char *root,
     apkg_status code = catalogue_open(root, model, &ctx, &snapshot, &channel);
     if (!code)
         code =
-            pm_common_catalogue_copy(channel, snapshot, model->endpoint, out);
+            pm_common_catalogue_copy_pair(channel, snapshot, model->endpoint,
+                model->previous_observation,model->previous_signature,out);
     apkg_channel_free(channel);
     apkg_snapshot_free(snapshot);
     apkg_close(ctx);
@@ -195,9 +196,8 @@ apkg_status pm_common_source_load(const char *root, const char *profile,
     if (!code)
         code = apkg_source_config_open(config, root, &snapshot, &channel, NULL);
     if (!code)
-        code = pm_common_catalogue_copy(
-            channel, snapshot, apkg_source_config_get(config)->endpoint.data,
-            out);
+        code = pm_common_catalogue_copy_pair(channel,snapshot,apkg_source_config_get(config)->endpoint.data,
+            apkg_source_config_get(config)->previous_observation,apkg_source_config_get(config)->previous_signature,out);
     apkg_channel_free(channel);
     apkg_snapshot_free(snapshot);
     apkg_source_config_free(config);
@@ -227,7 +227,9 @@ apkg_status pm_common_source_save(const char *root, const char *profile,
         !memcmp(id.bytes, model->channel.id.bytes, 16))
         code = catalogue_open(root, model, &ctx, &snapshot, &channel);
     if (!code)
-        code = apkg_source_config_save(profile, endpoint, &id, channel, NULL);
+        code = apkg_source_config_save_pair(profile,endpoint,&id,channel,
+            channel&&model?model->previous_observation:(apkg_bytes){0},
+            channel&&model?model->previous_signature:(apkg_bytes){0},NULL);
     apkg_channel_free(channel);
     apkg_snapshot_free(snapshot);
     apkg_close(ctx);
@@ -367,14 +369,17 @@ static char *copy_text(char **cursor, apkg_text text) {
     *cursor += text.size + 1;
     return out;
 }
-apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
+apkg_status pm_common_catalogue_copy_pair(const apkg_channel *channel,
                                      const apkg_snapshot *snapshot,
-                                     const char *endpoint,
+                                     const char *endpoint, apkg_bytes previous,
+                                     apkg_bytes previous_signature,
                                      pm_common_catalogue **out) {
     if (!out)
         return APKG_INVALID;
     *out = NULL;
-    if (!channel || !snapshot || !endpoint || strlen(endpoint) >= 4096)
+    if (!channel || !snapshot || !endpoint || strlen(endpoint) >= 4096 ||
+        (previous.size&&!previous.data)||(previous_signature.size&&!previous_signature.data)||
+        ((previous.size==0)!=(previous_signature.size==0)))
         return APKG_INVALID;
     apkg_bytes object = {0}, signature = {0};
     apkg_status observation_code =
@@ -391,6 +396,9 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         signature.size > PM_CATALOGUE_MAX - total - object.size - 2)
         return APKG_LIMIT;
     total += object.size + signature.size + 2;
+    if(total>PM_CATALOGUE_MAX-2 || previous.size>PM_CATALOGUE_MAX-total-2 ||
+        previous_signature.size>PM_CATALOGUE_MAX-total-previous.size-2)return APKG_LIMIT;
+    total+=previous.size+previous_signature.size+2;
     int summary_size = channel_summary(NULL, 0, view);
     if (summary_size < 0)
         return APKG_INVALID;
@@ -466,6 +474,10 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         (const unsigned char *)copy_text(
             &cursor, (apkg_text){(const char *)signature.data, signature.size}),
         signature.size};
+    model->previous_observation=(apkg_bytes){(const unsigned char *)copy_text(&cursor,
+        (apkg_text){(const char *)previous.data,previous.size}),previous.size};
+    model->previous_signature=(apkg_bytes){(const unsigned char *)copy_text(&cursor,
+        (apkg_text){(const char *)previous_signature.data,previous_signature.size}),previous_signature.size};
     model->channel.published_on.data = copy_text(&cursor, view->published_on);
     model->updates = *summary;
     model->updates.entries = entries;
@@ -576,6 +588,22 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         row->recent_rank = i + 1; row->recent_kind = news->entries[i].kind;
     }
     apkg_recent_free(recent);
+    apkg_news *changes=NULL;
+    model->last_status=apkg_channel_news(snapshot,channel,previous,previous_signature,&changes,NULL);
+    if(model->last_status==APKG_NOMEM||model->last_status==APKG_LIMIT){
+        apkg_status failure=model->last_status;FreeVec(model);return failure;
+    }
+    if(!model->last_status){
+        const apkg_news_view *last=apkg_news_get(changes);model->last=*last;model->last.entries=NULL;
+        for(uint64_t i=0;i<last->count;i++){
+            const apkg_news_entry *change=&last->entries[i];pm_common_row *row=&model->rows[change->index];
+            row->last_rank=i+1;row->last_kind=change->kind;row->previous_revision=change->previous_revision;
+            row->earlier_publication=change->earlier_publication;
+            row->last_direction=change->direction;
+            if(change->previous_version.size)memcpy(row->previous_version,change->previous_version.data,change->previous_version.size);
+        }
+    }
+    apkg_news_free(changes);
     *out = model;
     return APKG_OK;
 }
@@ -603,6 +631,29 @@ static int contains(apkg_text text, const char *term) {
         if (!memcmp(text.data + i, term, n))
             return 1;
     return 0;
+}
+apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
+    const apkg_snapshot *snapshot,const char *endpoint,pm_common_catalogue **out){
+    return pm_common_catalogue_copy_pair(channel,snapshot,endpoint,(apkg_bytes){0},(apkg_bytes){0},out);
+}
+apkg_status pm_common_last_detail(const pm_common_row *row,char **out){
+    if(!out)return APKG_INVALID;
+    *out=NULL;
+    if(!row||!row->last_rank||!row->detail)return APKG_INVALID;
+    char revision[32]="not present";
+    if(row->last_kind==APKG_NEWS_RECENT)strcpy(revision,"not compared");
+    if(*row->previous_version)snprintf(revision,sizeof revision,"%llu",(unsigned long long)row->previous_revision);
+    const char *direction=row->last_kind==APKG_NEWS_UPDATED?(row->last_direction<0?"older":"newer"):"not applicable";
+    const char *format="Last refresh: %s\nPrevious source version: %s\nPrevious revision: %s\nSource direction: %s\n"
+        "Publisher reports earlier publication: %s\nPublisher application day: %s\nPublisher target day: %s\n\n%s";
+    int n=snprintf(NULL,0,format,apkg_news_kind_name(row->last_kind),
+        *row->previous_version?row->previous_version:row->last_kind==APKG_NEWS_RECENT?"not compared (first observation)":"not present",revision,direction,row->earlier_publication<0?"unknown":row->earlier_publication?"yes":"no",*row->app_first_added?row->app_first_added:"unknown",*row->first_added?row->first_added:"unknown",row->detail);
+    if(n<0)return APKG_INVALID;
+    if((size_t)n>=PM_CATALOGUE_MAX)return APKG_LIMIT;
+    char *text=malloc((size_t)n+1);if(!text)return APKG_NOMEM;
+    snprintf(text,(size_t)n+1,format,apkg_news_kind_name(row->last_kind),
+        *row->previous_version?row->previous_version:row->last_kind==APKG_NEWS_RECENT?"not compared (first observation)":"not present",revision,direction,row->earlier_publication<0?"unknown":row->earlier_publication?"yes":"no",*row->app_first_added?row->app_first_added:"unknown",*row->first_added?row->first_added:"unknown",row->detail);
+    *out=text;return APKG_OK;
 }
 static int installed_matches(const apkg_installed_view *v, const char *term,
                              const char *summary, const char *category) {
@@ -796,9 +847,10 @@ static int category_order(const void *a, const void *b) {
 }
 int pm_common_library_matches(const pm_common_library_row *row,
     pm_library_filter filter, const char *term, const char *category) {
-    if (!row || (unsigned)filter > PM_LIBRARY_RECENT) return 0;
+    if (!row || (unsigned)filter > PM_LIBRARY_LAST) return 0;
     if (filter == PM_LIBRARY_INSTALLED && !row->installed) return 0;
     if (filter == PM_LIBRARY_RECENT && (!row->news || !row->news->recent_rank)) return 0;
+    if (filter == PM_LIBRARY_LAST && (!row->news || !row->news->last_rank)) return 0;
     if (filter == PM_LIBRARY_NOT_INSTALLED && (!row->candidate || row->installed ||
         row->candidate->comparison != APKG_CANDIDATE_NOT_INSTALLED)) return 0;
     if (filter == PM_LIBRARY_UPDATES && (!row->candidate || row->installed ||
@@ -815,10 +867,10 @@ int pm_common_library_matches(const pm_common_library_row *row,
 }
 const pm_common_library_row *pm_common_library_at(const pm_common_library *model,
     pm_library_filter filter, size_t index) {
-    if (!model || (unsigned)filter > PM_LIBRARY_RECENT || index >= model->count) return NULL;
-    if (filter != PM_LIBRARY_RECENT) return &model->rows[index];
+    if (!model || (unsigned)filter > PM_LIBRARY_LAST || index >= model->count) return NULL;
+    if (filter != PM_LIBRARY_RECENT && filter != PM_LIBRARY_LAST) return &model->rows[index];
     for (size_t i = 0; i < model->count; i++)
-        if (model->rows[i].news && model->rows[i].news->recent_rank == index + 1)
+        if (model->rows[i].news && (filter==PM_LIBRARY_RECENT?model->rows[i].news->recent_rank:model->rows[i].news->last_rank) == index + 1)
             return &model->rows[i];
     return NULL;
 }

@@ -12,6 +12,7 @@ apkg_status apkg_plan_format(const apkg_plan *, char **text);
 void apkg_client_text_free(char *);
 apkg_status apkg_recent_format(const apkg_recent *, int json, char **,
     apkg_error **);
+apkg_status apkg_news_format(const apkg_news *, int json, char **, apkg_error **);
 typedef int (*apkg_confirm_fn)(void *, const apkg_plan *,
                                const char *presentation);
 /* Local signed folder (descriptor.json/signature.json) or PKG/1 archive.
@@ -102,9 +103,19 @@ typedef struct {
     apkg_text endpoint;
     apkg_id id;
     apkg_bytes observation, signature;
+    apkg_bytes previous_observation, previous_signature;
 } apkg_source_config_view;
 apkg_status apkg_source_config_save(const char *path, const char *endpoint,
     const apkg_id *, const apkg_channel *, apkg_error **);
+/* Store an explicit pair without advancing it. Raw previous bytes are cached
+ * evidence, not trusted facts until channel_news authenticates them. */
+apkg_status apkg_source_config_save_pair(const char *, const char *,
+    const apkg_id *, const apkg_channel *, apkg_bytes, apkg_bytes, apkg_error **);
+/* Explicit refresh: authenticate comparison with the prior cached observation,
+ * then atomically save the new pair. Captured output owns the written frame;
+ * concurrent writes remain last-wins and do not alter this captured result. */
+apkg_status apkg_source_config_refresh(const char *, const char *, const apkg_id *,
+    const apkg_snapshot *, const apkg_channel *, apkg_source_config **, apkg_error **);
 apkg_status apkg_source_config_read(const char *path, apkg_source_config **,
     apkg_error **);
 const apkg_source_config_view *apkg_source_config_get(const apkg_source_config *);

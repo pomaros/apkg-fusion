@@ -29,17 +29,49 @@ static int text_order(apkg_text a, apkg_text b) {
     int code = n ? memcmp(a.data,b.data,n) : 0;
     return code ? code : a.size < b.size ? -1 : a.size > b.size;
 }
-static int same_group(const apkg_channel_entry_view *a, const apkg_channel_entry_view *b) {
+int ak_entry_same_group(const apkg_channel_entry_view *a, const apkg_channel_entry_view *b) {
     return !text_order(a->authority,b->authority) && !text_order(a->name,b->name) &&
         !text_order(a->target,b->target);
 }
-static int newer(const apkg_channel_entry_view *a, const apkg_channel_entry_view *b) {
+int ak_entry_version_order(const apkg_channel_entry_view *a, const apkg_channel_entry_view *b) {
     char av[256], bv[256];
     memcpy(av,a->version.data,a->version.size); av[a->version.size]=0;
     memcpy(bv,b->version.data,b->version.size); bv[b->version.size]=0;
     int code = ak_version_compare(av,bv);
     if (!code) code = a->revision < b->revision ? -1 : a->revision > b->revision;
     return code;
+}
+apkg_status ak_channel_choices(const apkg_channel *channel, ak_channel_choice **out, size_t *n) {
+    if (!out || !n) return APKG_INVALID;
+    *out = NULL; *n = 0;
+    if (!channel) return APKG_INVALID;
+    uint64_t count = apkg_channel_get(channel)->entry_count;
+    if (count > 4096) return APKG_LIMIT;
+    const apkg_channel_entry_view **rows = calloc(count ? (size_t)count : 1,sizeof *rows);
+    ak_channel_choice *choices = calloc(count ? (size_t)count : 1,sizeof *choices);
+    apkg_status code = APKG_NOMEM;
+    if (!rows || !choices) goto done;
+    for (uint64_t i=0;i<count;i++) {
+        code = apkg_channel_entry_at(channel,i,&rows[i],NULL);
+        if (code) goto done;
+    }
+    for (uint64_t i=0;i<count;i++) {
+        if (!rows[i]->target_matches) continue;
+        int seen=0;
+        for (uint64_t j=0;j<i;j++)
+            if (rows[j]->target_matches && ak_entry_same_group(rows[i],rows[j])) {seen=1;break;}
+        if (seen) continue;
+        uint64_t best=i;int ambiguous=0;
+        for(uint64_t j=i+1;j<count;j++) {
+            if (!rows[j]->target_matches || !ak_entry_same_group(rows[i],rows[j])) continue;
+            int order=ak_entry_version_order(rows[j],rows[best]);
+            if(order==2)ambiguous=1;else if(order>0)best=j;
+        }
+        choices[(*n)++]=(ak_channel_choice){best,rows[best],ambiguous};
+    }
+    *out=choices;choices=NULL;code=APKG_OK;
+done:
+    free(rows);free(choices);if(code)*n=0;return code;
 }
 static int recent_order(const void *a, const void *b) {
     const apkg_recent_entry *x = a, *y = b;
@@ -68,31 +100,17 @@ apkg_status apkg_channel_recent(const apkg_channel *channel,
     uint64_t count = apkg_channel_get(channel)->entry_count;
     if (count > 4096 || options->limit > 4096) return APKG_LIMIT;
     apkg_recent *recent = calloc(1,sizeof *recent);
-    const apkg_channel_entry_view **rows = calloc(count ? (size_t)count : 1,sizeof *rows);
+    ak_channel_choice *choices = NULL; size_t groups = 0;
     apkg_status code = APKG_NOMEM;
-    if (!recent || !rows) goto done;
-    recent->entries = calloc(count ? (size_t)count : 1,sizeof *recent->entries);
-    if (!recent->entries) goto done;
+    if (!recent) goto done;
+    code = ak_channel_choices(channel,&choices,&groups);
+    if(code)goto done;
+    recent->entries = calloc(groups ? groups : 1,sizeof *recent->entries);
+    if (!recent->entries) {code=APKG_NOMEM;goto done;}
     recent->channel = channel; recent->view.entries = recent->entries;
-    for (uint64_t i = 0; i < count; i++) {
-        code = apkg_channel_entry_at(channel,i,&rows[i],error);
-        if (code) goto done;
-    }
-    for (uint64_t i = 0; i < count; i++) {
-        if (!rows[i]->target_matches) continue;
-        int seen = 0;
-        for (uint64_t j = 0; j < i; j++)
-            if (rows[j]->target_matches && same_group(rows[i],rows[j])) { seen = 1; break; }
-        if (seen) continue;
-        uint64_t best = i; int ambiguous = 0;
-        for (uint64_t j = i+1; j < count; j++) {
-            if (!rows[j]->target_matches || !same_group(rows[i],rows[j])) continue;
-            int order = newer(rows[j],rows[best]);
-            if (order == 2) ambiguous = 1;
-            else if (order > 0) best = j;
-        }
-        if (ambiguous) { recent->view.indeterminate++; continue; }
-        const apkg_channel_entry_view *row = rows[best];
+    for (size_t i = 0; i < groups; i++) {
+        if (choices[i].ambiguous) { recent->view.indeterminate++; continue; }
+        const apkg_channel_entry_view *row = choices[i].row;
         if (!row->app_first_added.size) { recent->view.unknown_dates++; continue; }
         apkg_recent_kind kind = APKG_RECENT_APPLICATION;
         apkg_text date = row->app_first_added;
@@ -101,13 +119,13 @@ apkg_status apkg_channel_recent(const apkg_channel *channel,
             kind = APKG_RECENT_BUILD; date = row->first_added;
         }
         if (options->since.size && text_order(date,options->since) < 0) continue;
-        recent->entries[recent->view.count++] = (apkg_recent_entry){best,kind,date,row};
+        recent->entries[recent->view.count++] = (apkg_recent_entry){choices[i].index,kind,date,row};
     }
     qsort(recent->entries,(size_t)recent->view.count,sizeof *recent->entries,recent_order);
     if (options->limit && recent->view.count > options->limit) recent->view.count = options->limit;
     *out = recent; recent = NULL; code = APKG_OK;
 done:
-    free(rows); apkg_recent_free(recent);
+    free(choices); apkg_recent_free(recent);
     return code ? ak_fail(error,code,"recent publication query refused",NULL) : APKG_OK;
 }
 apkg_status apkg_recent_format(const apkg_recent *recent, int json,

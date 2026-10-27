@@ -2,6 +2,7 @@
  * Copyright (c) 2026 John Knipper
  * Actual PkgManager signed worker bridge with host message-port adapters. */
 #include "apkg_client.h"
+#include "internal.h"
 #include "job.h"
 #include <assert.h>
 #include <proto/exec.h>
@@ -100,6 +101,71 @@ int main(int argc, char **argv) {
     assert(argc >= 4 && argc <= 9);
     assert(!job_uses_common_engine(JOB_NONE) && !job_uses_common_engine(JOB_INSTALL));
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if(atoi(argv[3])==54){
+        assert(argc==6);
+        apkg_source_config *old=NULL;apkg_snapshot *snapshot=NULL;apkg_channel *current=NULL,*history=NULL,*active=(void *)1;
+        assert(apkg_source_config_read(argv[4],&old,NULL)==APKG_OK);
+        assert(apkg_client_channel_refresh(argv[1],argv[2],argv[5],0,NULL,&snapshot,&current,NULL)==APKG_OK);
+        const apkg_source_config_view *v=apkg_source_config_get(old);
+        apkg_open_options options={0};options.contract_version=1;options.struct_size=sizeof options;
+        options.root=(apkg_text){argv[1],strlen(argv[1])};apkg_ctx *ctx=NULL;
+        assert(apkg_open(&options,&ctx,NULL)==APKG_OK);
+        assert(apkg_channel_read(ctx,&v->id,0,v->observation,v->signature,&active,NULL)==APKG_STALE&&!active);
+        assert(ak_channel_history_read(snapshot,current,v->observation,v->signature,&history,NULL)==APKG_OK);
+        apkg_package *package=(void *)1;apkg_plan *plan=(void *)1;
+        assert(apkg_channel_package(ctx,history,0,&package,NULL)==APKG_UNSUPPORTED&&!package);
+        package=(void *)1;assert(ak_channel_metadata(ctx,history,0,&package,NULL)==APKG_UNSUPPORTED&&!package);
+        assert(apkg_plan_channel_accept(ctx,snapshot,history,&plan,NULL)==APKG_UNSUPPORTED&&!plan);
+        apkg_channel_free(history);apkg_channel_free(current);apkg_snapshot_free(snapshot);apkg_source_config_free(old);apkg_close(ctx);
+        puts("historical observation cannot select packages or advance replay floors");return 0;
+    }
+    if (atoi(argv[3]) == 52 || atoi(argv[3]) == 53) {
+        int discover=atoi(argv[3])==52;
+        assert(strlen(argv[1])<sizeof j.root&&strlen(argv[2])<sizeof j.common_package);
+        strcpy(j.root,argv[1]);strcpy(j.common_package,argv[2]);j.done=&final;running=&j;
+        if(discover){
+            assert(argc==7||argc==8);
+            assert(strlen(argv[4])<sizeof j.common_pool&&strlen(argv[5])<sizeof j.common_profile);
+            strcpy(j.common_pool,argv[4]);strcpy(j.common_profile,argv[5]);
+            j.cancel=atoi(argv[6]);fail_at=argc==8?atoi(argv[7]):0;j.kind=JOB_COMMON_DISCOVER;
+        }else{assert(argc>=4&&argc<=6);fail_at=argc>=5?atoi(argv[4]):0;j.kind=JOB_COMMON_SOURCE_LOAD;}
+        pm_common_install(&j,&error);fail_at=0;
+        pm_common_catalogue *model=final.common_catalogue;
+        int code=final.common_status?final.common_status:(int)model->last_status;
+        printf("status %d\nsaved %d\n",code,final.common_profile_saved);
+        if(!code){
+            if(!discover&&argc==6){
+                char identity[33];const char hex[]="0123456789abcdef";
+                for(size_t i=0;i<16;i++){identity[i*2]=hex[model->channel.id.bytes[i]>>4];identity[i*2+1]=hex[model->channel.id.bytes[i]&15];}identity[32]=0;
+                assert(pm_common_source_save(j.root,argv[5],model->endpoint,identity,model)==APKG_OK);
+            }
+            const apkg_news_view *n=&model->last;
+            printf("summary\t%d\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\n",n->has_previous,
+                (unsigned long long)n->count,(unsigned long long)n->applications,(unsigned long long)n->builds,
+                (unsigned long long)n->updated,(unsigned long long)n->content_changed,(unsigned long long)n->recent,
+                (unsigned long long)n->unknown_dates,(unsigned long long)n->indeterminate);
+            owned_text(model,(apkg_text){(const char *)model->previous_observation.data,model->previous_observation.size});
+            owned_text(model,(apkg_text){(const char *)model->previous_signature.data,model->previous_signature.size});
+            for(uint64_t rank=1;rank<=n->count;rank++)for(size_t i=0;i<model->count;i++){
+                const pm_common_row *r=&model->rows[i];if(r->last_rank!=rank)continue;
+                const char *sha=strrchr(r->selection,'/');assert(sha);
+                printf("change\t%s\t%s\t%s\t%s\t%s\t%llu\t%s\t%llu\t%d\t%s\t%d\n",
+                    apkg_news_kind_name(r->last_kind),r->authority,r->name,r->target,r->version,
+                    (unsigned long long)r->revision,r->previous_version,(unsigned long long)r->previous_revision,
+                    r->earlier_publication,sha+1,r->last_direction);
+                char *detail=NULL;assert(pm_common_last_detail(r,&detail)==APKG_OK);
+                assert(strstr(detail,apkg_news_kind_name(r->last_kind)));
+                if(*r->previous_version)assert(strstr(detail,r->previous_version));
+                apkg_client_text_free(detail);
+            }
+            pm_common_catalogue *refreshed=NULL;
+            assert(pm_common_catalogue_refresh(j.root,model,&refreshed)==APKG_OK);
+            assert(refreshed->last.has_previous==n->has_previous&&refreshed->last.count==n->count);
+            assert(refreshed->previous_observation.size==model->previous_observation.size);
+            FreeVec(refreshed);
+        }
+        FreeVec(model);FreeVec(final.common_record);assert(previews==0&&allocations==0);return 0;
+    }
     if (atoi(argv[3]) == 51) {
         assert(argc == 9);
         apkg_snapshot *snapshot = NULL;

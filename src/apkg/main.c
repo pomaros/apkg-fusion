@@ -77,6 +77,7 @@ static int apkg_main(int argc, char **argv) {
             "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
             "[MIN-SEQUENCE]\nsource-save PROFILE ENDPOINT CHANNEL-ID\n"
             "source-cache ROOT PROFILE ENDPOINT CHANNEL-ID\nsource-show PROFILE\n"
+            "source-news ROOT PROFILE [--json]\nnews ROOT ENDPOINT CHANNEL-ID PREVIOUS-PROFILE [--json]\n"
             "recent ROOT ENDPOINT CHANNEL-ID [--builds] [--since YYYY-MM-DD] [--limit N] [--json]\nsource-recent ROOT PROFILE [same options]\n"
             "channel-validate JSONFILE\nattestation-check ROOT FOLDER\nsource-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
@@ -351,7 +352,10 @@ static int apkg_main(int argc, char **argv) {
         apkg_id id; if (ak_hex(identity,id.bytes,16)) return APKG_INVALID;
         apkg_snapshot *snapshot=NULL; apkg_channel *channel=NULL;
         code=cached ? apkg_client_channel_refresh(argv[2],endpoint,identity,0,NULL,&snapshot,&channel,&e) : APKG_OK;
-        if (!code) code=apkg_source_config_save(path,endpoint,&id,channel,&e);
+        apkg_source_config *captured=NULL;
+        if (!code) code=cached ? apkg_source_config_refresh(path,endpoint,&id,snapshot,channel,&captured,&e)
+                              : apkg_source_config_save(path,endpoint,&id,channel,&e);
+        apkg_source_config_free(captured);
         apkg_snapshot_free(snapshot); apkg_channel_free(channel);
         report(code,NULL,e); apkg_error_free(e); return code;
     }
@@ -375,6 +379,25 @@ static int apkg_main(int argc, char **argv) {
         }
         if (code) report(code,NULL,e);
         apkg_error_free(e); apkg_source_config_free(config); return code;
+    }
+    if (!strcmp(argv[1],"source-news") || !strcmp(argv[1],"news")) {
+        int saved=!strcmp(argv[1],"source-news"),json=0,base=saved?4:6;
+        if(argc!=base&&argc!=base+1)return APKG_INVALID;
+        if(argc==base+1){if(strcmp(argv[base],"--json"))return APKG_INVALID;json=1;}
+        apkg_source_config *config=NULL;apkg_snapshot *snapshot=NULL;apkg_channel *channel=NULL;apkg_news *news=NULL;
+        code=apkg_source_config_read(argv[saved?3:5],&config,&e);
+        if(!code)code=saved?apkg_source_config_open(config,argv[2],&snapshot,&channel,&e)
+            :apkg_client_channel_refresh(argv[2],argv[3],argv[4],0,NULL,&snapshot,&channel,&e);
+        if(!code){
+            const apkg_source_config_view *v=apkg_source_config_get(config);
+            if(!saved&&memcmp(v->id.bytes,apkg_channel_get(channel)->id.bytes,16))code=APKG_TRUST;
+            if(!code)code=apkg_channel_news(snapshot,channel,
+                saved?v->previous_observation:v->observation,saved?v->previous_signature:v->signature,&news,&e);
+        }
+        if(!code)code=apkg_news_format(news,json,&text,&e);
+        if(!code)fputs(text,stdout);else report(code,NULL,e);
+        apkg_client_text_free(text);apkg_news_free(news);apkg_snapshot_free(snapshot);apkg_channel_free(channel);
+        apkg_source_config_free(config);apkg_error_free(e);return code;
     }
     if (!strcmp(argv[1], "recent") || !strcmp(argv[1], "source-recent")) {
         int saved = !strcmp(argv[1], "source-recent"), json = 0, seen_limit = 0, seen_since = 0;

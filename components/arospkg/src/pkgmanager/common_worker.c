@@ -147,18 +147,33 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     } else if (j->kind == JOB_COMMON_DISCOVER) {
         apkg_channel *channel = NULL;
         apkg_snapshot *snapshot = NULL;
+        apkg_source_config *saved = NULL;
+        apkg_bytes previous={0},signature={0};
         status = apkg_client_channel_refresh(j->root, j->common_package,
                                              j->common_pool, 0, &observer,
                                              &snapshot, &channel, &detail);
-        if (!status && !j->cancel)
-            status =
-                pm_common_catalogue_copy(channel, snapshot, j->common_package,
-                                         &j->done->common_catalogue);
-        if (j->cancel) {
-            FreeVec(j->done->common_catalogue);
-            j->done->common_catalogue = NULL;
-            status = APKG_CANCELLED;
+        if(!status&&!j->cancel&&*j->common_profile){
+            status=apkg_source_config_refresh(j->common_profile,j->common_package,
+                &apkg_channel_get(channel)->id,snapshot,channel,&saved,&detail);
+            if(!status){
+                j->done->common_profile_saved=1;
+                previous=apkg_source_config_get(saved)->previous_observation;
+                signature=apkg_source_config_get(saved)->previous_signature;
+            }
+        }else if(!status&&!j->cancel&&j->common_observation&&
+            !strcmp(j->common_package,j->common_observation->endpoint)&&
+            !memcmp(apkg_channel_get(channel)->id.bytes,j->common_observation->channel.id.bytes,16)){
+            previous=j->common_observation->observation;
+            signature=j->common_observation->observation_signature;
         }
+        if(!status&&(!j->cancel||j->done->common_profile_saved))
+            status=pm_common_catalogue_copy_pair(channel,snapshot,j->common_package,
+                previous,signature,&j->done->common_catalogue);
+        if(j->cancel&&!j->done->common_profile_saved&&status==APKG_OK){
+            FreeVec(j->done->common_catalogue);j->done->common_catalogue=NULL;
+            status=APKG_CANCELLED;
+        }
+        apkg_source_config_free(saved);
         apkg_channel_free(channel);
         apkg_snapshot_free(snapshot);
     } else

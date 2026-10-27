@@ -271,6 +271,38 @@ apkg_status apkg_channel_recent(const apkg_channel *, const apkg_recent_options 
     apkg_recent **, apkg_error **);
 const apkg_recent_view *apkg_recent_get(const apkg_recent *);
 void apkg_recent_free(apkg_recent *);
+typedef struct apkg_news apkg_news;
+typedef enum {
+    APKG_NEWS_APPLICATION, APKG_NEWS_BUILD, APKG_NEWS_UPDATED,
+    APKG_NEWS_CONTENT_CHANGED, APKG_NEWS_RECENT
+} apkg_news_kind;
+typedef struct {
+    uint64_t index;
+    apkg_news_kind kind;
+    const apkg_channel_entry_view *package; /* current parent channel */
+    apkg_text previous_version;
+    uint64_t previous_revision;
+    int direction; /* -1 older, 0 equal, 1 newer; only UPDATED */
+    int earlier_publication; /* -1 unknown; otherwise publisher day precedes previous head day */
+} apkg_news_entry;
+typedef struct {
+    int has_previous;
+    uint64_t previous_sequence;
+    apkg_digest previous_snapshot;
+    uint64_t count, applications, builds, updated, content_changed;
+    uint64_t recent, unknown_dates, indeterminate;
+    const apkg_news_entry *entries;
+} apkg_news_view;
+/* Current-target package changes between authenticated observations. The
+ * current channel must outlive the result. Previous bytes are owned/copied,
+ * checked under the captured policy and cannot become an active source below
+ * a replay floor. Empty previous bytes select an explicitly labelled first
+ * observation with recent-publication fallback, never invented "new" rows. */
+apkg_status apkg_channel_news(const apkg_snapshot *, const apkg_channel *,
+    apkg_bytes previous, apkg_bytes signature, apkg_news **, apkg_error **);
+const apkg_news_view *apkg_news_get(const apkg_news *);
+void apkg_news_free(apkg_news *);
+const char *apkg_news_kind_name(apkg_news_kind);
 apkg_status apkg_channel_read(apkg_ctx *, const apkg_id *expected_id,
                               uint64_t minimum_sequence, apkg_bytes object,
                               apkg_bytes signature, apkg_channel **,

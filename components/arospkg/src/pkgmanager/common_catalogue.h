@@ -21,6 +21,10 @@ typedef struct {
     char first_added[11], app_first_added[11];
     uint64_t recent_rank;
     apkg_recent_kind recent_kind;
+    uint64_t last_rank, previous_revision;
+    apkg_news_kind last_kind;
+    int earlier_publication, last_direction;
+    char previous_version[256];
 } pm_common_row;
 typedef struct {
     size_t count;
@@ -32,6 +36,9 @@ typedef struct {
     apkg_update_summary_view
         updates; /* entries/text deep-copied into AllocVec */
     uint64_t recent_unknown_dates, recent_indeterminate;
+    apkg_bytes previous_observation, previous_signature;
+    apkg_status last_status;
+    apkg_news_view last; /* counters/source identity only; entries are in rows */
     pm_common_row rows[];
 } pm_common_catalogue;
 typedef enum {
@@ -62,6 +69,10 @@ int pm_common_row_reviewable(const pm_common_row *);
 apkg_status pm_common_catalogue_copy(const apkg_channel *,
                                      const apkg_snapshot *, const char *,
                                      pm_common_catalogue **);
+apkg_status pm_common_catalogue_copy_pair(const apkg_channel *,
+    const apkg_snapshot *, const char *, apkg_bytes, apkg_bytes,
+    pm_common_catalogue **);
+apkg_status pm_common_last_detail(const pm_common_row *, char **);
 /* The installed list retains the complete typed view, including evidence and
  * opaque record bytes. Every borrowed field is copied into this AllocVec. */
 typedef struct {
@@ -93,7 +104,7 @@ typedef struct {
 } pm_common_library;
 typedef enum {
     PM_LIBRARY_ALL, PM_LIBRARY_INSTALLED, PM_LIBRARY_NOT_INSTALLED,
-    PM_LIBRARY_UPDATES, PM_LIBRARY_RECENT
+    PM_LIBRARY_UPDATES, PM_LIBRARY_RECENT, PM_LIBRARY_LAST
 } pm_library_filter;
 apkg_status pm_common_library_build(const pm_common_installed *,
     const pm_common_catalogue *, pm_common_library **);

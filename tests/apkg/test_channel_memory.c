@@ -102,7 +102,18 @@ int main(int argc, char **argv) {
     assert(apkg_channel_entry_at(channel, 0, &row, NULL) == APKG_OK);
     apkg_digest expected = row->descriptor_digest;
     assert(apkg_channel_package(ctx, channel, 0, &package, NULL) == APKG_OK);
+    apkg_snapshot *captured = NULL;
+    assert(apkg_snapshot_read(ctx, &captured, NULL) == APKG_OK);
     apkg_close(ctx);
+    apkg_news *news = NULL;
+    assert(apkg_channel_news(captured, channel, (apkg_bytes){0},
+        (apkg_bytes){0}, &news, NULL) == APKG_OK);
+    apkg_snapshot_free(captured);
+    char *news_text = NULL;
+    assert(apkg_news_format(news, 1, &news_text, NULL) == APKG_OK);
+    assert(strstr(news_text, "\"has_previous\":false"));
+    apkg_client_text_free(news_text);
+    apkg_news_free(news);
     apkg_recent *recent = NULL;
     char *recent_text = NULL;
     assert(apkg_channel_recent(channel, NULL, &recent, NULL) == APKG_OK);
