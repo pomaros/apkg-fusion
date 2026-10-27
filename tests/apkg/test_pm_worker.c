@@ -99,6 +99,21 @@ int main(int argc, char **argv) {
     assert(argc >= 4 && argc <= 7);
     assert(!job_uses_common_engine(JOB_NONE) && !job_uses_common_engine(JOB_INSTALL));
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 47) {
+        /* ROOT NAME 47 CHOICE: actual common diagnostic worker. */
+        assert(argc == 5 && strlen(argv[1]) < sizeof j.root && strlen(argv[2]) < sizeof j.id);
+        strcpy(j.root, argv[1]); strcpy(j.id, argv[2]);
+        j.kind = job_for_common_rexx(RXC_VERIFY);
+        assert(j.kind == JOB_VERIFY && job_uses_common_engine(j.kind));
+        j.done = &final; running = &j;
+        if (atoi(argv[4]) == 1) j.cancel = 1;
+        if (atoi(argv[4]) == 2) fail_at = 1;
+        pm_common_install(&j, &error);
+        printf("status %d\n%s", final.common_status, final.common_record ? final.common_record : "");
+        FreeVec(final.common_record);
+        assert(previews == 0 && allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 45 || atoi(argv[3]) == 46) {
         /* ROOT ENDPOINT 45 WAIT CHANNEL-ID MATCH: retain, then query offline. */
         assert(argc == 7);

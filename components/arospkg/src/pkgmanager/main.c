@@ -56,7 +56,7 @@ static const char *channel_filters[] = {"All candidates", "Updates / blocked can
     "Not installed", "Other targets", "Untrusted authors", "Changed same release", "Indeterminate versions", "Review observations", "Runtime observations", "Revocation observations", NULL};
 static pm_common_catalogue *common_catalogue;
 static pm_common_installed *common_installed;
-static char *common_info_text;
+static char *common_info_text, *common_verify_text;
 #define ID_COMMON_INSTALL 1001
 #define ID_CHANNEL_BROWSE 1002
 #define ID_CHANNEL_LOAD 1003
@@ -957,7 +957,7 @@ static void show_detail(void)
     SetAttrs(btn_remove,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_open,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_run,MUIA_Disabled,busy_now()||!row,TAG_DONE);
-    SetAttrs(btn_verify,MUIA_Disabled,TRUE,TAG_DONE);
+    SetAttrs(btn_verify,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_upgrade,MUIA_Disabled,TRUE,TAG_DONE);
     SetAttrs(btn_rollback,MUIA_Disabled,TRUE,TAG_DONE);
     return;
@@ -1427,9 +1427,9 @@ static int start(job_kind kind, const char *id)
     in_flight = 1;
 #ifdef APKG_FUSION
     common_select();
-    if (kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION || kind == JOB_COMMON_SOURCE_LIST) {
+    if (kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION || kind == JOB_COMMON_SOURCE_LIST || kind == JOB_VERIFY) {
         SetAttrs(btn_cancel, MUIA_Disabled, FALSE, TAG_DONE);
-        status(kind == JOB_COMMON_SOURCE_LIST ? "Reading root sources; managed files remain unchanged" : kind == JOB_COMMON_ATTESTATION ? "Inspecting signed claim; managed files remain unchanged" : kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD ? "Rechecking signed catalogue offline" : "Reading signed catalogue; managed files remain unchanged");
+        status(kind == JOB_VERIFY ? "Checking installed files" : kind == JOB_COMMON_SOURCE_LIST ? "Reading root sources; managed files remain unchanged" : kind == JOB_COMMON_ATTESTATION ? "Inspecting signed claim; managed files remain unchanged" : kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD ? "Rechecking signed catalogue offline" : "Reading signed catalogue; managed files remain unchanged");
         if (active) active->can_cancel = 1;
         last_can_cancel = 1;
         snprintf(last_phase, sizeof last_phase, "discovery");
@@ -2003,6 +2003,20 @@ static int on_message(pm_msg *m)
             (IPTR)(cur.kind == JOB_COMMON_DISCOVER ? "Reading signed catalogue" : "Applying signed plan"), TAG_DONE);
         SetAttrs(btn_cancel, MUIA_Disabled, !m->can_cancel || quit_pending, TAG_DONE);
         return 0;
+    }
+    if (m->kind == PM_DONE && cur.kind == JOB_VERIFY) {
+        apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL; in_flight = 0;
+        if (active) finish(active, rx_common_result(m->common_status, m->common_outcome, 0),
+                           m->common_status == APKG_OK ? "" : "VERIFY", m->err.summary);
+        busy(0);
+        if (!quit_pending && !cur.cancel && m->common_status == APKG_OK) {
+            SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+            FreeVec(common_verify_text); common_verify_text = m->common_record; m->common_record = NULL;
+            SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)common_verify_text, TAG_DONE);
+        }
+        status(m->common_status == APKG_OK ? "Verification report ready; inspect changed, missing and unknown paths" : m->err.summary);
+        FreeVec(m->common_record); m->common_record = NULL;
+        return quit_pending;
     }
     if (m->kind == PM_DONE && cur.kind == JOB_COMMON_ATTESTATION) {
         if (cur.cancel && m->common_status == APKG_OK) m->common_status = APKG_CANCELLED;
@@ -2638,7 +2652,7 @@ static void rx_start(rexx_msg *m, const rx_req *r)
     if (kind == JOB_NONE) {
         rx_fail(m, RX_RC_ERROR, "UNSUPPORTED use a common signed-plan operation for this command"); return;
     }
-    if (r->cmd == RXC_REMOVE || r->cmd == RXC_RUN || r->cmd == RXC_UPGRADE) {
+    if (r->cmd == RXC_REMOVE || r->cmd == RXC_RUN || r->cmd == RXC_UPGRADE || r->cmd == RXC_VERIFY) {
         pm_common_installed *items = NULL;
         apkg_status code = pm_common_installed_read(root, r->package, &items, NULL);
         int found = 0;
@@ -3320,7 +3334,8 @@ static int real_main(int argc, char **argv)
         case ID_REMOVE: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_REMOVE, row->view.name.value.data, "window"); } break;
         case ID_OPEN: { pm_common_installed_row *row = installed_selected(); if (row) open_folder(row->view.name.value.data); } break;
         case ID_RUN: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_RUN, row->view.name.value.data, "window"); } break;
-        case ID_INSTALL: case ID_VERIFY: case ID_UPGRADE: case ID_ROLLBACK:
+        case ID_VERIFY: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_VERIFY, row->view.name.value.data, "window"); } break;
+        case ID_INSTALL: case ID_UPGRADE: case ID_ROLLBACK:
             status("Use the common signed-plan operation panel or signed catalogue"); break;
 #else
         case ID_INSTALL: { pkg_entry *e = selected(); if (e) { logline("install pressed for %s", e->id); begin(JOB_INSTALL, e->id, "window"); } } break;
@@ -3381,6 +3396,7 @@ static int real_main(int argc, char **argv)
         if (waits[i].m) { rexx_reply(waits[i].m, RX_RC_ERROR, NULL, "CLOSING PkgManager has quit"); waits[i].m = NULL; }
     rexx_close("CLOSING PkgManager has quit");
 #ifdef APKG_FUSION
+    FreeVec(common_verify_text);
     if (common_preview_text) FreeVec(common_preview_text);
     apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
 #endif

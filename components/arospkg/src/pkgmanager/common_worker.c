@@ -78,9 +78,11 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     observer.cancel = cancel;
     if (j->cancel)
         apkg_cancel_request(cancel);
-    if (j->kind == JOB_COMMON_ATTESTATION || j->kind == JOB_COMMON_SOURCE_LIST) {
+    if (j->kind == JOB_COMMON_ATTESTATION || j->kind == JOB_COMMON_SOURCE_LIST || j->kind == JOB_VERIFY) {
         char *text = NULL;
         status = j->cancel ? APKG_CANCELLED
+                           : j->kind == JOB_VERIFY
+                               ? apkg_client_verify(j->root, j->id, &observer, &text, &detail)
                            : j->kind == JOB_COMMON_SOURCE_LIST
                                ? apkg_client_source_list(j->root, &text, &detail)
                                : apkg_client_attestation(j->root, j->common_package,

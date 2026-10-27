@@ -29,13 +29,14 @@ static inline job_kind job_for_common_rexx(rx_cmd command) {
     case RXC_INSTALL: case RXC_UPGRADE: return JOB_COMMON_SOURCE_INSTALL;
     case RXC_REMOVE: return JOB_REMOVE;
     case RXC_RUN: return JOB_RUN;
+    case RXC_VERIFY: return JOB_VERIFY;
     default: return JOB_NONE;
     }
 }
 /* Shared by the native dispatcher and the window's cancellation setup. */
 static inline int job_uses_common_engine(job_kind kind) {
     switch (kind) {
-    case JOB_COMMON_INSTALL: case JOB_RUN: case JOB_COMMON_DISCOVER:
+    case JOB_COMMON_INSTALL: case JOB_RUN: case JOB_VERIFY: case JOB_COMMON_DISCOVER:
     case JOB_COMMON_RECOMPARE: case JOB_COMMON_SOURCE_LOAD:
     case JOB_COMMON_ATTESTATION: case JOB_COMMON_SELF_UPDATE:
     case JOB_COMMON_SOURCE_INSTALL: case JOB_COMMON_SOURCE_ADD:

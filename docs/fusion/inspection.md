@@ -66,7 +66,7 @@ UPGRADE requires an installed name and keeps its `upgrade` job label. Source
 setup uses the [root source controls](sources.md#root-source-list-controls);
 loading a catalogue with UPDATE alone does not add it as an installation source.
 Job numbers, WAIT and cancellation keep their existing asynchronous protocol.
-Rollback/verification command adapters remain outstanding, as do catalogue-only
+The rollback command adapter remains outstanding, as do catalogue-only
 INFO and dated news.
 
 Fusion `REQUIREMENTS name` reads the retained signed catalogue offline and
@@ -92,6 +92,26 @@ apkg requirements ROOT ENDPOINT CHANNEL-ID NAME
 handle; it does not independently revalidate root policy. Owned reports use
 `apkg_client_text_free`. Installed INFO retains its snapshot-only
 `requirements not-checked` meaning rather than silently probing the OS.
+
+Fusion `VERIFY name`, the Verify button and `apkg verify ROOT NAME` now share
+`apkg_client_verify`. It authenticates the installed descriptor, inventories the
+live package drawer using streamed hashes, and compares declared path types,
+permissions, content size/digest and Amiga metadata. The report counts `ok`,
+`changed`, `missing` and `unknown` paths; configuration paths are labelled.
+Personal files are unknown rather than adopted or removed. A missing drawer
+reports missing declarations. Withdrawn author trust remains a distinct fact;
+a valid historical signature still provides the comparison baseline.
+
+Query success means the report completed; changed or missing files are report
+facts and do not trigger repair. Invalid signatures, links, special files,
+unsupported metadata, pending roots, allocation failures and replies over
+65,535 bytes refuse without partial output. A changed committed snapshot during
+the scan refuses as stale. The live scan is an observation, not an atomic
+snapshot against arbitrary concurrent external writers. Declared paths are
+checked; no runtime or root-directory metadata qualification is implied.
+Cancellation is checked before/after inventory and between comparisons; the
+current inventory helper does not interrupt a file hash. Reports are owned and
+use `apkg_client_text_free`; worker text is copied for native process lifetime.
 
 Fusion JOB/WAIT now project the common progress events: `phase` is check,
 fetch, stage, apply, commit or recover; `done`/`total` retain 64-bit counters.

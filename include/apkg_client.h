@@ -163,6 +163,14 @@ apkg_status apkg_client_source_list(const char *root, char **text,
 apkg_status apkg_client_source_install(const char *root, const char *name,
     int recommendations, apkg_confirm_fn, void *, const apkg_observer *,
     apkg_result **, apkg_error **);
+/* Hash current declared paths against the installed signed descriptor.
+ * Success means the diagnostic report completed; changed/missing/unknown are
+ * report facts, never an implicit repair. Signature invalidity, unsupported
+ * live nodes, interrupted roots and overflow refuse without partial text.
+ * Read-only, streamed hashes; cancellation before/after inventory and between
+ * comparisons. Return text with apkg_client_text_free. */
+apkg_status apkg_client_verify(const char *root, const char *name,
+    const apkg_observer *, char **report, apkg_error **);
 /* Bundle inspection/launch requires no registration and mutates no root. */
 apkg_status apkg_bundle_check(const char *folder, const char *target, char **,
                               apkg_error **);

@@ -1608,8 +1608,9 @@ methods pass with the actual worker bridge instrumented by ASan/UBSan. Full
 host integration passes 321 common methods, 78 default-product checks, 110
 provisional CLI checks, 78 publication checks and the existing contract,
 ARexx, target and application gates. AArch64 SDK type checking and links across
-74 documentation files pass. Exact-source Linux/macOS CI remains pending;
-native UI execution is still deferred to the isolated runtime rehearsal.
+74 documentation files pass. Commit `54125f4` passes [exact-source Linux/macOS CI](https://github.com/pomaros/apkg-fusion/actions/runs/40484960234),
+including sanitizers, both inherited suites, symbols/links and the portal job.
+Native UI execution is still deferred to the isolated runtime rehearsal.
 
 ## Common ARexx catalogue and source operations
 
@@ -1674,6 +1675,29 @@ ctypes probe/fault tests use the ordinary test library. AArch64 SDK type checks,
 public symbols and links across 74 documentation files pass. Exact-source CI
 is pending; native probe execution remains unqualified outside the mocked
 resource regression.
+
+## Common installed verification
+
+CLI verify, fusion ARexx VERIFY and the native Verify button now use the same
+read-only installed verification API on the DOS worker where applicable.
+Reports distinguish signed payload matches, changes, missing paths and unknown
+personal files, including configuration labels, mode and Amiga metadata checks.
+Hashing is streamed and the inventory/report are bounded. A withdrawn author
+remains visible; invalid signatures and unsupported live nodes refuse. An
+interrupted root or changed committed snapshot cannot produce an accepted
+report. Diagnostic success is distinct from all files matching; it never repairs.
+
+Seven host methods cover CLI/actual-worker equivalence, edits, missing drawers,
+unknown paths, permissions/attributes/types, invalid signatures, withdrawn trust,
+links/FIFOs/pending roots, full names, output limits, allocation faults and
+cancellation/public-message failure. All 12 focused verification/installed-browser
+methods pass with the actual CLI/worker under ASan/UBSan; direct ctypes
+allocation tests use the ordinary test library. SDK type checking and
+documentation links pass. Full host integration passes 338 common methods,
+78 default-product checks, 110 provisional CLI checks, 78 publication checks
+and the existing ARexx, contract, target and application gates. Public symbols
+pass. Exact-source CI remains pending for this checkpoint. Native UI runtime and interruption inside a file hash remain
+unqualified; external concurrent edits are not an atomic snapshot.
 
 ## Implemented integration pieces
 
