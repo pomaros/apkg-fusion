@@ -566,10 +566,10 @@ static int same_library_row(const pm_common_library_row *a, const pm_common_libr
         b->installed->view.descriptor_digest.bytes,32) :
         !strcmp(a->candidate->selection,b->candidate->selection);
 }
-static void common_main_refill(const char *term, const char *keep_name,
+static apkg_status common_main_refill(const char *term, const char *keep_name,
                                const pm_common_library_row *keep)
 {
-    if (busy_now()) { status("Wait for the current operation before refreshing the list"); return; }
+    if (busy_now()) { status("Wait for the current operation before refreshing the list"); return APKG_BUSY; }
     pm_common_installed *installed = NULL;
     pm_common_catalogue *catalogue = NULL;
     pm_common_library *model = NULL;
@@ -580,7 +580,7 @@ static void common_main_refill(const char *term, const char *keep_name,
     if (code) {
         static char error[128];
         snprintf(error,sizeof error,"Common list refresh refused (code %d); displayed rows were not refreshed",(int)code);
-        status(error); FreeVec(installed); FreeVec(catalogue); FreeVec(model); return;
+        status(error); FreeVec(installed); FreeVec(catalogue); FreeVec(model); return code;
     }
     IPTR filter = state_now();
     int active_row = -1, selected_category = 0, shown = 0;
@@ -640,6 +640,7 @@ static void common_main_refill(const char *term, const char *keep_name,
         catalogue ? "captured signed catalogue revalidated offline" : "no signed catalogue loaded; availability and updates unknown");
     SetAttrs(txt_catalogue,MUIA_Text_Contents,(IPTR)message,TAG_DONE);
     status(message);show_detail();
+    return APKG_OK;
 }
 #endif
 
@@ -2744,14 +2745,7 @@ static void rx_requirements(rexx_msg *m, const rx_req *r)
 static void rx_show(rexx_msg *m, const rx_req *r)
 {
 #ifdef APKG_FUSION
-    pm_common_installed *items = NULL;
-    apkg_status code = pm_common_installed_read(root, r->package, &items, NULL);
-    int found = 0;
-    if (items) for (size_t i = 0; i < items->count; i++)
-        if (!strcmp(items->rows[i].view.name.value.data, r->package)) found = 1;
-    FreeVec(items);
-    if (code) { rx_fail(m, RX_RC_ERROR, "COMMON root query refused (code %d)", (int)code); return; }
-    if (!found) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not installed", r->package); return; }
+    if (busy_now()) { rx_fail(m, RX_RC_ERROR, "BUSY wait for the current operation before SHOW"); return; }
 #else
     pkg_ctx *c = rx_open(m); pkg_entry e; pkg_entry *sel; int in_index, known;
     if (!c) return;
@@ -2768,11 +2762,17 @@ static void rx_show(rexx_msg *m, const rx_req *r)
 #endif
     SetAttrs(cyc_cat,   MUIA_NoNotify, TRUE, MUIA_Cycle_Active, 0, TAG_DONE);
     SetAttrs(cyc_state, MUIA_NoNotify, TRUE, MUIA_Cycle_Active, 0, TAG_DONE);
-    refill("", r->package, "arexx show");
 #ifdef APKG_FUSION
-    const pm_common_installed_row *selected_row = installed_selected();
-    if (!selected_row || strcmp(selected_row->view.name.value.data, r->package)) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s could not be selected in the list", r->package); return; }
+    apkg_status code = common_main_refill("",NULL,NULL);
+    const pm_common_library_row *row = NULL;
+    if (!code) code = pm_common_library_find_name(common_library,r->package,&row);
+    if (code == APKG_CONFLICT) { rx_fail(m, RX_RC_ERROR, "CONFLICT %s has several catalogue builds; choose an exact build in the window",r->package); return; }
+    if (code == APKG_NOT_FOUND) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is absent from the installed and loaded catalogue rows",r->package); return; }
+    if (code) { rx_fail(m, RX_RC_ERROR, "COMMON list refresh refused (code %d)",(int)code); return; }
+    SetAttrs(lst,MUIA_List_Active,(IPTR)(row-common_library->rows),TAG_DONE);
+    show_detail();
 #else
+    refill("", r->package, "arexx show");
     sel = selected();
     if (!sel || strcmp(sel->id, r->package)) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s could not be selected in the list", r->package); return; }
 #endif

@@ -112,6 +112,10 @@ int pm_common_library_matches(const pm_common_library_row *, pm_library_filter,
     const char *term, const char *category);
 const pm_common_library_row *pm_common_library_at(const pm_common_library *,
     pm_library_filter, size_t index);
+/* SHOW by bare name prefers the installed row. Without one, require a unique
+ * catalogue row rather than choosing an authority/target/version implicitly. */
+apkg_status pm_common_library_find_name(const pm_common_library *, const char *,
+    const pm_common_library_row **);
 /* ARexx's 16-bit result boundary: refuse overflow, never truncate facts.
  * Successful text is owned by the client library; free with its text free. */
 /* Current-target names from a revalidated retained catalogue; no network.

@@ -185,7 +185,7 @@ int main(int argc, char **argv) {
         assert(allocations == 0);
         return 0;
     }
-    if (atoi(argv[3]) == 50) {
+    if (atoi(argv[3]) == 50 || atoi(argv[3]) == 55) {
         assert(argc == 9);
         apkg_snapshot *snapshot = NULL;
         apkg_channel *channel = NULL;
@@ -209,6 +209,15 @@ int main(int argc, char **argv) {
         printf("status %d\n", (int)code);
         if (code) assert(!model);
         else {
+            if (atoi(argv[3]) == 55) {
+                const pm_common_library_row *row = (void *)1;
+                apkg_status found = pm_common_library_find_name(model,argv[6],&row);
+                if (found) assert(!row);
+                else assert(row >= model->rows && row < model->rows + model->count);
+                printf("show\t%d\t%s\t%s\t%s\n",(int)found,
+                    row ? (row->installed ? "installed" : "candidate") : "",
+                    row ? row->name : "", row ? row->version : "");
+            }
             if (catalogue)
                 printf("reported-on\t%.*s\n",(int)catalogue->channel.published_on.size,
                     catalogue->channel.published_on.data);

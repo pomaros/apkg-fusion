@@ -55,7 +55,50 @@ def query(root, endpoint, filter=0, term='', category='', fault=0):
     return code, categories, rows
 
 
+def show(root, endpoint, name):
+    before = (root / '.apkg/state').read_bytes()
+    result = subprocess.run([str(clients.WORKER), str(root), str(endpoint) if endpoint else '-',
+        '55', '0', channel.CHANNEL, name, '', '0'], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (root / '.apkg/state').read_bytes() == before
+    line = next(line for line in result.stdout.splitlines() if line.startswith('show\t'))
+    _, code, kind, selected, version = line.split('\t')
+    return int(code), kind, selected, version
+
+
 class LibraryBrowser(unittest.TestCase):
+    def test_show_finds_catalogue_only_full_name_without_installing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            name = 'n' * 255
+            root, endpoint = fixture(Path(tmp), [], [described(name, '2.0')])
+            self.assertEqual(show(root, endpoint, name), (0, 'candidate', name, '2.0'))
+            self.assertEqual(show(root, endpoint, name[:-1]), (5, '', '', ''))
+            self.assertEqual(show(root, endpoint, ''), (1, '', '', ''))
+
+    def test_show_prefers_installed_build_to_several_catalogue_versions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, endpoint = fixture(Path(tmp), [described('demo', '1.0')],
+                [described('demo', '2.0'), described('demo', '3.0')])
+            self.assertEqual(show(root, endpoint, 'demo'), (0, 'installed', 'demo', '1.0 (revision 1)'))
+            self.assertEqual(show(root, None, 'demo'), (0, 'installed', 'demo', '1.0 (revision 1)'))
+
+    def test_show_refuses_ambiguous_versions_targets_and_authorities(self):
+        for variant in ('version', 'target', 'authority'):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as tmp:
+                other = json.loads(described('demo'))['body']
+                if variant == 'version': other['version'] = '2.0'
+                elif variant == 'target': other['target'] = 'i386-aros-v0-native'
+                else: other['authority'] = '12' * 16
+                root, endpoint = fixture(Path(tmp), [],
+                    [described('demo'), wire('descriptor',other), described('unique')])
+                self.assertEqual(show(root, endpoint, 'demo'), (14, '', '', ''))
+                self.assertEqual(show(root, endpoint, 'unique'), (0, 'candidate', 'unique', '1.0'))
+
+    def test_show_missing_name_in_empty_root_is_not_a_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, _ = fixture(Path(tmp), [], [])
+            self.assertEqual(show(root, None, 'missing'), (5, '', '', ''))
+
     def test_without_a_catalogue_installed_rows_remain_available(self):
         with tempfile.TemporaryDirectory() as temporary:
             root, endpoint = fixture(Path(temporary), [described(category='Tools')], [])

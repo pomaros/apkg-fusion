@@ -48,6 +48,15 @@ comparison errors and source changes separate from installed state.
 
 ## Actions and lifetime
 
+ARexx `SHOW name` refreshes the same combined view offline and clears its
+search/category/state filters. An installed row takes precedence; without one,
+the name must identify exactly one catalogue row. Multiple versions, targets
+or authorities refuse with CONFLICT, directing selection to the window.
+Missing names report NOTFOUND; refresh failures cannot succeed against stale
+displayed rows. SHOW refuses BUSY before changing controls while a worker or
+confirmation can borrow the current models. This is display navigation, not
+installation or execution authorization.
+
 Installed rows enable local Run, folder, Verify, Remove, Upgrade and Rollback
 requests. Candidate rows enable review of an exact signed installation/update
 when their metadata allows it. They do not masquerade as installed rows for

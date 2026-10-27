@@ -42,6 +42,24 @@ remains open. After final candidate qualification, stop with the merge report;
 portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
 
+## Desktop audit: SHOW over the combined list
+
+ARexx SHOW no longer requires an installed package when the loaded catalogue
+contains the requested application. It uses a fresh offline combined model,
+prefers the installed row and otherwise requires a single exact catalogue row.
+Names with several versions, targets or authorities refuse with CONFLICT;
+missing names refuse with NOTFOUND. BUSY is checked before changing controls,
+and a failed model refresh returns an error rather than success against an old
+selection. The common name resolver returns a borrowed complete row and clears
+its output on failure.
+
+Evaluation: 19 combined-library, ARexx-catalogue and installed-browser tests
+pass normally and with the instrumented ASan/UBSan worker. Four added tests
+cover catalogue-only/full-length names, installed precedence, ambiguous builds,
+missing/empty names and unchanged root bytes. Native SDK syntax/type checks
+pass for the changed window and adapter. This is a targeted desktop checkpoint,
+not closure of DESKTOP-CLOSE or native ARexx interaction qualification.
+
 ## Last-refresh comparison and retained observation pairs
 
 The common engine compares two authenticated channel observations, distinguishing

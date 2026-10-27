@@ -874,6 +874,24 @@ const pm_common_library_row *pm_common_library_at(const pm_common_library *model
             return &model->rows[i];
     return NULL;
 }
+apkg_status pm_common_library_find_name(const pm_common_library *model,
+    const char *name, const pm_common_library_row **out) {
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    if (!model || !name || !*name) return APKG_INVALID;
+    const pm_common_library_row *installed = NULL, *candidate = NULL;
+    size_t installed_count = 0, candidate_count = 0;
+    for (size_t i = 0; i < model->count; i++) {
+        const pm_common_library_row *row = &model->rows[i];
+        if (strcmp(row->name,name)) continue;
+        if (row->installed) { installed = row; installed_count++; }
+        else { candidate = row; candidate_count++; }
+    }
+    if (installed_count > 1 || (!installed_count && candidate_count > 1))
+        return APKG_CONFLICT;
+    *out = installed_count ? installed : candidate;
+    return *out ? APKG_OK : APKG_NOT_FOUND;
+}
 apkg_status pm_common_library_build(const pm_common_installed *installed,
     const pm_common_catalogue *catalogue, pm_common_library **out) {
     if (!out) return APKG_INVALID;
