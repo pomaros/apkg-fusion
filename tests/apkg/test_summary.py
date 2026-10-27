@@ -8,7 +8,8 @@ from support import *
 from test_client import CLI, WORKER
 from test_channel import CHANNEL, CP, CS, catalog, entry, seed
 from test_updates import desc, refresh
-from test_operations import install
+from test_operations import install, op, run_plan
+from test_channel_heads import accept
 from test_http_channel import serve
 
 lib.apkg_channel_summarize.argtypes = [C.c_void_p, C.c_void_p, C.POINTER(C.c_void_p), C.c_void_p]
@@ -131,27 +132,77 @@ class Summary(unittest.TestCase):
             code,summary=summarize(s,ch); self.assertEqual(code,14); self.assertFalse(summary)
             lib.apkg_snapshot_free(s); lib.apkg_channel_free(ch)
 
-    def test_cached_native_query_has_no_network_and_refuses_changed_or_pending_root(self):
-        for pending,expected in [(False,8),(True,9)]:
-            with self.subTest(pending=pending),tempfile.TemporaryDirectory() as tmp:
+    def test_cached_native_query_reevaluates_operations_policy_target_and_replay_without_network(self):
+        cases = [('generation','newer','status 0\n3\n'),
+                 ('remove','newer','status 0\n2\n'),
+                 ('author','metadataeligible','status 0\n0\n'),
+                 ('channel','newer','status 12\n'),
+                 ('target','metadataeligible','status 0\n0\n'),
+                 ('floor','newer','status 8\n'),
+                 ('fork','newer','status 14\n'),
+                 ('pending','newer','status 9\n')]
+        for change,field,expected in cases:
+            with self.subTest(change=change),tempfile.TemporaryDirectory() as tmp:
                 root,endpoint=fixture(Path(tmp))
                 with serve(endpoint) as (url,server):
-                    process=subprocess.Popen([str(WORKER),str(root),url,'18','7',CHANNEL,'newer'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                    process=subprocess.Popen([str(WORKER),str(root),url,'18','7',CHANNEL,field],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
                     try:
                         self.assertEqual(process.stdout.readline(),'loaded\n')
                         requests=len(server.requests)
-                        if pending: Path(str(root)+'.apkg-transaction').mkdir()
+                        if change=='pending': Path(str(root)+'.apkg-transaction').mkdir()
+                        elif change in ('remove','floor','fork'):
+                            code,ctx=open_ctx(root,1); self.assertEqual(code,0)
+                            try:
+                                if change=='remove':
+                                    code,plan=op(ctx,'remove','blocked'); self.assertEqual(code,0)
+                                    self.assertEqual(run_plan(ctx,plan),(0,1)); lib.apkg_plan_free(plan)
+                                else: self.assertEqual(accept(ctx,catalog(entries=[],sequence=2 if change=='floor' else 1)),(0,1))
+                            finally: lib.apkg_close(ctx)
                         else:
-                            body=json.loads((root/'.apkg/state').read_bytes())['body']; body['generation']=str(int(body['generation'])+1)
+                            body=json.loads((root/'.apkg/state').read_bytes())['body']
+                            body['generation']=str(int(body['generation'])+1)
+                            if change=='author': body['policy']['body']['authorities']=[]
+                            if change=='channel': body['policy']['body']['channels']=[]
+                            if change=='target': body['target']='arm-aros-v11-native'
                             (root/'.apkg/state').write_bytes(wire('root',body))
                         before=(root/'.apkg/state').read_bytes()
                         stdout,stderr=process.communicate('\n',timeout=30)
                         self.assertEqual(process.returncode,0,stdout+stderr)
-                        self.assertEqual(stdout,'status %d\n'%expected)
+                        self.assertEqual(stdout,expected)
                         self.assertEqual(len(server.requests),requests)
                         self.assertEqual((root/'.apkg/state').read_bytes(),before)
                     finally:
                         if process.poll() is None: process.kill(); process.communicate()
+
+    def test_signed_observation_export_is_exact_owned_and_reverified(self):
+        from test_channel import read_channel
+        lib.apkg_channel_observation.argtypes=[C.c_void_p,C.POINTER(Text),C.POINTER(Text)]
+        lib.apkg_channel_observation.restype=C.c_int
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'root'; before=state(root,policy=seed()); code,ctx=open_ctx(root)
+            data=catalog(); signature=sign(data,CP,CS,'channel')
+            code,ch=read_channel(ctx,data); self.assertEqual(code,0)
+            obj,sig=Text(),Text()
+            self.assertEqual(lib.apkg_channel_observation(ch,C.byref(obj),C.byref(sig)),0)
+            self.assertEqual(raw(obj),data); self.assertEqual(raw(sig),signature)
+            copied=raw(obj),raw(sig); lib.apkg_channel_free(ch)
+            # Original handle is gone; the copied signed pair is independently usable.
+            identity=ID(); identity.bytes[:]=bytes.fromhex(CHANNEL)
+            def reread(d,s):
+                out=C.c_void_p()
+                code=lib.apkg_channel_read(ctx,C.byref(identity),0,
+                    Text(C.cast(C.c_char_p(d),C.c_void_p),len(d)),
+                    Text(C.cast(C.c_char_p(s),C.c_void_p),len(s)),C.byref(out),None)
+                if code: self.assertFalse(out)
+                lib.apkg_channel_free(out); return code
+            self.assertEqual(reread(*copied),0)
+            self.assertNotEqual(reread(data.replace(b'1.0',b'2.0'),copied[1]),0)
+            envelope=json.loads(copied[1]); envelope['signature']='00'*64
+            self.assertNotEqual(reread(data,json.dumps(envelope,sort_keys=True,separators=(',',':')).encode()),0)
+            obj=Text(C.c_void_p(1),1); sig=Text(C.c_void_p(1),1)
+            self.assertEqual(lib.apkg_channel_observation(None,C.byref(obj),C.byref(sig)),1)
+            self.assertFalse(obj.data); self.assertFalse(sig.data)
+            lib.apkg_close(ctx); self.assertEqual((root/'.apkg/state').read_bytes(),before)
 
     def test_large_native_answers_refuse_without_truncation_and_scalar_fields_work(self):
         with tempfile.TemporaryDirectory() as tmp:

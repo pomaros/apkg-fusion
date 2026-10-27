@@ -252,6 +252,16 @@ int main(int argc, char **argv) {
                           "online freshness: unknown"));
             assert(final.common_catalogue->channel.signature ==
                    APKG_SIGNATURE_VALID);
+            owned_text(final.common_catalogue,
+                       (apkg_text){(const char *)
+                                       final.common_catalogue->observation.data,
+                                   final.common_catalogue->observation.size});
+            owned_text(
+                final.common_catalogue,
+                (apkg_text){
+                    (const char *)
+                        final.common_catalogue->observation_signature.data,
+                    final.common_catalogue->observation_signature.size});
             for (uint64_t i = 0;
                  i < final.common_catalogue->updates.entry_count; i++) {
                 const apkg_update_entry_view *r =

@@ -111,9 +111,22 @@ bytes refuse with TOOLONG; individual fields remain available.
 
 ARexx `UPDATE` and the main Refresh button use the signed-discovery worker with
 the endpoint/channel controls; they do not invoke the legacy index writer.
-Source settings/persistence still need their common integration. Native cached
-OUTDATED performs no network requests and verifies current committed bytes
-against its captured root digest. Changed or pending roots refuse until refresh
-or recovery; the previous observation remains available in the UI, labelled by
-its observed generation. Offline cached-source re-evaluation after root changes
-remains part of the settings/cache integration, not a completed capability.
+Source settings/persistence still need their common integration. The native
+model retains an exact copy of the channel object and its signature in the same
+allocation as its displayed rows. `apkg_channel_observation` exposes these two
+borrowed byte spans for copying; their validity ends with the channel owner.
+They retain no archive-transfer origin and authorize no installation.
+
+Cached OUTDATED performs no network requests. It re-reads the signed observation
+against the current read-only root context, verifying signatures, current
+channel/author grants, target agreement and the durable replay floor, then
+summarizes against a fresh installed snapshot. Package changes therefore
+recompute counts without downloading the catalogue. Withdrawn channel trust,
+older observations, same-sequence forks and pending roots refuse explicitly.
+Author withdrawal or target changes affect metadata eligibility separately from
+whether a candidate version is newer. Online freshness remains unknown.
+
+The query leaves the displayed immutable catalogue unchanged: SHOW opens its
+observed-generation view, while returned fields describe the newly captured
+root. Row refresh, persistent source settings and a durable signed-observation
+cache still need integration. No disk cache is created by this query.

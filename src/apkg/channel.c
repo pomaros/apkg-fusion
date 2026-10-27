@@ -10,6 +10,7 @@
 struct apkg_channel {
     apkg_channel_view view;
     ak_json json;
+    apkg_bytes signature;
     apkg_channel_entry_view *rows;
     char *policy, *target, *endpoint;
     char root[AK_PATH], anchor[AK_PATH];
@@ -184,6 +185,13 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
                               &channel->view.snapshot_digest);
     if (code)
         goto done;
+    channel->signature.data =
+        (const unsigned char *)ak_copy(signature.data, signature.size);
+    channel->signature.size = signature.size;
+    if (!channel->signature.data) {
+        code = APKG_NOMEM;
+        goto done;
+    }
     memcpy(channel->key, key, 32);
     body = ak_member(&channel->json, 0, "body");
     if (ak_string(&channel->json, ak_member(&channel->json, body, "id"), id,
@@ -293,6 +301,20 @@ done:
     if (code && error && !*error)
         ak_fail(error, code, "signed channel refused", "");
     return code;
+}
+apkg_status apkg_channel_observation(const apkg_channel *channel,
+                                     apkg_bytes *object,
+                                     apkg_bytes *signature) {
+    if (object)
+        *object = (apkg_bytes){0};
+    if (signature)
+        *signature = (apkg_bytes){0};
+    if (!channel || !object || !signature || object == signature)
+        return APKG_INVALID;
+    *object = (apkg_bytes){(const unsigned char *)channel->json.text,
+                           channel->json.size};
+    *signature = channel->signature;
+    return APKG_OK;
 }
 const apkg_channel_view *apkg_channel_get(const apkg_channel *c) {
     return c ? &c->view : NULL;
@@ -959,6 +981,7 @@ apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
 void apkg_channel_free(apkg_channel *c) {
     if (!c)
         return;
+    free((void *)c->signature.data);
     free(c->endpoint);
     free(c->rows);
     free(c->policy);

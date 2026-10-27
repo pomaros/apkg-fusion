@@ -1048,6 +1048,50 @@ has passed its complete
 [CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40436282928),
 including both inherited suites on Linux/macOS and all 107 portal tests.
 
+## Offline re-evaluation of signed catalogue observations
+
+The native model now retains the exact channel object and signature in its
+single bounded `AllocVec` allocation. A public borrowed-byte accessor exposes
+these observations for copying without exporting an install/transfer origin.
+Library handles still die on the worker; the copied signed pair survives with
+the model. Allocation accounting includes both spans and refuses over-limit
+models before allocation, including the summary/evidence terminators.
+
+Cached native OUTDATED revalidates that pair through `apkg_channel_read` in the
+current read-only context, then computes a new common summary against a fresh
+installed snapshot. Removing a package therefore changes the answer offline.
+Current author grants and root target affect metadata eligibility; withdrawn
+channel grants, pending transactions, old sequences and same-sequence forks
+refuse explicitly. The result still asserts neither online freshness nor plan,
+review or runtime readiness. No root or source cache is written.
+
+The expanded host corpus exercises eight post-discovery changes over HTTP with
+no additional requests: generation, a journaled package removal, author/channel
+grant withdrawal, root target, journaled higher replay floor, journaled fork
+acceptance and pending transaction. It verifies exact answers and unchanged
+committed bytes across the query. A new observation-lifetime case checks exact
+exported bytes, successful re-reading after owner destruction, invalid outputs
+and refusal of tampered object/signature bytes. Native allocation checks now
+cover the copied signed pair as well as all summary strings.
+
+The displayed immutable rows retain their observed generation. SHOW opens that
+view; the query does not silently relabel old UI rows as refreshed. Persistent
+source settings, durable observation caching and offline row-refresh dispatch
+remain required work. This checkpoint is not a completed native settings or
+runtime gate, and changes neither the OS repository nor installed M1 updater.
+
+Batch evaluation: `make test-fusion` passed 220 common methods, the fusion
+ARexx corpus, 78 default-product checks, 110 provisional CLI checks, 78
+publishing checks and the existing contract/target/application/initialization
+gates. The sanitizer suite passed 140 selected methods plus the instrumented
+fusion ARexx corpus; host C clients/workers/owned-copy harnesses are instrumented,
+while direct ctypes fault-injection cases use the ordinary test library.
+SDK header/type checks passed on the existing aarch64 AROS headers,
+with the previously recorded `vfork` warnings. All 69 documentation files pass
+link checks. Native UI/ARexx runtime remains untested; persistent settings and
+row-refresh integration remain open. Exact-source Linux/macOS CI is required
+for this checkpoint before treating it as host-qualified.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

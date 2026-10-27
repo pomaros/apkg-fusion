@@ -74,25 +74,29 @@ apkg_status pm_common_rexx_outdated(const char *root,
     options.root = (apkg_text){root, strlen(root)};
     apkg_ctx *ctx = NULL;
     apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    apkg_update_summary *updates = NULL;
     apkg_status code = apkg_open(&options, &ctx, NULL);
     if (!code)
-        code = apkg_snapshot_read(ctx, &snapshot, NULL);
-    if (!code) {
-        const apkg_root_view *v = apkg_snapshot_root(snapshot);
-        if (v->state != APKG_ROOT_READY)
-            code = v->state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
-                                                 : APKG_POLICY;
-        else if (memcmp(v->snapshot_digest.bytes, model->root_snapshot.bytes,
-                        32))
-            code = APKG_STALE;
-    }
+        code = apkg_channel_read(ctx, &model->channel.id, 0, model->observation,
+                                 model->observation_signature, &channel, NULL);
+    if (!code && memcmp(apkg_channel_get(channel)->snapshot_digest.bytes,
+                        model->channel.snapshot_digest.bytes, 32))
+        code = APKG_CONFLICT;
     if (!code)
-        code = apkg_update_summary_format(&model->updates, field, out, NULL);
+        code = apkg_snapshot_read(ctx, &snapshot, NULL);
+    if (!code)
+        code = apkg_channel_summarize(snapshot, channel, &updates, NULL);
+    if (!code)
+        code = apkg_update_summary_format(apkg_update_summary_get(updates),
+                                          field, out, NULL);
     if (!code && strlen(*out) > RX_MAXRESULT) {
         apkg_client_text_free(*out);
         *out = NULL;
         code = APKG_LIMIT;
     }
+    apkg_update_summary_free(updates);
+    apkg_channel_free(channel);
     apkg_snapshot_free(snapshot);
     apkg_close(ctx);
     return code;
@@ -180,17 +184,28 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
     *out = NULL;
     if (!channel || !snapshot || !endpoint || strlen(endpoint) >= 4096)
         return APKG_INVALID;
+    apkg_bytes object = {0}, signature = {0};
+    apkg_status observation_code =
+        apkg_channel_observation(channel, &object, &signature);
+    if (observation_code)
+        return observation_code;
     const apkg_channel_view *view = apkg_channel_get(channel);
     if (view->entry_count > 4096)
         return APKG_LIMIT;
     size_t total = sizeof(pm_common_catalogue) +
                    (size_t)view->entry_count * sizeof(pm_common_row) +
                    strlen(endpoint) + 1;
+    if (object.size > PM_CATALOGUE_MAX - total - 2 ||
+        signature.size > PM_CATALOGUE_MAX - total - object.size - 2)
+        return APKG_LIMIT;
+    total += object.size + signature.size + 2;
     int summary_size = channel_summary(NULL, 0, view);
     if (summary_size < 0)
         return APKG_INVALID;
+    if ((size_t)summary_size >= PM_CATALOGUE_MAX - total)
+        return APKG_LIMIT;
     total += (size_t)summary_size + 1;
-    if (view->accepted_sequence.evidence.size > PM_CATALOGUE_MAX - total - 1)
+    if (view->accepted_sequence.evidence.size >= PM_CATALOGUE_MAX - total)
         return APKG_LIMIT;
     total += view->accepted_sequence.evidence.size + 1;
     for (uint64_t i = 0; i < view->entry_count; i++) {
@@ -245,6 +260,14 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
     apkg_update_entry_view *entries =
         (apkg_update_entry_view *)(model->rows + model->count);
     char *cursor = (char *)(entries + summary->entry_count);
+    model->observation = (apkg_bytes){
+        (const unsigned char *)copy_text(
+            &cursor, (apkg_text){(const char *)object.data, object.size}),
+        object.size};
+    model->observation_signature = (apkg_bytes){
+        (const unsigned char *)copy_text(
+            &cursor, (apkg_text){(const char *)signature.data, signature.size}),
+        signature.size};
     model->updates = *summary;
     model->updates.entries = entries;
     for (uint64_t i = 0; i < summary->entry_count; i++) {

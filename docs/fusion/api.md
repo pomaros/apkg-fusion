@@ -27,6 +27,7 @@ native struct layout is serialized.
 | Snapshot/package/plan/result/error | Engine-owned allocation transferred to caller, released with matching free. They retain their own backing storage and remain readable after context close. |
 | Root/row/effect/result views, text and record bytes | Borrowed until their owning object is freed. Further immutable getters do not invalidate them. Do not free or retain pointers beyond the owner. |
 | Installed inspection | Caller-owned immutable copy, independent of snapshot/context lifetime. Its typed view and descriptor/signature/relation slices borrow inspection-owned bytes. Free with `apkg_inspection_free`. |
+| Signed observation | `apkg_channel_observation` borrows the exact object/signature bytes until channel free. Copy both for offline re-reading through `apkg_channel_read`; current trust, root target and replay floor must be revalidated. No transfer origin or install permission is conveyed. |
 | Update summary | Caller-owned aggregate independent of snapshot/channel lifetime. Entry arrays and text borrow it until `apkg_update_summary_free`; native clients deep-copy the entire view before worker exit. |
 | Approval | Caller-owned, bound to the originating context session, physical root and plan digest. Invalid after context close; free remains valid. Single use for execute, including failed/stale attempts. |
 | Event | Borrowed only during callback. `apkg_event_clone` makes an independent deep copy including strings/evidence, freed by the receiving thread. |

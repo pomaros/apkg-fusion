@@ -228,6 +228,12 @@ apkg_status apkg_channel_open_http(apkg_ctx *, apkg_text endpoint,
 apkg_status apkg_channel_fetch(apkg_ctx *, const apkg_channel *, uint64_t,
                                const apkg_observer *, apkg_package **,
                                apkg_error **);
+/* Exact signed observation, borrowed until channel_free. Copy both byte spans
+ * to retain offline metadata. Re-read with channel_read against the current
+ * context before use: this conveys neither current trust nor online freshness,
+ * and does not retain a transfer origin or authorize an installation. */
+apkg_status apkg_channel_observation(const apkg_channel *, apkg_bytes *object,
+                                     apkg_bytes *signature);
 const apkg_channel_view *apkg_channel_get(const apkg_channel *);
 apkg_status apkg_channel_entry_at(const apkg_channel *, uint64_t,
                                   const apkg_channel_entry_view **,
