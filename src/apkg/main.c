@@ -41,6 +41,10 @@ static void report(apkg_status code, apkg_result *result, apkg_error *error) {
                apkg_result_get(result)->record.data);
 }
 static int apkg_main(int argc, char **argv) {
+    const char *base = strrchr(argv[0], '/'); base = base ? base + 1 : argv[0];
+    const char *dos = strrchr(base, ':'); if (dos) base = dos + 1;
+    if (!strcmp(base, "apkg-legacy")) return ak_legacy_main(argc, argv);
+    if (argc > 1 && !strcmp(argv[1], "legacy")) return ak_legacy_main(argc - 1, argv + 1);
     apkg_open_options o = {0};
     apkg_ctx *c = NULL;
     apkg_snapshot *s = NULL;
@@ -61,7 +65,7 @@ static int apkg_main(int argc, char **argv) {
     if (argc < 3) {
         fprintf(
             argc == 2 && !strcmp(argv[1], "--help") ? stdout : stderr,
-            "Usage: apkg inspect ROOT | recover ROOT | init ROOT TARGET "
+            "Usage: apkg legacy [--help] | inspect ROOT | recover ROOT | init ROOT TARGET "
             "POLICY "
             "[--yes] | install ROOT "
             "PACKAGE-DIRECTORY [--confirm "

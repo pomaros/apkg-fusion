@@ -224,8 +224,10 @@ The remaining non-portal work, in order:
 3. PkgManager: settings, news and the ARexx surface over the common client API.
 4. ALPHA-IMPORT completion: recorded relations and system requirements
    import; placements, settings and launch conversion and prior-version
-   history remain. The command-compatibility adapter maps legacy `apkg` verbs onto the
-   root source list and is rehearsed against local signed catalogue fixtures.
+   history remain. The first native [command compatibility profile](docs/fusion/legacy-commands.md)
+   maps list/info/verify and install/upgrade/remove/recovery to the common engine
+   and is rehearsed on an imported copy with a local signed channel. Wider
+   command/output compatibility remains explicit work.
    Production upstream catalogue publication is a separate rollout dependency.
 5. The clean-workspace alpha scenario has a host test; run it with both
    inherited suites and the portal tests in exact-source Linux/macOS CI.

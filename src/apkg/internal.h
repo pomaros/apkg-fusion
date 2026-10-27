@@ -47,6 +47,7 @@ apkg_status ak_source_entry(const char *, char **, apkg_error **);
 apkg_status ak_tree_entry(const char *, const char *, char **);
 apkg_status ak_tree_source_read(const char *, size_t, char **, struct stat *);
 apkg_status ak_source_inventory(const char *, char **, apkg_error **);
+int ak_legacy_main(int, char **);
 apkg_status ak_verify_command(int, char **, char **);
 apkg_status ak_author_command(int, char **, char **);
 apkg_status ak_signature_check(apkg_bytes, apkg_bytes, const char *,

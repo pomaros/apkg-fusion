@@ -18,7 +18,7 @@ implemented below; remaining service/operation integration is listed separately.
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format |
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
-| Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures | Placements, active settings/launch/history conversion, script compatibility and distribution qualification |
+| Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
@@ -1698,6 +1698,30 @@ documentation links pass. Full host integration passes 338 common methods,
 and the existing ARexx, contract, target and application gates. Public symbols
 pass. Exact-source CI remains pending for this checkpoint. Native UI runtime and interruption inside a file hash remain
 unqualified; external concurrent edits are not an atomic snapshot.
+
+## Legacy command compatibility profile
+
+The native C adapter `apkg legacy` / installed `apkg-legacy` routes a defined
+legacy command profile through common contexts and operations. List/info,
+verify, install/upgrade/remove and common recovery use original command spelling
+and 0/5/10 exit conventions, with explicit current-data/unknown-field semantics
+and common plan confirmation. Unsupported commands/options refuse before work;
+no unsigned-index or imported-writer fallback exists. The exact scope and
+remaining compatibility obligations are in [legacy commands](legacy-commands.md).
+
+Four executable methods rehearse commands on the imported pinned schema-1 copy,
+including preview/approval, signed-source upgrade, current info, preserved edits,
+install/verify/remove, recovery, parser/runtime refusals and installed alias.
+They compare the original inventory and retained original registry bytes after
+operations. Full host integration passes 342 common methods, 78 default-product
+checks, 110 provisional CLI checks, 78 publication checks and the existing
+contract/ARexx/target/application gates. Review then reproduced an empty JSON
+reply for already-current dry runs; its explicit unchanged reply passes the
+final four-method compatibility run, also with the actual CLI under ASan/UBSan.
+The AArch64 SDK type check and links across 75 documentation files pass. The
+installed-prefix smoke case uses the normal build; direct ctypes fixtures use
+the ordinary test library. Exact-source CI is pending. This is not distribution or native runtime
+qualification, nor completion of the wider legacy command/JSON surface.
 
 ## Implemented integration pieces
 

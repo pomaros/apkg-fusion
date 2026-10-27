@@ -132,3 +132,6 @@ a bare legacy id. Unmapped or contradictory bindings refuse preparation.
 The upstream installed-record writer deliberately omits recommendations.
 Their absence is unrecorded evidence, distinct from an explicitly recorded empty
 list. Explicitly recorded recommendations are compared like the other families.
+
+The [legacy command rehearsal](legacy-commands.md) exercises the resulting copy
+through explicit compatibility entry points over the common engine.
