@@ -28,6 +28,9 @@ export COMPILER_PATH="${APKG_AROS_HOST_TOOLS:-$sdk/tools}:$APKG_AROS_TOOLS/bin"
 for need in "$cc" "$ar" "$dev/lib/startup.o"; do [ -e "$need" ] || { echo "missing $need" >&2; exit 2; }; done
 mkdir -p "$out"
 cd "$repo"
+if [ "${APKG_AROS_GUI:-0}" = 1 ]; then
+    SDK_INCLUDE="$dev/include" AROS_CC="$cc" AROS_NM="$APKG_AROS_TOOLS/bin/llvm-nm" AROS_TARGET="$target" sh tools/check-apkg-aros.sh
+fi
 build_id=$(python3 - <<'BUILDID'
 import hashlib
 import subprocess

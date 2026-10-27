@@ -155,6 +155,10 @@ class SelfUpdate(unittest.TestCase):
             check = run('1'); self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
             self.assertIn('status 0 outcome 0 previews 0', check.stdout); self.assertIn('1.2 -> 2.0', check.stdout)
             self.assertEqual(exe.read_bytes(), b'client one')
+            forced = subprocess.run([str(clients.WORKER), str(root), str(endpoint), '49', '0', CHANNEL, str(exe)], capture_output=True, text=True, timeout=60)
+            self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)
+            self.assertIn('status 0 outcome 0 previews 0', forced.stdout)
+            self.assertEqual(exe.read_bytes(), b'client one')
             done = run('0'); self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
             self.assertIn('status 0 outcome 1 previews 1', done.stdout); self.assertEqual(exe.read_bytes(), b'client two')
 

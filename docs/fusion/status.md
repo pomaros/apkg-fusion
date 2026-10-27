@@ -1723,6 +1723,42 @@ installed-prefix smoke case uses the normal build; direct ctypes fixtures use
 the ordinary test library. Exact-source CI is pending. This is not distribution or native runtime
 qualification, nor completion of the wider legacy command/JSON surface.
 
+## Native dispatcher and self-update isolation
+
+The fusion DOS worker now compiles out every inherited operation fallback.
+Untranslated job kinds return APKG_UNSUPPORTED and one final message rather
+than opening the old write context. The About update check uses the common
+signed-channel self-update query and is forced read-only by its job kind.
+Fusion startup preserves and reports an unsettled legacy self-update journal;
+it no longer consumes the old result file or launches the separate repair
+handoff. Legacy confirmation callbacks cannot invoke that old handoff either.
+
+The real worker dispatcher runs on the host with mocked DOS/Exec calls and a
+stub common bridge, without linking any imported engine. All job kinds, unknown
+kinds, full names, final-message ownership, process-creation failure and startup
+allocation failure are covered. Separate actual common-bridge self-update tests
+pass, including a check job carrying a mutation action value that still cannot
+write. AArch64 SDK object audits find no references from the native window or
+worker to the inherited mutation/self-update writers. This object audit is
+required by the native GUI builder. Full host integration passes 342 common
+methods, the actual dispatcher gate and the existing CLI/publication/contract/
+ARexx/target/application checks. The dispatcher also passes under ASan/UBSan,
+and all 10 self-update methods pass with the actual common bridge instrumented
+(direct ctypes mocks/faults use the ordinary test library). Documentation links
+across 75 files pass. Exact-source CI remains pending.
+
+The aarch64-aros-v1-native CLI and PkgManager cross-build succeeds with startup,
+main and common execution symbols present. A clean TLS rebuild followed by the
+same cached configuration produces identical candidate bytes:
+
+| Local candidate | SHA-256 |
+|---|---|
+| apkg-core | `060cb0acb03c91a6e08acbcc3e1dceced741329c1c5f4378ec87ed4d790667d6` |
+| PkgManager | `c868096506dad14928c4ab48c62f30d4c4cd1966ff1bbbe2f4ad7b4b7a7b5b28` |
+
+These are host and build checks; no target execution or power-loss evidence is
+implied. No OS source or installed M1 updater was changed.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

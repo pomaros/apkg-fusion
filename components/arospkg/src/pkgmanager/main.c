@@ -1374,7 +1374,7 @@ static int start(job_kind kind, const char *id)
             strcpy(cur.common_pool, (const char *)identity);
         }
     }
-    if (kind == JOB_COMMON_SELF_UPDATE) {
+    if (kind == JOB_COMMON_SELF_UPDATE || kind == JOB_CHECK_RELEASE) {
         /* The source shown in the window and this PkgManager's own file. */
         IPTR endpoint = 0, identity = 0;
         GetAttr(MUIA_String_Contents, str_channel_endpoint, &endpoint);
@@ -1387,7 +1387,7 @@ static int start(job_kind kind, const char *id)
         strcpy(cur.common_package, (const char *)endpoint);
         strcpy(cur.common_pool, (const char *)identity);
         strcpy(cur.common_executable, sujob.program);
-        cur.common_action = 0;
+        cur.common_action = kind == JOB_CHECK_RELEASE ? 1 : 0;
     }
     if (kind == JOB_COMMON_SOURCE_LOAD) {
         IPTR path=0; GetAttr(MUIA_String_Contents,str_source_profile,&path);
@@ -1749,6 +1749,10 @@ static int su_hand_off(const su_stage *st, const char *what)
 
 static void su_done(job_kind kind, pm_msg *m, const char *why)
 {
+#ifdef APKG_FUSION
+    (void)kind; (void)m;
+    su_say("Legacy self-update requires migration", why); busy(0);
+#else
     char line[900];
     su_install *in = &sujob.in;
     if (kind == JOB_SU_LOCATE) {
@@ -1842,24 +1846,34 @@ static void su_done(job_kind kind, pm_msg *m, const char *why)
         SetAttrs(win_confirm, MUIA_Window_Open, TRUE, TAG_DONE);
         SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)text, TAG_DONE);
     }
+#endif
 }
 
 static void su_proceed(void)
 {
+#ifdef APKG_FUSION
+    confirm_close(); su_confirming = 0;
+    su_say("Use the common signed update operation", NULL); busy(0);
+#else
     confirm_close();
     su_confirming = 0;
     logline("self-update: confirmed");
     if (su_hand_off(&sujob.st, "the update") != 0) { u_deltree(sujob.stage_dir); busy(0); }
+#endif
 }
 
 static void su_decline(const char *how)
 {
+#ifdef APKG_FUSION
+    (void)how; confirm_close(); su_confirming = 0; busy(0);
+#else
     confirm_close();
     su_confirming = 0;
     u_deltree(sujob.stage_dir);
     logline("self-update: %s", how);
     su_say("update cancelled; nothing was changed", NULL);
     busy(0);
+#endif
 }
 
 /* Update arospkg, pressed in About. */
@@ -1900,6 +1914,10 @@ static void su_begin(void)
 /* At the start: what the last update did, or an update left unfinished. */
 static void su_at_start(void)
 {
+#ifdef APKG_FUSION
+    if (su_journal_pending())
+        status("A legacy self-update journal needs migration; its files were preserved");
+#else
     su_result r;
     if (su_result_take(&r)) {
         static char line[300];
@@ -1929,6 +1947,7 @@ static void su_at_start(void)
             if (u_mkdir(none.dir) != 0 || su_hand_off(&none, "the repair") != 0) u_deltree(none.dir);
         } else status("an update of arospkg did not finish: start PkgManager again to repair it");
     }
+#endif
 }
 
 /* Returns 1 when the window should now quit. */
@@ -2049,7 +2068,7 @@ static int on_message(pm_msg *m)
         FreeVec(m->common_record); m->common_record = NULL;
         return quit_pending;
     }
-    if (m->kind == PM_DONE && cur.kind == JOB_COMMON_SELF_UPDATE) {
+    if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_SELF_UPDATE || cur.kind == JOB_CHECK_RELEASE)) {
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         in_flight = 0; common_waiting = 0; confirm_close();
         if (common_preview_text) { FreeVec(common_preview_text); common_preview_text = NULL; }
@@ -2063,7 +2082,7 @@ static int on_message(pm_msg *m)
             MUI_Request(app, win, 0, (STRPTR)"arospkg updated", (STRPTR)"OK",
                         (STRPTR)"The new arospkg is installed. This window still runs the previous one: close PkgManager and start it again.");
         else
-            status(m->common_status == APKG_OK ? "arospkg is current" : m->common_status == APKG_CANCELLED ? "Update cancelled; nothing was changed" : m->err.summary);
+            status(m->common_status == APKG_OK ? (cur.kind == JOB_CHECK_RELEASE ? "Signed client update check complete; see the report" : "arospkg is current") : m->common_status == APKG_CANCELLED ? "Update cancelled; nothing was changed" : m->err.summary);
         FreeVec(m->common_record); m->common_record = NULL;
         return quit_pending;
     }

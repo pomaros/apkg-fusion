@@ -202,3 +202,9 @@ checks and CLI/worker client scenarios under ASan/UBSan. The normal fusion CI
 runs both suites, plus the inherited tests. Fault controls exist only in the
 test shared library. Test-only DOS adapters are never product dependencies.
 The [status](status.md) records measured results and the review gate for each lot.
+
+The SDK check can also audit optimized PkgManager window/worker objects by
+setting `AROS_NM` to the target `llvm-nm`. It refuses references to inherited
+mutation and self-update writers. The host `build/test_pm_dispatch` compiles the
+actual dispatcher without linking that engine, and verifies job routing and
+completion with DOS/Exec adapters. Neither check establishes native execution.

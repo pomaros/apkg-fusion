@@ -126,14 +126,15 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
         /* id: the package name, from the root's own source list. */
         status = apkg_client_source_install(j->root, j->id, 0, ask, j,
                                             &observer, &result, &detail);
-    } else if (j->kind == JOB_COMMON_SELF_UPDATE) {
+    } else if (j->kind == JOB_COMMON_SELF_UPDATE || j->kind == JOB_CHECK_RELEASE) {
         /* common_package: endpoint, common_pool: channel id, common_action:
          * 1 checks only. The report becomes the window's record. */
         char *report = NULL;
+        int check_only = j->kind == JOB_CHECK_RELEASE || j->common_action == 1;
         status = apkg_client_self_update(
             j->root, j->common_package, j->common_pool, j->common_executable,
-            j->common_action == 1, ask, j, &observer, &report,
-            j->common_action == 1 ? NULL : &result, &detail);
+            check_only, ask, j, &observer, &report,
+            check_only ? NULL : &result, &detail);
         if (report) {
             size_t size = strlen(report) + 1;
             j->done->common_record = AllocVec(size, MEMF_PUBLIC);

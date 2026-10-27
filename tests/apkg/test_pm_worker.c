@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
         assert(allocations == 0);
         return 0;
     }
-    if (atoi(argv[3]) == 40) {
+    if (atoi(argv[3]) == 40 || atoi(argv[3]) == 49) {
         /* ROOT ENDPOINT 40 CHECK CHANNEL-ID EXECUTABLE: self-update through
          * the actual worker bridge; the window approves the plan. */
         assert(argc == 7 && strlen(argv[1]) < sizeof j.root &&
@@ -232,7 +232,7 @@ int main(int argc, char **argv) {
         strcpy(j.common_package, argv[2]);
         strcpy(j.common_pool, argv[5]);
         strcpy(j.common_executable, argv[6]);
-        j.kind = JOB_COMMON_SELF_UPDATE;
+        j.kind = j.common_action == 1 || atoi(argv[3]) == 49 ? JOB_CHECK_RELEASE : JOB_COMMON_SELF_UPDATE;
         assert(job_uses_common_engine(j.kind));
         j.done = &final;
         running = &j;
@@ -241,7 +241,7 @@ int main(int argc, char **argv) {
         printf("status %d outcome %d previews %d\n%s", final.common_status,
                final.common_outcome, previews,
                final.common_record ? final.common_record : "");
-        assert(previews == (j.common_action == 1 || final.common_status ? 0 : 1));
+        assert(previews == (j.kind == JOB_CHECK_RELEASE || j.common_action == 1 || final.common_status ? 0 : 1));
         FreeVec(final.common_record);
         assert(allocations == 0);
         return 0;

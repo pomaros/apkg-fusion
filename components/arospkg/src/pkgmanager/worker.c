@@ -37,6 +37,7 @@ static void send(job *j, pm_msg *m)
     PutMsg(j->reply, &m->msg);
 }
 
+#ifndef APKG_FUSION
 static void on_progress(void *user, const pkg_progress_ev *ev, int *cancel)
 {
     job *j = (job *)user;
@@ -55,10 +56,14 @@ static void on_progress(void *user, const pkg_progress_ev *ev, int *cancel)
     *cancel = j->cancel;
 }
 
+#endif
+
 static void worker_main(void)
 {
     job *j = current;
+#ifndef APKG_FUSION
     pkg_ctx *c = NULL;
+#endif
     pkg_err e;
     pkg_status st;
     pm_msg *m;
@@ -66,14 +71,16 @@ static void worker_main(void)
 
     memset(&e, 0, sizeof e);
     memset(&plan, 0, sizeof plan);
-    pkg_test_slow(slow_ms);
-    /* The release check reads the network and nothing in the root: no
-       lock, so it never waits for, or blocks, a package operation. */
 #ifdef APKG_FUSION
     if (job_uses_common_engine(j->kind)) {
         st = pm_common_install(j, &e);
-    } else
-#endif
+    } else {
+        st = e.status = PKG_E_IO;
+        j->done->common_status = APKG_UNSUPPORTED;
+        snprintf(e.summary, sizeof e.summary, "legacy worker job requires common-engine migration");
+    }
+#else
+    pkg_test_slow(slow_ms);
     if (j->kind == JOB_CHECK_RELEASE) {
         st = pkg_release_check(su_base(), NULL, j->current, &j->done->rel, &e);
         if (st == PKG_OK && j->su) {
@@ -161,6 +168,8 @@ static void worker_main(void)
         }
         pkg_close(c);
     }
+
+#endif
 
     m = j->done;
     m->kind = PM_DONE;
