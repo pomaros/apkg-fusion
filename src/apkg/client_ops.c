@@ -55,6 +55,9 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     if (!out)
         return APKG_INVALID;
     *out = NULL;
+    if (action == APKG_CLIENT_CHANNEL)
+        return apkg_client_channel_apply(root, arg, pool, 0, confirm, user,
+                                         observer, out, e);
     if (action == APKG_CLIENT_INSTALL)
         return apkg_client_install(root, arg, confirm, user, observer, out, e);
     if (action < APKG_CLIENT_REMOVE || action > APKG_CLIENT_RECOVER || !arg ||
@@ -226,6 +229,36 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
     ak_tohex(p->view.plan_digest.bytes, 32, digest);
     ak_buf_add(&b, "%s\nRoot folder: %s\nApproved plan: %s\n", action, p->root,
                digest);
+    if (p->origins) {
+        ak_json origins = {0};
+        int parsed = ak_json_parse(p->origins, strlen(p->origins), &origins);
+        if (parsed) {
+            ak_json_free(&changes);
+            ak_json_free(&state);
+            free(b.data);
+            return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+        }
+        for (size_t source = 1; source < origins.tokens[0].next;
+             source = origins.tokens[source].next) {
+            char id[33], signer[65], sha[65];
+            uint64_t sequence;
+            ak_string(&origins, ak_member(&origins, (int)source, "id"), id,
+                      sizeof id);
+            ak_string(&origins, ak_member(&origins, (int)source, "signer"),
+                      signer, sizeof signer);
+            ak_string(&origins,
+                      ak_member(&origins, (int)source, "snapshot_sha256"), sha,
+                      sizeof sha);
+            ak_u64(&origins, ak_member(&origins, (int)source, "sequence"),
+                   &sequence);
+            ak_buf_add(&b,
+                       "\nChannel: %s\nChannel signing key: %s\nSnapshot "
+                       "SHA-256: %s\nRecord replay floor at commit: %" PRIu64
+                       "\n",
+                       id, signer, sha, sequence);
+        }
+        ak_json_free(&origins);
+    }
     if (p->view.kind == APKG_PLAN_CHANNEL_ACCEPT) {
         arr = ak_member(&state, ak_member(&state, 0, "body"), "channel_heads");
         for (i = (size_t)arr + 1; i < state.tokens[arr].next;

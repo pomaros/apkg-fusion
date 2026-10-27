@@ -61,9 +61,33 @@ int main(int argc, char **argv) {
             "descriptor|channel "
             "JSONFILE\nverify-object descriptor|channel JSONFILE SIGNATURE\n"
             "archive-check ROOT ARCHIVE\nchannel-fetch ROOT ENDPOINT "
-            "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-accept ROOT ENDPOINT "
+            "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-install ROOT ENDPOINT "
+            "CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256 [--recommends] "
+            "[--confirm DIGEST]\nchannel-accept ROOT ENDPOINT "
             "CHANNEL-ID [--confirm DIGEST]\n");
         return APKG_INVALID;
+    }
+    if (!strcmp(argv[1], "channel-install")) {
+        if (argc < 7 || argc > 10 || strlen(argv[4]) != 32 ||
+            strlen(argv[5]) != 64 || strlen(argv[6]) != 64)
+            return APKG_INVALID;
+        int recommendations = 0;
+        for (int i = 7; i < argc; i++) {
+            if (!strcmp(argv[i], "--recommends") && !recommendations)
+                recommendations = 1;
+            else if (!strcmp(argv[i], "--confirm") && !confirmation &&
+                     i + 1 < argc)
+                confirmation = argv[++i];
+            else
+                return APKG_INVALID;
+        }
+        char selection[163];
+        snprintf(selection, sizeof selection, "%s/%s/%s", argv[4], argv[5],
+                 argv[6]);
+        code = apkg_client_channel_apply(argv[2], argv[3], selection,
+                                         recommendations, confirm,
+                                         (void *)confirmation, NULL, &r, &e);
+        goto done;
     }
     if (!strcmp(argv[1], "channel-accept")) {
         if (argc != 5 && argc != 7)
@@ -210,8 +234,11 @@ int main(int argc, char **argv) {
             if (errno || !*argv[5] || *end)
                 return APKG_INVALID;
         }
-        code = ak_channel_inspect(argv[2], argv[3], argv[4], floor,
-                                  !strcmp(argv[1], "channel-open"), &text, &e);
+        code = !strcmp(argv[1], "channel-open")
+                   ? apkg_client_channel_query(argv[2], argv[3], argv[4], floor,
+                                               NULL, &text, &e)
+                   : ak_channel_inspect(argv[2], argv[3], argv[4], floor, 0,
+                                        &text, &e);
         if (!code)
             puts(text);
         else

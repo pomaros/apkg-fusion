@@ -139,19 +139,24 @@ operation-specific protocol and legacy import are implemented.
 
 ## PkgManager path
 
-`APKG_FUSION=1` in the imported ABIv11 GUI build enables a signed-package folder
-field and **Install signed package** button. The worker verifies, plans and
+`APKG_FUSION=1` in the imported ABIv11 GUI build enables an advanced operation
+panel for local install/remove/repair/upgrade/rollback/resolve/recovery and exact
+file/HTTP channel selection, through the **Review operation** button. The worker verifies, plans and
 sends a complete owned presentation with root, target, signer, exact plan digest,
 all destinations, file sizes/modes/hashes and independent qualification status.
 It retains the context/plan while the window asks for confirmation. Confirm,
 decline, cancellation and close requests return to that same worker; no plan is
-reconstructed after approval. Progress messages copy 64-bit values. Final
+reconstructed after approval. Progress messages copy full operation identities,
+64-bit event sequences/counters and phase. Final
 results distinguish refusal, cancellation, success and required recovery.
 
 Legacy mutations are disabled in this fusion development UI, preventing the
 old worker from mutating a common root through a second engine. The
 non-fusion build retains its inherited workflows. General catalogue browsing,
 settings and the remaining operation families still require common-API wiring.
+The [channel client checkpoint](channels.md#shared-dependency-aware-client-workflow)
+adds shared complete discovery facts and dependency-aware worker installation;
+interactive native catalogue selection remains open.
 Initialize a separate common root explicitly before using this first GUI path.
 
 For an aarch64 hosted cross-build, configure `APKG_AROS_SDK` and

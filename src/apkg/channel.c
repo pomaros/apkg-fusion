@@ -767,7 +767,17 @@ apkg_status ak_channel_select(apkg_ctx *ctx, const apkg_channel *channel,
     apkg_snapshot_free(snapshot);
     if (code)
         return code;
-    code =
+    return ak_channel_metadata(ctx, channel, index, out, error);
+}
+apkg_status ak_channel_metadata(apkg_ctx *ctx, const apkg_channel *channel,
+                                uint64_t index, apkg_package **out,
+                                apkg_error **error) {
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!ctx || !channel || index >= channel->view.entry_count)
+        return APKG_INVALID;
+    apkg_status code =
         apkg_package_read(ctx, channel->rows[index].descriptor,
                           channel->rows[index].signature_envelope, out, error);
     if (!code) {
@@ -779,6 +789,7 @@ apkg_status ak_channel_select(apkg_ctx *ctx, const apkg_channel *channel,
     }
     return code;
 }
+
 apkg_status apkg_plan_channel_accept(apkg_ctx *ctx, const apkg_snapshot *s,
                                      const apkg_channel *channel,
                                      apkg_plan **out, apkg_error **error) {
@@ -848,12 +859,10 @@ apkg_status ak_channel_inspect(const char *root, const char *dir,
     unsigned char *object = NULL, *signature = NULL;
     size_t dn = 0, sn = 0;
     apkg_id id;
-    ak_buf b = {0};
-    char path[AK_PATH], digest[65];
+    char path[AK_PATH];
     apkg_status code = APKG_INVALID;
     apkg_open_options options = {0};
     *out = NULL;
-    b.max = AK_MAX;
     if (ak_hex(identity, id.bytes, 16))
         return APKG_INVALID;
     options.contract_version = 1;
@@ -886,6 +895,25 @@ apkg_status ak_channel_inspect(const char *root, const char *dir,
         if (code)
             goto done;
     }
+    code = ak_channel_format(channel, out);
+
+done:
+    free(object);
+    free(signature);
+    apkg_channel_free(channel);
+    apkg_close(ctx);
+    return code;
+}
+
+apkg_status ak_channel_format(const apkg_channel *channel, char **out) {
+    if (!channel || !out)
+        return APKG_INVALID;
+    *out = NULL;
+    ak_buf b = {0};
+    b.max = AK_MAX;
+    char identity[33], digest[65];
+    apkg_status code;
+    ak_tohex(channel->view.id.bytes, 16, identity);
     ak_tohex(channel->view.snapshot_digest.bytes, 32, digest);
     char accepted[32] = "null";
     if (channel->view.accepted_sequence.state == APKG_KNOWN)
@@ -924,11 +952,6 @@ apkg_status ak_channel_inspect(const char *root, const char *dir,
         *out = b.data;
         b.data = NULL;
     }
-done:
-    free(object);
-    free(signature);
     free(b.data);
-    apkg_channel_free(channel);
-    apkg_close(ctx);
     return code;
 }

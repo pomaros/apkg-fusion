@@ -1,13 +1,29 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 John Knipper */
 #ifdef APKG_FUSION
-#include "apkg.h"
+#include "apkg_client.h"
 #include "job.h"
 #include "pkg_target.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+/* Full discovery facts stay in owned JSON; no projection can truncate a
+ * channel/package identity. Caller releases it with apkg_client_text_free. */
+pkg_status pm_common_channel_query(const char *root, const char *endpoint,
+                                   const char *identity, char **out,
+                                   pkg_err *error) {
+    apkg_status code =
+        apkg_client_channel_query(root, endpoint, identity, 0, NULL, out, NULL);
+    if (error) {
+        memset(error, 0, sizeof *error);
+        error->status = code ? PKG_E_IO : PKG_OK;
+        if (code)
+            snprintf(error->summary, sizeof error->summary,
+                     "common channel query refused (code %d)", (int)code);
+    }
+    return code ? PKG_E_IO : PKG_OK;
+}
 /* UI rows are a display projection. Refuse an unrepresentable field rather
  * than truncate an identity and use that truncated name in an operation. */
 pkg_status pm_common_query(const char *root, const char *term, pkg_entries *out,

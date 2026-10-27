@@ -185,7 +185,8 @@ The [signed-channel profile](docs/fusion/channels.md) divides ALPHA-CHANNEL
 into authenticated metadata, atomic file publication, context-owned file/HTTP
 transport/freshness, and independent qualifications/client discovery. Metadata
 validation, atomic local publication, host HTTP transfer and source-bound
-approved plans and explicit journaled replay floors are implemented checkpoints.
+approved plans, explicit journaled replay floors and shared dependency-aware
+CLI/worker selection/install are implemented checkpoints.
 Online revocation/freshness policy, independent qualifications, native adapters
 and client integration still prevent that gate from passing.
 

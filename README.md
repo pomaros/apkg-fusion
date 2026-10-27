@@ -51,8 +51,10 @@ aarch64, plus macOS, Linux and Windows host tools. Each needs its own evidence.
 
 The [signed-channel profile](docs/fusion/channels.md) adds common read-only
 discovery, separate channel/author trust and atomic local publication through
-`apkg-publish --common`. Network fetching and default-client integration remain
-in progress.
+`apkg-publish --common`. Context-owned file/HTTP fetching, replay floors and a
+shared dependency-aware CLI/worker workflow are implemented checkpoints. The
+explicit command is `apkg-core channel-install`; default-client and interactive
+native catalogue integration remain in progress.
 
 The [common authoring checkpoint](docs/fusion/authoring.md) builds a signed
 PKG/1 artifact directly from TOML and `.ameta` using `tools/apkg-build` and

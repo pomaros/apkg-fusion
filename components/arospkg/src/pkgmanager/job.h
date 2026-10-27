@@ -78,7 +78,9 @@ typedef struct pm_msg_s {
     pkg_run_result run;         /* JOB_RUN: what was started */
     pkg_removal    rem;         /* JOB_REMOVE: what was kept in place */
     char          *common_preview, *common_record; /* AllocVec ownership to UI */
-    unsigned long long common_done, common_total;
+    unsigned long long common_done, common_total, common_event_sequence;
+    unsigned char common_operation_id[16];
+    int common_phase;
     int            common_total_known, common_status, common_outcome;
     char           note[200];   /* a replacement recovery finished when the root was opened */
 } pm_msg;
@@ -89,6 +91,7 @@ typedef struct pm_msg_s {
 int job_start(job *j);
 #ifdef APKG_FUSION
 pkg_status pm_common_install(job *, pkg_err *);
+pkg_status pm_common_channel_query(const char *, const char *, const char *, char **, pkg_err *);
 pkg_status pm_common_query(const char *, const char *, pkg_entries *, pkg_err *);
 #endif
 

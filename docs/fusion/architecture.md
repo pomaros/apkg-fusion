@@ -55,6 +55,11 @@ typed facts and events; each client presents them. Events identify operations
 and phases, carry 64-bit counters and expose cancellation boundaries and
 recovery outcomes. UI message queues own copies of event data. Completion
 reflects the final outcome after required recording and durability steps.
+The [shared channel workflow](channels.md#shared-dependency-aware-client-workflow)
+resolves metadata before fetching, prepares only selected archives and commits
+package changes plus replay floor in one approved transaction. CLI and the
+actual PkgManager worker call the same client entry point; confirmation never
+starts another resolution.
 
 ## Plan, approve, execute, recover
 

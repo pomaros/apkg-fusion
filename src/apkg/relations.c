@@ -204,11 +204,12 @@ static int solve(solver *s, unsigned depth) {
             }
     return 1;
 }
-apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
-                              apkg_package *const *requested, size_t nrequested,
-                              apkg_package *const *candidates,
-                              size_t ncandidates, int recommends,
-                              apkg_plan **out, apkg_error **e) {
+apkg_status ak_resolve_metadata(apkg_ctx *c, const apkg_snapshot *snapshot,
+                                apkg_package *const *requested,
+                                size_t nrequested,
+                                apkg_package *const *candidates,
+                                size_t ncandidates, int recommends,
+                                ak_resolution *out, apkg_error **e) {
     solver s = {0};
     size_t i, k, n;
     apkg_status code = APKG_INVALID;
@@ -217,7 +218,7 @@ apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
         *e = NULL;
     if (!out)
         return APKG_INVALID;
-    *out = NULL;
+    memset(out, 0, sizeof *out);
     if (!c || !snapshot || !requested || !nrequested ||
         (ncandidates && !candidates) || nrequested > 128 || ncandidates > 128 ||
         snapshot->nrows > 128)
@@ -326,20 +327,20 @@ apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
                 s.pool[i]->signature);
         }
     ak_buf_add(&entries, "]");
-    code = entries.bad ? (apkg_status)entries.bad
-                       : ak_plan_records(c, snapshot, entries.data,
-                                         APKG_PLAN_RESOLVE, NULL, out, e);
+    code = entries.bad;
     if (!code) {
-        const apkg_package *chosen[256];
-        size_t count = 0;
-        for (i = s.installed; i < s.count; i++)
-            if (s.selected[i])
-                chosen[count++] = s.pool[i];
-        code = ak_plan_bind(c, *out, chosen, count);
-        if (code) {
-            apkg_plan_free(*out);
-            *out = NULL;
+        out->packages = calloc(nrequested + ncandidates, sizeof *out->packages);
+        if (!out->packages) {
+            code = APKG_NOMEM;
+            goto done;
         }
+        for (i = s.installed; i < s.count; i++)
+            if (s.selected[i]) {
+                out->packages[out->count++] = s.pool[i];
+                s.pool[i] = NULL;
+            }
+        out->entries = entries.data;
+        entries.data = NULL;
     }
 done:
     if (s.pool)
@@ -349,5 +350,42 @@ done:
     free(s.selected);
     free(s.explicit);
     free(entries.data);
+    return code;
+}
+
+void ak_resolution_free(ak_resolution *r) {
+    for (size_t i = 0; i < r->count; i++)
+        apkg_package_free(r->packages[i]);
+    free(r->packages);
+    free(r->entries);
+    memset(r, 0, sizeof *r);
+}
+apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
+                              apkg_package *const *requested, size_t nrequested,
+                              apkg_package *const *candidates,
+                              size_t ncandidates, int recommends,
+                              apkg_plan **out, apkg_error **e) {
+    if (e)
+        *e = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    ak_resolution resolution = {0};
+    apkg_status code =
+        ak_resolve_metadata(c, snapshot, requested, nrequested, candidates,
+                            ncandidates, recommends, &resolution, e);
+    if (!code)
+        code = ak_plan_records(c, snapshot, resolution.entries,
+                               APKG_PLAN_RESOLVE, NULL, out, e);
+    if (!code) {
+        code = ak_plan_bind(c, *out,
+                            (const apkg_package *const *)resolution.packages,
+                            resolution.count);
+        if (code) {
+            apkg_plan_free(*out);
+            *out = NULL;
+        }
+    }
+    ak_resolution_free(&resolution);
     return code;
 }

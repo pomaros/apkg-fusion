@@ -49,6 +49,7 @@ apkg_status ak_signature_check(apkg_bytes, apkg_bytes, const char *,
                                unsigned char[32], apkg_digest *);
 int ak_channel_policy(const ak_json *, const char *, const char *);
 apkg_status ak_channel_validate(const ak_json *);
+apkg_status ak_channel_format(const apkg_channel *, char **);
 apkg_status ak_channel_inspect(const char *, const char *, const char *,
                                uint64_t, int, char **, apkg_error **);
 int ak_buf_add(ak_buf *, const char *, ...);
@@ -76,6 +77,8 @@ int ak_http_url(const char *);
 apkg_status ak_http_path(const char *, const char *, char[AK_PATH]);
 apkg_status ak_http_get(const char *, uint64_t, int, unsigned char **, size_t *,
                         ak_import_progress *);
+apkg_status ak_channel_metadata(apkg_ctx *, const apkg_channel *, uint64_t,
+                                apkg_package **, apkg_error **);
 apkg_status ak_channel_select(apkg_ctx *, const apkg_channel *, uint64_t,
                               const apkg_observer *, apkg_package **,
                               apkg_error **);
@@ -115,6 +118,16 @@ int ak_relations_valid(const ak_json *, int);
 int ak_requirement_matches(const ak_json *, int, const apkg_package *);
 apkg_status ak_relations_check(apkg_package *const *, size_t);
 apkg_status ak_verified_entry(apkg_ctx *, const char *, apkg_package **);
+typedef struct {
+    char *entries;
+    apkg_package **packages;
+    size_t count;
+} ak_resolution;
+apkg_status ak_resolve_metadata(apkg_ctx *, const apkg_snapshot *,
+                                apkg_package *const *, size_t,
+                                apkg_package *const *, size_t, int,
+                                ak_resolution *, apkg_error **);
+void ak_resolution_free(ak_resolution *);
 int ak_version_compare(const char *, const char *);
 int ak_tree_find(const ak_json *, const char *);
 struct apkg_ctx {
@@ -178,6 +191,9 @@ struct apkg_event_copy {
     apkg_event view;
     char *strings[4];
 };
+apkg_status ak_plan_records_heads(apkg_ctx *, const apkg_snapshot *,
+                                  const char *, apkg_plan_kind, const char *,
+                                  const char *, apkg_plan **, apkg_error **);
 apkg_status ak_plan_records(apkg_ctx *, const apkg_snapshot *, const char *,
                             apkg_plan_kind, const char *, apkg_plan **,
                             apkg_error **);

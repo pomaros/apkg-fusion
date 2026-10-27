@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 John Knipper
  * Actual PkgManager signed worker bridge with host message-port adapters. */
-#include "apkg.h"
+#include "apkg_client.h"
 #include "job.h"
 #include <assert.h>
 #include <proto/exec.h>
@@ -45,6 +45,11 @@ void PutMsg(struct MsgPort *port, struct Message *message) {
     } else {
         assert(m->kind == PM_COMMON_PROGRESS);
         progress_count++;
+        unsigned char zero[16] = {0};
+        assert(memcmp(m->common_operation_id, zero, 16));
+        assert(m->common_event_sequence > 0);
+        assert(m->common_phase >= APKG_PHASE_CHECK &&
+               m->common_phase <= APKG_PHASE_RECOVER);
         if (choice == 6 && progress_count == 2)
             running->cancel = 1;
     }
@@ -65,6 +70,15 @@ int main(int argc, char **argv) {
         assert(strlen(argv[5]) < sizeof j.common_pool);
         strcpy(j.common_pool, argv[5]);
     }
+    if (atoi(argv[3]) == 8) {
+        assert(argc == 6);
+        char *json = NULL;
+        assert(pm_common_channel_query(argv[1], argv[2], argv[5], &json,
+                                       &error) == PKG_OK);
+        puts(json);
+        apkg_client_text_free(json);
+        return 0;
+    }
     if (atoi(argv[3]) == 7) {
         pkg_entries entries = {0};
         assert(pm_common_query(argv[1], NULL, &entries, &error) == PKG_OK);
@@ -83,12 +97,16 @@ int main(int argc, char **argv) {
     strcpy(j.root, argv[1]);
     strcpy(j.common_package, argv[2]);
     result = pm_common_install(&j, &error);
-    assert(previews == (choice == 3 ? 0 : 1));
+    if (j.common_action == APKG_CLIENT_CHANNEL &&
+        (choice == 3 || choice == 4 || choice == 6))
+        assert(previews == 0);
+    else
+        assert(previews == (choice == 3 ? 0 : 1));
     if (choice == 1) {
         assert(result == PKG_OK);
         assert(final.common_outcome == APKG_COMMITTED);
         assert(progress_count > 0);
-    } else if (choice == 3) {
+    } else if (choice == 3 || choice == 4) {
         assert(result == PKG_E_NOMEM);
         assert(final.common_status == APKG_NOMEM);
         assert(final.common_outcome == APKG_UNCHANGED);
@@ -96,7 +114,9 @@ int main(int argc, char **argv) {
         assert(result == PKG_E_CANCELLED);
         assert(final.common_status == APKG_CANCELLED);
         assert(final.common_outcome ==
-               (choice == 6 ? APKG_RESTORED : APKG_UNCHANGED));
+               (choice == 6 && j.common_action != APKG_CLIENT_CHANNEL
+                    ? APKG_RESTORED
+                    : APKG_UNCHANGED));
     }
     FreeVec(final.common_record);
     assert(allocations == 0);

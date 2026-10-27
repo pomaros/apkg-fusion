@@ -164,8 +164,8 @@ its role/sequence policy, checks that the object digest matches the reference,
 then rechecks the reference. It creates no files and fetches no archive.
 Selected package decoding checks the reference again; a changed head requires
 fresh discovery. Borrowed views remain immutable observations of that snapshot.
-Plans made from already decoded package handles do not yet retain channel-head
-preconditions: that belongs to channel-aware transfer/client planning.
+Plans retain owned source preconditions, as specified below. Shared client
+selection also binds the discovered snapshot before any archive preparation.
 
 The JSON inspection result includes descriptor/archive identities, author trust,
 target verdict, unknown freshness, unchecked payload availability and unasserted
@@ -182,12 +182,12 @@ trust expansion is performed by the importer.
 
 ## Remaining batches
 
-1. Context-owned HTTP opening, bounded cancellable archive fetching/retention,
-   archive-to-selected-descriptor binding, durable sequence floors and channel
-   preconditions in plans.
-2. Independent signed review/runtime facts, issuer policy and stale/revoked
-   evidence handling, then shared discovery/selection through CLI and the actual
-   PkgManager worker with dependency-aware fetching.
+1. Independent signed review/runtime facts, issuer policy and stale/revoked
+   evidence handling; online freshness/revocation policy remains explicit work.
+2. Default-client switch, interactive native catalogue/settings integration and
+   consumer migration. The shared planner, discovery adapter and worker channel
+   operation below are implemented host checkpoints.
+3. Native transport/filesystem runtime qualification and retention/cleanup policy.
 
 The final FUSION-ALPHA publishing/discovery/operation scenario and exact-source
 Linux/macOS qualification remain required. Native execution, production portal
@@ -309,3 +309,62 @@ recorded decision is completed from local journal data even when the endpoint
 is gone. Host tests exercise I/O failures, process death, interrupted recovery,
 allocation failures and competing plans. Power-loss and native filesystem
 qualification remain separate gates.
+
+## Shared dependency-aware client workflow
+
+`apkg_plan_channel_install` takes an already verified channel and an exact
+requested descriptor digest. It checks the context/root and durable replay
+state, builds the relevant metadata pool, then uses the existing resolver.
+Compatible installed providers retain preference. Candidate ordering prefers
+newer comparable versions/revisions and stays deterministic; conflict-driven
+backtracking remains the common solver's responsibility.
+
+Only selected new packages' archives are fetched and verified. Unselected or
+already installed providers do not cause archive downloads. Metadata dependency
+failure precedes archive preparation. The final canonical plan includes package
+changes, installation reasons, selected source origins and the channel's new
+replay floor. One approval, generation and journal commit all those facts.
+Decline/cancellation/error before execution leaves installed state and floor
+unchanged, while verified archive/object preparation can remain private.
+Recovery/repair/rollback from retained content do not consult the channel.
+
+The channel can contain up to its existing 4,096 rows. This workflow bounds the
+relevant pool to one explicit request plus 128 candidate versions, with at most
+128 installed packages and one million dependency-row inspections. Exceeding a
+bound refuses; the client does not truncate the candidate set or silently omit
+relations. Mandatory dependencies of existing installed packages are considered,
+so replacing a provider does not ignore another package's needs. Recommendations
+are included only when explicitly requested.
+
+Shared convenience entry points live in `apkg_client.h`:
+
+- `apkg_client_channel_query` performs read-only file/HTTP discovery and returns
+  owned complete JSON facts, including blocked-author/target rows, accepted
+  sequence, exact digests, unknown online freshness and unasserted independent
+  qualifications.
+- `apkg_client_channel_apply` accepts the exact selection string
+  `CHANNEL-ID/SNAPSHOT-SHA256/DESCRIPTOR-SHA256`. A changed discovered snapshot
+  refuses before archive preparation. It retains one plan through confirmation
+  and never resolves again after approval.
+
+The explicit common CLI uses:
+
+```sh
+./build/apkg-core channel-open ROOT ENDPOINT CHANNEL-ID
+./build/apkg-core channel-install ROOT ENDPOINT CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256
+# Repeat the same selection with --confirm PLAN-DIGEST after reviewing the plan.
+```
+
+`--recommends` opts into optional recommendations. Plan presentation includes
+channel id/key/snapshot/floor plus package signer, content, ownership and
+configuration effects. Author/channel trust does not assert review/runtime
+qualification. The default `build/apkg` switch is still a separate gate.
+
+The actual PkgManager worker dispatches `APKG_CLIENT_CHANNEL` through the same
+client function. Its advanced operation panel accepts the endpoint and complete
+selection string. `pm_common_channel_query` shares complete owned discovery JSON
+without reducing identities to legacy fixed-width table rows. Progress messages
+copy all 128 operation-id bits, 64-bit event sequence/counters and phase. A failed
+message allocation reports out-of-memory with the accurate filesystem outcome;
+the final completion message is preallocated. Interactive native catalogue row
+selection/settings wiring and native runtime qualification remain open.

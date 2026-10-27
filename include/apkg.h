@@ -317,6 +317,12 @@ apkg_status apkg_plan_resolve(apkg_ctx *, const apkg_snapshot *,
 apkg_status apkg_plan_channel_accept(apkg_ctx *, const apkg_snapshot *,
                                       const apkg_channel *, apkg_plan **,
                                       apkg_error **);
+/* Resolve signed metadata, fetch only selected archives and prepare one plan
+ * for package changes plus the channel replay floor. Requires WRITE mode;
+ * preparation can retain verified cache bytes but commits no installed state. */
+apkg_status apkg_plan_channel_install(apkg_ctx *, const apkg_snapshot *,
+    const apkg_channel *, const apkg_digest *descriptor, int recommendations,
+    const apkg_observer *, apkg_plan **, apkg_error **);
 const apkg_plan_view *apkg_plan_get(const apkg_plan *);
 apkg_status apkg_plan_effect_at(const apkg_plan *, uint64_t,
                                 const apkg_effect_view **, apkg_error **);

@@ -25,12 +25,23 @@ typedef enum {
     APKG_CLIENT_UPGRADE,
     APKG_CLIENT_ROLLBACK,
     APKG_CLIENT_RESOLVE,
-    APKG_CLIENT_RECOVER
+    APKG_CLIENT_RECOVER,
+    APKG_CLIENT_CHANNEL
 } apkg_client_action;
 apkg_status apkg_client_apply(apkg_client_action, const char *root,
                               const char *argument, const char *pool,
                               apkg_confirm_fn, void *, const apkg_observer *,
                               apkg_result **, apkg_error **);
+/* Endpoint-bound discovery and exact selection shared by CLI/PkgManager.
+ * selection is CHANNEL-ID/SNAPSHOT-SHA256/DESCRIPTOR-SHA256, with lowercase hex identities.
+ * Apply prepares selected archives, then approves one immutable package/floor
+ * plan. No implicit initialization, trust expansion or post-confirm resolution. */
+apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,
+    const char *selection, int recommendations, apkg_confirm_fn, void *,
+    const apkg_observer *, apkg_result **, apkg_error **);
+apkg_status apkg_client_channel_query(const char *root, const char *endpoint,
+    const char *identity, uint64_t minimum_sequence, const apkg_observer *,
+    char **, apkg_error **);
 apkg_status apkg_client_folder(const char *, const char *, char **,
                                apkg_error **);
 apkg_status apkg_client_run(const char *, const char *, apkg_error **);

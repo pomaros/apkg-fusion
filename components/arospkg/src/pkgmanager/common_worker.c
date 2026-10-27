@@ -42,9 +42,14 @@ static int ask(void *user, const apkg_plan *plan, const char *text) {
 static apkg_event_action progress(void *user, const apkg_event *event) {
     job *j = user;
     pm_msg *m = AllocVec(sizeof *m, MEMF_PUBLIC | MEMF_CLEAR);
-    if (!m)
+    if (!m) {
+        j->done->common_status = APKG_NOMEM;
         return APKG_REQUEST_CANCEL;
+    }
     m->kind = PM_COMMON_PROGRESS;
+    memcpy(m->common_operation_id, event->operation_id.bytes, 16);
+    m->common_event_sequence = event->sequence;
+    m->common_phase = event->phase;
     m->common_done = event->completed;
     m->common_total = event->total.value;
     m->common_total_known = event->total.state == APKG_KNOWN;

@@ -689,6 +689,54 @@ handler behavior and power-loss durability remain unqualified. No AROS, OS or
 live portal operation occurred, and default-client/qualification/import/portal
 alpha gates remain open.
 
+## FUSION-ALPHA progress: shared dependency-aware channel clients
+
+The preceding replay-floor checkpoint on
+[e97a9b9](https://github.com/pomaros/apkg-fusion/commit/e97a9b9c1b30beaeb167ebe343b2dfed0ee52df0)
+is fully qualified by its
+[Linux/macOS/portal run](https://github.com/pomaros/apkg-fusion/actions/runs/40423890142).
+The preparation-prefix checkpoint on
+[99508f2](https://github.com/pomaros/apkg-fusion/commit/99508f2f0674c070c41cc46714012d8f29534978)
+is independently qualified by its full
+[Linux/macOS/portal run](https://github.com/pomaros/apkg-fusion/actions/runs/40425031725).
+
+The [shared client contract](channels.md#shared-dependency-aware-client-workflow)
+now separates metadata resolution from payload preparation without introducing
+a second solver. It discovers the relevant candidate closure, retains compatible
+installed providers, backtracks through conflicts and fetches only selected new
+archives. One canonical approval binds the discovered channel snapshot, exact
+package, selected providers/source origins, package changes and replay floor.
+Package/floor state commits in one common generation/journal.
+
+`apkg-core channel-open` and the actual PkgManager discovery adapter share full
+owned JSON facts. `channel-install` and the actual worker use the same apply
+entry point. The native advanced panel exposes that operation; full interactive
+catalogue/settings integration is still open. Worker progress messages preserve
+all operation-id bits, event sequence, phase and 64-bit counters. Message
+allocation failure now reports NOMEM rather than masquerading as user cancel;
+the final preallocated completion still reports the real filesystem outcome.
+
+New scenarios use real TOML/.ameta signed file/HTTP publication with multiple
+provider versions. They compare CLI/worker discovery and installed records,
+exercise installed-provider preference and conflicting-version backtracking,
+withhold unselected archives, refuse missing metadata dependencies before any
+archive request, bind the selected discovery snapshot before preparation, and
+refuse unknown authors/targets or corrupt selected artifacts. Decline, cancel,
+worker allocation failure and 500 planner allocation positions preserve root
+state/floor. A real channel update preserves personal configuration, then rolls
+back offline while retaining the newer floor; offline repair/removal also pass.
+Local `make test-fusion` passes 186 common methods and the existing integration
+checks. The sanitizer harness passes 106 methods, including real CLI/actual
+worker file/HTTP workflows through instrumented native binaries; direct ctypes
+cases use the ordinary test library. Documentation links pass for 67 files with
+zero broken links. Exact-source Linux/macOS CI must qualify this checkpoint
+separately.
+
+This is one-channel host workflow integration. Default `build/apkg` replacement,
+interactive native catalogue/settings, independent qualifications, multi-channel
+configuration, legacy import, portal adaptation/rehearsal and target/runtime
+qualification remain open. No live portal, OS or AROS execution occurred.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

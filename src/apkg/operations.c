@@ -295,10 +295,10 @@ apkg_status ak_verified_entry(apkg_ctx *c, const char *entry,
 }
 /* Candidate records are signed entries. This is also the multi-package planner
  * used by dependency resolution: one generation, one approval, one journal. */
-static apkg_status plan_records(apkg_ctx *c, const apkg_snapshot *s,
-                                const char *entries, apkg_plan_kind kind,
-                                const char *focus, const char *heads,
-                                apkg_plan **out, apkg_error **e) {
+apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
+                                  const char *entries, apkg_plan_kind kind,
+                                  const char *focus, const char *heads,
+                                  apkg_plan **out, apkg_error **e) {
     apkg_snapshot *current = NULL;
     ak_json list = {0};
     ak_buf state = {0}, changes = {0}, raw = {0};
@@ -548,8 +548,8 @@ apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
                             const char *entries, apkg_plan_kind kind,
                             const char *focus, apkg_plan **out,
                             apkg_error **e) {
-    return plan_records(c, s, entries, kind, focus, s ? s->channel_heads : NULL,
-                        out, e);
+    return ak_plan_records_heads(c, s, entries, kind, focus,
+                                 s ? s->channel_heads : NULL, out, e);
 }
 apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
                           const char *heads, apkg_plan **out, apkg_error **e) {
@@ -562,8 +562,8 @@ apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
     ak_json_free(&j);
     if (!entries)
         return APKG_NOMEM;
-    apkg_status code = plan_records(c, s, entries, APKG_PLAN_CHANNEL_ACCEPT,
-                                    NULL, heads, out, e);
+    apkg_status code = ak_plan_records_heads(
+        c, s, entries, APKG_PLAN_CHANNEL_ACCEPT, NULL, heads, out, e);
     free(entries);
     if (!code) {
         apkg_plan *p = *out;
