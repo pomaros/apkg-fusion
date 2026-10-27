@@ -597,9 +597,101 @@ done:
     apkg_close(c);
     return code;
 }
+/* The installed package is a container; authoring may put the application
+ * inside its named drawer. Select only a unique declared application record,
+ * never an undeclared live file or the first result of a directory scan. */
+static apkg_status launch_folder(const apkg_snapshot *snapshot,
+                                 const char *name, const char *container,
+                                 char **out, apkg_error **error) {
+    apkg_inspection *inspection = NULL;
+    ak_json descriptor = {0};
+    char selected[AK_PATH] = "", path[AK_PATH], absolute[AK_PATH];
+    size_t matches = 0, index = 0, applications = 0;
+    apkg_status code = APKG_NOT_FOUND;
+    *out = NULL;
+    for (size_t i = 0; i < snapshot->nrows; i++)
+        if (!strcmp(snapshot->rows[i].name.value.data, name)) {
+            matches++;
+            index = i;
+        }
+    if (matches != 1)
+        return matches ? APKG_CONFLICT : APKG_NOT_FOUND;
+    code = apkg_snapshot_inspect(snapshot, index, &inspection, error);
+    if (code)
+        goto done;
+    const apkg_inspection_view *view = apkg_inspection_get(inspection);
+    int parsed = ak_json_parse(view->descriptor.data, view->descriptor.size,
+                               &descriptor);
+    if (parsed) {
+        code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+        goto done;
+    }
+    int body = ak_member(&descriptor, 0, "body");
+    int files = ak_member(&descriptor, body, "files");
+    if (files < 0 || descriptor.tokens[files].type != '[') {
+        code = APKG_INVALID;
+        goto done;
+    }
+    for (size_t i = (size_t)files + 1; i < descriptor.tokens[files].next;
+         i = descriptor.tokens[i].next) {
+        if (!ak_equal(&descriptor, ak_member(&descriptor, (int)i, "type"),
+                       "file"))
+            continue;
+        if (ak_string(&descriptor, ak_member(&descriptor, (int)i, "path"),
+                       path, sizeof path)) {
+            code = APKG_LIMIT;
+            goto done;
+        }
+        char *leaf = strrchr(path, '/');
+        if (strcmp(leaf ? leaf + 1 : path, "application.json"))
+            continue;
+        if (++applications > 1) {
+            code = ak_fail(error, APKG_CONFLICT,
+                           "installed package declares multiple application roots",
+                           name);
+            goto done;
+        }
+        if (ak_path(absolute, container, path)) {
+            code = APKG_LIMIT;
+            goto done;
+        }
+        struct stat st;
+        if (pkg_fs_path_is_link(absolute) != 0 || lstat(absolute, &st) ||
+            !S_ISREG(st.st_mode)) {
+            code = ak_fail(error, APKG_INVALID,
+                           "declared application record is missing or linked", name);
+            goto done;
+        }
+        if (leaf) {
+            *leaf = 0;
+            if (ak_path(selected, container, path)) {
+                code = APKG_LIMIT;
+                goto done;
+            }
+        } else
+            strcpy(selected, container);
+    }
+    if (!applications) {
+        code = ak_fail(error, APKG_NOT_FOUND,
+                       "installed package declares no application.json", name);
+        goto done;
+    }
+    if (pkg_fs_canonical_dir(selected, absolute, sizeof absolute) ||
+        strcmp(selected, absolute)) {
+        code = ak_fail(error, APKG_INVALID,
+                       "application folder is missing or contains a link", name);
+        goto done;
+    }
+    *out = ak_copy(selected, strlen(selected));
+    code = *out ? APKG_OK : APKG_NOMEM;
+done:
+    ak_json_free(&descriptor);
+    apkg_inspection_free(inspection);
+    return code;
+}
 apkg_status apkg_client_run(const char *root, const char *name,
                             apkg_error **e) {
-    char *folder = NULL;
+    char *folder = NULL, *application = NULL;
     apkg_ctx *c = NULL;
     apkg_snapshot *s = NULL;
     apkg_status code = apkg_client_folder(root, name, &folder, e);
@@ -611,9 +703,12 @@ apkg_status apkg_client_run(const char *root, const char *name,
     if (!code && s->view.state != APKG_ROOT_READY)
         code = APKG_RECOVERY_REQUIRED;
     if (!code)
-        code = apkg_bundle_run(folder, s->target, e);
+        code = launch_folder(s, name, folder, &application, e);
+    if (!code)
+        code = apkg_bundle_run(application, s->target, e);
     apkg_snapshot_free(s);
     apkg_close(c);
     free(folder);
+    free(application);
     return code;
 }

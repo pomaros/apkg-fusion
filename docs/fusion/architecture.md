@@ -120,6 +120,13 @@ the target application's loader can actually use.
 
 ## Applications and systems
 
+Managed Run resolves a unique declared `application.json` in the installed
+descriptor, including an application inside a package subdrawer. It does not
+scan live files or select an undeclared replacement. Multiple declared
+application roots require explicit disambiguation and are refused by the
+current single-application interface. A linked application record or drawer
+refuses before launch; unregistered bundles use the same contained inspection.
+
 An autonomous bundle carries `application.json`. Its launch paths are relative
 to the bundle, and launching requires no registry entry. Managed updates,
 adoption and movement add management without making it a prerequisite for

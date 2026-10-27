@@ -205,6 +205,15 @@ binaries, test roots and recovery fixtures stay separate, and native results
 are recorded by exact build. That rehearsal does not establish power-loss
 durability or qualification of other distributions.
 
+Further portal implementation is outside the current execution sequence. Follow
+the [non-portal checklist](docs/fusion/non-portal-checklist.md), finish its assigned
+implementation, validate locally on macOS and in Linux/macOS CI, then test the
+resulting candidate on the M1. Stop there and deliver a detailed merge report
+comparing the product with original APKG, including additions, intentional
+compatibility changes, evidence and remaining limits. Resume the portal only on
+a later operator instruction. The earlier RAM component rehearsal does not close
+unfinished client or migration work.
+
 Other AROS execution and power-loss/distribution tests remain deferred. This goal
 changes no OS repository and authorizes no deployment, live portal cutover,
 maintainer contact or joint-release announcement. Actual production inventory,

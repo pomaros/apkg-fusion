@@ -35,6 +35,71 @@ def members(path):
  return out
 
 class Authors(unittest.TestCase):
+ def test_authored_application_runs_from_its_declared_nested_bundle(self):
+  with tempfile.TemporaryDirectory() as temporary:
+   d=Path(temporary);source=d/'App';author_fixture(source,kind='app',launch=True)
+   key=key_fixture(d/'key');archive=d/'app.pkg'
+   result=build(source,archive,key);self.assertEqual(result.returncode,0,result.stderr)
+   root,_=clients.OperationClients().setup_root_package(d,'installed')
+   clients.OperationClients().commit('install',root,archive)
+   before=(root/'.apkg/state').read_bytes()
+   result=cli('run',root,'demo')
+   self.assertEqual(result.returncode,2,result.stdout+result.stderr)
+   self.assertIn('AROS execution is unavailable on this host',result.stderr)
+   # A live file not declared by the package cannot override its application.
+   (root/'demo/application.json').write_text('{}')
+   result=cli('run',root,'demo');self.assertEqual(result.returncode,2,result.stderr)
+   worker=subprocess.run([str(clients.WORKER),str(root),'demo','12'],capture_output=True,text=True)
+   self.assertEqual(worker.returncode,0,worker.stdout+worker.stderr)
+   self.assertEqual((root/'.apkg/state').read_bytes(),before)
+
+ def test_managed_launch_refuses_ambiguous_declared_applications(self):
+  with tempfile.TemporaryDirectory() as temporary:
+   d=Path(temporary);source=d/'App';author_fixture(source,kind='app',launch=True)
+   (source/'other').mkdir();(source/'other/application.json').write_text('{}')
+   key=key_fixture(d/'key');archive=d/'app.pkg'
+   result=build(source,archive,key);self.assertEqual(result.returncode,0,result.stderr)
+   root,_=clients.OperationClients().setup_root_package(d,'installed')
+   clients.OperationClients().commit('install',root,archive)
+   before=(root/'.apkg/state').read_bytes()
+   result=cli('run',root,'demo');self.assertEqual(result.returncode,14,result.stdout+result.stderr)
+   self.assertIn('multiple application roots',result.stderr)
+   self.assertEqual((root/'.apkg/state').read_bytes(),before)
+
+ def test_managed_launch_refuses_linked_or_missing_declared_application(self):
+  with tempfile.TemporaryDirectory() as temporary:
+   d=Path(temporary);source=d/'App';author_fixture(source,kind='app',launch=True)
+   key=key_fixture(d/'key');archive=d/'app.pkg'
+   result=build(source,archive,key);self.assertEqual(result.returncode,0,result.stderr)
+   root,_=clients.OperationClients().setup_root_package(d,'installed')
+   clients.OperationClients().commit('install',root,archive)
+   before=(root/'.apkg/state').read_bytes();record=root/'demo/App/application.json'
+   outside=d/'outside.json';record.rename(outside)
+   for linked in (False,True):
+    if linked:record.symlink_to(outside)
+    result=cli('run',root,'demo');self.assertEqual(result.returncode,1,result.stdout+result.stderr)
+    if linked:record.unlink()
+   record.write_bytes(outside.read_bytes())
+   drawer=root/'demo/App';moved=d/'outside-drawer';drawer.rename(moved);drawer.symlink_to(moved,target_is_directory=True)
+   result=cli('run',root,'demo');self.assertEqual(result.returncode,1,result.stdout+result.stderr)
+   self.assertEqual((root/'.apkg/state').read_bytes(),before)
+
+ def test_managed_launch_allocation_failures_leave_installed_state_unchanged(self):
+  lib.apkg_client_run.argtypes=[C.c_char_p,C.c_char_p,C.c_void_p];lib.apkg_client_run.restype=C.c_int
+  with tempfile.TemporaryDirectory() as temporary:
+   d=Path(temporary);source=d/'App';author_fixture(source,kind='app',launch=True)
+   key=key_fixture(d/'key');archive=d/'app.pkg'
+   result=build(source,archive,key);self.assertEqual(result.returncode,0,result.stderr)
+   root,_=clients.OperationClients().setup_root_package(d,'installed')
+   clients.OperationClients().commit('install',root,archive)
+   before=(root/'.apkg/state').read_bytes()
+   for fault in range(1,201):
+    lib.apkg_test_fail_alloc(fault)
+    try:code=lib.apkg_client_run(str(root).encode(),b'demo',None)
+    finally:lib.apkg_test_fail_alloc(0)
+    self.assertIn(code,(2,4),'allocation %d: %d'%(fault,code))
+   self.assertEqual((root/'.apkg/state').read_bytes(),before)
+
  def test_real_toml_ameta_archive_cli_worker_and_unchanged_source(self):
   with tempfile.TemporaryDirectory() as d:
    d=Path(d);source=d/'Drawer';mp=author_fixture(source);icon=d/'Drawer.info';icon.write_bytes(b'icon fixture');mp.write_text(mp.read_text()+'icon = \"Drawer.info\"\n');key=key_fixture(d/'key');before={p.name:p.read_bytes() for p in source.iterdir() if p.is_file()};out=d/'package.pkg';result=build(source,out,key);self.assertEqual(result.returncode,0,result.stderr);answer=json.loads(result.stdout);self.assertEqual(answer['public_key'],PK.hex());self.assertEqual(answer['publication_mode'],'unpublished');packed=members(out);self.assertEqual(packed['signature.json'],sign(packed['descriptor.json']));descriptor=json.loads(packed['descriptor.json']);self.assertEqual(descriptor['body']['revision'],'3');self.assertEqual(descriptor['body']['version'],'1.2');files=descriptor['body']['files'];self.assertIn('Drawer/Empty',[f['path'] for f in files]);self.assertIn('Drawer/.hidden',[f['path'] for f in files]);self.assertFalse(any(f['path'].endswith('.ameta') for f in files));original=next(f for f in files if f['path']=='Drawer/Package.arospkg.toml');self.assertEqual(packed['objects/'+original['blob']],mp.read_bytes());self.assertEqual(before,{p.name:p.read_bytes() for p in source.iterdir() if p.is_file()})

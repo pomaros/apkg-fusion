@@ -7,6 +7,11 @@ from pathlib import Path
 from test_client import cli
 from support import TARGET
 class Bundles(unittest.TestCase):
+ def test_unregistered_bundle_refuses_linked_application_record(self):
+  with tempfile.TemporaryDirectory() as d:
+   folder,_=self.bundle(d);outside=Path(d)/'outside.json'
+   (folder/'application.json').rename(outside);(folder/'application.json').symlink_to(outside)
+   self.assertEqual(cli('bundle-check',folder,TARGET).returncode,6)
  def bundle(self,d):
   folder=Path(d)/'unregistered application';folder.mkdir();binary=bytearray(64);binary[:7]=b'\x7fELF\x02\x01\x01';binary[18:20]=(62).to_bytes(2,'little');(folder/'program').write_bytes(binary)
   app=dict(schema=1,id='demo',name='Demo',version='1.0',revision=1,targets=[dict(os='aros',arch='x86_64',abi='v11')],launch=dict(mode='shell',executable='program',working_directory='.'))

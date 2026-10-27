@@ -66,8 +66,12 @@ static apkg_status inspect(const char *folder, const char *target,
     if (pkg_fs_canonical_dir(folder, canonical, AK_PATH))
         return ak_fail(e, APKG_IO, "cannot resolve application folder", folder);
     if (ak_path(path, canonical, "application.json") ||
-        ak_read(path, &raw, &len, PKG_APPLICATION_MAX_SIZE))
+        pkg_fs_path_is_link(path) != 0 ||
+        ak_read(path, &raw, &len, PKG_APPLICATION_MAX_SIZE)) {
+        if (errno == ENOMEM)
+            code = APKG_NOMEM;
         goto done;
+    }
     if (pkg_application_parse((char *)raw, len, app, why, sizeof why)) {
         code = ak_fail(e, APKG_INVALID, why, path);
         goto done;

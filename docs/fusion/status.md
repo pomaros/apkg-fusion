@@ -11,6 +11,12 @@ implemented below; remaining service/operation integration is listed separately.
 
 ## Alpha progress at a glance
 
+The active execution sequence stops before further portal work: close the
+[non-portal checklist](non-portal-checklist.md), qualify the resulting source on
+macOS/Linux, test that candidate on the M1, then deliver the detailed APKG merge
+comparison. The existing portal checkpoints below are partial work, not grounds
+to bypass unfinished non-portal integration or to resume the portal automatically.
+
 | Workstream | Current position | Work still required |
 |---|---|---|
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
@@ -26,6 +32,38 @@ workspace scenario and exact-source Linux/macOS CI must qualify the resulting
 product. The isolated M1 RAM component profile below passes; broader native qualification
 remains open. Portal adaptation follows this rehearsal; deployment and live
 portal cutover remain outside this run.
+
+## Managed authored-application launch checkpoint
+
+The non-portal closure review reproduced a real authoring/client integration
+failure: a TOML-built application installs `App/application.json` below its
+package container, but managed Run inspected the container itself and returned
+I/O failure. Managed Run now resolves a unique application record from the
+committed descriptor before calling the shared bundle launcher. Undeclared live
+files cannot override that choice. Multiple declared roots, linked/missing
+records and escaping/linked application drawers refuse. Direct unregistered
+bundle inspection also refuses a linked application record.
+
+Evaluation: `make test-fusion` passes locally on macOS with **357 common tests**,
+worker/dispatcher checks and the default-product/publication scenarios. The
+focused authoring/bundle/installed-browser group has **26 passing tests**.
+The full sanitizer gate passes **253 tests**; CLI/worker subprocesses are
+instrumented while direct ctypes allocation faults use the normal test library.
+The new real TOML/archive/install/Run case failed before the fix and now reaches
+the explicit host runtime boundary through both CLI and actual worker code.
+Ambiguity, undeclared overrides, link/missing-record refusals, allocation faults
+and unchanged installed state are covered. Documentation links pass across
+79 files. This is native macOS arm64 execution of the tool and its tests, not
+execution of an AROS application on macOS or a new M1 candidate verdict.
+Exact-source Linux/macOS CI remains pending for this checkpoint.
+
+The [closure checklist](non-portal-checklist.md) records further UI and migration
+integration still requiring review/work. The [merge report](merge-report.md)
+is a draft comparison with original APKG, not a completion verdict. The previous
+checkpoint [8851f1f](https://github.com/pomaros/apkg-fusion/commit/8851f1f7cc1d8a0ccb2c03d62779f247e60b52d1)
+passes [all exact-source CI jobs](https://github.com/pomaros/apkg-fusion/actions/runs/40509781955),
+including both inherited suites, memory/integration gates and portal regressions
+on Linux/macOS. That result does not qualify the subsequent launch correction.
 
 ## Portal common-channel reading checkpoint
 
