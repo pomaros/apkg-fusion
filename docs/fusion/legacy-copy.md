@@ -95,17 +95,19 @@ bytes from unavailable/unresolved references.
 This profile interprets schema-1 installed records with file baselines.
 Recorded `depends`, `conflicts`, `replaces` and `recommends` are read in
 arospkg's own syntax (`id` or `id >= dotted.version`, and recommendation
-objects) and must equal the signed artifact's relations family by family, by
-name and minimum version; an absent minimum is `0`. A legacy record cannot
-state an authority, a target or a revision floor, so those come only from the
-signed artifact, and the common engine checks the imported set's dependency
-closure. Before anything is copied, the recorded set must be consistent on
+objects) and must equal the signed artifact's recorded relation families by
+name and minimum version; an absent minimum is the empty string, not
+ordered version `0`. Identity comes from the selected imported artifacts or
+explicit absent-identity mappings, with the root target and revision floor zero.
+The common engine checks the imported set's dependency closure. Before anything is copied, the recorded set must be consistent on
 its own: every recorded dependency is installed, and no recorded conflict or
 replacement names an installed package. A recommendation's reason stays in the
 original record bytes; the
 common descriptor has no field for it. An unreadable or self-naming relation,
-or any difference, refuses. System requirements still refuse: the common
-engine has no check for them yet. Owned icons at shared root destinations also
+or any difference, refuses. Recorded system requirements must equal the signed
+descriptor's by type, id and minimum version; arospkg's installation-time
+probe outcome for each stays in the retained record as history, and adoption
+does not probe again. Owned icons at shared root destinations also
 refuse. Unknown record fields refuse instead of disappearing.
 
 Launch metadata and settings are preserved as original bytes; this adapter does
@@ -115,3 +117,18 @@ compatibility and real distribution capture remain migration work. Native
 runtime, DOS/handler behavior and power-loss recovery require target evidence.
 No native execution, M1 updater migration, portal migration or live cutover is
 performed by this host rehearsal. See [status](status.md) for exact test scope.
+
+### Relation namespace and minimum preservation
+
+An unversioned legacy relation maps to an empty minimum version and revision
+zero, never the ordered version `0`. Recorded relations must retain the exact
+minimum and have no additional packaging revision floor. References to an
+imported package must match that selected artifact's authority and target.
+Absent package identities are supplied explicitly through optional mapping
+`identities` rows with `name`, `authority` and `target`; each target must agree
+with the legacy root's selected target. No publisher namespace is inferred from
+a bare legacy id. Unmapped or contradictory bindings refuse preparation.
+
+The upstream installed-record writer deliberately omits recommendations.
+Their absence is unrecorded evidence, distinct from an explicitly recorded empty
+list. Explicitly recorded recommendations are compared like the other families.

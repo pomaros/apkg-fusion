@@ -279,14 +279,14 @@ class MigrationCopies(unittest.TestCase):
 class MigrationRelations(unittest.TestCase):
     """Recorded legacy relations import only when the signed artifacts state
     the same names and minimum versions."""
-    def fixture(self, d, demo_relations, signed_depends):
+    def fixture(self, d, demo_relations, signed_depends, signed_system=None):
         base = Path(d); source = base / 'original'; (source / 'db/installed').mkdir(parents=True)
         template = json.loads((ROOT / 'tests/fixtures/migration/registry-current.json').read_bytes())
         artifacts = []
         for name, content, legacy, signed in (
                 ('map-demo', b'demo program\n', demo_relations,
                  dict(conflicts=[], depends=signed_depends,
-                      recommends=[dict(authority=AUTH, min_revision='0', min_version='0', name='map-extra', target=TARGET)],
+                      recommends=[dict(authority=AUTH, min_revision='0', min_version='', name='map-extra', target=TARGET)],
                       replaces=[])),
                 ('map-lib', b'library\n', {}, None)):
             record = copy.deepcopy(template); record.update(name=name, dir=name, version='1.2', revision=1, reason='explicit')
@@ -298,12 +298,14 @@ class MigrationRelations(unittest.TestCase):
             data['body'].update(version='1.2', revision='1')
             if signed:
                 data['body']['relations'] = signed
+                if signed_system:
+                    data['body']['requires_system'] = signed_system
             data = json.dumps(data, sort_keys=True, separators=(',', ':')).encode()
             artifact = base / ('artifact-' + name); artifact.mkdir()
             (artifact / 'descriptor.json').write_bytes(data); (artifact / 'signature.json').write_bytes(sign(data))
             artifacts.append(dict(name=name, artifact=str(artifact)))
         mapping = base / 'mapping.json'
-        mapping.write_bytes(canonical(dict(format='apkg-legacy-import-1', legacy_root='', packages=artifacts)))
+        mapping.write_bytes(canonical(dict(format='apkg-legacy-import-1', legacy_root='', packages=artifacts, identities=[dict(name='map-extra',authority=AUTH,target=TARGET)])))
         seed = base / 'policy.json'; seed.write_bytes(policy())
         return source, base / 'copy', mapping, seed
     def helper(self, *args):
@@ -332,6 +334,38 @@ class MigrationRelations(unittest.TestCase):
         for legacy, signed, message in cases:
             with self.subTest(message=message), tempfile.TemporaryDirectory() as d:
                 source, copy_root, mapping, seed = self.fixture(d, legacy, signed)
+                before = migration.inventory(source)
+                result = self.helper('prepare', source, copy_root, mapping, seed, TARGET, '--quiescent')
+                self.assertNotEqual(result.returncode, 0); self.assertIn(message, result.stdout + result.stderr)
+                self.assertEqual(migration.inventory(source), before)
+
+class MigrationSystem(MigrationRelations):
+    """Recorded system requirements import when the signed artifact declares
+    the same ones; arospkg's probe outcomes stay in the retained record."""
+    RECORDED = dict(requires_system=[dict(type='library', id='crt.library', min_version=0, state='satisfied',
+                                          found_version=3, checked='opens, version 3')])
+    def signed(self, minimum='0'): return [dict(id='crt.library', min_version=minimum, type='library')]
+
+    def test_matching_relations_import_with_their_dependency(self):
+        with tempfile.TemporaryDirectory() as d:
+            source, copy_root, mapping, seed = self.fixture(d, dict(self.LEGACY, **self.RECORDED), self.depends('1.0'), self.signed())
+            prepared = self.helper('prepare', source, copy_root, mapping, seed, TARGET, '--quiescent')
+            self.assertEqual(prepared.returncode, 0, prepared.stdout + prepared.stderr)
+            receipt = json.loads(prepared.stdout)
+            self.assertEqual({o['name']: o['system'] for o in receipt['observations']},
+                             {'map-demo': 'recorded; installation-time outcomes retained as history', 'map-lib': 'none recorded'})
+            done = self.helper('commit', copy_root, '--confirm', receipt['approval']); self.assertEqual(done.returncode, 0, done.stderr)
+            installed = {e['descriptor']['body']['name']: e for e in json.loads((copy_root / '.apkg/state').read_bytes())['body']['installed']}
+            self.assertEqual(installed['map-demo']['descriptor']['body']['requires_system'], self.signed())
+
+    def test_a_different_signed_minimum_or_an_unreadable_legacy_relation_refuses(self):
+        cases = ((self.RECORDED, self.signed('2'), 'signed system requirements differ'),
+                 ({}, self.signed(), 'signed system requirements differ'),
+                 (dict(requires_system=[dict(type='library')]), self.signed(), 'unreadable legacy system requirement'),
+                 (dict(requires_system=[dict(type='library', id='crt.library', min_version='1')]), self.signed(), 'unreadable legacy system requirement'))
+        for legacy, signed, message in cases:
+            with self.subTest(message=message, legacy=legacy), tempfile.TemporaryDirectory() as d:
+                source, copy_root, mapping, seed = self.fixture(d, dict(self.LEGACY, **legacy), self.depends('1.0'), signed)
                 before = migration.inventory(source)
                 result = self.helper('prepare', source, copy_root, mapping, seed, TARGET, '--quiescent')
                 self.assertNotEqual(result.returncode, 0); self.assertIn(message, result.stdout + result.stderr)

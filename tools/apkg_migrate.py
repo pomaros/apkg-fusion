@@ -25,6 +25,8 @@ SHA = re.compile(r'[0-9a-f]{64}\Z')
 # dotted-number minimum.
 DEPEND = re.compile(r'([a-z][a-z0-9._-]{0,63})(?: >= ([0-9]{1,9}(?:\.[0-9]{1,9}){0,7}))?\Z')
 VERSION = re.compile(r'[0-9]{1,9}(?:\.[0-9]{1,9}){0,7}\Z')
+REQ_TYPE = re.compile(r'[a-z]{1,23}\Z')
+REQ_ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,62}\Z')
 FAMILIES = ('conflicts', 'depends', 'recommends', 'replaces')
 
 class Refused(Exception):
@@ -158,7 +160,7 @@ def identity(path):
     return [st.st_dev, st.st_ino]
 
 def legacy_relations(record):
-    """Each family as a set of (name, minimum version); '0' means any. Names and
+    """Each family as a set of (name, minimum version); '' means any. Names and
     minimums are what a legacy registry can state. Authority, target and
     revision floors come only from the signed artifact."""
     out = {}
@@ -169,7 +171,7 @@ def legacy_relations(record):
         for item in items:
             hit = DEPEND.match(item) if isinstance(item, str) else None
             require(hit and (family == 'depends' or hit.group(2) is None), 'unreadable legacy relation: ' + family)
-            found.add((hit.group(1), hit.group(2) or '0'))
+            found.add((hit.group(1), hit.group(2) or ''))
         require(len(found) == len(items), 'duplicate legacy relation: ' + family)
         out[family] = found
     items = record.get('recommends', [])
@@ -181,12 +183,32 @@ def legacy_relations(record):
                 isinstance(item.get('reason', ''), str) and
                 ('min_version' not in item or (isinstance(item['min_version'], str) and VERSION.match(item['min_version']))),
                 'unreadable legacy relation: recommends')
-        found.add((item['id'], item.get('min_version') or '0'))
+        found.add((item['id'], item.get('min_version') or ''))
     require(len(found) == len(items), 'duplicate legacy relation: recommends')
     out['recommends'] = found
     names = [name for family in ('depends', 'conflicts', 'replaces') for name, _ in out[family]]
     require(record.get('name') not in names, 'a legacy relation names its own package')
     return out
+
+def legacy_system(record):
+    """Recorded requirements as a set of (type, id, minimum). The registry also
+    keeps arospkg's installation-time probe outcome per entry; that stays in
+    the retained original record as history and is never current evidence."""
+    items = record.get('requires_system', [])
+    require(isinstance(items, list) and len(items) <= 16, 'invalid legacy requirement list')
+    found = set()
+    for item in items:
+        require(isinstance(item, dict) and {'type', 'id'} <= set(item) and
+                not set(item) - {'type', 'id', 'min_version', 'state', 'found_version', 'checked'} and
+                isinstance(item['type'], str) and REQ_TYPE.fullmatch(item['type']) and
+                isinstance(item['id'], str) and REQ_ID.fullmatch(item['id']) and
+                type(item.get('min_version', 0)) is int and 0 <= item.get('min_version', 0) <= 65535 and
+                item.get('state', 'undetermined') in ('satisfied', 'missing', 'undetermined') and
+                type(item.get('found_version', -1)) is int and isinstance(item.get('checked', ''), str),
+                'unreadable legacy system requirement')
+        found.add((item['type'], item['id'], str(item.get('min_version', 0))))
+    require(len(found) == len(items), 'duplicate legacy system requirement')
+    return found
 
 def package_evidence(record, raw):
     allowed = {'schema','name','version','revision','arch','abi','subdir','installed',
@@ -208,8 +230,7 @@ def package_evidence(record, raw):
             type(record.get('archive_size')) is int and 0 <= record['archive_size'] < 2**64, 'invalid original archive identity')
     for field in ('origin','subdir','installed'):
         require(isinstance(record.get(field), str), 'invalid legacy text field: ' + field)
-    require(isinstance(record.get('requires_system', []), list) and not record.get('requires_system'),
-            'legacy semantics require an explicit adapter: requires_system')
+    legacy_system(record)
     legacy_relations(record)
     icon = record.get('icon', {})
     require(isinstance(icon, dict) and icon.get('state', 'none') in ('none','kept-existing'),
@@ -236,9 +257,19 @@ def inspect_source(source, mapping):
     transactions = source/'db/transactions'
     require(not transactions.exists() or not any(transactions.iterdir()), 'legacy transactions require recovery')
     require(not any(Path(r['path']).name == 'self-update.json' for r in rows), 'self-update state requires recovery inspection')
-    require(isinstance(mapping, dict) and set(mapping) == {'format','legacy_root','packages'} and
+    require(isinstance(mapping, dict) and {'format','legacy_root','packages'} <= set(mapping) and not set(mapping) - {'format','legacy_root','packages','identities'} and
             mapping['format'] == 'apkg-legacy-import-1' and isinstance(mapping['legacy_root'], str), 'invalid explicit mapping')
     require(isinstance(mapping['packages'], list) and 0 < len(mapping['packages']) <= 128, 'mapping count outside 1..128')
+    identities = mapping.get('identities', [])
+    require(isinstance(identities,list) and len(identities)<=128,'invalid identity mapping')
+    seen=set()
+    for item in identities:
+        require(isinstance(item,dict) and set(item)=={'name','authority','target'} and
+                isinstance(item['name'],str) and NAME.fullmatch(item['name']) and
+                item['name'] not in seen and isinstance(item['authority'],str) and
+                re.fullmatch(r'[0-9a-f]{32}',item['authority']) and isinstance(item['target'],str),
+                'invalid or duplicate relation identity mapping')
+        seen.add(item['name'])
     mapped = {}
     for item in mapping['packages']:
         require(isinstance(item, dict) and set(item) == {'name','artifact'} and
@@ -275,6 +306,8 @@ def inspect_source(source, mapping):
             revision='recorded' if 'revision' in record else 'unrecorded; compatibility default 0',
             relations=('recorded-empty' if not any(legacy_relations(record).values()) else 'recorded')
                 if 'relations_schema' in record else 'unrecorded',
+            system=('recorded; installation-time outcomes retained as history' if record.get('requires_system')
+                    else 'none recorded'),
             launch='original record retained; no launch performed', history=history,
             legacy_rollback='not converted; retained records are not common rollback history'))
     require(set(records) == set(mapped), 'mapping and installed registry sets differ')
@@ -317,9 +350,14 @@ def copy_inventory(source, destination, rows):
         target.chmod(row['mode']);set_attributes(target,row['attributes'])
     require(inventory(destination) == rows, 'copied tree differs from captured source')
 
-def validate_selected(records, plan):
+def validate_selected(records, plan, mapping=None):
     installed = plan['body']['new_state']['body']['installed']
     require(len(installed) == len(records), 'common plan changed the import set')
+    identities={entry['descriptor']['body']['name']:(entry['descriptor']['body']['authority'],entry['descriptor']['body']['target']) for entry in installed}
+    for item in (mapping or {}).get('identities',[]):
+        binding=(item['authority'],item['target'])
+        require(item['name'] not in identities or identities[item['name']]==binding,'identity mapping contradicts selected artifact')
+        identities[item['name']]=binding
     for entry in installed:
         body = entry['descriptor']['body']; record = records.get(body['name'])
         require(record is not None and body['version'] == record['version'] and
@@ -327,10 +365,19 @@ def validate_selected(records, plan):
         target = body['target'].split('-')
         require(len(target) == 4 and target[0] == record.get('arch') and
                 (not record.get('abi') or target[2] == record['abi']), 'artifact target mapping differs from legacy facts')
+        signed_system = {(r['type'], r['id'], r['min_version']) for r in body.get('requires_system', [])}
+        require(signed_system == legacy_system(record), 'signed system requirements differ from the recorded ones')
         if 'relations_schema' in record:
             signed = body.get('relations', {})
             want = legacy_relations(record)
             for family in FAMILIES:
+                # arospkg's registry writer intentionally omitted recommendations.
+                if family=='recommends' and family not in record:continue
+                for r in signed.get(family,[]):
+                    require(r['name'] in identities,'unmapped legacy relation identity: '+r['name'])
+                    require((r['authority'],r['target'])==identities[r['name']] and
+                            r['target']==body['target'] and r['min_revision']=='0',
+                            'signed relation identity, target or revision floor differs from legacy scope')
                 got = {(r['name'], r['min_version']) for r in signed.get(family, [])}
                 require(len(got) == len(signed.get(family, [])) and got == want[family],
                         'signed relations differ from recorded relations: ' + family)
@@ -355,7 +402,7 @@ def prepare(args):
     run(args.apkg,'init',destination,args.target,archive/'policy.json','--yes')
     raw_plan = run(args.apkg,'adopt-set',destination,archive/'adoption-set.json','--json',expected=16).strip()
     plan = decode(raw_plan); require(canonical(plan) == raw_plan, 'engine returned a noncanonical plan')
-    validate_selected(records,plan)
+    validate_selected(records,plan,mapping)
     require(identity(source) == source_id and inventory(source) == rows, 'source changed during preparation')
     body = dict(source=str(source),source_identity=source_id,source_inventory=rows,
                 destination=str(destination),destination_identity=identity(destination),

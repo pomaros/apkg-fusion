@@ -43,6 +43,12 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
             return APKG_LIMIT;
         cap += policy_size * 2;
     }
+    if (p->requirements) {
+        size_t size = strlen(p->requirements);
+        if (size > (AK_MAX - cap) / 2)
+            return APKG_LIMIT;
+        cap += size * 2;
+    }
     text = malloc(cap);
     if (!text)
         return APKG_NOMEM;
@@ -120,6 +126,20 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
                 }
             }
         }
+    }
+    if (p->requirements) {
+        ak_buf lines = {0};
+        lines.max = cap;
+        apkg_status code = ak_system_format(p->requirements, &lines);
+        if (!code && lines.bad)
+            code = (apkg_status)lines.bad;
+        if (code || append(text, cap, &used, "%s\n", lines.data + 1)) {
+            free(lines.data);
+            ak_json_free(&j);
+            free(text);
+            return code ? code : APKG_LIMIT;
+        }
+        free(lines.data);
     }
     if (append(text, cap, &used, "All planned effects:\n"))
         goto limit;

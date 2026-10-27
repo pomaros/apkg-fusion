@@ -388,7 +388,7 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
              s->qualification_records, id, s->sources_field, s->target);
     r = ak_make_plan(c, s, record, p->raw, p->name, out, e);
     if (!r) {
-        r = ak_plan_bind(c, *out, &p, 1);
+        r = ak_plan_bind(c, *out, &p, 1, e);
         if (r) {
             apkg_plan_free(*out);
             *out = NULL;
@@ -429,6 +429,7 @@ void apkg_plan_free(apkg_plan *p) {
     free(p->changes);
     free(p->before_state);
     free(p->origins);
+    free(p->requirements);
     free(p);
 }
 apkg_status apkg_plan_approve(apkg_ctx *c, const apkg_plan *p,

@@ -73,54 +73,118 @@ apkg_status ak_plan_origins_check(apkg_ctx *c, const apkg_plan *p,
     ak_json_free(&j);
     return code;
 }
-apkg_status ak_plan_bind(apkg_ctx *c, apkg_plan *p,
-                         const apkg_package *const *packages, size_t count) {
+/* Insert `"field":value` into the canonical plan body before `before`. */
+static apkg_status plan_insert(apkg_ctx *c, apkg_plan *p, const char *field,
+                               const char *value, const char *before) {
+    ak_buf raw = {0};
+    ak_json json = {0};
+    int parsed = ak_json_parse(p->raw, p->view.canonical.size, &json);
+    if (parsed)
+        return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+    int body = ak_member(&json, 0, "body");
+    int token = ak_member(&json, body, before);
+    if (token < 1 || !json.tokens[token - 1].start ||
+        p->raw[json.tokens[token - 1].start - 1] != ',') {
+        ak_json_free(&json);
+        return APKG_INVALID;
+    }
+    size_t offset = json.tokens[token - 1].start - 1;
+    ak_json_free(&json);
+    const char *at = p->raw + offset;
+    raw.max =
+        c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
+    ak_buf_add(&raw, "%.*s,\"%s\":%s%s", (int)(at - p->raw), p->raw, field,
+               value, at);
+    if (raw.bad) {
+        free(raw.data);
+        return (apkg_status)raw.bad;
+    }
+    free(p->raw);
+    p->raw = raw.data;
+    p->view.canonical.data = (unsigned char *)p->raw;
+    p->view.canonical.size = raw.size;
+    ak_hash(p->raw, raw.size, &p->view.plan_digest);
+    return APKG_OK;
+}
+static apkg_status bind_origins(apkg_ctx *c, apkg_plan *p,
+                                const apkg_package *const *packages,
+                                size_t count) {
     const char *records[256];
     size_t n = 0;
-    ak_buf list = {0}, raw = {0};
-    if (count > 256 || p->origins)
-        return APKG_LIMIT;
+    ak_buf list = {0};
     for (size_t i = 0; i < count; i++)
         if (packages[i]->origin)
             records[n++] = packages[i]->origin;
     if (!n)
         return APKG_OK;
     qsort(records, n, sizeof *records, compare);
-    list.max = raw.max =
+    list.max =
         c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
     ak_buf_add(&list, "[");
     for (size_t i = 0; i < n; i++)
         if (!i || strcmp(records[i - 1], records[i]))
             ak_buf_add(&list, "%s%s", list.size > 1 ? "," : "", records[i]);
     ak_buf_add(&list, "]");
-    const char *at = strstr(p->raw, ",\"root_path\":");
-    if (!at) {
+    if (list.bad) {
         free(list.data);
-        return APKG_INVALID;
-    }
-    if (!list.bad)
-        ak_buf_add(&raw, "%.*s,\"origins\":%s%s", (int)(at - p->raw), p->raw,
-                   list.data, at);
-    if (list.bad || raw.bad) {
-        apkg_status code = list.bad ? list.bad : raw.bad;
-        free(list.data);
-        free(raw.data);
-        return code;
+        return (apkg_status)list.bad;
     }
     /* Validate before publishing new canonical plan bytes. No side effects. */
     apkg_plan candidate = *p;
     candidate.origins = list.data;
     apkg_status code = ak_plan_origins_check(c, &candidate, NULL);
+    if (!code)
+        code = plan_insert(c, p, "origins", list.data, "root_path");
     if (code) {
         free(list.data);
-        free(raw.data);
         return code;
     }
-    free(p->raw);
-    p->raw = raw.data;
     p->origins = list.data;
-    p->view.canonical.data = (unsigned char *)p->raw;
-    p->view.canonical.size = raw.size;
-    ak_hash(p->raw, raw.size, &p->view.plan_digest);
     return APKG_OK;
+}
+/* Plans that bring packages in observe their system requirements; adoption,
+ * repair and rollback restore what the machine already ran. */
+static apkg_status bind_requirements(apkg_ctx *c, apkg_plan *p,
+                                     const apkg_package *const *packages,
+                                     size_t count, apkg_error **e) {
+    char *list = NULL;
+    apkg_status code;
+    if (p->view.kind != APKG_PLAN_INSTALL &&
+        p->view.kind != APKG_PLAN_UPGRADE && p->view.kind != APKG_PLAN_RESOLVE)
+        return APKG_OK;
+    code = ak_system_observe(
+        packages, count,
+        c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32,
+        &list, e);
+    if (code || !list)
+        return code;
+    /* "origins" < "requirements" < "root_path" in canonical key order. */
+    code = plan_insert(c, p, "requirements", list, "root_path");
+    if (code) {
+        free(list);
+        return code;
+    }
+    p->requirements = list;
+    return APKG_OK;
+}
+apkg_status ak_plan_bind(apkg_ctx *c, apkg_plan *p,
+                         const apkg_package *const *packages, size_t count,
+                         apkg_error **e) {
+    apkg_status code;
+    if (count > 256 || p->origins || p->requirements)
+        return APKG_LIMIT;
+    code = bind_origins(c, p, packages, count);
+    if (!code)
+        code = bind_requirements(c, p, packages, count, e);
+    return code;
+}
+
+/* Revalidate both kinds of mutable inputs at every pre-decision boundary.
+ * Recovery after the durable decision deliberately never calls this. */
+apkg_status ak_plan_inputs_check(apkg_ctx *c, const apkg_plan *p,
+                                 const apkg_observer *o) {
+    apkg_status code = ak_plan_origins_check(c, p, o);
+    if (!code)
+        code = ak_plan_system_check(p);
+    return code;
 }

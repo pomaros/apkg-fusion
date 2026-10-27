@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
-# Build only: no running OS is started or modified.
+# AArch64 SDK profile, hosted or native. Build only: no OS is started or modified.
 set -eu
 : "${APKG_AROS_SDK:?set APKG_AROS_SDK to an AROS target SDK root (containing AROS/Developer and gen)}"
 : "${APKG_AROS_TOOLS:?set APKG_AROS_TOOLS to the cross-toolchain root}"
@@ -9,13 +9,22 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 target=${APKG_AROS_TARGET:-aarch64-unknown-aros}
 abi=${APKG_AROS_ABI:-v1}
 case "$abi" in v0|v1|v11) ;; *) echo "invalid ABI" >&2; exit 2;; esac
-case "$target" in *[!a-zA-Z0-9._-]*|'') echo 'invalid target' >&2; exit 2;; esac
+# hosted reserves x18 for the host OS; native AROS does not and links
+# position-dependent with emulated TLS, like the native SDK's own programs.
+runtime=${APKG_AROS_RUNTIME:-hosted}
+case "$runtime" in
+hosted) runtime_flags="-ffixed-x18" ;;
+native) runtime_flags="-fno-pic -fno-pie -femulated-tls" ;;
+*) echo "invalid runtime" >&2; exit 2;;
+esac
+case "$target" in aarch64-unknown-aros) ;; *) echo 'this SDK profile supports aarch64-unknown-aros only' >&2; exit 2;; esac
 sdk=$APKG_AROS_SDK
 dev=$sdk/AROS/Developer
 cc=$APKG_AROS_TOOLS/bin/clang
 ar=$APKG_AROS_TOOLS/bin/llvm-ar
-out=$repo/build/aros-common/$target
-export COMPILER_PATH="$sdk/tools:$APKG_AROS_TOOLS/bin"
+out=$repo/build/aros-common/$target-$abi-$runtime
+# collect-aros lives in the SDK's tools, or beside a native build's host tools.
+export COMPILER_PATH="${APKG_AROS_HOST_TOOLS:-$sdk/tools}:$APKG_AROS_TOOLS/bin"
 for need in "$cc" "$ar" "$dev/lib/startup.o"; do [ -e "$need" ] || { echo "missing $need" >&2; exit 2; }; done
 mkdir -p "$out"
 cd "$repo"
@@ -34,7 +43,8 @@ for p in sorted(paths): h.update(str(p).encode()+b'\0'+p.read_bytes())
 print(h.hexdigest()[:16])
 BUILDID
 )
-set -- "--target=$target" "-DPKG_ABI=\"$abi\"" '-DPKG_RUNTIME="hosted"' "-DPKG_BUILD_ID=\"$build_id\"" -mcmodel=large -ffixed-x18 -O2 -std=gnu11 -DPKG_FS_LOCAL_ONLY -isystem "$dev/include" -isystem "$sdk/gen/include" -isystem "$sdk/gen/include/aros/posixc" -isystem "$dev/include/aros/stdc" -Iinclude -Isrc/apkg
+# shellcheck disable=SC2086
+set -- "--target=$target" "-DPKG_ABI=\"$abi\"" "-DPKG_RUNTIME=\"$runtime\"" "-DPKG_BUILD_ID=\"$build_id\"" -mcmodel=large $runtime_flags -O2 -std=gnu11 -DPKG_FS_LOCAL_ONLY -isystem "$dev/include" -isystem "$sdk/gen/include" -isystem "$sdk/gen/include/aros/posixc" -isystem "$dev/include/aros/stdc" -Iinclude -Isrc/apkg
 sources=$(make -s print-apkg-sources)
 # The source list consists of repository-owned relative paths without spaces.
 # shellcheck disable=SC2086

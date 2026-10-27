@@ -1024,7 +1024,7 @@ apkg_status apkg_plan_channel_accept(apkg_ctx *ctx, const apkg_snapshot *s,
         code = package_origin(channel, &source);
         const apkg_package *sources[] = {&source};
         if (!code)
-            code = ak_plan_bind(ctx, *out, sources, 1);
+            code = ak_plan_bind(ctx, *out, sources, 1, error);
         free(source.origin);
         if (code) {
             apkg_plan_free(*out);

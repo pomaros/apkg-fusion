@@ -217,22 +217,37 @@ checkpoints have code; their evidence is in [status](docs/fusion/status.md).
 The remaining non-portal work, in order:
 
 1. Trust administration and the root source list have code and host tests;
-   a signed key-endorsement format remains undefined.
-2. Channel sources: an explicit revocation/freshness policy for online
-   sources, and PkgManager controls for the root source list. Self-update
-   copies on other volumes wait for the multi-participant protocol.
+   broader official key endorsement/rotation remains a release-policy task.
+2. Finish PkgManager source-list controls and retain the current explicit
+   freshness limits. Wider online revocation policy and self-update copies
+   on other volumes remain broader release work.
 3. PkgManager: settings, news and the ARexx surface over the common client API.
-4. ALPHA-IMPORT completion: recorded relations import; system requirements,
-   placements, settings and launch conversion and prior-version history
-   remain. The command-compatibility adapter maps legacy `apkg` verbs onto the
-   root source list, so it needs the arospkg catalogue published as signed
-   channels first.
+4. ALPHA-IMPORT completion: recorded relations and system requirements
+   import; placements, settings and launch conversion and prior-version
+   history remain. The command-compatibility adapter maps legacy `apkg` verbs onto the
+   root source list and is rehearsed against local signed catalogue fixtures.
+   Production upstream catalogue publication is a separate rollout dependency.
 5. The clean-workspace alpha scenario has a host test; run it with both
    inherited suites and the portal tests in exact-source Linux/macOS CI.
 6. The isolated M1 runtime rehearsal, then PORTAL-MIGRATE.
 
 Host and native evidence stay distinct. An AROS type check is not runtime
 qualification, and no step above claims power-loss durability.
+
+## Alpha scope boundary
+
+The six ALPHA gates above retain their operator-authorized scope. Existing
+source-list, policy-administration, single-root self-update and system-probe
+code must meet their implemented contracts; their presence does not add an
+unbounded new release prerequisite. Multi-volume self-update, official key
+rotation/bootstrap and wider online revocation policy remain broader release
+obligations unless an alpha acceptance case explicitly requires them.
+
+Command compatibility can be developed and rehearsed against local signed
+catalogue fixtures. Production publication of an upstream catalogue and its
+maintainer approvals are separate rollout dependencies, not reasons to stop
+local adapter development. The isolated M1 rehearsal and portal order remain
+as requested by the operator.
 
 ## Bounded execution batches
 

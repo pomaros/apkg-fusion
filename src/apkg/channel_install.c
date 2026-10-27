@@ -135,8 +135,8 @@ apkg_status ak_plan_channels_install(apkg_ctx *ctx, const apkg_snapshot *s,
             goto done;
     }
     for (size_t visit = 0; visit < s->nrows + count; visit++) {
-        apkg_package *p =
-            visit < s->nrows ? installed[visit] : pool[visit - s->nrows].package;
+        apkg_package *p = visit < s->nrows ? installed[visit]
+                                           : pool[visit - s->nrows].package;
         int relations =
             ak_member(&p->json, ak_member(&p->json, 0, "body"), "relations");
         const char *families[] = {"depends", "recommends"};
@@ -149,7 +149,8 @@ apkg_status ak_plan_channels_install(apkg_ctx *ctx, const apkg_snapshot *s,
                  item < p->json.tokens[array].next;
                  item = p->json.tokens[item].next)
                 for (size_t k = 0; k < nchannels; k++) {
-                    uint64_t entries = apkg_channel_get(channels[k])->entry_count;
+                    uint64_t entries =
+                        apkg_channel_get(channels[k])->entry_count;
                     for (uint64_t index = 0; index < entries; index++) {
                         if (ak_cancelled(observer)) {
                             code = APKG_CANCELLED;
@@ -181,9 +182,9 @@ apkg_status ak_plan_channels_install(apkg_ctx *ctx, const apkg_snapshot *s,
                          * one already pooled from an earlier source. */
                         int duplicate = 0;
                         for (size_t x = 0; x < count && !duplicate; x++)
-                            duplicate = !memcmp(pool[x].package->digest.bytes,
-                                                row->descriptor_digest.bytes,
-                                                32);
+                            duplicate =
+                                !memcmp(pool[x].package->digest.bytes,
+                                        row->descriptor_digest.bytes, 32);
                         if (duplicate)
                             continue;
                         if (count == AK_CANDIDATES + 1) {
@@ -213,6 +214,15 @@ apkg_status ak_plan_channels_install(apkg_ctx *ctx, const apkg_snapshot *s,
      * from an earlier one, is a decision the resolver cannot make; source
      * order decides only in favour of the earlier source. The explicit
      * selection is the caller's own decision. */
+    char *observations = NULL;
+    code = ak_system_observe(
+        (const apkg_package *const *)resolution.packages, resolution.count,
+        ctx->object_max < ctx->memory_max / 32 ? ctx->object_max
+                                               : ctx->memory_max / 32,
+        &observations, error);
+    free(observations);
+    if (code)
+        goto done;
     for (size_t i = 0; i < resolution.count; i++) {
         const apkg_package *r = resolution.packages[i];
         size_t rc = 0;
@@ -255,8 +265,8 @@ apkg_status ak_plan_channels_install(apkg_ctx *ctx, const apkg_snapshot *s,
         }
         used[from] = 1;
         apkg_package *actual = NULL;
-        code = apkg_channel_fetch(ctx, channels[from], index, observer,
-                                  &actual, error);
+        code = apkg_channel_fetch(ctx, channels[from], index, observer, &actual,
+                                  error);
         apkg_package_free(actual);
         if (code)
             goto done;
@@ -293,7 +303,7 @@ apkg_status ak_plan_channels_install(apkg_ctx *ctx, const apkg_snapshot *s,
     if (!code) {
         code = ak_plan_bind(ctx, *out,
                             (const apkg_package *const *)resolution.packages,
-                            resolution.count);
+                            resolution.count, error);
         if (code) {
             apkg_plan_free(*out);
             *out = NULL;

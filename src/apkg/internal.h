@@ -156,6 +156,13 @@ int ak_stat(const char *, struct stat *);
 int ak_lstat(const char *, struct stat *);
 int ak_identity_known(const struct stat *);
 int ak_tree_find(const ak_json *, const char *);
+/* System requirements (system.c). */
+int ak_system_valid(const ak_json *, int);
+apkg_status ak_system_observe(const apkg_package *const *, size_t, size_t,
+                              char **, apkg_error **);
+int ak_requirements_valid(const ak_json *, int);
+apkg_status ak_plan_system_check(const apkg_plan *);
+apkg_status ak_system_format(const char *, ak_buf *);
 struct apkg_ctx {
     char root[AK_PATH], anchor[AK_PATH];
     struct stat binding;
@@ -225,6 +232,7 @@ struct apkg_plan {
     apkg_digest before;
     int absent;
     char *changes, *before_state, *origins;
+    char *requirements; /* system requirement observations, or NULL */
 };
 struct apkg_approval {
     unsigned char session[16];
@@ -259,7 +267,8 @@ apkg_status ak_make_plan(apkg_ctx *, const apkg_snapshot *, const char *,
 apkg_status ak_origin_check(apkg_ctx *, const ak_json *, int,
                             const apkg_observer *);
 apkg_status ak_plan_bind(apkg_ctx *, apkg_plan *, const apkg_package *const *,
-                         size_t);
+                         size_t, apkg_error **);
+apkg_status ak_plan_inputs_check(apkg_ctx *, const apkg_plan *, const apkg_observer *);
 apkg_status ak_plan_origins_check(apkg_ctx *, const apkg_plan *,
                                   const apkg_observer *);
 int ak_origins_valid(const ak_json *, int);

@@ -18,7 +18,7 @@ implemented below; remaining service/operation integration is listed separately.
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format, PkgManager source-list controls |
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
-| Legacy migration | Schema-1 host copy import with recorded relations, immutable approval and common recovery on pinned synthetic fixtures | System requirements, placements, active settings/launch/history conversion, script compatibility and distribution qualification |
+| Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures | Placements, active settings/launch/history conversion, script compatibility and distribution qualification |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
@@ -1503,7 +1503,22 @@ The import maps recorded legacy relations instead of refusing them; see the
 host cases import a dependent pair with a recommendation and its dependency
 together, and refuse a different signed minimum, an unreadable id, a
 conflicting family and a self-named relation with the original unchanged.
-System requirements remain a refusal.
+Recorded system requirements follow the same rule; see
+[system requirements](#system-requirements).
+
+## System requirements
+
+Signed [system requirements](data-model.md#targets-and-system-requirements)
+replace arospkg's unsigned `requires_system` index field. Eight engine cases
+cover a missing and a too-old library refusing before any change, satisfied
+and undetermined observations bound into the plan and shown, a package without
+requirements planning unchanged, an approved plan going stale when the machine
+changes, an upgrade probing the new release, eight malformed declarations,
+crashes before and after the decision, and TOML authoring through to a host
+plan that reports undetermined. Two import cases accept a recorded set equal
+to the signed one and refuse a different minimum, an undeclared signed
+requirement and unreadable records. The probe verdicts on AROS are exercised
+only by the M1 rehearsal.
 
 ## Clean-workspace alpha scenario
 
@@ -1519,6 +1534,44 @@ removes while the personal file stays. It runs in `make test-fusion` and under
 the sanitizers. It is host evidence: exact-source Linux/macOS CI, both
 inherited suites on the final source, the portal and native runtime remain
 separate gates.
+
+## Integration audit of source, trust and system additions
+
+The additional source-list, policy, single-root self-update and alpha-scenario
+work is retained. The complete inherited working-tree host integration baseline
+passed 311 common methods, but targeted cross-feature review reproduced missing
+coverage: channel system observations were inserted inside an origin object,
+requirements changing during staging could still commit, and an unversioned
+legacy/TOML relation was incorrectly encoded as ordered version zero.
+
+The corrections insert plan fields using parsed top-level body token positions,
+probe only resolved packages before fetching archives, and recheck requirements
+alongside source preconditions at every pre-decision boundary. A durable decision
+still recovers offline. Unversioned relations use an empty version and revision
+zero. Legacy imports verify authority/target and prohibit added revision floors;
+absent identities need an explicit namespace mapping. Omitted upstream registry
+recommendations remain unrecorded rather than becoming an asserted empty list.
+
+Eight added regression methods cover opaque/prerelease/zero-revision providers,
+TOML floors, channel plan framing and actual CLI/worker installation, pre-fetch
+refusal, stage/apply restoration, post-decision completion and legacy identity
+scope. The focused 18-method combination passed. The full host integration then
+passed 319 common methods, 78 default-product checks, 110 provisional CLI checks,
+78 publishing checks and the existing target/application/contract/ARexx gates.
+The full sanitizer campaign passed 221 selected methods; actual host CLI/worker
+processes are instrumented, while direct ctypes mocks/faults use the ordinary
+library. The authoring expectation was updated to the corrected revision floor.
+Public symbols, links across 74 documentation files and AROS SDK header/type
+checks pass. The published pre-audit checkpoint failed Linux compilation in
+[CI](https://github.com/pomaros/apkg-fusion/actions/runs/40476560458) because the
+identity module omitted its POSIX feature-test macro; that declaration fix is
+included, with identical generated host object bytes and a final focused rebuild.
+Exact-source Linux/macOS CI still must qualify the cleaned checkpoint. Native
+system probing and UI/runtime behavior require target tests.
+The broader release roadmap is not expanded into new alpha blockers. The
+SDK builder is explicitly restricted to its AArch64 profile and separates ABI
+output directories; shell syntax and unsupported-target refusal are checked.
+This is not native build/runtime qualification.
 
 ## Implemented integration pieces
 

@@ -106,8 +106,10 @@ static int changes_validate(apkg_ctx *c, const ak_json *plan, int *array) {
         ak_path(legacy, c->root, ".pkg") || ak_exists(legacy) != 0)
         return -1;
     if (!ak_fields_optional(plan, b, fields, 9,
-                            (const char *const[]){"origins"}, 1) ||
+                            (const char *const[]){"origins", "requirements"},
+                            2) ||
         !ak_origins_valid(plan, ak_member(plan, b, "origins")) ||
+        !ak_requirements_valid(plan, ak_member(plan, b, "requirements")) ||
         ak_u64(plan, ak_member(plan, b, "anchor_dev"), &dev) ||
         ak_u64(plan, ak_member(plan, b, "anchor_ino"), &ino) || !ino ||
         dev != (uint64_t)c->binding.st_dev ||
@@ -340,7 +342,7 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         code = APKG_CANCELLED;
         goto done;
     }
-    code = ak_plan_origins_check(c, p, o);
+    code = ak_plan_inputs_check(c, p, o);
     if (code)
         goto done;
     code = APKG_IO;
@@ -444,7 +446,7 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         code = APKG_CANCELLED;
         goto fail;
     }
-    code = ak_plan_origins_check(c, p, o);
+    code = ak_plan_inputs_check(c, p, o);
     if (code)
         goto fail;
     code = APKG_IO;
@@ -479,7 +481,7 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
             goto fail;
         }
     }
-    code = ak_plan_origins_check(c, p, o);
+    code = ak_plan_inputs_check(c, p, o);
     if (code)
         goto fail;
     code = APKG_IO;

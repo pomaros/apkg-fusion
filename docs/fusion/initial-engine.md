@@ -175,7 +175,10 @@ interactive native catalogue selection remains open.
 Initialize a separate common root explicitly before using this first GUI path.
 
 For an aarch64 hosted cross-build, configure `APKG_AROS_SDK` and
-`APKG_AROS_TOOLS`, then run `APKG_AROS_GUI=1 sh tools/build-apkg-hosted.sh`.
+`APKG_AROS_TOOLS`, then run `APKG_AROS_GUI=1 sh tools/build-apkg-aros.sh`.
+`APKG_AROS_RUNTIME=native` builds for native AROS (no x18 reservation); a
+native SDK keeps `collect-aros` with its build's host tools, named by
+`APKG_AROS_HOST_TOOLS`.
 It writes only under this checkout's build directory. It does not launch or
 modify an operating system. `tools/check-apkg-aros.sh` provides a separate
 header/type check with a configured SDK. Cross-builds prove compilation/linking,

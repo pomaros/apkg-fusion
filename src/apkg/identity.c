@@ -13,6 +13,9 @@
  * which a rename within the volume keeps, and the volume's name and creation
  * date. A handler that reports no object key gives no identity (st_ino 0);
  * the callers refuse mutation without one. */
+#ifndef __AROS__
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "internal.h"
 #include <errno.h>
 #include <string.h>

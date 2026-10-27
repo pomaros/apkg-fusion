@@ -328,7 +328,7 @@ apkg_status apkg_plan_adopt_many(apkg_ctx *c, const apkg_snapshot *s,
         }
     }
     (*out)->effects[0].kind = APKG_EFFECT_OWNERSHIP;
-    code = ak_plan_bind(c, *out, packages, count);
+    code = ak_plan_bind(c, *out, packages, count, error);
 done:
     if (code && *out) {
         apkg_plan_free(*out);

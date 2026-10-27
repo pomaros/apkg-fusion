@@ -35,10 +35,12 @@ int ak_relations_valid(const ak_json *j, int rel) {
                 !ak_valid_name(name) ||
                 ak_string(j, ak_member(j, (int)i, "min_version"), version,
                           sizeof version) ||
-                ak_version_compare(version, version) != 0 ||
+                (*version && ak_version_compare(version, version) != 0) ||
                 ak_u64(j, ak_member(j, (int)i, "min_revision"), &revision) ||
                 ak_string(j, ak_member(j, (int)i, "target"), target,
                           sizeof target))
+                return 0;
+            if (!*version && revision)
                 return 0;
             /* Target syntax and equality are verified against actual packages.
              */
@@ -62,6 +64,8 @@ int ak_requirement_matches(const ak_json *j, int requirement,
                   sizeof version) ||
         ak_u64(j, ak_member(j, requirement, "min_revision"), &revision))
         return 0;
+    if (!*version)
+        return revision == 0;
     cmp = ak_version_compare(p->version, version);
     return cmp == 1 || (cmp == 0 && p->revision >= revision);
 }
@@ -379,7 +383,7 @@ apkg_status apkg_plan_resolve(apkg_ctx *c, const apkg_snapshot *snapshot,
     if (!code) {
         code = ak_plan_bind(c, *out,
                             (const apkg_package *const *)resolution.packages,
-                            resolution.count);
+                            resolution.count, e);
         if (code) {
             apkg_plan_free(*out);
             *out = NULL;

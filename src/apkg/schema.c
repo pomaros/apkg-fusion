@@ -208,13 +208,12 @@ int ak_descriptor(const ak_json *j) {
     if (!ak_object(j, "descriptor"))
         return 0;
     b = ak_member(j, 0, "body");
-    if ((!ak_fields(j, b, bodyf, 7) &&
-         !ak_fields(j, b,
-                    (const char *const[]){"authority", "files", "kind", "name",
-                                          "relations", "revision", "target",
-                                          "version"},
-                    8)) ||
-        !ak_relations_valid(j, ak_member(j, b, "relations")))
+    if (!ak_fields_optional(j, b, bodyf, 7,
+                            (const char *const[]){"relations",
+                                                  "requires_system"},
+                            2) ||
+        !ak_relations_valid(j, ak_member(j, b, "relations")) ||
+        !ak_system_valid(j, ak_member(j, b, "requires_system")))
         return 0;
     if (ak_string(j, ak_member(j, b, "authority"), s, sizeof s) ||
         ak_hex(s, id, 16) || ak_string(j, ak_member(j, b, "name"), s, 256) ||

@@ -586,8 +586,12 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         struct stat st;
         char parent[AK_PATH];
         if (!ak_fields_optional(&plan, body, f, 8,
-                                (const char *const[]){"origins"}, 1) ||
+                                (const char *const[]){"origins",
+                                                      "requirements"},
+                                2) ||
             !ak_origins_valid(&plan, ak_member(&plan, body, "origins")) ||
+            !ak_requirements_valid(&plan,
+                                   ak_member(&plan, body, "requirements")) ||
             ak_u64(&plan, ak_member(&plan, body, "anchor_dev"), &dev) ||
             ak_u64(&plan, ak_member(&plan, body, "anchor_ino"), &ino))
             goto done;
@@ -929,6 +933,10 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
         code = APKG_STALE;
         goto done;
     }
+    /* The machine still answers every requirement as it did at planning. */
+    code = ak_plan_system_check(p);
+    if (code)
+        goto done;
     if (p->changes) {
         code = execute_changes_locked(c, p, s, o, r);
         goto done;
@@ -943,7 +951,7 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
         code = APKG_CANCELLED;
         goto done;
     }
-    code = ak_plan_origins_check(c, p, o);
+    code = ak_plan_inputs_check(c, p, o);
     if (code)
         goto done;
     code = APKG_IO;
@@ -1001,7 +1009,7 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
         code = APKG_CANCELLED;
         goto fail;
     }
-    code = ak_plan_origins_check(c, p, o);
+    code = ak_plan_inputs_check(c, p, o);
     if (code)
         goto fail;
     code = APKG_IO;
@@ -1020,7 +1028,7 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
             goto fail;
         }
     }
-    code = ak_plan_origins_check(c, p, o);
+    code = ak_plan_inputs_check(c, p, o);
     if (code)
         goto fail;
     code = APKG_IO;

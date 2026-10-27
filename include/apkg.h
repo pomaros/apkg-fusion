@@ -58,7 +58,8 @@ typedef enum {
     APKG_DEPENDENCY,
     APKG_CANCELLED,
     APKG_POLICY,
-    APKG_NETWORK
+    APKG_NETWORK,
+    APKG_REQUIREMENT
 } apkg_status;
 typedef enum {
     APKG_UNKNOWN = 0,

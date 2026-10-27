@@ -89,8 +89,10 @@ The new optional `config` list names relative files inside the drawer and maps
 to the engine's `preserve` configuration policy. Missing, duplicate, directory
 and control-file configuration entries refuse.
 
-System requirements, distribution constraints and post-install notes with no
-common execution/presentation path refuse. Unknown fields, including author
+`[[requires_system]]` tables (`type`, `id`, integer `min_version`) become the
+descriptor's signed [system requirements](data-model.md#targets-and-system-requirements);
+a malformed or repeated requirement refuses. Distribution constraints and
+post-install notes, which have no common execution/presentation path, refuse. Unknown fields, including author
 review claims, also refuse. Existing catalogue CPU/ABI/field/relation limits
 still apply to this authoring checkpoint; broader common-engine API limits do
 not imply that every legacy TOML consumer can represent them.

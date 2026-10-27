@@ -66,6 +66,23 @@ def header_cpu(path):
  if head[:4]==b'\x00\x00\x03\xf3':return 'm68k'
  return None
 
+REQ_TYPE=re.compile(r'[a-z]{1,23}\Z');REQ_ID=re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,62}\Z')
+def system_requirements(declared):
+ """The machine requirements, signed with the package: probed when a plan
+ brings the package in, never satisfied by another package."""
+ if not isinstance(declared,list) or len(declared)>16:raise Refusal('requires_system: at most 16 requirement tables')
+ out=[]
+ for r in declared:
+  if not isinstance(r,dict) or set(r)-{'id','type','min_version'}:raise Refusal('requires_system: each entry has only id, type and min_version')
+  kind=r.get('type');ident=r.get('id');minimum=r.get('min_version',0)
+  if not isinstance(kind,str) or not REQ_TYPE.match(kind):raise Refusal(f'requires_system: type {kind!r} is not 1-23 lowercase letters')
+  if not isinstance(ident,str) or not REQ_ID.match(ident):raise Refusal(f'requires_system: id {ident!r} is not a plain name of at most 63 characters')
+  if isinstance(minimum,bool) or not isinstance(minimum,int) or not 0<=minimum<=65535:raise Refusal(f'requires_system: {ident} min_version must be 0..65535')
+  out.append(dict(id=ident,min_version=str(minimum),type=kind))
+ out.sort(key=lambda r:(r['type'],r['id']))
+ if len({(r['type'],r['id']) for r in out})!=len(out):raise Refusal('requires_system: a requirement is declared twice')
+ return out
+
 def regular(path):
  st=path.lstat()
  if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1:raise Refusal(f'{path.name}: a regular unlinked file is required')
@@ -81,7 +98,7 @@ def build(args):
  m=tomllib.loads(author.decode('utf-8'))
  unknown=set(m)-ALLOWED
  if unknown:raise Refusal('unsupported author fields: '+', '.join(sorted(unknown)))
- for key in ('requires_system','installs_on','runs_on','does_not_run_on','post_install_notes'):
+ for key in ('installs_on','runs_on','does_not_run_on','post_install_notes'):
   if m.get(key):raise Refusal(f'{key}: common execution/presentation is not implemented')
  if m.get('kind') not in ('app','tool','data'):raise Refusal('system package destinations are not implemented')
  if 'source' in m and (not isinstance(m['source'],dict) or set(m['source'])-{'repository'} or not isinstance(m['source'].get('repository',''),str)):raise Refusal('source: only source.repository is implemented')
@@ -156,7 +173,7 @@ def build(args):
   def requirement(name,version=None):
    # Existing TOML has no authority/target qualifier: bind every relation to
    # this explicitly selected publisher and target rather than inventing one.
-   return dict(authority=args.authority,name=name,min_version=version or '0',min_revision='1',target=target)
+   return dict(authority=args.authority,name=name,min_version=version or '',min_revision='0',target=target)
   relations={family:[] for family in ('conflicts','depends','recommends','replaces')}
   for family in relations:
    for value in m.get(family,[]):
@@ -167,7 +184,10 @@ def build(args):
      item=requirement(*parsed)
     relations[family].append(item)
    relations[family].sort(key=lambda r:(r['authority'],r['name']))
-  descriptor=encode(dict(body=dict(authority=args.authority,files=files,kind={'app':'application','tool':'tool','data':'data'}[m['kind']],name=m['id'],relations=relations,revision=str(m.get('revision',1)),target=target,version=m['version']),format='apkg-json-1',requires=[],schema='1',type='descriptor'))
+  body=dict(authority=args.authority,files=files,kind={'app':'application','tool':'tool','data':'data'}[m['kind']],name=m['id'],relations=relations,revision=str(m.get('revision',1)),target=target,version=m['version'])
+  system=system_requirements(m.get('requires_system',[]))
+  if system:body['requires_system']=system
+  descriptor=encode(dict(body=body,format='apkg-json-1',requires=[],schema='1',type='descriptor'))
   descriptor_path=temp/'descriptor.json';descriptor_path.write_bytes(descriptor)
   signature=json.loads(run(args.engine,'sign-object',key,'descriptor',descriptor_path));signature_bytes=encode(signature)
   members=[('descriptor.json',descriptor),('signature.json',signature_bytes)]+[('objects/'+sha,path) for sha,path in sorted(objects.items())]

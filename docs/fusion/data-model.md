@@ -197,10 +197,34 @@ alongside the resolved target and their evidence. The
 [target corpus](../../tests/fixtures/contracts/targets.json) covers concrete
 syntax/matching; syntax acceptance does not establish a supported platform.
 
-System requirements retain kind, identity, version constraints, target/loader
-constraints and original declaration. Probe observations separately store
-satisfied/missing/undetermined, observed versions, environment and time.
-Installation-time success is history; launching may require a fresh probe.
+System requirements are what the machine must already provide: a signed
+descriptor may carry `requires_system`, at most 16 `{"id","min_version","type"}`
+entries sorted by type and id, never empty. The id is a plain name of up to 63
+characters (`crt.library`), the type 1 to 23 lowercase letters and the minimum
+a version from 0 to 65535. No package satisfies a requirement, so a missing
+one never becomes a search for a provider.
+
+A plan that brings packages in (install, upgrade, resolution, channel install)
+probes every requirement on the running machine and binds each observation
+into the canonical plan as `requirements`: package, type, id, minimum, state,
+observed version and how the verdict was reached. The operator approves
+exactly what was observed. The three states are arospkg's:
+
+| State | Meaning | Plan |
+|---|---|---|
+| satisfied | Met here and now | Proceeds |
+| missing | Not met | Refused with `APKG_REQUIREMENT` before anything is fetched or written |
+| undetermined | This client cannot decide | Proceeds and shows the doubt |
+
+On AROS a library is satisfied when it is resident at the version or opens
+with `OpenLibrary()`; one that does not open is told apart from one absent
+from `LIBS:`. Resident resources and devices answer from their lists; a
+device present in `DEVS:` but not loaded is undetermined, since its version
+needs an open unit. Other types, and every probe in a host build, are
+undetermined. Execution probes again and refuses a plan whose observations
+changed as stale. Adoption, repair and rollback do not probe: they restore what
+the machine already ran. Observations are installation-time history, not a
+current qualification; a launch may need a fresh probe.
 An unregistered bundle uses its descriptor and actual environment without
 creating an installed record or implicitly installing requirements.
 
@@ -366,3 +390,11 @@ The initial engine now implements context inspection, signed reads and a
 journalled first install; broader mutation families remain separate work.
 Real-distribution and filesystem evidence remains in the
 [follow-up register](status.md#follow-up-verification-register).
+
+### Unversioned package relationships
+
+A common package relation with `min_version=""` and `min_revision="0"` has no
+version floor. It matches any version, including opaque/prerelease strings,
+while retaining its authority/name/target binding. A nonempty minimum retains
+normal version/revision ordering. An empty version with a nonzero revision is
+invalid. TOML authoring does not invent a packaging revision floor.

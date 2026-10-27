@@ -340,6 +340,15 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
         }
         ak_json_free(&origins);
     }
+    {
+        apkg_status code = ak_system_format(p->requirements, &b);
+        if (code) {
+            ak_json_free(&changes);
+            ak_json_free(&state);
+            free(b.data);
+            return code;
+        }
+    }
     int qualifications = ak_member(&state, ak_member(&state, 0, "body"),
                                    "qualification_records");
     if (qualifications >= 0 && !ak_empty(&state, qualifications)) {
