@@ -30,7 +30,8 @@ typedef enum {
     APKG_CLIENT_CHANNEL_ACCEPT,
     APKG_CLIENT_ADOPT,
     APKG_CLIENT_ADOPT_SET,
-    APKG_CLIENT_POLICY /* argument: a complete policy object file */
+    APKG_CLIENT_POLICY, /* argument: a complete policy object file */
+    APKG_CLIENT_ROLLBACK_LAST /* argument: package name, or "-" for any */
 } apkg_client_action;
 /* ADOPT: argument=artifact, pool=evidence file. ADOPT_SET: argument=canonical
  * adoption-set manifest. Both use the same exact confirmation and journal. */

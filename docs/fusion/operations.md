@@ -23,7 +23,40 @@ unorderable upgrades are refusals, never permission to discard information.
 | Remove | Unregister the package and remove pristine owned files. Keep modified and unknown files, with the directories they need, in place. A residual unmanaged folder prevents an implicit later takeover. Refuse if remaining packages would lose a required dependency. |
 | Repair | Reverify retained signatures against current root trust; restore missing/changed ordinary files from signed bytes. Preserve edited configuration entries and unknown files. Repair affects only the named package. Before-images remain in transaction history. |
 | Upgrade | Require a newer ordered version or packaging revision from the same authority, preserving the target. Perform a three-way merge of signed old, signed new and observed content. Preserve edited/unknown files; remove pristine obsolete files. Refuse foreign collisions, case collisions and unsafe type changes. Keep the installation reason. |
-| Rollback | Require an explicitly selected committed local history matching the current database. Reverify retained package signatures under current trust. Restore the recorded before-image, including actual pre-repair bytes, while preserving subsequent personal edits. Retained trees must still match the archive. Increment generation rather than restoring an old generation number. No network fallback. |
+| Rollback | Require a committed local history matching the current package state, selected explicitly or by the bounded latest-transaction lookup below. Reverify retained package signatures under current trust. Restore the recorded before-image, including actual pre-repair bytes, while preserving subsequent personal edits. Retained trees must still match the archive. Increment generation rather than restoring an old generation number. No network fallback. |
+
+### Latest package transaction
+
+`apkg rollback-last ROOT NAME` prepares a rollback of the unique applicable
+retained package transaction. The named package must participate in that
+transaction; the lookup never skips a later unrelated package change to find
+an older transaction mentioning the name. `NAME` equal to `-` explicitly
+requests the root transaction without a package filter. The API uses an empty
+name for that case. `apkg rollback ROOT HISTORY` retains explicit-path selection.
+
+Rollback undoes the whole transaction, including dependency participants. Its
+confirmation states that scope and lists every package change before requesting
+the exact plan digest. PkgManager's installed Rollback shortcut and ARexx
+`ROLLBACK name` use the same named lookup and common held-plan approval. The
+generic operation also accepts `-`, including when the latest change removed
+the package and no installed row remains.
+
+Selection uses the captured root identity, package generation, installed records,
+policy and target, never archive filename order or modification time. Source-list
+and channel-observation changes do not replace package history; rollback retains
+their current records. Changed trust does not get rolled back to make an old
+package acceptable. Multiple applicable archives refuse with CONFLICT, missing
+applicable history or an unrelated name with NOT_FOUND, and damaged/incomplete
+history refuses without mutation. The normal rollback validator then checks
+the selected archive, retained trees and current trust before producing a plan.
+
+The lookup inspects at most 100,000 parent directory entries and 4,096 matching
+history names, with context object/memory limits on record reads. Reaching a
+bound returns LIMIT without selecting a partial result. A root without a
+discoverable parent does not support this shortcut. This feature reads common
+history only; retaining an old APKG journal during migration does not convert
+it into common rollback history. The historical CLI adapter's per-package
+rollback semantics remain a separate compatibility obligation.
 
 A signed regular-file entry may include `"config":"preserve"`. Other values or
 unknown fields are refused. Configuration status cannot be inferred from a

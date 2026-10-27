@@ -42,7 +42,7 @@ enum { ID_SEARCH = 1, ID_INSTALL, ID_REMOVE, ID_UPDATE, ID_CANCEL, ID_SELECT, ID
 
 #ifdef APKG_FUSION
 static Object *str_common_package, *btn_common_install, *cyc_common_action, *str_common_pool;
-static const char *common_actions[]={"Install signed package","Remove package","Repair package","Upgrade from signed folder","Rollback from retained history","Resolve with local package pool","Recover pending transaction","Install/update from signed channel","Accept channel observations","Adopt existing bundle","Adopt existing bundle set",NULL};
+static const char *common_actions[]={"Install signed package","Remove package","Repair package","Upgrade from signed folder","Rollback from retained history","Resolve with local package pool","Recover pending transaction","Install/update from signed channel","Accept channel observations","Adopt existing bundle","Adopt existing bundle set","Replace root trust policy","Undo latest package transaction",NULL};
 static int common_waiting;
 static char *common_preview_text;
 static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
@@ -959,7 +959,7 @@ static void show_detail(void)
     SetAttrs(btn_run,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_verify,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_upgrade,MUIA_Disabled,busy_now()||!row,TAG_DONE);
-    SetAttrs(btn_rollback,MUIA_Disabled,TRUE,TAG_DONE);
+    SetAttrs(btn_rollback,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     return;
 #endif
     pkg_details det;
@@ -1451,6 +1451,11 @@ static rx_job *begin(job_kind kind, const char *pkg, const char *origin)
         SetAttrs(cyc_common_action,MUIA_Cycle_Active,APKG_CLIENT_REMOVE,TAG_DONE);
         SetAttrs(str_common_package,MUIA_String_Contents,(IPTR)(pkg?pkg:""),TAG_DONE);
         kind=JOB_COMMON_INSTALL;
+    }
+    if (kind == JOB_ROLLBACK) {
+        SetAttrs(cyc_common_action, MUIA_Cycle_Active, APKG_CLIENT_ROLLBACK_LAST, TAG_DONE);
+        SetAttrs(str_common_package, MUIA_String_Contents, (IPTR)(pkg ? pkg : ""), TAG_DONE);
+        kind = JOB_COMMON_INSTALL;
     }
     /* INSTALL and UPGRADE by name read the root's own source list. */
     if ((kind == JOB_INSTALL || kind == JOB_UPGRADE) && pkg && *pkg)
@@ -3359,7 +3364,11 @@ static int real_main(int argc, char **argv)
             pm_common_installed_row *row = installed_selected();
             if (row) begin(JOB_UPGRADE, row->view.name.value.data, "window");
         } break;
-        case ID_INSTALL: case ID_ROLLBACK:
+        case ID_ROLLBACK: {
+            pm_common_installed_row *row = installed_selected();
+            if (row) begin(JOB_ROLLBACK, row->view.name.value.data, "window");
+        } break;
+        case ID_INSTALL:
             status("Use the common signed-plan operation panel or signed catalogue"); break;
 #else
         case ID_INSTALL: { pkg_entry *e = selected(); if (e) { logline("install pressed for %s", e->id); begin(JOB_INSTALL, e->id, "window"); } } break;

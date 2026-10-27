@@ -30,8 +30,41 @@ to bypass unfinished non-portal integration or to resume the portal automaticall
 These are implementation positions, not six completed gates. The final clean
 workspace scenario and exact-source Linux/macOS CI must qualify the resulting
 product. The isolated M1 RAM component profile below passes; broader native qualification
-remains open. Portal adaptation follows this rehearsal; deployment and live
+remains open. After final candidate qualification, stop with the merge report;
+portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
+
+## Latest-transaction Rollback
+
+The installed Rollback shortcut and ARexx `ROLLBACK name` submit the new
+common latest-transaction action. CLI `rollback-last ROOT NAME|-` exposes the
+same lookup. It selects the unique applicable common package transaction by
+validated state, not history filenames or timestamps, and refuses an unrelated
+name rather than seeking an older transaction. Explicit history-path rollback
+remains available. Both forms state that approval includes the whole package
+transaction and list its participants. This does not implement an independent
+per-package revision history or convert retained legacy APKG archives.
+
+Evaluation: ten focused tests pass, covering CLI/actual-worker equivalence,
+personal/configuration preservation, dependency transaction preview and undo,
+restoring removed registration/files, unrelated-name and duplicate-history
+refusals, damaged/missing/linked history, retained current sources, a changed
+trust barrier, stale approved trees and allocation failures. A dispatcher
+assertion checks the ARexx command routing. A native SDK syntax/type check of
+the window and changed engine/CLI modules passes without diagnostics.
+`make test-fusion` passes with 372 common tests, 78 default-product CLI checks
+and 78 publication checks. The ASan/UBSan runner passes its C checks and 268
+selected tests, including the new CLI/worker rollback scenarios. Both inherited
+host suites pass (`make test` and `components/arospkg/tests/run-host-tests.sh`);
+documentation checks cover 80 files with no broken links. The new cases also
+exercise refusal before mutation; successful undo retains the existing recovery
+engine rather than adding a new one. The GUI click and complete candidate
+lifecycle remain for the final M1 test. No target or portal changes are included.
+
+See [operation semantics](operations.md#latest-package-transaction) and
+[tests](../../tests/apkg/test_rollback_last.py). The scan is bounded and failure
+does not select a partial result. Its output remains an ordinary common plan,
+approved once and executed with the existing precondition and recovery rules.
 
 ## Installed-window Upgrade shortcut
 
@@ -51,7 +84,8 @@ common plan confirmation and resulting file checks. This thin window dispatch
 change does not change the engine qualified in the preceding checkpoint. The
 button click and complete GUI lifecycle still require the final M1 candidate
 test; SDK compilation and host worker execution do not prove that interaction.
-The Rollback shortcut and inherited category/state/recent controls remain open.
+The latest-transaction Rollback integration does not close inherited
+category/state/recent controls, which remain open.
 No M1 execution, OS changes or portal implementation were performed.
 
 ## Signed descriptive metadata checkpoint

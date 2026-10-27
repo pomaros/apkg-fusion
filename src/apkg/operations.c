@@ -3,6 +3,7 @@
 #include "internal.h"
 #include "pkg_fs.h"
 #include <errno.h>
+#include <dirent.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
@@ -661,6 +662,7 @@ done:
     apkg_plan_free(p);
     return code;
 }
+
 apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
                             const char *entries, apkg_plan_kind kind,
                             const char *focus, apkg_plan **out,
@@ -1087,5 +1089,119 @@ done:
     ak_json_free(&plan);
     ak_json_free(&root);
     apkg_plan_free(p);
+    return code;
+}
+
+/* Select by validated package generation/content, never filename order, mtime
+ * or an older transaction merely mentioning the requested package. */
+apkg_status apkg_plan_rollback_last(apkg_ctx *c, const apkg_snapshot *s,
+                                    apkg_text name, apkg_plan **out,
+                                    apkg_error **error) {
+    if (error) *error = NULL;
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    if (!c || !s || name.size >= 256 || (name.size &&
+        (!name.data || memchr(name.data, 0, name.size)))) return APKG_INVALID;
+    char wanted[256] = "";
+    if (name.size) {
+        memcpy(wanted, name.data, name.size);
+        if (!ak_valid_name(wanted)) return APKG_INVALID;
+    }
+    if (c->mode != APKG_WRITE) return APKG_POLICY;
+    if (s->view.state != APKG_ROOT_READY)
+        return s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED : APKG_POLICY;
+    if (!ak_same_snapshot(c, s)) return APKG_STALE;
+    char parent[AK_PATH], prefix[AK_PATH], path[AK_PATH], file[AK_PATH],
+         selected[AK_PATH] = "";
+    if (ak_parent(c->root, parent)) return APKG_UNSUPPORTED;
+    const char *leaf = strrchr(c->root, '/');
+    if (!leaf) leaf = strrchr(c->root, ':');
+    leaf = leaf ? leaf + 1 : c->root;
+    if (snprintf(prefix, sizeof prefix, "%s.apkg-history.", leaf) >= (int)sizeof prefix)
+        return APKG_LIMIT;
+    DIR *directory = opendir(parent);
+    if (!directory) return APKG_IO;
+    size_t max = c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
+    size_t seen = 0, candidates = 0, applicable = 0;
+    int selected_matches = 0;
+    apkg_status code = APKG_OK;
+    for (;;) {
+        errno = 0;
+        struct dirent *entry = readdir(directory);
+        if (!entry) { if (errno) code = APKG_IO; break; }
+        if (++seen > 100000) { code = APKG_LIMIT; break; }
+        size_t length = strlen(prefix);
+        apkg_digest digest;
+        if (strncmp(entry->d_name, prefix, length) ||
+            strlen(entry->d_name) != length + 32 ||
+            ak_hex(entry->d_name + length, digest.bytes, 16)) continue;
+        if (++candidates > 4096) { code = APKG_LIMIT; break; }
+        unsigned char *after = NULL, *intent = NULL, *hash = NULL;
+        size_t after_size = 0, intent_size = 0, hash_size = 0;
+        ak_json plan = {0};
+        if (ak_path(path, parent, entry->d_name) || pkg_fs_path_is_link(path) != 0 ||
+            ak_path(file, path, "new-state") || ak_read(file, &after, &after_size, max)) {
+            code = errno == ENOMEM ? APKG_NOMEM : errno == EFBIG ? APKG_LIMIT : APKG_RECOVERY_REQUIRED;
+            goto candidate_done;
+        }
+        code = rollback_applicable(s, (const char *)after, after_size);
+        if (code == APKG_STALE) { code = APKG_OK; goto candidate_done; }
+        if (code) goto candidate_done;
+        if (ak_path(file, path, "plan") || ak_read(file, &intent, &intent_size, max) ||
+            ak_path(file, path, "plan-sha") || ak_read(file, &hash, &hash_size, 64) ||
+            ak_path(file, path, "decision") || ak_exists(file) != 1) {
+            code = errno == ENOMEM ? APKG_NOMEM : errno == EFBIG ? APKG_LIMIT : APKG_RECOVERY_REQUIRED;
+            goto candidate_done;
+        }
+        char expected[65];
+        ak_hash(intent, intent_size, &digest);
+        ak_tohex(digest.bytes, 32, expected);
+        if (hash_size != 64 || memcmp(hash, expected, 64)) {
+            code = APKG_INTEGRITY; goto candidate_done;
+        }
+        int parsed = ak_json_parse(intent, intent_size, &plan);
+        if (parsed || !ak_object(&plan, "plan")) {
+            code = parsed == -2 ? APKG_NOMEM : APKG_INVALID; goto candidate_done;
+        }
+        int body = ak_member(&plan, 0, "body");
+        int token = ak_member(&plan, body, "kind");
+        uint64_t kind = APKG_PLAN_INSTALL;
+        if (token >= 0) {
+            if (ak_u64(&plan, token, &kind) || kind > APKG_PLAN_SOURCES) {
+                code = APKG_UNSUPPORTED; goto candidate_done;
+            }
+        } else if (ak_equal(&plan, ak_member(&plan, body, "action"), "initialize"))
+            kind = APKG_PLAN_INITIALIZE;
+        else if (!ak_equal(&plan, ak_member(&plan, body, "action"), "install")) {
+            code = APKG_UNSUPPORTED; goto candidate_done;
+        }
+        if (kind == APKG_PLAN_INITIALIZE || kind == APKG_PLAN_CHANNEL_ACCEPT ||
+            kind == APKG_PLAN_POLICY || kind == APKG_PLAN_SOURCES) goto candidate_done;
+        if (++applicable > 1) { code = APKG_CONFLICT; goto candidate_done; }
+        strcpy(selected, path);
+        selected_matches = !*wanted;
+        int changes = ak_member(&plan, body, "changes");
+        if (changes >= 0 && plan.tokens[changes].type == '[') {
+            for (size_t i = (size_t)changes + 1; i < plan.tokens[changes].next; i = plan.tokens[i].next)
+                if (ak_equal(&plan, ak_member(&plan, (int)i, "name"), wanted)) selected_matches = 1;
+        } else {
+            int package = ak_member(&plan, body, "package");
+            int pb = ak_member(&plan, package, "body");
+            if (ak_equal(&plan, ak_member(&plan, body, "name"), wanted) ||
+                ak_equal(&plan, ak_member(&plan, body, "target_path"), wanted) ||
+                ak_equal(&plan, ak_member(&plan, pb, "name"), wanted)) selected_matches = 1;
+        }
+candidate_done:
+        free(after); free(intent); free(hash); ak_json_free(&plan);
+        if (code) break;
+    }
+    if (closedir(directory) && !code) code = APKG_IO;
+    if (!code && (!applicable || !selected_matches)) code = APKG_NOT_FOUND;
+    if (!code) {
+        apkg_text history = {selected, strlen(selected)};
+        code = apkg_plan_rollback(c, s, history, out, error);
+    }
+    if (code && error && !*error)
+        code = ak_fail(error, code, "latest package rollback is unavailable, ambiguous or invalid", wanted);
     return code;
 }

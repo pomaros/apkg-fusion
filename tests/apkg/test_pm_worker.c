@@ -48,6 +48,7 @@ void PutMsg(struct MsgPort *port, struct Message *message) {
             assert(strstr(m->common_preview, "SHA-256"));
         if (running->kind != JOB_COMMON_SOURCE_ADD && running->kind != JOB_COMMON_SOURCE_REMOVE &&
             running->common_action != 1 && running->common_action != 4 &&
+            running->common_action != APKG_CLIENT_ROLLBACK_LAST &&
             running->common_action != APKG_CLIENT_CHANNEL_ACCEPT)
             assert(strstr(m->common_preview, "Signature: verified"));
         if (running->common_action == APKG_CLIENT_CHANNEL_ACCEPT)

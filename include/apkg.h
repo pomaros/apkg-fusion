@@ -437,6 +437,12 @@ apkg_status apkg_plan_upgrade(apkg_ctx *, const apkg_snapshot *,
                               apkg_error **);
 apkg_status apkg_plan_rollback(apkg_ctx *, const apkg_snapshot *,
                                apkg_text history, apkg_plan **, apkg_error **);
+/* Discover the unique applicable retained package transaction. Empty name
+ * selects the root's latest package change; otherwise that transaction must
+ * include the named package. State-only changes are excluded. No mutation or
+ * remote access; ambiguous, damaged or unavailable history refuses. */
+apkg_status apkg_plan_rollback_last(apkg_ctx *, const apkg_snapshot *,
+                                    apkg_text name, apkg_plan **, apkg_error **);
 /* Pool order is a caller priority, never an implicit version ordering.
  * Installed suitable providers are preferred. No fetching/trust expansion. */
 apkg_status apkg_plan_resolve(apkg_ctx *, const apkg_snapshot *,

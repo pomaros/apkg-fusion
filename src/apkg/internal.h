@@ -128,6 +128,7 @@ int ak_parent(const char *, char *);
 int ak_exists(const char *); /* -1 error, 0 absent, 1 present */
 int ak_resolve(const char *, char *, ak_identity *);
 int ak_physical(const char *, const ak_identity *);
+int ak_same_snapshot(apkg_ctx *, const apkg_snapshot *);
 char *ak_slice(const ak_json *, int);
 apkg_status ak_tree_read(const char *, size_t, char **, ak_identity *);
 apkg_status ak_changes_format(const apkg_plan *, char **);

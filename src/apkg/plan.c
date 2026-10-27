@@ -9,8 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-static int same_snapshot(apkg_ctx *c, const apkg_snapshot *s) {
-    return !strcmp(c->anchor, s->anchor) &&
+int ak_same_snapshot(apkg_ctx *c, const apkg_snapshot *s) {
+    return c && s && !strcmp(c->anchor, s->anchor) &&
            c->binding.st_dev == s->binding.st_dev &&
            c->binding.st_ino == s->binding.st_ino &&
            ak_physical(c->anchor, &c->binding);
@@ -190,7 +190,7 @@ apkg_status apkg_plan_initialize(apkg_ctx *c, const apkg_snapshot *s,
         return ak_fail(e, APKG_UNSUPPORTED,
                        "filesystem does not expose stable root identity",
                        c->root);
-    if (!same_snapshot(c, s))
+    if (!ak_same_snapshot(c, s))
         return APKG_STALE;
     if (s->view.state != APKG_ROOT_ABSENT)
         return s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
@@ -271,7 +271,7 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
         return ak_fail(e, APKG_UNSUPPORTED,
                        "filesystem does not expose stable root identity",
                        c->root);
-    if (!same_snapshot(c, s))
+    if (!ak_same_snapshot(c, s))
         return APKG_STALE;
     if (s->view.state != APKG_ROOT_READY)
         return s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED

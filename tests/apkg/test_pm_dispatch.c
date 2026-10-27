@@ -43,6 +43,7 @@ void PutMsg(struct MsgPort *port, struct Message *message) {
     posts++; FreeVec(m);
 }
 int main(void) {
+    assert(job_for_common_rexx(RXC_ROLLBACK) == JOB_ROLLBACK);
     for (int kind = JOB_NONE; kind <= JOB_COMMON_SOURCE_LIST + 1; kind++) {
         job j = {0}; j.kind = (job_kind)kind; j.seq = kind + 1;
         memset(j.id, 'x', 255); j.id[255] = 0;

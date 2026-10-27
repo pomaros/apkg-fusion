@@ -242,7 +242,9 @@ The remaining non-portal work, in order:
    Production upstream catalogue publication is a separate rollout dependency.
 5. The clean-workspace alpha scenario has a host test; run it with both
    inherited suites and the portal tests in exact-source Linux/macOS CI.
-6. The isolated M1 runtime rehearsal, then PORTAL-MIGRATE.
+6. Test the completed candidate on the M1, then stop and deliver the detailed
+   merge report. The earlier isolated rehearsal does not qualify that candidate.
+   Further portal adaptation requires a later operator instruction.
 
 Host and native evidence stay distinct. An AROS type check is not runtime
 qualification, and no step above claims power-loss durability.

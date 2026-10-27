@@ -111,10 +111,13 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
         return apkg_client_install(root, arg, confirm, user, observer, out, e);
     if (action < APKG_CLIENT_REMOVE ||
         (action > APKG_CLIENT_RECOVER && action != APKG_CLIENT_ADOPT &&
-         action != APKG_CLIENT_ADOPT_SET && action != APKG_CLIENT_POLICY) ||
+         action != APKG_CLIENT_ADOPT_SET && action != APKG_CLIENT_POLICY &&
+         action != APKG_CLIENT_ROLLBACK_LAST) ||
         !arg || !confirm)
         return APKG_INVALID;
     if (action == APKG_CLIENT_ADOPT && (!pool || !*pool))
+        return APKG_INVALID;
+    if (action == APKG_CLIENT_ROLLBACK_LAST && !*arg)
         return APKG_INVALID;
     code = open_root(root, APKG_WRITE, &c, e);
     if (code)
@@ -145,6 +148,10 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
         code = apkg_plan_repair(c, snapshot, argument, &p, e);
     else if (action == APKG_CLIENT_ROLLBACK)
         code = apkg_plan_rollback(c, snapshot, argument, &p, e);
+    else if (action == APKG_CLIENT_ROLLBACK_LAST) {
+        if (!strcmp(arg, "-")) argument = (apkg_text){NULL, 0};
+        code = apkg_plan_rollback_last(c, snapshot, argument, &p, e);
+    }
     else {
         code = read_package(c, arg, observer, &package, e);
         if (code)
@@ -310,6 +317,9 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
     ak_tohex(p->view.plan_digest.bytes, 32, digest);
     ak_buf_add(&b, "%s\nRoot folder: %s\nApproved plan: %s\n", action, p->root,
                digest);
+    if (p->view.kind == APKG_PLAN_ROLLBACK)
+        ak_buf_add(&b, "Scope: undo the whole retained package transaction; "
+                       "all package changes listed below are included.\n");
     if (p->origins) {
         ak_json origins = {0};
         int parsed = ak_json_parse(p->origins, strlen(p->origins), &origins);

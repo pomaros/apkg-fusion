@@ -70,7 +70,7 @@ static int apkg_main(int argc, char **argv) {
             "[--yes] | install ROOT "
             "PACKAGE-DIRECTORY [--confirm "
             "DIGEST]\nadopt-set ROOT MANIFEST [--json | --confirm DIGEST]\nadopt ROOT ARTIFACT --evidence FILE [--confirm DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
-            "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
+            "| rollback ROOT HISTORY | rollback-last ROOT NAME|-\nresolve ROOT PACKAGE-DIRECTORY [--pool "
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | requirements ROOT ENDPOINT CHANNEL-ID NAME | verify ROOT NAME | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
@@ -491,6 +491,7 @@ static int apkg_main(int argc, char **argv) {
     }
     if (!strcmp(argv[1], "remove") || !strcmp(argv[1], "repair") ||
         !strcmp(argv[1], "upgrade") || !strcmp(argv[1], "rollback") ||
+        !strcmp(argv[1], "rollback-last") ||
         !strcmp(argv[1], "resolve") || !strcmp(argv[1], "adopt") ||
         !strcmp(argv[1], "policy")) {
         if (argc < 4)
@@ -513,6 +514,7 @@ static int apkg_main(int argc, char **argv) {
             : !strcmp(argv[1], "repair")   ? APKG_CLIENT_REPAIR
             : !strcmp(argv[1], "upgrade")  ? APKG_CLIENT_UPGRADE
             : !strcmp(argv[1], "rollback") ? APKG_CLIENT_ROLLBACK
+            : !strcmp(argv[1], "rollback-last") ? APKG_CLIENT_ROLLBACK_LAST
                                            : !strcmp(argv[1], "adopt") ? APKG_CLIENT_ADOPT
                                            : !strcmp(argv[1], "policy") ? APKG_CLIENT_POLICY
                                                                         : APKG_CLIENT_RESOLVE;

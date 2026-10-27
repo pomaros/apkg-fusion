@@ -30,6 +30,7 @@ static inline job_kind job_for_common_rexx(rx_cmd command) {
     case RXC_REMOVE: return JOB_REMOVE;
     case RXC_RUN: return JOB_RUN;
     case RXC_VERIFY: return JOB_VERIFY;
+    case RXC_ROLLBACK: return JOB_ROLLBACK;
     default: return JOB_NONE;
     }
 }
