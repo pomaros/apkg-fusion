@@ -100,6 +100,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<Portal.Channels.Us
 }
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<PkgRunner>();
+builder.Services.AddSingleton<CommonEngine>();
+builder.Services.AddSingleton<CommonChannels>();
 builder.Services.AddSingleton<PushService>();
 builder.Services.AddSingleton<ArchiveChecker>();
 builder.Services.AddSingleton<ArchiveStore>();
@@ -593,7 +595,7 @@ app.MapMethods("/{channel}/{**path}", ["GET", "HEAD"], async (HttpContext http, 
         http.RequestServices.GetRequiredService<Portal.Channels.Downloads>().Count($"payload/{channel}/{path[8..72]}");
         http.RequestServices.GetRequiredService<Portal.Channels.Usage>().Note(http.Request.Headers.UserAgent, Portal.Channels.Usage.Downloads);
     }
-    var immutable = kind is ChannelPaths.Kind.Object or ChannelPaths.Kind.Archive or ChannelPaths.Kind.ArchiveDigest;
+    var immutable = kind is ChannelPaths.Kind.Object or ChannelPaths.Kind.Archive or ChannelPaths.Kind.ArchiveDigest or ChannelPaths.Kind.Snapshot;
     http.Response.Headers.CacheControl = immutable ? "public, max-age=31536000, immutable" : "no-cache";
     var etag = new EntityTagHeaderValue($"\"{info.Length:x}-{info.LastWriteTimeUtc.Ticks:x}\"");
     return Results.File(full, ChannelPaths.ContentType(path), lastModified: info.LastWriteTimeUtc,

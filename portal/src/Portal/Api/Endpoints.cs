@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Security;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Portal.Channels;
 
@@ -19,6 +20,20 @@ public static class Endpoints
     public static void MapPortalApi(this WebApplication app)
     {
         var api = app.MapGroup("/api").RequireRateLimiting("api");
+        api.MapGet("/common/channels/{channel}", async (string channel, CommonChannels channels, HttpContext http) =>
+        {
+            http.Response.Headers.CacheControl = "no-store";
+            try
+            {
+                var observed = await channels.Open(channel, http.RequestAborted);
+                return observed is null ? Results.NotFound() : Results.Json(observed);
+            }
+            catch (InvalidDataException) { return Results.Problem("Common channel verification refused", statusCode: 422); }
+            catch (OperationCanceledException) when (!http.RequestAborted.IsCancellationRequested)
+            { return Results.Problem("Common verifier timed out", statusCode: 504); }
+            catch (Exception e) when (e is IOException or System.ComponentModel.Win32Exception or JsonException)
+            { return Results.Problem("Common channel verifier unavailable", statusCode: 503); }
+        });
         api.MapGet("/qualifications/{channel}/{digest}", (string channel, string digest, Catalogue catalogue, Qualifications qualifications) =>
         {
             var line = catalogue.Get(channel)?.Lines.FirstOrDefault(x => x.Digest == digest);

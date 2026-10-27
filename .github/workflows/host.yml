@@ -44,11 +44,18 @@ jobs:
           name: logs-${{ matrix.os }}
           path: build/*.log
   portal:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
       - name: Build native package verifier for portal integration tests
-        run: make build/pkg
+        run: make build/pkg build/apkg-core
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.1xx'

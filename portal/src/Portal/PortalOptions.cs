@@ -13,6 +13,9 @@ public sealed class PortalOptions
     /// the static pkg-linux-x86_64 on the server.
     public string PkgPath { get; set; } = "pkg";
 
+    /// Common engine executable; common channels never fall back to PkgPath.
+    public string ApkgPath { get; set; } = "apkg";
+
     /// Publisher keys as "name:sha256-of-key:channel,channel;name2:...".
     /// Only the hash is configured; the key itself is given to the publisher once.
     public string Keys { get; set; } = "";

@@ -45,12 +45,17 @@ public static partial class ChannelPaths
     public static bool IsChannelName(string name) =>
         ChannelName().IsMatch(name) && !Reserved.Contains(name);
 
-    public enum Kind { None, Index, Withdrawals, Object, Archive, ArchiveDigest, Mutable }
+    [GeneratedRegex("^snapshots/[0-9a-f]{64}/channel(\\.signature)?\\.json\\z")]
+    private static partial Regex SnapshotPath();
+
+    public enum Kind { None, Index, Withdrawals, Object, Archive, ArchiveDigest, Mutable, Current, Snapshot }
 
     /// What a relative path is; None for anything a channel does not hold.
     public static Kind Classify(string path)
     {
         if (path == "index") return Kind.Index;
+        if (path == "current") return Kind.Current;
+        if (SnapshotPath().IsMatch(path)) return Kind.Snapshot;
         // The server writes it from the signed withdrawals it holds; a push never sends it.
         if (path == Withdrawals.File1) return Kind.Withdrawals;
         if (ObjectPath().IsMatch(path)) return Kind.Object;
@@ -76,7 +81,7 @@ public static partial class ChannelPaths
 
     /// Immutable once published: content-addressed objects and archives.
     public static bool Immutable(string path) =>
-        Classify(path) is Kind.Object or Kind.Archive;
+        Classify(path) is Kind.Object or Kind.Archive or Kind.Snapshot;
 
     /// The digest a content-addressed name promises, or null when the name
     /// promises none (.sig and withdrawals are named after their manifest).
@@ -91,6 +96,8 @@ public static partial class ChannelPaths
 
     public static string ContentType(string path) => Classify(path) switch
     {
+        Kind.Snapshot => "application/json",
+        Kind.Current => "text/plain; charset=utf-8",
         Kind.Index or Kind.Withdrawals or Kind.ArchiveDigest => "text/plain; charset=utf-8",
         Kind.Object when path.EndsWith(".pkg", StringComparison.Ordinal) => "application/octet-stream",
         Kind.Object => "text/plain; charset=utf-8",

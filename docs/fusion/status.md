@@ -19,13 +19,36 @@ implemented below; remaining service/operation integration is listed separately.
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification |
-| Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
+| Portal | Common channel HTTP members and verified metadata API use the common executable; existing service and regression baseline retained | Common authenticated publication, catalogue/qualification integration and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
 workspace scenario and exact-source Linux/macOS CI must qualify the resulting
 product. The isolated M1 RAM component profile below passes; broader native qualification
 remains open. Portal adaptation follows this rehearsal; deployment and live
 portal cutover remain outside this run.
+
+## Portal common-channel reading checkpoint
+
+The [portal adapter](portal.md) serves common `current` and immutable snapshot
+members and exposes `/api/common/channels/<channel>`. It verifies captured
+metadata with the common executable, preserving complete identities and refusing
+legacy fallback. No client trust or curator qualification follows from this
+cryptographic check; archive contents and freshness remain unchecked.
+
+Evaluation: all **123 portal tests** pass locally on macOS, with zero failures
+or skips. The 16 added cases use real TOML packages, signatures and file-channel
+publication; cover separate same-name authors, exact HTTP bytes/ranges/cache
+semantics, tampering, invalid references, bounds, linked metadata, unavailable
+verifier, timeout/output limits and process cleanup. The schema-tampering case
+also invalidates its original signature; cryptographically valid malformed
+schemas remain covered by the common-engine suite, not a new portal claim.
+Documentation links pass for 77 files. CI now builds both verifiers and runs
+the portal suite on Linux and macOS; exact-commit results remain pending.
+
+This is a read/transport checkpoint, not ALPHA-PORTAL completion. Authenticated
+common commits, the common catalogue UI and qualifications, end-to-end HTTP
+client consumption, and the complete migration/backup/restore/rollback rehearsal
+remain required. No live data, deployment or portal cutover was performed.
 
 ## BASE qualification
 
