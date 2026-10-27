@@ -7,8 +7,8 @@ Build one package manager that preserves the strongest capabilities of both
 projects and improves their shared guarantees. Choose the architecture by
 behavior and evidence, including adopting arospkg's structure where it serves
 the common product better. The repository used for integration does not decide
-the design. The selected engineering skeleton is arospkg’s context-based
-libpkg, with pkg services ported into it; see the
+the design. The product engine is a new common implementation in `src/apkg/`
+that follows arospkg's context model and links pkg's services; see the
 [implementation decision](docs/fusion/architecture.md#implementation-skeleton).
 
 The [architecture](docs/fusion/architecture.md) defines the contracts, the
@@ -167,8 +167,7 @@ default. Move beyond synthetic inline package folders to the real authoring,
 publication, discovery and client workflow. Preserve the broader acceptance
 matrix; an alpha is not a joint release or AROS runtime qualification.
 
-The operator requested this ambitious next goal after the five-stage host
-qualification. Work proceeds as one authorized sequence, with one agent,
+Work proceeds as one authorized sequence, with one agent,
 focused tests and a recorded evaluation at each gate. Implementation evidence
 and unresolved facts belong in [status](docs/fusion/status.md).
 
@@ -183,24 +182,9 @@ and unresolved facts belong in [status](docs/fusion/status.md).
 
 The [signed-channel profile](docs/fusion/channels.md) divides ALPHA-CHANNEL
 into authenticated metadata, atomic file publication, context-owned file/HTTP
-transport/freshness, and independent qualifications/client discovery. Metadata
-validation, atomic local publication, host HTTP transfer and source-bound
-approved plans, explicit journaled replay floors and shared dependency-aware
-CLI/worker selection/install are implemented checkpoints.
-Online revocation/freshness policy, independent qualifications, native adapters
-and native interactive/consumer integration still prevent that gate from passing.
-
-The preparation-prefix journal checkpoint now stages privately and publishes a
-complete ready coordinator exclusively. Prefix death/retry and foreign-state
-refusals are tested on hosts. Qualify its exact-source CI before the default
-client switch; native/power-loss qualification and private-orphan collection
-remain separate work. Evidence belongs in [status](docs/fusion/status.md).
-
-The default CLI/library/installed authoring tools now select the common engine;
-the provisional client remains an explicit regression target. The clean-root
-host CLI/worker publishing/operation scenario is implemented, with exact-source
-qualification tracked in [status](docs/fusion/status.md). Interactive native
-catalogue/settings, qualifications, import and portal gates remain open.
+transport/freshness, and independent qualifications/client discovery. The
+position of each gate is recorded in the
+[status overview](docs/fusion/status.md#alpha-progress-at-a-glance).
 
 Final acceptance is one automated clean-workspace scenario: author a bundle and
 its dependency, package/sign/publish through a real channel, discover through
@@ -211,13 +195,13 @@ suites, integration/memory checks and portal tests must pass in exact-source
 Linux/macOS CI. Record remaining acceptance obligations without promoting a
 host or fixture result into a platform/release claim.
 
-Operator update: finish the other fusion workstreams, then run an isolated
-M1 runtime rehearsal before starting portal adaptation. The existing M1
-updater uses `libpkg`; another owner will migrate that integration. Do not
-replace its installed library or change its update/startup process during
-fusion tests. Keep candidate binaries, test roots and recovery fixtures separate.
-Record native results by exact build; this rehearsal does not establish
-power-loss durability or qualification of other distributions.
+Order of the remaining workstreams: finish the non-portal fusion workstreams,
+then run an isolated M1 runtime rehearsal, then adapt the portal. The existing
+M1 updater uses `libpkg` and is migrated by its own owner. Fusion tests never
+replace its installed library or change its update/startup process. Candidate
+binaries, test roots and recovery fixtures stay separate, and native results
+are recorded by exact build. That rehearsal does not establish power-loss
+durability or qualification of other distributions.
 
 Other AROS execution and power-loss/distribution tests remain deferred. This goal
 changes no OS repository and authorizes no deployment, live portal cutover,

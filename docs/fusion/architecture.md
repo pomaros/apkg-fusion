@@ -11,11 +11,15 @@ is recorded in [status](status.md).
 
 ## Implementation skeleton
 
-The engineering direction is to extend arospkg's context-based libpkg as the
-product skeleton and port pkg's portable filesystem, signing, ownership,
-system-package and publishing services into it as modules. This preserves the
-client-facing structure already used by PkgManager. Its journal still requires
-the durability and recovery work specified below.
+The product engine is `src/apkg/`, a new common implementation built on
+arospkg's client-facing model: explicit contexts per root, read-only and
+mutation modes, typed results, plans and a recovery journal. It links pkg's
+portable filesystem, hashing, Ed25519, container, target and
+application-description services directly, without pkg's global request
+backend. Version comparison is adapted from arospkg with attribution. Neither
+arospkg's `libpkg` nor pkg's `pkg_lib_*` backend is extended in place; both
+remain regression baselines and sources of behavior, and PkgManager keeps its
+DOS worker, message port and UI over the common client API.
 
 The root pkg backend and development CLI are a baseline and service testbed.
 BASE may correct their integration regressions. Further product features belong
@@ -33,7 +37,7 @@ rules and plan inputs. The [API contract](api.md) and
 tranche. Their implementation status is tracked separately
 from the imported source layout.
 
-The [initial common engine](initial-engine.md) now implements the first signed
+The [initial common engine](initial-engine.md) implements the first signed
 install path; the full acceptance obligations below remain in force.
 
 ## One engine, explicit contexts

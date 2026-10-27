@@ -1452,7 +1452,7 @@ until the other workstreams and isolated M1 rehearsal.
 | Explicit target module | Separate CPU/OS/ABI/runtime fields with parse, format and matching. 118 checks pass under strict C99 compilation and ASan/UBSan. Parsing does not certify platform support. |
 | Qualified publication | Executable inspection checks the tuple's CPU component; full target identity travels in signed metadata and the channel. |
 | Application descriptions | The common library validates `application.json` independently of registration. 315 host checks pass. Native launch and managed bundle movement remain integration work. |
-| Native development CLI | `build/apkg` offers long options, explicit targets and `bundle-check`; 110 command checks pass. Its inherited engine backend still contains global request state. |
+| Provisional CLI baseline | `build/apkg-provisional` keeps the earlier long-option client over the inherited `pkg_lib_*` backend as a regression target; 110 command checks pass. The default `build/apkg` is the common engine and contains no global request backend. |
 | Authoring bridge | apkg-pack validation and bundle generation feed native signing. 78 offline checks cover publication, install, dependencies, verification, tampering and refusals. Inputs remain unchanged. |
 | Portal qualifications | Review and runtime records apply to exact published content independently of publishing rights. The portal suite has 107 passing host tests. Package and search pages were inspected in a local browser; production deployment remains separate work. |
 | Imported arospkg host suite | The complete inherited host suite passes on macOS and Linux in the BASE qualification above, including the pinned LH5 fixture. This is host evidence for the imported components. |

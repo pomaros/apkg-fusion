@@ -23,7 +23,6 @@ for v in 1.0 2.30; do
 done
 # C:TestLib, from the AROS sources: OpenLibrary(name, version), and the version got
 aros_src=${AROS_SRC:-"$repo_root/../aros-upstream"}
-[ -f "$aros_src/workbench/c/TestLib.c" ] || aros_src="$HOME/aros-next/research/src/aros-upstream"
 COMPILER_PATH="$sdk/tools:$aros_crosstools/bin" \
     "$aros_crosstools/bin/clang" --target=aarch64-unknown-aros -mcmodel=large -ffixed-x18 \
     -O2 -std=gnu11 -Wall -Wextra \

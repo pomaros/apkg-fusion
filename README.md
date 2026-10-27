@@ -14,8 +14,8 @@ catalogue integration, independent qualifications, existing-user migration and
 portal adaptation remain work. The [status overview](docs/fusion/status.md#alpha-progress-at-a-glance)
 separates implemented host behavior from the remaining alpha/release gates.
 
-APKG's context model is the selected skeleton; pkg contributes portable
-services, cryptography, ownership and publishing. The
+The common engine in `src/apkg/` follows APKG's context model and links pkg's
+portable services, cryptography, ownership and publishing code. The
 [architecture](docs/fusion/architecture.md) and
 [acceptance matrix](docs/fusion/acceptance.md) define the intended result.
 

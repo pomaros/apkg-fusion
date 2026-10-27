@@ -11,7 +11,7 @@ defined in [PLAN](../../PLAN.md#release-gate).
 
 | Topic | Proposed direction | Feedback to record |
 |---|---|---|
-| Skeleton | arospkg contexts and client API; pkg services integrated as modules | Maintainers' comments, accepted changes and unresolved objections |
+| Skeleton | New common engine on arospkg's context/client model, linking pkg services; both original engines kept as regression baselines |  Maintainers' comments, accepted changes and unresolved objections |
 | Recovery | One context journal for packages and self-update | Durable boundaries, recovery cases and migration of old journals |
 | Publication | Open author channels with independent review/runtime evidence | Official channel/key ownership and reviewer administration |
 | Existing users | Preserve released APKG installations and script behavior | Distribution names, releases, custom-root cases and representative records |

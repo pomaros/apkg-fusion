@@ -22,7 +22,6 @@ repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 aros_build=${AROS_BUILD:-"$HOME/Source/aros-project/aros-build"}
 aros_tree="$aros_build/bin/darwin-aarch64/AROS"
 macaros_root=${MACAROS_ROOT:-"$repo_root/../Macaros"}
-[ -x "$macaros_root/graft/aros-ctl" ] || macaros_root="$HOME/aros-next/research/src/Macaros"
 control="$macaros_root/graft/aros-ctl"
 aros_pkg="$repo_root/build/aros/Pkg"
 v1="$repo_root/build/aros/pkgtest-1.0.library"

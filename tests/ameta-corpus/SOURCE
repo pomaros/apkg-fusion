@@ -1,5 +1,4 @@
-Copied from the planning repository (aros-next), commit 7fba511,
-docs/features/file-metadata/ameta-corpus/cases: the reference cases of the
-.ameta format, docs/features/file-metadata/ameta.md there. The layout of a
-case is described in that corpus's README.md. Refresh the copy when the
-format changes; tests/test_ameta.c runs every case.
+The reference cases of the .ameta format, copied at specification revision
+7fba511 from the format's maintained corpus. The layout of a case is
+described in this corpus's README.md. Refresh the copy when the format
+changes; tests/test_ameta.c runs every case.
