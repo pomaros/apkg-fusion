@@ -16,6 +16,7 @@ typedef struct {
     uint64_t installed_revision;
     apkg_fact_state installed_revision_state;
     uint64_t review_observations, runtime_observations, revocations;
+    char *summary, *category;
 } pm_common_row;
 typedef struct {
     size_t count;

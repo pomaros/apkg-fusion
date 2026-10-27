@@ -89,6 +89,12 @@ apkg_status apkg_client_requirements(const char *root, const char *endpoint,
  * Profiles are private atomic-file replacements; concurrent saves are last-wins.
  * No automatic locations, network fallback or trust grants. */
 typedef struct apkg_source_config apkg_source_config;
+/* Decode one descriptive field from a presentation object, without granting
+ * signature/trust/review facts. NULL/zero-size or an absent field is NOT_FOUND;
+ * a recorded empty string is OK. Output is owned; free with client_text_free.
+ * Known fields: summary, category, license, repository. No I/O. */
+apkg_status apkg_presentation_field(apkg_bytes, const char *field, char **,
+                                   apkg_error **);
 typedef struct {
     apkg_text endpoint;
     apkg_id id;

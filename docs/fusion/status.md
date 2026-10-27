@@ -33,6 +33,42 @@ product. The isolated M1 RAM component profile below passes; broader native qual
 remains open. Portal adaptation follows this rehearsal; deployment and live
 portal cutover remain outside this run.
 
+## Signed descriptive metadata checkpoint
+
+Common authoring preserved summary/category/license/repository only in archived
+TOML, leaving catalogue and installed inspection without usable descriptive
+facts. The [presentation profile](presentation.md) now carries them in the signed
+descriptor, channel and installed views. Both discovery JSON paths, INFO and the
+legacy JSON compatibility adapter preserve recorded values, including UTF-8,
+quotes and backslashes; missing fields remain unknown and empty strings remain
+recorded empty. Owned PkgManager catalogue rows copy summary/category for search
+and display the descriptive fields. This does not finish the inherited category
+selector or recent/last-refresh views.
+
+The common engine validates string/control/bound rules. Common authoring reuses
+the inherited technical checks with an explicit string-validator callback;
+inherited publication retains its original ASCII/fixed-buffer rules by default.
+No review/runtime role can be asserted through presentation fields, and changing
+the text invalidates the old descriptor digest/signature binding.
+
+Evaluation on macOS: `make test-fusion` passes **362 common tests**, worker/
+dispatcher checks and the default-product/publication scenarios. **31 focused
+metadata/inspection/browser/update/compatibility tests** pass; the strengthened
+five-case presentation group also passes with an authored application lifecycle.
+The full ASan/UBSan gate passes **258 tests**. Both inherited suites pass locally:
+`make test` and `components/arospkg/tests/run-host-tests.sh`, including the default
+legacy authoring rules. Documentation links pass for **80 files**.
+
+The application lifecycle builds and signs real TOML input, publishes and browses
+the channel without root changes, installs through CLI and worker, reads matching
+descriptive facts, reaches the host's explicit AROS launch boundary, verifies and
+removes through both clients. It checks empty registration, removed managed
+program bytes, preserved personal/configuration bytes and no pending transaction;
+worker subprocesses complete and the owned-row harness checks cleanup. These
+host results do not prove native execution, fonts or DOS worker-task shutdown.
+Exact-source Linux/macOS CI remains pending for this checkpoint. No portal
+implementation or M1 execution was performed.
+
 ## Managed authored-application launch checkpoint
 
 The non-portal closure review reproduced a real authoring/client integration

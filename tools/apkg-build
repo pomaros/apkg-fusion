@@ -31,6 +31,16 @@ RESERVED='Package.arospkg.toml'
 class Refusal(Exception):pass
 
 def encode(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()
+
+def common_strings(manifest):
+ # Technical fields retain the apkg-pack profile. Descriptive text travels in
+ # the common signed presentation object, whose bounds/decoding/control rules
+ # are validated by the native engine, not by the old index's ASCII parser.
+ technical={key:value for key,value in manifest.items() if key not in ('summary','category','license','source')}
+ problems=RULES.check_strings(technical)
+ for key in ('summary','category','license'):
+  if key in manifest and not isinstance(manifest[key],str):problems.append(key+' is not a string')
+ return problems
 def run(engine,*args):
  done=subprocess.run([str(engine),*map(str,args)],capture_output=True,text=True)
  if done.returncode:raise Refusal((done.stderr+done.stdout).strip() or f'engine status {done.returncode}')
@@ -102,7 +112,7 @@ def build(args):
   if m.get(key):raise Refusal(f'{key}: common execution/presentation is not implemented')
  if m.get('kind') not in ('app','tool','data'):raise Refusal('system package destinations are not implemented')
  if 'source' in m and (not isinstance(m['source'],dict) or set(m['source'])-{'repository'} or not isinstance(m['source'].get('repository',''),str)):raise Refusal('source: only source.repository is implemented')
- with contextlib.redirect_stdout(sys.stderr):errors=RULES.check(m,'author')
+ with contextlib.redirect_stdout(sys.stderr):errors=RULES.check(m,'author',string_validator=common_strings)
  if errors:raise Refusal('; '.join(errors))
  if m.get('subdir')!=source.name:raise Refusal('subdir must name the source drawer')
  if not re.fullmatch('[0-9a-f]{32}',args.authority):raise Refusal('authority must be 32 lowercase hex digits')
@@ -187,6 +197,9 @@ def build(args):
   body=dict(authority=args.authority,files=files,kind={'app':'application','tool':'tool','data':'data'}[m['kind']],name=m['id'],relations=relations,revision=str(m.get('revision',1)),target=target,version=m['version'])
   system=system_requirements(m.get('requires_system',[]))
   if system:body['requires_system']=system
+  presentation={field:m[field] for field in ('summary','category','license') if field in m}
+  if 'repository' in m.get('source',{}):presentation['repository']=m['source']['repository']
+  if presentation:body['presentation']=presentation
   descriptor=encode(dict(body=body,format='apkg-json-1',requires=[],schema='1',type='descriptor'))
   descriptor_path=temp/'descriptor.json';descriptor_path.write_bytes(descriptor)
   signature=json.loads(run(args.engine,'sign-object',key,'descriptor',descriptor_path));signature_bytes=encode(signature)

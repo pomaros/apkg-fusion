@@ -63,12 +63,16 @@ Info emits one current installed metadata object with name/dir/schema aliases.
 It describes the current common record, so upgrading a migrated package cannot
 keep presenting the old retained registry version as current.
 
-The common record does not establish old summary/category/archive size facts:
-summary/category are null, size is -1, and `unrecorded` names those fields.
+The common record does not establish old archive size: size is -1.
+Summary/category come from [signed descriptive metadata](presentation.md) when
+recorded in the current descriptor. Otherwise they are null; `unrecorded` names
+each absent field. Recorded empty text stays empty. These fields describe the
+current signed artifact, not retrospective authentication of an old registry.
 Signature scope is the descriptor; trust is a separate current captured-policy
 fact. Neither authenticates the original legacy installation retrospectively.
-Raw old registry fields, launch/history and author-supplied presentation data are
-retained by import but are not fabricated as current info. Scripts reading those
+Raw old registry presentation, launch and history remain retained evidence;
+only descriptive text in the current signed descriptor becomes current INFO.
+Scripts reading the other retained fields
 fields require further adapters. The original records remain accessible through
 the private import evidence, not rewritten by the compatibility command.
 

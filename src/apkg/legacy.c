@@ -106,6 +106,15 @@ static apkg_status rows(const apkg_snapshot *snapshot, const char *name,
         char why[160];
         if (pkg_target_parse(v->target.data, &target, why, sizeof why))
             code = APKG_TARGET;
+        char *summary = NULL, *category = NULL;
+        if (!code) {
+            apkg_status metadata = apkg_presentation_field(v->presentation, "summary", &summary, NULL);
+            if (metadata && metadata != APKG_NOT_FOUND) code = metadata;
+        }
+        if (!code) {
+            apkg_status metadata = apkg_presentation_field(v->presentation, "category", &category, NULL);
+            if (metadata && metadata != APKG_NOT_FOUND) code = metadata;
+        }
         if (!code) {
             ak_buf_add(&b, "%s{\"id\":", found ? "," : "");
             string(&b, v->name);
@@ -122,21 +131,31 @@ static apkg_status rows(const apkg_snapshot *snapshot, const char *name,
                        ",\"arch\":\"%s\",\"abi\":\"%s\",\"kind\":",
                        v->revision, target.cpu, target.abi);
             string(&b, v->kind);
+            ak_buf_add(&b, ",\"summary\":");
+            if (summary) string(&b, (apkg_text){summary, strlen(summary)});
+            else ak_buf_add(&b, "null");
+            ak_buf_add(&b, ",\"category\":");
+            if (category) string(&b, (apkg_text){category, strlen(category)});
+            else ak_buf_add(&b, "null");
             ak_buf_add(&b,
-                       ",\"summary\":null,\"category\":null,\"size\":-1,"
+                       ",\"size\":-1,"
                        "\"ours\":%s,\"installed\":true,\"authority\":",
                        v->target_matches ? "true" : "false");
             string(&b, v->authority);
             ak_buf_add(&b,
                        ",\"signature\":\"%s\",\"signature_scope\":"
                        "\"descriptor\",\"authortrust\":\"%s\","
-                       "\"unrecorded\":[\"summary\",\"category\",\"size\"]}",
+                       "\"unrecorded\":[%s%s\"size\"]}",
                        v->signature == APKG_SIGNATURE_VALID ? "verified"
                                                             : "invalid",
                        v->author_trust == APKG_TRUST_ACCEPTED ? "accepted"
-                                                              : "rejected");
+                                                              : "rejected",
+                       summary ? "" : "\"summary\",",
+                       category ? "" : "\"category\",");
             found++;
         }
+        apkg_client_text_free(summary);
+        apkg_client_text_free(category);
         apkg_inspection_free(inspection);
         if (b.bad)
             code = (apkg_status)b.bad;

@@ -654,6 +654,14 @@ int main(int argc, char **argv) {
                 assert(strstr(row->detail,
                               "Current runtime approval: not asserted"));
                 assert(strstr(row->detail, row->name));
+                owned_text(final.common_catalogue, (apkg_text){row->summary, strlen(row->summary)});
+                owned_text(final.common_catalogue, (apkg_text){row->category, strlen(row->category)});
+                assert(strstr(row->detail, "Summary: "));
+                assert(strstr(row->detail, "Category: "));
+                if (*row->summary)
+                    assert(pm_common_row_matches(row, PM_CATALOGUE_ALL, row->summary));
+                if (*row->category)
+                    assert(pm_common_row_matches(row, PM_CATALOGUE_ALL, row->category));
                 owned_text(final.common_catalogue,
                            (apkg_text){row->installed_version,
                                        strlen(row->installed_version)});

@@ -289,6 +289,7 @@ apkg_status ak_plan_heads(apkg_ctx *, const apkg_snapshot *, const char *, const
                           apkg_plan **, apkg_error **);
 int ak_cancelled(const apkg_observer *);
 int ak_descriptor(const ak_json *);
+int ak_presentation_valid(const ak_json *, int);
 int ak_valid_name(const char *);
 int ak_valid_path(const char *);
 #ifdef APKG_TESTING

@@ -204,6 +204,9 @@ apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
                    ",\"source_attestation_count\":\"%llu\",\"attestations\":",
                    (unsigned long long)row->source_attestation_count);
         ak_channel_claims_json(channel, i, &b);
+        ak_buf_add(&b, ",\"presentation\":%.*s",
+                   row->presentation.size ? (int)row->presentation.size : 4,
+                   row->presentation.size ? (const char *)row->presentation.data : "null");
         ak_buf_add(&b, "}");
         apkg_client_text_free(selection);
     }

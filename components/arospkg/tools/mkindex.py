@@ -130,7 +130,7 @@ OLD_CLIENT_BUDGET = 0.80
 PUBLICATION_FIELDS = ("url", "size", "sha256", "status")
 
 
-def check(m, stage="index"):
+def check(m, stage="index", *, string_validator=None):
     """Return a list of reasons this manifest cannot be published.
 
     stage "index": a manifest in arospkg-index, complete and approved.
@@ -176,7 +176,9 @@ def check(m, stage="index"):
         r = m["revision"]
         if isinstance(r, bool) or not isinstance(r, int) or not 1 <= r <= REVISION_MAX:
             problems.append(f"revision {r!r} is not an integer from 1 to {REVISION_MAX}")
-    problems += check_strings(m)
+    # Consumers with another wire format supply its string rules; the released
+    # catalogue/authoring path retains the original fixed-buffer checks.
+    problems += (check_strings if string_validator is None else string_validator)(m)
     problems += check_relations(m)
     problems += check_requires(m.get("requires_system", []))
     problems += check_notes(m.get("post_install_notes"))

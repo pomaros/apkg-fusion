@@ -210,8 +210,9 @@ int ak_descriptor(const ak_json *j) {
     b = ak_member(j, 0, "body");
     if (!ak_fields_optional(j, b, bodyf, 7,
                             (const char *const[]){"relations",
-                                                  "requires_system"},
-                            2) ||
+                                                  "requires_system", "presentation"},
+                            3) ||
+        !ak_presentation_valid(j, ak_member(j, b, "presentation")) ||
         !ak_relations_valid(j, ak_member(j, b, "relations")) ||
         !ak_system_valid(j, ak_member(j, b, "requires_system")))
         return 0;

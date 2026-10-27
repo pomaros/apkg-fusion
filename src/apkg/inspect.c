@@ -65,6 +65,9 @@ apkg_status apkg_snapshot_inspect(const apkg_snapshot *snapshot, uint64_t index,
     if (body < 0)
         goto done;
     apkg_inspection_view *v = &info->view;
+    int presentation = ak_member(&info->record, body, "presentation");
+    if (presentation >= 0)
+        v->presentation = slice(&info->record, presentation);
     const char *names[] = {"authority", "name", "version", "target", "kind"};
     apkg_text *values[] = {&v->authority, &v->name, &v->version, &v->target,
                            &v->kind};
@@ -154,7 +157,7 @@ done:
 }
 
 static const char fields[] = "id version revision state installedversion "
-                             "installedrevision summary category "
+                             "installedrevision summary category license repository "
                              "arch abi kind size requires canupgrade "
                              "canrollback compatibility requirements "
                              "authority target reason signature authortrust "
@@ -170,7 +173,18 @@ static void field_value(ak_buf *b, const apkg_inspection_view *v,
         ak_buf_add(b, "%s", v->version.data);
     else if (!strcmp(field, "revision") || !strcmp(field, "installedrevision"))
         ak_buf_add(b, "%" PRIu64, v->revision);
-    else if (!strcmp(field, "state"))
+    else if (!strcmp(field, "summary") || !strcmp(field, "category") ||
+             !strcmp(field, "license") || !strcmp(field, "repository")) {
+        char *text = NULL;
+        apkg_status code = apkg_presentation_field(v->presentation, field, &text, NULL);
+        if (code == APKG_NOT_FOUND)
+            ak_buf_add(b, "unknown");
+        else if (code)
+            b->bad = code;
+        else
+            ak_buf_add(b, "%s", text);
+        apkg_client_text_free(text);
+    } else if (!strcmp(field, "state"))
         ak_buf_add(b, "installed");
     else if (!strcmp(field, "arch") || !strcmp(field, "abi")) {
         struct pkg_target target;

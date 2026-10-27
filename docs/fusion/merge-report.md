@@ -33,6 +33,7 @@ limites sont dans l'[architecture](architecture.md).
 | Signatures et confiance | Descripteurs, catalogues et attestations utilisent des signatures séparées ; les rôles auteur, canal, réviseur et testeur sont indépendants. | Politique explicite par racine. Une signature valide ne vaut ni confiance automatique, ni revue, ni validation matérielle. |
 | Publication ouverte | Un auteur peut produire son propre canal signé local ou HTTP, consommable directement sans catalogue central ni revue préalable. | Flux d'empaquetage/publication testé ; adaptation complète du portail hors séquence actuelle. |
 | Source d'auteur | Le TOML et les métadonnées représentées alimentent le descripteur commun, le bundle, l'archive et les signatures. | Les entrées restent intactes ; une sémantique non représentée refuse explicitement. |
+| Informations descriptives | Résumé, catégorie, licence et dépôt source passent du TOML au descripteur signé, au catalogue et à INFO ; les lignes du worker gardent ces textes pour l'affichage et la recherche. | Champ absent et texte vide sont distincts. Cela ne termine pas le raccord du sélecteur de catégories ni celui des vues récentes. |
 | Transport | Les archives et objets sont transférés par morceaux bornés, hachés et liés à la sélection exacte avant installation. | Cas de corruption, troncature, cache altéré et interruption testés ; transport réseau AROS encore à qualifier. |
 | Sources multiples | La racine possède une liste ordonnée de sources ; sélection et dépendances passent par le résolveur commun. | Pas de choix silencieux entre deux autorités portant le même nom, ni d'omission silencieuse d'une source indisponible. |
 | Protection contre le rejeu | L'acceptation explicite retient une séquence et un digest de catalogue dans le journal de la racine. | Un retour arrière de paquet ne fait pas redescendre ce seuil ; la fraîcheur en ligne reste une question distincte. |
@@ -84,3 +85,10 @@ La clôture devra identifier le commit, les binaires, les résultats CI et M1,
 les adaptations restantes et les limites de publication. Aucun déploiement du
 portail, accord de mainteneur, migration réelle de distribution ou lancement
 commun aux deux projets ne doit être déduit de ce document.
+
+Le cycle demandé comprend installation, vérification/utilisation puis
+désinstallation. Après suppression, le contrôle doit établir la disparition de
+l'enregistrement et des fichiers gérés, la conservation des données personnelles
+et de la configuration modifiée, ainsi que l'absence de transaction en attente
+et de worker resté actif. Le contenu retenu pour l'historique ou le cache suit
+sa propre politique ; il n'est pas assimilé à un échec de désinstallation.

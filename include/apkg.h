@@ -169,6 +169,7 @@ typedef struct {
     apkg_fact_state review, runtime_testing;
     apkg_bytes descriptor, signature_envelope, relations;
     apkg_bytes adoption; /* owned local evidence; original authentication unknown */
+    apkg_bytes presentation; /* optional signed author text; absent is unknown */
 } apkg_inspection_view;
 apkg_status apkg_snapshot_inspect(const apkg_snapshot *, uint64_t,
     apkg_inspection **, apkg_error **);
@@ -241,6 +242,7 @@ typedef struct {
     apkg_bytes descriptor, signature_envelope;
     uint64_t attestation_count; /* supplied plus retained observations */
     uint64_t source_attestation_count;
+    apkg_bytes presentation; /* borrowed canonical object, or zero size if absent */
 } apkg_channel_entry_view;
 apkg_status apkg_channel_read(apkg_ctx *, const apkg_id *expected_id,
                               uint64_t minimum_sequence, apkg_bytes object,

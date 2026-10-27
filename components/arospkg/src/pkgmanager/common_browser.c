@@ -23,7 +23,9 @@ int pm_common_row_matches(const pm_common_row *row, pm_catalogue_filter filter,
     if (!row || (unsigned)filter >= PM_CATALOGUE_FILTER_COUNT)
         return 0;
     if (term && *term && !strstr(row->name, term) &&
-        !strstr(row->authority, term) && !strstr(row->target, term))
+        !strstr(row->authority, term) && !strstr(row->target, term) &&
+        !(row->summary && strstr(row->summary, term)) &&
+        !(row->category && strstr(row->category, term)))
         return 0;
     switch (filter) {
     case PM_CATALOGUE_ALL:
@@ -308,7 +310,8 @@ static const char *row_format =
     "asserted\nComparison: %s\nInstalled version: %.*s\nInstalled revision: "
     "%s\n"
     "Installed authority: %.*s\nInstalled target: %.*s\n"
-    "Plan readiness: not checked\n\n%.*s\n\n%s";
+    "Plan readiness: not checked\nSummary: %s\nCategory: %s\nLicense: %s\n"
+    "Source repository: %s\n\n%.*s\n\n%s";
 static int row_detail(char *out, size_t size, const apkg_channel_entry_view *v,
                       const apkg_candidate_view *comparison,
                       const char *claims) {
@@ -324,7 +327,16 @@ static int row_detail(char *out, size_t size, const apkg_channel_entry_view *v,
         else
             snprintf(revision, sizeof revision, "unknown");
     }
-    return snprintf(
+    const char *fields[] = {"summary", "category", "license", "repository"};
+    char *text[4] = {0};
+    for (size_t i = 0; i < 4; i++) {
+        apkg_status code = apkg_presentation_field(v->presentation, fields[i], &text[i], NULL);
+        if (code && code != APKG_NOT_FOUND) {
+            for (size_t k = 0; k < 4; k++) apkg_client_text_free(text[k]);
+            return -(int)code;
+        }
+    }
+    int result = snprintf(
         out, size, row_format, (int)v->name.size, v->name.data,
         (int)v->authority.size, v->authority.data, (int)v->version.size,
         v->version.data, (unsigned long long)v->revision, (int)v->target.size,
@@ -341,7 +353,11 @@ static int row_detail(char *out, size_t size, const apkg_channel_entry_view *v,
         comparison->installed ? (int)comparison->installed->target.value.size
                               : 0,
         comparison->installed ? comparison->installed->target.value.data : "",
+        text[0] ? text[0] : "unknown", text[1] ? text[1] : "unknown",
+        text[2] ? text[2] : "unknown", text[3] ? text[3] : "unknown",
         (int)v->descriptor.size, (const char *)v->descriptor.data, claims);
+    for (size_t i = 0; i < 4; i++) apkg_client_text_free(text[i]);
+    return result;
 }
 static char *copy_text(char **cursor, apkg_text text) {
     char *out = *cursor;
@@ -400,10 +416,10 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         int n = row_detail(NULL, 0, v, &comparison, claims);
         apkg_client_text_free(claims);
         if (n < 0)
-            return APKG_INVALID;
+            return (apkg_status)-n;
         size_t extra =
             v->name.size + v->version.size + v->target.size +
-            v->authority.size + 4 + (size_t)n + 1 +
+            v->authority.size + v->presentation.size + 6 + (size_t)n + 1 +
             (comparison.installed ? comparison.installed->version.value.size
                                   : 0) +
             1;
@@ -492,6 +508,19 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         r->version = copy_text(&cursor, v->version);
         r->target = copy_text(&cursor, v->target);
         r->authority = copy_text(&cursor, v->authority);
+        const char *fields[] = {"summary", "category"};
+        char **destinations[] = {&r->summary, &r->category};
+        for (size_t field = 0; field < 2; field++) {
+            char *text = NULL;
+            code = apkg_presentation_field(v->presentation, fields[field], &text, NULL);
+            if (code && code != APKG_NOT_FOUND) {
+                apkg_client_text_free(claims);
+                FreeVec(model);
+                return code;
+            }
+            *destinations[field] = copy_text(&cursor, (apkg_text){text ? text : "", text ? strlen(text) : 0});
+            apkg_client_text_free(text);
+        }
         r->revision = v->revision;
         r->archive_bytes = v->archive_bytes;
         r->signature = v->signature;
@@ -526,7 +555,7 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         apkg_client_text_free(claims);
         if (n < 0) {
             FreeVec(model);
-            return APKG_INVALID;
+            return (apkg_status)-n;
         }
         cursor += (size_t)n + 1;
     }

@@ -39,11 +39,15 @@ field emits its value. Release text with `apkg_client_text_free`.
 ```
 
 `apkg_info_fields` advertises fields. Existing information field names remain,
-with explicit `unknown` for unestablished summary/category/archive size/runtime
+with explicit `unknown` for unestablished archive size/runtime
 requirements/upgrade availability/rollback applicability. `requirements` is
 `not-checked`. Installed version/revision describe the committed record. Added
 fields expose author, target, reason, signature/trust, declared payload counts,
 full relations, independent qualifications and snapshot provenance.
+
+[Signed descriptive metadata](presentation.md) supplies summary, category,
+license and source repository when recorded. Missing fields remain `unknown`;
+recorded empty fields remain empty. They are author text, not qualifications.
 
 PkgManager installed details and fusion ARexx INFO share that inspection.
 Fusion advertises **ARexx interface 2**: INFO reports explicit unknowns and

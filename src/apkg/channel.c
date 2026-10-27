@@ -278,6 +278,9 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         ak_u64(j, ak_member(j, b, "revision"), &row->revision);
         ak_u64(j, ak_member(j, archive, "size"), &row->archive_bytes);
         row->descriptor = node_bytes(j, descriptor);
+        int presentation = ak_member(j, b, "presentation");
+        if (presentation >= 0)
+            row->presentation = node_bytes(j, presentation);
         row->signature_envelope = node_bytes(j, sig);
         ak_hash(row->descriptor.data, row->descriptor.size,
                 &row->descriptor_digest);
@@ -1153,6 +1156,9 @@ apkg_status ak_channel_format(const apkg_channel *channel, char **out) {
                    ",\"source_attestation_count\":\"%llu\",\"attestations\":",
                    (unsigned long long)r->source_attestation_count);
         ak_channel_claims_json(channel, i, &b);
+        ak_buf_add(&b, ",\"presentation\":%.*s",
+                   r->presentation.size ? (int)r->presentation.size : 4,
+                   r->presentation.size ? (const char *)r->presentation.data : "null");
         ak_buf_add(&b, "}");
     }
     ak_buf_add(&b,
