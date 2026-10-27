@@ -42,7 +42,31 @@ remains open. After final candidate qualification, stop with the merge report;
 portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
 
-## HOST-FINAL passed on the frozen candidate
+## M1 candidate trial: confirmation reuse defect found
+
+The `698b3e1` candidate runs on the physical M1 under the supervised RAM-only
+reference. Installation and seven-element verification, managed launch of the
+Calculator trial application, moved unregistered bundle launch, version 1.0 →
+2.0 upgrade, offline rollback and offline repair have executed successfully.
+Edited configuration and personal data survive. PkgManager/ARexx queries, busy
+refusal, declined and approved upgrade, independent CLI comparison, Last refresh
+1 → 2 and unchanged 2 → 2, and offline source-profile restoration also execute.
+These observations are retained evidence, not completion of M1-FINAL.
+
+Repeated same-size confirmation exposed a blank rollback plan. That request was
+declined. The client now opens the confirmation window before assigning its
+Floattext, so Zune can lay out the new plan with an attached window. Host and
+cross-build checks and the repeated native confirmation/removal regression must
+qualify this correction before closure. Final removal/file/process inspection
+and the merge report remain pending; portal work has not resumed.
+
+The reference uses a retained SDK/runtime with development CRT differences.
+It is M1 application evidence under HV, not bare-metal OS acceptance. An earlier
+newer-runtime attempt stopped before the kernel/application workload and was
+inspected through the independent debugger; it supplies no APKG runtime result.
+The installed M1 updater and storage were not modified.
+
+## HOST-FINAL passed on the preceding frozen candidate
 
 Candidate `698b3e1ded7f0cc0e54a0c1ab781817c59d5075e` passes
 [exact-source Linux/macOS CI](https://github.com/pomaros/apkg-fusion/actions/runs/40545850144):

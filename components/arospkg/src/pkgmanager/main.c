@@ -2137,8 +2137,11 @@ static int on_message(pm_msg *m)
         rx_common_confirmation(active, 0);
         snprintf(last_phase, sizeof last_phase, "confirm"); last_can_cancel = 1;
         SetAttrs(btn_cancel, MUIA_Disabled, FALSE, TAG_DONE);
-        SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)common_preview_text, TAG_DONE);
         SetAttrs(win_confirm, MUIA_Window_Open, TRUE, TAG_DONE);
+        /* Zune Floattext lays out text only with an open window. On reuse
+         * at the same width, opening does not trigger another layout: setting
+         * text while closed can leave the next approved plan invisible. */
+        SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)common_preview_text, TAG_DONE);
         status("Review every signed package effect, then confirm or decline");
         return 0;
     }

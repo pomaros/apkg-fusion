@@ -66,3 +66,10 @@ preservation, pending transactions and worker/process exit. Exercise selection
 with candidate-only rows, conflicting names and active filters, plus busy,
 confirmation and close paths. Keep the installed M1 updater migration separate;
 test client self-update only inside the approved isolated test root.
+
+Repeat confirmation windows at the same size: decline an upgrade, reopen and
+approve it, then request rollback and removal. Each opening must display its
+own nonempty plan and exact digest before Proceed can be used. On Zune, changing
+Floattext while its window is closed can clear its layout without rebuilding
+it when the unchanged-size window reopens; host worker tests do not exercise
+this rendering lifecycle.
