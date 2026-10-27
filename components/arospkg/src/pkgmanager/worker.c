@@ -70,8 +70,7 @@ static void worker_main(void)
     /* The release check reads the network and nothing in the root: no
        lock, so it never waits for, or blocks, a package operation. */
 #ifdef APKG_FUSION
-    if (j->kind == JOB_COMMON_INSTALL || j->kind == JOB_RUN ||
-        j->kind == JOB_COMMON_DISCOVER || j->kind == JOB_COMMON_RECOMPARE || j->kind == JOB_COMMON_SOURCE_LOAD || j->kind == JOB_COMMON_ATTESTATION) {
+    if (job_uses_common_engine(j->kind)) {
         st = pm_common_install(j, &e);
     } else
 #endif

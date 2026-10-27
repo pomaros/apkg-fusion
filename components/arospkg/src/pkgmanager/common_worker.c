@@ -78,11 +78,13 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     observer.cancel = cancel;
     if (j->cancel)
         apkg_cancel_request(cancel);
-    if (j->kind == JOB_COMMON_ATTESTATION) {
+    if (j->kind == JOB_COMMON_ATTESTATION || j->kind == JOB_COMMON_SOURCE_LIST) {
         char *text = NULL;
         status = j->cancel ? APKG_CANCELLED
-                           : apkg_client_attestation(j->root, j->common_package,
-                                                     &text, &detail);
+                           : j->kind == JOB_COMMON_SOURCE_LIST
+                               ? apkg_client_source_list(j->root, &text, &detail)
+                               : apkg_client_attestation(j->root, j->common_package,
+                                                         &text, &detail);
         if (!status && !j->cancel) {
             size_t size = strlen(text) + 1;
             j->done->common_record = AllocVec(size, MEMF_PUBLIC);
@@ -111,6 +113,13 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
             j->done->common_catalogue = NULL;
             status = APKG_CANCELLED;
         }
+    } else if (j->kind == JOB_COMMON_SOURCE_ADD) {
+        status = apkg_client_source_add(j->root, j->id, j->common_package,
+                                       j->common_pool, ask, j, &observer,
+                                       &result, &detail);
+    } else if (j->kind == JOB_COMMON_SOURCE_REMOVE) {
+        status = apkg_client_source_remove(j->root, j->id, ask, j, &observer,
+                                          &result, &detail);
     } else if (j->kind == JOB_COMMON_SOURCE_INSTALL) {
         /* id: the package name, from the root's own source list. */
         status = apkg_client_source_install(j->root, j->id, 0, ask, j,

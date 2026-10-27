@@ -15,7 +15,7 @@ implemented below; remaining service/operation integration is listed separately.
 |---|---|---|
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
-| Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format, PkgManager source-list controls |
+| Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format |
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures | Placements, active settings/launch/history conversion, script compatibility and distribution qualification |
@@ -1589,6 +1589,25 @@ header/type check also passes. These checks do not establish native runtime
 behavior. Full host integration passes with 320 common methods and the
 existing CLI, publication, target/application and contract gates. Exact-source
 CI remains pending for this follow-up.
+
+## PkgManager root source controls
+
+The catalogue window now adds/removes a named root source through confirmed
+common plans and lists its ordered sources without network access. Profiles and
+trust grants remain separate. Native worker dispatch previously omitted source
+installation and self-update even though their common bridge handlers existed;
+a shared job classification now connects those paths and the new controls.
+
+The worker rehearsal covers CLI-equivalent listing, add/remove, declined and
+cancelled plans, allocation failure, duplicate/untrusted sources, offline removal
+and balanced public-message ownership. Existing install-by-name and self-update
+worker tests also assert native routing selection. All 18 source/self-update
+methods pass with the actual worker bridge instrumented by ASan/UBSan. Full
+host integration passes 321 common methods, 78 default-product checks, 110
+provisional CLI checks, 78 publication checks and the existing contract,
+ARexx, target and application gates. AArch64 SDK type checking and links across
+74 documentation files pass. Exact-source Linux/macOS CI remains pending;
+native UI execution is still deferred to the isolated runtime rehearsal.
 
 ## Implemented integration pieces
 

@@ -94,6 +94,39 @@ class RootSources(unittest.TestCase):
             self.assertIn('status 0 outcome 1 previews 1', result.stdout)
             self.assertEqual((s.root / 'client/Drawer/program').read_bytes(), b'new')
 
+    def test_worker_source_controls_match_cli_and_preserve_state_on_refusal(self):
+        def worker(s, name, mode, choice=1, *extra):
+            result = subprocess.run([str(clients.WORKER), str(s.root), name,
+                                     str(mode), str(choice), *map(str, extra)],
+                                    capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            return result.stdout
+        with tempfile.TemporaryDirectory() as d:
+            s = Sources(Path(d)); s.offer(s.main, 'client', '1.0', b'one')
+            before = (s.root / '.apkg/state').read_bytes()
+            for choice, code in ((0, 16), (2, 16), (3, 4), (4, 16)):
+                out = worker(s, 'main', 42, choice, s.main, CHANNEL)
+                self.assertIn('status %d outcome 0' % code, out)
+                self.assertEqual((s.root / '.apkg/state').read_bytes(), before)
+            out = worker(s, 'main', 42, 1, s.main, CHANNEL)
+            self.assertIn('status 0 outcome 1 previews 1', out)
+            current = (s.root / '.apkg/state').read_bytes()
+            out = worker(s, '', 44)
+            self.assertEqual(out.split('\n', 1)[1], cli('source-list', s.root).stdout.removesuffix('status=0 outcome=0\n'))
+            self.assertEqual((s.root / '.apkg/state').read_bytes(), current)
+            self.assertIn('status 14', worker(s, 'main', 42, 1, s.main, CHANNEL))
+            self.assertIn('status 12', worker(s, 'untrusted', 42, 1, s.main, '01' * 16))
+            self.assertEqual((s.root / '.apkg/state').read_bytes(), current)
+            shutil.rmtree(s.main)  # Listing/removal need no available channel.
+            for choice, code in ((0, 16), (2, 16), (3, 4), (4, 16)):
+                self.assertIn('status %d' % code, worker(s, 'main', 43, choice))
+                self.assertEqual((s.root / '.apkg/state').read_bytes(), current)
+            self.assertIn('status 4', worker(s, '', 44, 3))
+            self.assertIn('status 16', worker(s, '', 44, 4))
+            self.assertIn('status 0 outcome 1 previews 1', worker(s, 'main', 43))
+            self.assertNotIn('sources', body(s.root))
+            self.assertIn('status 5', worker(s, 'main', 43))
+
     def test_an_equal_version_comes_from_the_earlier_source(self):
         with tempfile.TemporaryDirectory() as d:
             s = Sources(Path(d)); s.offer(s.main, 'client', '1.2', b'from main'); s.offer(s.extra, 'client', '1.2', b'from extra'); s.add_both(self)

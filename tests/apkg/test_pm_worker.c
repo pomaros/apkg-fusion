@@ -42,8 +42,12 @@ void PutMsg(struct MsgPort *port, struct Message *message) {
         previews++;
         assert(m->common_preview);
         assert(strstr(m->common_preview, "Approved plan:"));
-        assert(strstr(m->common_preview, "SHA-256"));
-        if (running->common_action != 1 && running->common_action != 4 &&
+        if (running->kind == JOB_COMMON_SOURCE_ADD || running->kind == JOB_COMMON_SOURCE_REMOVE)
+            assert(strstr(m->common_preview, running->kind == JOB_COMMON_SOURCE_ADD ? "Add source " : "Remove source "));
+        else
+            assert(strstr(m->common_preview, "SHA-256"));
+        if (running->kind != JOB_COMMON_SOURCE_ADD && running->kind != JOB_COMMON_SOURCE_REMOVE &&
+            running->common_action != 1 && running->common_action != 4 &&
             running->common_action != APKG_CLIENT_CHANNEL_ACCEPT)
             assert(strstr(m->common_preview, "Signature: verified"));
         if (running->common_action == APKG_CLIENT_CHANNEL_ACCEPT)
@@ -93,6 +97,7 @@ int main(int argc, char **argv) {
     pkg_err error = {0};
     pkg_status result;
     assert(argc >= 4 && argc <= 7);
+    assert(!job_uses_common_engine(JOB_NONE) && !job_uses_common_engine(JOB_INSTALL));
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
     if (atoi(argv[3]) == 30 || atoi(argv[3]) == 31) {
         assert(strlen(argv[1]) < sizeof j.root &&
@@ -134,6 +139,29 @@ int main(int argc, char **argv) {
         assert(allocations == 0);
         return 0;
     }
+    if (atoi(argv[3]) >= 42 && atoi(argv[3]) <= 44) {
+        /* ROOT NAME MODE CHOICE [ENDPOINT CHANNEL-ID]. */
+        int mode = atoi(argv[3]);
+        assert(argc == (mode == 42 ? 7 : 5));
+        assert(strlen(argv[1]) < sizeof j.root && strlen(argv[2]) < sizeof j.id);
+        strcpy(j.root, argv[1]); strcpy(j.id, argv[2]);
+        j.kind = mode == 42 ? JOB_COMMON_SOURCE_ADD : mode == 43 ? JOB_COMMON_SOURCE_REMOVE : JOB_COMMON_SOURCE_LIST;
+        assert(job_uses_common_engine(j.kind));
+        if (mode == 42) {
+            assert(strlen(argv[5]) < sizeof j.common_package && strlen(argv[6]) < sizeof j.common_pool);
+            strcpy(j.common_package, argv[5]); strcpy(j.common_pool, argv[6]);
+        }
+        choice = atoi(argv[4]);
+        if (choice == 3) fail_at = 1;
+        if (choice == 4) j.cancel = 1;
+        j.done = &final; running = &j;
+        pm_common_install(&j, &error);
+        printf("status %d outcome %d previews %d\n%s", final.common_status,
+               final.common_outcome, previews, final.common_record ? final.common_record : "");
+        FreeVec(final.common_record);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 41) {
         /* ROOT NAME 41: install by name from the root's source list. */
         assert(argc == 4 && strlen(argv[1]) < sizeof j.root &&
@@ -141,6 +169,7 @@ int main(int argc, char **argv) {
         strcpy(j.root, argv[1]);
         strcpy(j.id, argv[2]);
         j.kind = JOB_COMMON_SOURCE_INSTALL;
+        assert(job_uses_common_engine(j.kind));
         j.done = &final;
         running = &j;
         choice = 1;
@@ -163,6 +192,7 @@ int main(int argc, char **argv) {
         strcpy(j.common_pool, argv[5]);
         strcpy(j.common_executable, argv[6]);
         j.kind = JOB_COMMON_SELF_UPDATE;
+        assert(job_uses_common_engine(j.kind));
         j.done = &final;
         running = &j;
         choice = 1;

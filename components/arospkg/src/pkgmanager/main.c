@@ -49,6 +49,7 @@ static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
               *str_channel_search, *lst_channel, *txt_channel_detail,
               *btn_channel_recompare, *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary, *cyc_channel_filter, *txt_channel_counts;
 static Object *str_source_profile, *btn_source_save, *btn_source_load, *btn_attestation;
+static Object *str_source_name, *btn_source_add, *btn_source_remove, *btn_source_list;
 static char source_profile[4096] = "ENVARC:apkg-fusion.source";
 static char channel_counts_text[320];
 static const char *channel_filters[] = {"All candidates", "Updates / blocked candidates",
@@ -67,6 +68,9 @@ static char *common_info_text;
 #define ID_SOURCE_SAVE 1009
 #define ID_SOURCE_LOAD 1010
 #define ID_ATTESTATION 1011
+#define ID_SOURCE_ADD 1012
+#define ID_SOURCE_REMOVE 1013
+#define ID_SOURCE_LIST 1014
 #endif
 static Object *app, *win, *str_search, *cyc_cat, *cyc_state, *lst, *txt_detail,
               *txt_status, *gauge, *btn_install, *btn_remove, *btn_update, *btn_cancel,
@@ -1223,6 +1227,10 @@ static void busy(int on)
     SetAttrs(str_source_profile, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_source_save, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_source_load, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(str_source_name, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(btn_source_add, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(btn_source_remove, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(btn_source_list, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_attestation, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_channel_recompare, MUIA_Disabled, on || !common_catalogue, TAG_DONE);
     SetAttrs(str_channel_endpoint, MUIA_Disabled, on, TAG_DONE);
@@ -1265,6 +1273,9 @@ static const char *opname(job_kind k)
     case JOB_COMMON_ATTESTATION: return "attestation";
     case JOB_COMMON_SELF_UPDATE: return "self-update";
     case JOB_COMMON_SOURCE_INSTALL: return "install";
+    case JOB_COMMON_SOURCE_ADD: return "source-add";
+    case JOB_COMMON_SOURCE_REMOVE: return "source-remove";
+    case JOB_COMMON_SOURCE_LIST: return "source-list";
     case JOB_REMOVE:  return "remove";
     case JOB_UPDATE:  return "update";
     case JOB_PREVIEW_UPGRADE: case JOB_UPGRADE: return "upgrade";
@@ -1349,6 +1360,20 @@ static int start(job_kind kind, const char *id)
         if (!folder || (cur.common_action!=APKG_CLIENT_RECOVER && !*(const char *)folder) || strlen((const char *)folder) >= sizeof cur.common_package) return -1;
         memcpy(cur.common_package, (const char *)folder, strlen((const char *)folder) + 1);
     }
+    if (kind == JOB_COMMON_SOURCE_ADD || kind == JOB_COMMON_SOURCE_REMOVE) {
+        IPTR name = 0, endpoint = 0, identity = 0;
+        GetAttr(MUIA_String_Contents, str_source_name, &name);
+        if (!name || !*(const char *)name || strlen((const char *)name) >= sizeof cur.id) return -1;
+        strcpy(cur.id, (const char *)name);
+        if (kind == JOB_COMMON_SOURCE_ADD) {
+            GetAttr(MUIA_String_Contents, str_channel_endpoint, &endpoint);
+            GetAttr(MUIA_String_Contents, str_channel_id, &identity);
+            if (!endpoint || !identity || strlen((const char *)endpoint) >= sizeof cur.common_package ||
+                strlen((const char *)identity) >= sizeof cur.common_pool) return -1;
+            strcpy(cur.common_package, (const char *)endpoint);
+            strcpy(cur.common_pool, (const char *)identity);
+        }
+    }
     if (kind == JOB_COMMON_SELF_UPDATE) {
         /* The source shown in the window and this PkgManager's own file. */
         IPTR endpoint = 0, identity = 0;
@@ -1373,13 +1398,15 @@ static int start(job_kind kind, const char *id)
         if (!common_catalogue) return -1;
         cur.common_observation = common_catalogue;
     }
-    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION || kind == JOB_COMMON_SELF_UPDATE || kind == JOB_COMMON_SOURCE_INSTALL || kind == JOB_RUN) {
+    if (job_uses_common_engine(kind)) {
         if (apkg_cancel_create(&cur.common_cancel) != APKG_OK) return -1;
     }
 #endif
     last_phase[0] = 0; last_can_cancel = 0;
     busy(1);
-    status(kind == JOB_COMMON_SELF_UPDATE ? "looking for a newer arospkg in the signed source..." :
+    status(kind == JOB_COMMON_SOURCE_ADD || kind == JOB_COMMON_SOURCE_REMOVE ? "preparing source list change..." :
+           kind == JOB_COMMON_SOURCE_LIST ? "reading the root source list..." :
+           kind == JOB_COMMON_SELF_UPDATE ? "looking for a newer arospkg in the signed source..." :
            kind == JOB_COMMON_SOURCE_INSTALL ? "reading the root's signed sources..." :
            kind == JOB_COMMON_INSTALL ? "checking signed package..." : kind == JOB_INSTALL ? "installing..." : kind == JOB_REMOVE ? "removing..." :
            kind == JOB_UPDATE ? "updating the index..." :
@@ -1400,9 +1427,9 @@ static int start(job_kind kind, const char *id)
     in_flight = 1;
 #ifdef APKG_FUSION
     common_select();
-    if (kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION) {
+    if (kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION || kind == JOB_COMMON_SOURCE_LIST) {
         SetAttrs(btn_cancel, MUIA_Disabled, FALSE, TAG_DONE);
-        status(kind == JOB_COMMON_ATTESTATION ? "Inspecting signed claim; managed files remain unchanged" : kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD ? "Rechecking signed catalogue offline" : "Reading signed catalogue; managed files remain unchanged");
+        status(kind == JOB_COMMON_SOURCE_LIST ? "Reading root sources; managed files remain unchanged" : kind == JOB_COMMON_ATTESTATION ? "Inspecting signed claim; managed files remain unchanged" : kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD ? "Rechecking signed catalogue offline" : "Reading signed catalogue; managed files remain unchanged");
         if (active) active->can_cancel = 1;
         last_can_cancel = 1;
         snprintf(last_phase, sizeof last_phase, "discovery");
@@ -1981,6 +2008,24 @@ static int on_message(pm_msg *m)
             MUI_Request(app,win,0,(STRPTR)"Signed qualification claim",(STRPTR)"OK",(STRPTR)"%s",m->common_record);
         status(m->common_status==APKG_OK ? "Signed claim inspected; freshness and current approval are not asserted" : m->common_status==APKG_CANCELLED ? "Inspection cancelled" : m->err.summary);
         FreeVec(m->common_record); m->common_record=NULL;
+        return quit_pending;
+    }
+    if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_SOURCE_ADD ||
+        cur.kind == JOB_COMMON_SOURCE_REMOVE || cur.kind == JOB_COMMON_SOURCE_LIST)) {
+        apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
+        in_flight = 0; common_waiting = 0; confirm_close();
+        FreeVec(common_preview_text); common_preview_text = NULL;
+        if (active) finish(active, m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
+                           m->common_status == APKG_OK ? "" : "SOURCES", m->err.summary);
+        busy(0);
+        if (!quit_pending && !cur.cancel && m->common_status == APKG_OK && cur.kind == JOB_COMMON_SOURCE_LIST)
+            MUI_Request(app, win_common_catalogue, 0, (STRPTR)"Root sources in priority order",
+                        (STRPTR)"OK", (STRPTR)"Order / name / channel identity / endpoint\n%s",
+                        m->common_record && *m->common_record ? m->common_record : "No configured sources");
+        status(m->common_outcome == APKG_NEEDS_RECOVERY ? "Source change requires recovery" :
+               m->common_status == APKG_OK ? "Source list operation complete; trust grants unchanged" :
+               m->common_status == APKG_CANCELLED ? "Source list operation cancelled" : m->err.summary);
+        FreeVec(m->common_record); m->common_record = NULL;
         return quit_pending;
     }
     if (m->kind == PM_DONE && cur.kind == JOB_COMMON_SELF_UPDATE) {
@@ -3034,6 +3079,14 @@ static int real_main(int argc, char **argv)
                     Child, (btn_source_save = SimpleButton("Save source/cache")),
                     Child, (btn_source_load = SimpleButton("Restore source/cache")),
                 End),
+                Child, (HGroup,
+                    Child, (str_source_name = StringObject,
+                        MUIA_String_MaxLen, 64,
+                        MUIA_ShortHelp, (IPTR)"Name in this root's ordered source list; add uses the endpoint and identity above", End),
+                    Child, (btn_source_add = SimpleButton("Add root source...")),
+                    Child, (btn_source_remove = SimpleButton("Remove root source...")),
+                    Child, (btn_source_list = SimpleButton("List root sources")),
+                End),
                 Child, (str_channel_search = StringObject,
                     MUIA_String_MaxLen, 256,
                     MUIA_ShortHelp, (IPTR)"Filter by complete package name, authority or target", End),
@@ -3117,6 +3170,9 @@ static int real_main(int argc, char **argv)
     DoMethod(btn_attestation, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_ATTESTATION);
     DoMethod(btn_source_save, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_SOURCE_SAVE);
     DoMethod(btn_source_load, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_SOURCE_LOAD);
+    DoMethod(btn_source_add, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_SOURCE_ADD);
+    DoMethod(btn_source_remove, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_SOURCE_REMOVE);
+    DoMethod(btn_source_list, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_SOURCE_LIST);
     DoMethod(btn_channel_recompare, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_RECOMPARE);
     DoMethod(btn_channel_load, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_LOAD);
     DoMethod(btn_channel_review, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_REVIEW);
@@ -3195,6 +3251,9 @@ static int real_main(int argc, char **argv)
             SetAttrs(win_common_catalogue, MUIA_Window_Open, TRUE, MUIA_Window_Activate, TRUE, TAG_DONE); break;
         case ID_ATTESTATION: if (!busy_now()) begin(JOB_COMMON_ATTESTATION,NULL,"window"); break;
         case ID_SOURCE_LOAD: if (!busy_now()) common_source_restore(0); break;
+        case ID_SOURCE_ADD: begin(JOB_COMMON_SOURCE_ADD, NULL, "window"); break;
+        case ID_SOURCE_REMOVE: begin(JOB_COMMON_SOURCE_REMOVE, NULL, "window"); break;
+        case ID_SOURCE_LIST: begin(JOB_COMMON_SOURCE_LIST, NULL, "window"); break;
         case ID_SOURCE_SAVE: if (!busy_now()) {
             IPTR path=0,endpoint=0,identity=0;
             GetAttr(MUIA_String_Contents,str_source_profile,&path);

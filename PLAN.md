@@ -218,8 +218,8 @@ The remaining non-portal work, in order:
 
 1. Trust administration and the root source list have code and host tests;
    broader official key endorsement/rotation remains a release-policy task.
-2. Finish PkgManager source-list controls and retain the current explicit
-   freshness limits. Wider online revocation policy and self-update copies
+2. PkgManager source-list controls are wired through the common worker;
+   retain the current explicit freshness limits. Wider online revocation policy and self-update copies
    on other volumes remain broader release work.
 3. PkgManager: settings, news and the ARexx surface over the common client API.
 4. ALPHA-IMPORT completion: recorded relations and system requirements

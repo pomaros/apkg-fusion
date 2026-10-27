@@ -17,7 +17,23 @@ typedef enum { JOB_NONE, JOB_INSTALL, JOB_REMOVE, JOB_UPDATE,
                JOB_CHECK_RELEASE, JOB_VERIFY, JOB_RUN,
                JOB_SU_LOCATE, JOB_SU_STAGE, JOB_COMMON_INSTALL,
                JOB_COMMON_DISCOVER, JOB_COMMON_RECOMPARE, JOB_COMMON_SOURCE_LOAD, JOB_COMMON_ATTESTATION,
-               JOB_COMMON_SELF_UPDATE, JOB_COMMON_SOURCE_INSTALL } job_kind;
+               JOB_COMMON_SELF_UPDATE, JOB_COMMON_SOURCE_INSTALL,
+               JOB_COMMON_SOURCE_ADD, JOB_COMMON_SOURCE_REMOVE,
+               JOB_COMMON_SOURCE_LIST } job_kind;
+#ifdef APKG_FUSION
+/* Shared by the native dispatcher and the window's cancellation setup. */
+static inline int job_uses_common_engine(job_kind kind) {
+    switch (kind) {
+    case JOB_COMMON_INSTALL: case JOB_RUN: case JOB_COMMON_DISCOVER:
+    case JOB_COMMON_RECOMPARE: case JOB_COMMON_SOURCE_LOAD:
+    case JOB_COMMON_ATTESTATION: case JOB_COMMON_SELF_UPDATE:
+    case JOB_COMMON_SOURCE_INSTALL: case JOB_COMMON_SOURCE_ADD:
+    case JOB_COMMON_SOURCE_REMOVE: case JOB_COMMON_SOURCE_LIST:
+        return 1;
+    default: return 0;
+    }
+}
+#endif
 
 /* Updating arospkg (libpkg/selfup.h): what the worker finds and stages for
    the window, which shows it and decides. Too big for a message, and only

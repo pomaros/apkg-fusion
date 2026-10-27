@@ -67,6 +67,27 @@ Cancellation is checked before/after the bounded metadata operation. Native
 controls/startup have source/header/type evidence until runtime qualification;
 the actual worker/helper paths run in the host suites.
 
+## Root source-list controls
+
+The catalogue window also has a source name and **Add root source**, **Remove
+root source** and **List root sources** controls. These operate on the root's
+ordered source list, independently of the profile/cache file above. Add uses
+the displayed endpoint and channel identity, verifies the channel against the
+existing root policy and appends it to the list. Remove uses the exact source
+name. Both show the common plan for confirmation and commit through its journal;
+neither changes trust grants or installed packages. List reads the current order,
+name, channel identity and endpoint without network access or mutation. Removing
+and adding a source again moves it to the end of the priority order.
+
+All three run on the DOS worker, copy their inputs before starting and disable
+source controls while busy. Listing owns its returned text across process exit;
+refusal, cancellation and allocation failures do not manufacture success. The
+native dispatcher and cancellation setup share the common-job classification,
+including installation by source name and self-update. Host tests exercise that
+classification and the actual worker bridge with mocked message ports; SDK
+checks cover the controls, while native UI/runtime behavior still needs target
+qualification.
+
 ## Local file framing and replacement
 
 This private client file is a byte container rather than a signed common object.
