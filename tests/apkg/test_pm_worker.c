@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
         assert(allocations == 0);
         return 0;
     }
-    if (choice >= 9 && choice <= 11) {
+    if ((choice >= 9 && choice <= 11) || choice == 16) {
         assert(argc == 6);
         j.kind = JOB_COMMON_DISCOVER;
         fail_at = choice == 10 ? 1 : 0;
@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
         assert(previews == 0);
         if (choice == 11)
             assert(progress_count == 0);
-        if (choice == 9) {
+        if (choice == 9 || choice == 16) {
             assert(result == PKG_OK && final.common_status == APKG_OK);
             assert(final.common_catalogue);
             assert(!strcmp(final.common_catalogue->endpoint, argv[2]));
@@ -226,12 +226,39 @@ int main(int argc, char **argv) {
                           "online freshness: unknown"));
             assert(final.common_catalogue->channel.signature ==
                    APKG_SIGNATURE_VALID);
+            if (choice == 16)
+                printf("generation %llu\n",
+                       (unsigned long long)
+                           final.common_catalogue->root_generation);
             for (size_t i = 0; i < final.common_catalogue->count; i++) {
                 pm_common_row *row = &final.common_catalogue->rows[i];
                 assert(strlen(row->selection) == 162);
                 assert(strstr(row->detail, "Review: not asserted"));
                 assert(strstr(row->detail, "Runtime testing: not asserted"));
                 assert(strstr(row->detail, row->name));
+                owned_text(final.common_catalogue,
+                           (apkg_text){row->installed_version,
+                                       strlen(row->installed_version)});
+                if (choice == 16) {
+                    unsigned mask = 0;
+                    for (int f = 0; f < PM_CATALOGUE_FILTER_COUNT; f++)
+                        if (pm_common_row_matches(row, (pm_catalogue_filter)f,
+                                                  NULL))
+                            mask |= 1u << f;
+                    assert(!pm_common_row_matches(
+                        row, PM_CATALOGUE_ALL,
+                        "no such package/authority/target"));
+                    assert(pm_common_row_matches(row, PM_CATALOGUE_ALL,
+                                                 row->name));
+                    printf("%s\t%s\t%s\t%s\t%s\t%llu\t%d\t%d\t%u\n",
+                           row->selection, row->name, row->version,
+                           apkg_candidate_state_name(row->comparison),
+                           row->installed_version,
+                           (unsigned long long)row->installed_revision,
+                           row->installed_revision_state,
+                           pm_common_row_reviewable(row), mask);
+                    continue;
+                }
                 printf("%s\t%s\t%s\t%llu\t%d\t%d\n", row->selection, row->name,
                        row->version, (unsigned long long)row->revision,
                        row->author_trust, row->target_matches);

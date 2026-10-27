@@ -50,6 +50,8 @@ apkg_status ak_signature_check(apkg_bytes, apkg_bytes, const char *,
 int ak_channel_policy(const ak_json *, const char *, const char *);
 apkg_status ak_channel_validate(const ak_json *);
 apkg_status ak_channel_format(const apkg_channel *, char **);
+apkg_status ak_channel_snapshot_check(const apkg_snapshot *, const apkg_channel *);
+apkg_status ak_channel_snapshot_capture(const apkg_snapshot *, apkg_channel *);
 apkg_status ak_channel_inspect(const char *, const char *, const char *,
                                uint64_t, int, char **, apkg_error **);
 int ak_buf_add(ak_buf *, const char *, ...);

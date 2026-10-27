@@ -409,11 +409,12 @@ apkg_status apkg_client_folder(const char *root, const char *name, char **out,
                                                   : APKG_POLICY;
         goto done;
     }
+    size_t matches = 0;
     for (i = 0; i < s->nrows; i++)
         if (!strcmp(name, s->rows[i].name.value.data))
-            break;
-    if (i == s->nrows) {
-        code = APKG_NOT_FOUND;
+            matches++;
+    if (matches != 1) {
+        code = matches ? APKG_CONFLICT : APKG_NOT_FOUND;
         goto done;
     }
     if (ak_path(path, c->root, name) || pkg_fs_path_is_link(path) != 0) {

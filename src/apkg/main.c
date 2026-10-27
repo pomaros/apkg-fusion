@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
-            "channel-inspect|channel-open ROOT DIRECTORY CHANNEL-ID "
+            "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
             "[MIN-SEQUENCE]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel "
@@ -226,7 +226,7 @@ int main(int argc, char **argv) {
         return (int)code;
     }
     if (!strcmp(argv[1], "channel-inspect") ||
-        !strcmp(argv[1], "channel-open")) {
+        !strcmp(argv[1], "channel-open") || !strcmp(argv[1], "channel-updates")) {
         if (argc != 5 && argc != 6)
             return APKG_INVALID;
         uint64_t floor = 0;
@@ -240,7 +240,9 @@ int main(int argc, char **argv) {
             if (errno || !*argv[5] || *end)
                 return APKG_INVALID;
         }
-        code = !strcmp(argv[1], "channel-open")
+        code = !strcmp(argv[1], "channel-updates")
+                   ? apkg_client_channel_updates(argv[2], argv[3], argv[4], floor, NULL, &text, &e)
+                   : !strcmp(argv[1], "channel-open")
                    ? apkg_client_channel_query(argv[2], argv[3], argv[4], floor,
                                                NULL, &text, &e)
                    : ak_channel_inspect(argv[2], argv[3], argv[4], floor, 0,

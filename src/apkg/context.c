@@ -555,6 +555,8 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
                 ak_json_free(&d);
             }
             body = ak_member(&j, desc, "body");
+            ak_hash(j.text + j.tokens[desc].start,
+                j.tokens[desc].end - j.tokens[desc].start, &r->descriptor_digest);
             s->records[row] = ak_copy(j.text + j.tokens[i].start,
                                       j.tokens[i].end - j.tokens[i].start);
             if (!s->records[row])

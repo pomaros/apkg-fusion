@@ -54,6 +54,14 @@ apkg_status apkg_client_channel_open(const char *root, const char *endpoint,
     apkg_channel **, apkg_error **);
 apkg_status apkg_client_channel_selection(const apkg_channel *, uint64_t index,
     char **selection, apkg_error **);
+/* Consistent captured root/channel pair; both outputs are independently owned.
+ * Read-only, cancellable discovery; no archives or implicit acceptance. */
+apkg_status apkg_client_channel_refresh(const char *root, const char *endpoint,
+    const char *identity, uint64_t minimum_sequence, const apkg_observer *,
+    apkg_snapshot **, apkg_channel **, apkg_error **);
+apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
+    const char *identity, uint64_t minimum_sequence, const apkg_observer *,
+    char **, apkg_error **);
 apkg_status apkg_client_folder(const char *, const char *, char **,
                                apkg_error **);
 apkg_status apkg_client_run(const char *, const char *, apkg_error **);

@@ -10,6 +10,44 @@
 #include <string.h>
 
 #define PM_CATALOGUE_MAX (16u * 1024u * 1024u)
+int pm_common_row_reviewable(const pm_common_row *row) {
+    return row && row->target_matches &&
+           row->signature == APKG_SIGNATURE_VALID &&
+           row->author_trust == APKG_TRUST_ACCEPTED &&
+           (row->comparison == APKG_CANDIDATE_NOT_INSTALLED ||
+            row->comparison == APKG_CANDIDATE_CURRENT ||
+            row->comparison == APKG_CANDIDATE_NEWER);
+}
+int pm_common_row_matches(const pm_common_row *row, pm_catalogue_filter filter,
+                          const char *term) {
+    if (!row || (unsigned)filter >= PM_CATALOGUE_FILTER_COUNT)
+        return 0;
+    if (term && *term && !strstr(row->name, term) &&
+        !strstr(row->authority, term) && !strstr(row->target, term))
+        return 0;
+    switch (filter) {
+    case PM_CATALOGUE_ALL:
+        return 1;
+    case PM_CATALOGUE_UPDATES:
+        return row->comparison != APKG_CANDIDATE_NOT_INSTALLED &&
+               row->comparison != APKG_CANDIDATE_CURRENT &&
+               row->comparison != APKG_CANDIDATE_OLDER;
+    case PM_CATALOGUE_NOT_INSTALLED:
+        return row->comparison == APKG_CANDIDATE_NOT_INSTALLED;
+    case PM_CATALOGUE_OTHER_TARGET:
+        return !row->target_matches ||
+               row->comparison == APKG_CANDIDATE_OTHER_TARGET;
+    case PM_CATALOGUE_UNTRUSTED:
+        return row->author_trust != APKG_TRUST_ACCEPTED ||
+               row->signature != APKG_SIGNATURE_VALID;
+    case PM_CATALOGUE_CONTENT_CONFLICT:
+        return row->comparison == APKG_CANDIDATE_CONTENT_CONFLICT;
+    case PM_CATALOGUE_INDETERMINATE:
+        return row->comparison == APKG_CANDIDATE_INDETERMINATE;
+    default:
+        return 0;
+    }
+}
 apkg_status pm_common_rexx_info(const char *root, const char *name,
                                 const char *field, char **out) {
     apkg_status code = apkg_client_info(root, name, field, out, NULL);
@@ -49,9 +87,24 @@ static const char *row_format =
     "Package: %.*s\nAuthority: %.*s\nVersion: %.*s (revision %llu)\n"
     "Target: %.*s\nArchive bytes: %llu\nSignature: %s\nAuthor trust: %s\n"
     "Target matches: %s\nReview: not asserted\nRuntime testing: not "
-    "asserted\n\n%.*s";
-static int row_detail(char *out, size_t size,
-                      const apkg_channel_entry_view *v) {
+    "asserted\nComparison: %s\nInstalled version: %.*s\nInstalled revision: "
+    "%s\n"
+    "Installed authority: %.*s\nInstalled target: %.*s\n"
+    "Plan readiness: not checked\n\n%.*s";
+static int row_detail(char *out, size_t size, const apkg_channel_entry_view *v,
+                      const apkg_candidate_view *comparison) {
+    apkg_text installed = {"not installed", 13};
+    char revision[32] = "not installed";
+    if (comparison->installed) {
+        installed = comparison->installed->version.state == APKG_KNOWN
+                        ? comparison->installed->version.value
+                        : (apkg_text){"unknown", 7};
+        if (comparison->installed->revision.state == APKG_KNOWN)
+            snprintf(revision, sizeof revision, "%llu",
+                     (unsigned long long)comparison->installed->revision.value);
+        else
+            snprintf(revision, sizeof revision, "unknown");
+    }
     return snprintf(
         out, size, row_format, (int)v->name.size, v->name.data,
         (int)v->authority.size, v->authority.data, (int)v->version.size,
@@ -59,8 +112,17 @@ static int row_detail(char *out, size_t size,
         v->target.data, (unsigned long long)v->archive_bytes,
         v->signature == APKG_SIGNATURE_VALID ? "verified" : "not verified",
         v->author_trust == APKG_TRUST_ACCEPTED ? "accepted" : "not accepted",
-        v->target_matches ? "yes" : "no", (int)v->descriptor.size,
-        (const char *)v->descriptor.data);
+        v->target_matches ? "yes" : "no",
+        apkg_candidate_state_name(comparison->state), (int)installed.size,
+        installed.data, revision,
+        comparison->installed ? (int)comparison->installed->authority.value.size
+                              : 0,
+        comparison->installed ? comparison->installed->authority.value.data
+                              : "",
+        comparison->installed ? (int)comparison->installed->target.value.size
+                              : 0,
+        comparison->installed ? comparison->installed->target.value.data : "",
+        (int)v->descriptor.size, (const char *)v->descriptor.data);
 }
 static char *copy_text(char **cursor, apkg_text text) {
     char *out = *cursor;
@@ -71,12 +133,13 @@ static char *copy_text(char **cursor, apkg_text text) {
     return out;
 }
 apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
+                                     const apkg_snapshot *snapshot,
                                      const char *endpoint,
                                      pm_common_catalogue **out) {
     if (!out)
         return APKG_INVALID;
     *out = NULL;
-    if (!channel || !endpoint || strlen(endpoint) >= 4096)
+    if (!channel || !snapshot || !endpoint || strlen(endpoint) >= 4096)
         return APKG_INVALID;
     const apkg_channel_view *view = apkg_channel_get(channel);
     if (view->entry_count > 4096)
@@ -96,11 +159,19 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         apkg_status code = apkg_channel_entry_at(channel, i, &v, NULL);
         if (code)
             return code;
-        int n = row_detail(NULL, 0, v);
+        apkg_candidate_view comparison;
+        code = apkg_channel_compare(snapshot, channel, i, &comparison, NULL);
+        if (code)
+            return code;
+        int n = row_detail(NULL, 0, v, &comparison);
         if (n < 0)
             return APKG_INVALID;
-        size_t extra = v->name.size + v->version.size + v->target.size +
-                       v->authority.size + 4 + (size_t)n + 1;
+        size_t extra =
+            v->name.size + v->version.size + v->target.size +
+            v->authority.size + 4 + (size_t)n + 1 +
+            (comparison.installed ? comparison.installed->version.value.size
+                                  : 0) +
+            1;
         if (extra > PM_CATALOGUE_MAX || total > PM_CATALOGUE_MAX - extra)
             return APKG_LIMIT;
         total += extra;
@@ -110,6 +181,8 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         return APKG_NOMEM;
     model->count = (size_t)view->entry_count;
     model->channel = *view;
+    model->root_generation = apkg_snapshot_root(snapshot)->generation.value;
+    model->root_snapshot = apkg_snapshot_root(snapshot)->snapshot_digest;
     char *cursor = (char *)(model->rows + model->count);
     model->channel.accepted_sequence.evidence.data =
         copy_text(&cursor, view->accepted_sequence.evidence);
@@ -122,6 +195,10 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         const apkg_channel_entry_view *v = NULL;
         apkg_status code = apkg_channel_entry_at(channel, i, &v, NULL);
         char *selection = NULL;
+        apkg_candidate_view comparison;
+        if (!code)
+            code =
+                apkg_channel_compare(snapshot, channel, i, &comparison, NULL);
         if (!code)
             code = apkg_client_channel_selection(channel, i, &selection, NULL);
         if (code) {
@@ -140,8 +217,17 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         r->signature = v->signature;
         r->author_trust = v->author_trust;
         r->target_matches = v->target_matches;
+        r->comparison = comparison.state;
+        r->installed_version = copy_text(
+            &cursor, comparison.installed ? comparison.installed->version.value
+                                          : (apkg_text){"", 0});
+        if (comparison.installed) {
+            r->installed_revision = comparison.installed->revision.value;
+            r->installed_revision_state = comparison.installed->revision.state;
+        }
         r->detail = cursor;
-        int n = row_detail(cursor, total - (size_t)(cursor - (char *)model), v);
+        int n = row_detail(cursor, total - (size_t)(cursor - (char *)model), v,
+                           &comparison);
         if (n < 0) {
             FreeVec(model);
             return APKG_INVALID;

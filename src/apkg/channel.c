@@ -312,6 +312,121 @@ apkg_status apkg_channel_entry_at(const apkg_channel *c, uint64_t index,
     *out = &c->rows[index];
     return APKG_OK;
 }
+apkg_status ak_channel_snapshot_check(const apkg_snapshot *s,
+                                      const apkg_channel *c) {
+    if (!s || !c)
+        return APKG_INVALID;
+    if (s->view.state != APKG_ROOT_READY)
+        return s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
+                                                  : APKG_POLICY;
+    if (!s->policy || !s->target || strcmp(s->anchor, c->anchor) ||
+        s->binding.st_dev != c->binding.st_dev ||
+        s->binding.st_ino != c->binding.st_ino ||
+        memcmp(s->view.root_id.bytes, c->root_id.bytes, 16) ||
+        strcmp(s->policy, c->policy) || strcmp(s->target, c->target))
+        return APKG_STALE;
+    return ak_channel_head_check(s, &c->view.id, c->view.sequence,
+                                 &c->view.snapshot_digest, NULL);
+}
+apkg_status ak_channel_snapshot_capture(const apkg_snapshot *s,
+                                        apkg_channel *c) {
+    apkg_status code = ak_channel_snapshot_check(s, c);
+    return code ? code
+                : ak_channel_head_check(s, &c->view.id, c->view.sequence,
+                                        &c->view.snapshot_digest,
+                                        &c->view.accepted_sequence);
+}
+const char *apkg_candidate_state_name(apkg_candidate_state state) {
+    static const char *const names[] = {
+        "indeterminate", "not-installed",    "current",         "newer",
+        "older",         "content-conflict", "other-authority", "other-target"};
+    return (unsigned)state < sizeof names / sizeof names[0] ? names[state]
+                                                            : "indeterminate";
+}
+static int same_text(apkg_text a, apkg_text b) {
+    return a.size == b.size && (!a.size || !memcmp(a.data, b.data, a.size));
+}
+apkg_status apkg_channel_compare(const apkg_snapshot *s, const apkg_channel *c,
+                                 uint64_t index, apkg_candidate_view *out,
+                                 apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    memset(out, 0, sizeof *out);
+    apkg_status code = ak_channel_snapshot_check(s, c);
+    if (code)
+        return code;
+    if (index >= c->view.entry_count)
+        return APKG_NOT_FOUND;
+    const apkg_channel_entry_view *candidate = &c->rows[index];
+    const apkg_installed_view *old = NULL, *first = NULL;
+    size_t matches = 0, exact = 0;
+    int uncertain = 0;
+    for (size_t i = 0; i < s->nrows; i++) {
+        const apkg_installed_view *row = &s->rows[i];
+        if (!same_text(row->name.value, candidate->name))
+            continue;
+        matches++;
+        first = row;
+        if (row->authority.state != APKG_KNOWN ||
+            row->target.state != APKG_KNOWN)
+            uncertain = 1;
+        else if (same_text(row->authority.value, candidate->authority) &&
+                 same_text(row->target.value, candidate->target)) {
+            exact++;
+            old = row;
+        }
+    }
+    if (exact > 1 || (!exact && matches > 1) || (uncertain && matches > 1))
+        return APKG_CONFLICT;
+    if (!old)
+        old = first;
+    if (old) {
+        out->installed = old;
+        if (old->authority.state != APKG_KNOWN ||
+            old->target.state != APKG_KNOWN ||
+            old->version.state != APKG_KNOWN ||
+            old->revision.state != APKG_KNOWN)
+            return APKG_OK;
+        if (!same_text(old->authority.value, candidate->authority)) {
+            out->state = APKG_CANDIDATE_OTHER_AUTHORITY;
+            return APKG_OK;
+        }
+        if (!same_text(old->target.value, candidate->target)) {
+            out->state = APKG_CANDIDATE_OTHER_TARGET;
+            return APKG_OK;
+        }
+        if (!memcmp(old->descriptor_digest.bytes,
+                    candidate->descriptor_digest.bytes, 32)) {
+            out->state = APKG_CANDIDATE_CURRENT;
+            return APKG_OK;
+        }
+        if (same_text(old->version.value, candidate->version) &&
+            old->revision.value == candidate->revision) {
+            out->state = APKG_CANDIDATE_CONTENT_CONFLICT;
+            return APKG_OK;
+        }
+        char version[256];
+        if (candidate->version.size >= sizeof version)
+            return APKG_LIMIT;
+        memcpy(version, candidate->version.data, candidate->version.size);
+        version[candidate->version.size] = 0;
+        int order = ak_version_compare(old->version.value.data, version);
+        if (order == 2)
+            return APKG_OK;
+        if (!order)
+            order = old->revision.value < candidate->revision   ? -1
+                    : old->revision.value > candidate->revision ? 1
+                                                                : 0;
+        out->state = order < 0   ? APKG_CANDIDATE_NEWER
+                     : order > 0 ? APKG_CANDIDATE_OLDER
+                                 : APKG_CANDIDATE_CONTENT_CONFLICT;
+        return APKG_OK;
+    }
+    out->state = APKG_CANDIDATE_NOT_INSTALLED;
+    return APKG_OK;
+}
 static apkg_status current_ref(const char *directory, char digest[65]) {
     char path[AK_PATH];
     unsigned char *raw = NULL;

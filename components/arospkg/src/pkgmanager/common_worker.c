@@ -80,18 +80,21 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
         apkg_cancel_request(cancel);
     if (j->kind == JOB_COMMON_DISCOVER) {
         apkg_channel *channel = NULL;
-        status =
-            apkg_client_channel_open(j->root, j->common_package, j->common_pool,
-                                     0, &observer, &channel, &detail);
+        apkg_snapshot *snapshot = NULL;
+        status = apkg_client_channel_refresh(j->root, j->common_package,
+                                             j->common_pool, 0, &observer,
+                                             &snapshot, &channel, &detail);
         if (!status && !j->cancel)
-            status = pm_common_catalogue_copy(channel, j->common_package,
-                                              &j->done->common_catalogue);
+            status =
+                pm_common_catalogue_copy(channel, snapshot, j->common_package,
+                                         &j->done->common_catalogue);
         if (j->cancel) {
             FreeVec(j->done->common_catalogue);
             j->done->common_catalogue = NULL;
             status = APKG_CANCELLED;
         }
         apkg_channel_free(channel);
+        apkg_snapshot_free(snapshot);
     } else
         status =
             j->kind == JOB_RUN

@@ -143,6 +143,7 @@ typedef struct {
     apkg_trust_state trust;
     apkg_bytes
         record; /* full record/evidence; no lossy fixed-size UI projection */
+    apkg_digest descriptor_digest; /* exact committed descriptor bytes */
 } apkg_installed_view;
 uint64_t apkg_snapshot_installed_count(const apkg_snapshot *);
 apkg_status apkg_snapshot_installed_at(const apkg_snapshot *, uint64_t,
@@ -236,6 +237,27 @@ apkg_status apkg_channel_entry_at(const apkg_channel *, uint64_t,
 apkg_status apkg_channel_package(apkg_ctx *, const apkg_channel *, uint64_t,
                                  apkg_package **, apkg_error **);
 void apkg_channel_free(apkg_channel *);
+/* Pure comparison of captured metadata. Views borrow the supplied snapshot;
+ * no transfer, live-file verification, dependency resolution or authorization.
+ * Changed policy/target/root binding or an obsolete replay floor refuses. */
+typedef enum {
+    APKG_CANDIDATE_INDETERMINATE = 0,
+    APKG_CANDIDATE_NOT_INSTALLED,
+    APKG_CANDIDATE_CURRENT,
+    APKG_CANDIDATE_NEWER,
+    APKG_CANDIDATE_OLDER,
+    APKG_CANDIDATE_CONTENT_CONFLICT,
+    APKG_CANDIDATE_OTHER_AUTHORITY,
+    APKG_CANDIDATE_OTHER_TARGET
+} apkg_candidate_state;
+typedef struct {
+    apkg_candidate_state state;
+    const apkg_installed_view *installed;
+    apkg_fact_state plan_readiness;
+} apkg_candidate_view;
+apkg_status apkg_channel_compare(const apkg_snapshot *, const apkg_channel *,
+    uint64_t index, apkg_candidate_view *, apkg_error **);
+const char *apkg_candidate_state_name(apkg_candidate_state);
 
 typedef enum {
     APKG_PHASE_CHECK = 0,

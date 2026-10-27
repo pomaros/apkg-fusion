@@ -30,6 +30,7 @@ completed and outstanding work against the [architecture](architecture.md).
 | Trust | Separate author/channel signatures, key trust, review and testing. | Tampering, unknown key, replacement key, bootstrap and rotation; no silent trust expansion. |
 | Targets | Select CPU/OS/ABI/runtime independently of publishing host. | Cross-host publication and consumption; CPU, ABI and runtime mismatches refused. |
 | Versions | Preserve upstream versions, revisions and prerelease ordering. | Shared corpus from both projects, indeterminate comparisons and explicit downgrades. |
+| Candidate comparison | Use common version/revision ordering, complete owner/target identity and exact content; keep readiness independent. | Opaque/current identity, spelling ties, content conflicts, full values, role/target/root/floor changes, CLI/actual worker equivalence, no unselected transfer and one-plan installation of a chosen newer candidate. |
 | Relationships | Preserve depends, recommends, conflicts, replaces and installation reasons. | Both suites plus combined plans and replacement interruption cases. |
 | Providers | Prefer compatible installed providers and show changes. | Multiple providers, incompatible ABIs, package/capability conflicts and actual loader resolution. |
 | Bundles | Launch applications without registry membership. | Manual unpack and launch, moved bundles, managed adoption/movement and hostile paths. |

@@ -6,20 +6,39 @@
 /* One AllocVec allocation, including all rows and text. No library-owned
  * handle or worker malloc allocation survives the worker process. */
 typedef struct {
-    char *name, *version, *target, *authority, *detail;
+    char *name, *version, *target, *authority, *detail, *installed_version;
     char selection[163];
     uint64_t revision, archive_bytes;
     apkg_signature_state signature;
     apkg_trust_state author_trust;
     int target_matches;
+    apkg_candidate_state comparison;
+    uint64_t installed_revision;
+    apkg_fact_state installed_revision_state;
 } pm_common_row;
 typedef struct {
     size_t count;
     char *endpoint, *summary;
     apkg_channel_view channel;
+    uint64_t root_generation;
+    apkg_digest root_snapshot;
     pm_common_row rows[];
 } pm_common_catalogue;
-apkg_status pm_common_catalogue_copy(const apkg_channel *, const char *,
+typedef enum {
+    PM_CATALOGUE_ALL,
+    PM_CATALOGUE_UPDATES,
+    PM_CATALOGUE_NOT_INSTALLED,
+    PM_CATALOGUE_OTHER_TARGET,
+    PM_CATALOGUE_UNTRUSTED,
+    PM_CATALOGUE_CONTENT_CONFLICT,
+    PM_CATALOGUE_INDETERMINATE,
+    PM_CATALOGUE_FILTER_COUNT
+} pm_catalogue_filter;
+int pm_common_row_matches(const pm_common_row *, pm_catalogue_filter,
+                          const char *);
+int pm_common_row_reviewable(const pm_common_row *);
+apkg_status pm_common_catalogue_copy(const apkg_channel *,
+                                     const apkg_snapshot *, const char *,
                                      pm_common_catalogue **);
 /* The installed list retains the complete typed view, including evidence and
  * opaque record bytes. Every borrowed field is copied into this AllocVec. */
@@ -35,5 +54,6 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
                                      pm_common_installed **, apkg_error **);
 /* ARexx's 16-bit result boundary: refuse overflow, never truncate facts.
  * Successful text is owned by the client library; free with its text free. */
-apkg_status pm_common_rexx_info(const char *, const char *, const char *, char **);
+apkg_status pm_common_rexx_info(const char *, const char *, const char *,
+                                char **);
 #endif

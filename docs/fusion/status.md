@@ -950,6 +950,58 @@ library. The aarch64 AROS SDK header/type check passed with the previously
 noted SDK `vfork` warnings. Documentation links pass for 68 files. Exact-source
 Linux/macOS CI and native runtime qualification remain separate gates.
 
+## FUSION-ALPHA progress: shared update comparison and catalogue filters
+
+`apkg_channel_compare` now compares exact committed descriptor digests,
+authority/name/target, common version ordering and unsigned revisions. It
+distinguishes current/newer/older, changed same-release content, indeterminate
+ordering and owner/target conflicts. Readiness remains unknown until an actual
+plan. Installed descriptor hashes are captured during the metadata read, not
+copied from an envelope's claimed hash. A changed root/policy/target or replay
+floor refuses a mismatched observation.
+
+The new `apkg_client_channel_refresh` returns a compatible owned root/channel
+pair and aligns accepted-floor facts with that captured root. The CLI
+`channel-updates` report and actual native discovery worker use this common
+comparison. PkgManager copies installed version/revision and comparison into
+its owned catalogue, with filters for updates/blocked candidates, not installed,
+other targets, untrusted authors, content conflicts and indeterminate versions.
+Blocked rows remain visible with their owner/target details; metadata permitting
+review still needs the shared resolution/confirmation/journal path.
+
+Batch review found and corrected first-match ambiguity: qualified comparison
+now finds the matching owner/target even when a foreign same-name record comes
+first. Duplicate exact identities or multiple unmatched owners refuse. The
+unqualified INFO/folder/Run/remove/repair/upgrade paths refuse multiple names
+without touching records or payload; explicit index inspection stays available.
+The [comparison profile](updates.md) records these contracts. This does not
+complete legacy OUTDATED aggregation, settings, dated news or native runtime
+qualification.
+
+Seven added host cases cover full identities/values, version and content
+classes, policy/root/floor refusal, CLI/actual worker/filter equivalence,
+trusted foreign-owner separation, ambiguous lookup refusal, allocation/retry
+and installation of a selected real newer archive followed by a current-state
+refresh. Neither discovery nor comparison fetches unselected archives or
+accepts a channel floor implicitly.
+
+Batch evaluation: final `make test-fusion` passed 213 common methods, the
+fusion ARexx corpus, 78 default-product checks, 110 provisional CLI checks,
+78 publishing checks and existing contract/target/application/initialization
+gates. After the ambiguity correction, the sanitizer suite passed 133 selected
+methods plus the instrumented fusion ARexx corpus. Host C clients/workers and
+owned-lifetime harnesses are instrumented; direct ctypes fault-injection cases
+use the ordinary test library. SDK header/type checks passed on the existing
+aarch64 AROS headers with the previously noted `vfork` warnings. Documentation
+links pass for 69 files. Exact-source Linux/macOS CI remains the next gate;
+native runtime qualification is still pending.
+
+The prior inspection checkpoint `1262c28bed556c1cfec1bb37c8810d20634a6a7c`
+has now passed its complete
+[exact-source CI](https://github.com/pomaros/apkg-fusion/actions/runs/40433664147),
+including both inherited suites on Linux/macOS and all 107 portal tests. That
+result does not qualify this subsequent comparison/hardening change.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

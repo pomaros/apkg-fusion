@@ -47,7 +47,9 @@ static int common_waiting;
 static char *common_preview_text;
 static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
               *str_channel_search, *lst_channel, *txt_channel_detail,
-              *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary;
+              *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary, *cyc_channel_filter;
+static const char *channel_filters[] = {"All candidates", "Updates / blocked candidates",
+    "Not installed", "Other targets", "Untrusted authors", "Changed same release", "Indeterminate versions", NULL};
 static pm_common_catalogue *common_catalogue;
 static pm_common_installed *common_installed;
 static char *common_info_text;
@@ -182,9 +184,9 @@ AROS_UFH3S(void, common_display_func,
     array[0] = row ? row->name : "Package";
     array[1] = row ? row->version : "Version";
     array[2] = row ? row->target : "Target";
-    array[3] = !row ? "Eligibility" : !row->target_matches ? "other target" :
+    array[3] = !row ? "Metadata state" : !row->target_matches ? "other target" :
         row->author_trust != APKG_TRUST_ACCEPTED ? "author not trusted" :
-        row->signature != APKG_SIGNATURE_VALID ? "signature not verified" : "ready to plan";
+        row->signature != APKG_SIGNATURE_VALID ? "signature not verified" : (char *)apkg_candidate_state_name(row->comparison);
     AROS_USERFUNC_EXIT
 }
 static struct Hook common_display_hook;
@@ -201,20 +203,18 @@ static void common_select(void)
     SetAttrs(txt_channel_detail, MUIA_Floattext_Text,
         (IPTR)(row ? row->detail : "Select a package. Review and runtime testing are not asserted."), TAG_DONE);
     SetAttrs(btn_channel_review, MUIA_Disabled,
-        in_flight || !row || !row->target_matches ||
-        row->author_trust != APKG_TRUST_ACCEPTED ||
-        row->signature != APKG_SIGNATURE_VALID, TAG_DONE);
+        in_flight || !pm_common_row_reviewable(row), TAG_DONE);
 }
 static void common_refill(void)
 {
-    IPTR term = 0;
+    IPTR term = 0, filter = 0;
     GetAttr(MUIA_String_Contents, str_channel_search, &term);
+    GetAttr(MUIA_Cycle_Active, cyc_channel_filter, &filter);
     SetAttrs(lst_channel, MUIA_List_Quiet, TRUE, TAG_DONE);
     DoMethod(lst_channel, MUIM_List_Clear);
     if (common_catalogue) for (size_t i = 0; i < common_catalogue->count; i++) {
         pm_common_row *row = &common_catalogue->rows[i];
-        if (!term || !*(const char *)term || strstr(row->name, (const char *)term) ||
-            strstr(row->authority, (const char *)term) || strstr(row->target, (const char *)term))
+        if (pm_common_row_matches(row, (pm_catalogue_filter)filter, (const char *)term))
             DoMethod(lst_channel, MUIM_List_InsertSingle, (IPTR)row, MUIV_List_Insert_Bottom);
     }
     SetAttrs(lst_channel, MUIA_List_Quiet, FALSE, TAG_DONE);
@@ -2851,6 +2851,7 @@ static int real_main(int argc, char **argv)
                 Child, (str_channel_search = StringObject,
                     MUIA_String_MaxLen, 256,
                     MUIA_ShortHelp, (IPTR)"Filter by complete package name, authority or target", End),
+                Child, (cyc_channel_filter = CycleObject, MUIA_Cycle_Entries, (IPTR)channel_filters, End),
                 Child, (txt_channel_summary = FloattextObject,
                     MUIA_FixHeightTxt, (IPTR)"\n\n\n\n",
                     MUIA_Floattext_Text, (IPTR)"", End),
@@ -2930,6 +2931,7 @@ static int real_main(int argc, char **argv)
     DoMethod(btn_channel_review, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_REVIEW);
     DoMethod(lst_channel, MUIM_Notify, MUIA_List_Active, MUIV_EveryTime, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_SELECT);
     DoMethod(str_channel_search, MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_SEARCH);
+    DoMethod(cyc_channel_filter, MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_SEARCH);
     DoMethod(win_common_catalogue, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_CLOSE);
     common_select();
 #endif
@@ -3002,8 +3004,7 @@ static int real_main(int argc, char **argv)
         case ID_CHANNEL_SEARCH: common_refill(); break;
         case ID_CHANNEL_REVIEW: {
             pm_common_row *row = common_selected();
-            if (!busy_now() && row && common_catalogue && row->target_matches &&
-                row->author_trust == APKG_TRUST_ACCEPTED && row->signature == APKG_SIGNATURE_VALID) {
+            if (!busy_now() && common_catalogue && pm_common_row_reviewable(row)) {
                 SetAttrs(cyc_common_action, MUIA_Cycle_Active, APKG_CLIENT_CHANNEL, TAG_DONE);
                 SetAttrs(str_common_package, MUIA_String_Contents, (IPTR)common_catalogue->endpoint, TAG_DONE);
                 SetAttrs(str_common_pool, MUIA_String_Contents, (IPTR)row->selection, TAG_DONE);

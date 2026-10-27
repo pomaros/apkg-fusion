@@ -2,6 +2,7 @@
  * Copyright (c) 2026 John Knipper */
 #include "apkg_client.h"
 #include "internal.h"
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 static apkg_status open_source(const char *root, const char *endpoint,
@@ -76,6 +77,146 @@ apkg_status apkg_client_channel_selection(const apkg_channel *channel,
     ak_tohex(entry->descriptor_digest.bytes, 32, selection + 98);
     *out = selection;
     return APKG_OK;
+}
+apkg_status apkg_client_channel_refresh(const char *root, const char *endpoint,
+                                        const char *identity, uint64_t floor,
+                                        const apkg_observer *observer,
+                                        apkg_snapshot **snapshot_out,
+                                        apkg_channel **channel_out,
+                                        apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (snapshot_out)
+        *snapshot_out = NULL;
+    if (channel_out)
+        *channel_out = NULL;
+    if (!snapshot_out || !channel_out ||
+        (void *)snapshot_out == (void *)channel_out)
+        return APKG_INVALID;
+    apkg_ctx *ctx = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    apkg_status code =
+        ak_cancelled(observer)
+            ? APKG_CANCELLED
+            : open_source(root, endpoint, identity, floor, APKG_READ, observer,
+                          &ctx, &channel, error);
+    if (!code)
+        code = apkg_snapshot_read(ctx, &snapshot, error);
+    if (!code)
+        code = ak_channel_snapshot_capture(snapshot, channel);
+    if (!code && ak_cancelled(observer))
+        code = APKG_CANCELLED;
+    if (!code) {
+        *snapshot_out = snapshot;
+        snapshot = NULL;
+        *channel_out = channel;
+        channel = NULL;
+    }
+    apkg_channel_free(channel);
+    apkg_snapshot_free(snapshot);
+    apkg_close(ctx);
+    return code;
+}
+apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
+                                        const char *identity, uint64_t floor,
+                                        const apkg_observer *observer,
+                                        char **out, apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    apkg_status code = apkg_client_channel_refresh(
+        root, endpoint, identity, floor, observer, &snapshot, &channel, error);
+    if (code)
+        return code;
+    ak_buf b = {0};
+    b.max = AK_MAX / 8;
+    const apkg_channel_view *source = apkg_channel_get(channel);
+    const apkg_root_view *state = apkg_snapshot_root(snapshot);
+    char root_sha[65], channel_sha[65], channel_id[33];
+    ak_tohex(state->snapshot_digest.bytes, 32, root_sha);
+    ak_tohex(source->snapshot_digest.bytes, 32, channel_sha);
+    ak_tohex(source->id.bytes, 16, channel_id);
+    ak_buf_add(&b,
+               "{\"channel_id\":\"%s\",\"channel_sequence\":\"%" PRIu64
+               "\",\"channel_snapshot_sha256\":\"%s\",\"entries\":[",
+               channel_id, source->sequence, channel_sha);
+    for (uint64_t i = 0; i < source->entry_count && !code && !b.bad; i++) {
+        const apkg_channel_entry_view *row = NULL;
+        apkg_candidate_view comparison;
+        char *selection = NULL;
+        code = ak_cancelled(observer)
+                   ? APKG_CANCELLED
+                   : apkg_channel_compare(snapshot, channel, i, &comparison,
+                                          error);
+        if (!code)
+            code = apkg_channel_entry_at(channel, i, &row, error);
+        if (!code)
+            code = apkg_client_channel_selection(channel, i, &selection, error);
+        if (code)
+            break;
+        ak_buf_add(&b,
+                   "%s{\"author_trust\":\"%s\",\"authority\":\"%.*s\","
+                   "\"comparison\":\"%s\",\"installed_revision\":",
+                   i ? "," : "",
+                   row->author_trust == APKG_TRUST_ACCEPTED ? "accepted"
+                                                            : "rejected",
+                   (int)row->authority.size, row->authority.data,
+                   apkg_candidate_state_name(comparison.state));
+        if (comparison.installed &&
+            comparison.installed->revision.state == APKG_KNOWN)
+            ak_buf_add(&b, "\"%" PRIu64 "\"",
+                       comparison.installed->revision.value);
+        else
+            ak_buf_add(&b, "null");
+        ak_buf_add(&b, ",\"installed_version\":");
+        if (comparison.installed &&
+            comparison.installed->version.state == APKG_KNOWN)
+            ak_buf_add(&b, "\"%.*s\"",
+                       (int)comparison.installed->version.value.size,
+                       comparison.installed->version.value.data);
+        else
+            ak_buf_add(&b, "null");
+        ak_buf_add(
+            &b,
+            ",\"installed_authority\":\"%.*s\",\"installed_target\":\"%.*s\","
+            "\"name\":\"%.*s\",\"plan_readiness\":\"not-checked\",\"review\":"
+            "\"not-asserted\",\"revision\":\"%" PRIu64
+            "\",\"runtime_tests\":\"not-asserted\",\"selection\":\"%s\","
+            "\"target\":\"%.*s\",\"target_matches\":%s,\"version\":\"%.*s\"}",
+            comparison.installed
+                ? (int)comparison.installed->authority.value.size
+                : 0,
+            comparison.installed ? comparison.installed->authority.value.data
+                                 : "",
+            comparison.installed ? (int)comparison.installed->target.value.size
+                                 : 0,
+            comparison.installed ? comparison.installed->target.value.data : "",
+            (int)row->name.size, row->name.data, row->revision, selection,
+            (int)row->target.size, row->target.data,
+            row->target_matches ? "true" : "false", (int)row->version.size,
+            row->version.data);
+        apkg_client_text_free(selection);
+    }
+    ak_buf_add(&b,
+               "],\"format\":\"apkg-channel-updates-1\",\"freshness\":"
+               "\"unknown\",\"root_generation\":\"%" PRIu64
+               "\",\"root_snapshot_sha256\":\"%s\"}",
+               state->generation.value, root_sha);
+    if (!code)
+        code = b.bad;
+    if (!code) {
+        *out = b.data;
+        b.data = NULL;
+    }
+    free(b.data);
+    apkg_snapshot_free(snapshot);
+    apkg_channel_free(channel);
+    return code;
 }
 apkg_status apkg_client_channel_query(const char *root, const char *endpoint,
                                       const char *identity, uint64_t floor,

@@ -238,3 +238,7 @@ remain side-effect free; import can retain verified objects before confirmation.
 The [installed inspection profile](inspection.md) defines independent ownership,
 captured-policy signature/author facts, root-target comparison, declared payload
 counts, complete relations and shared CLI/PkgManager information fields.
+
+[Candidate comparison](updates.md) adds captured root/channel refresh, exact
+installed descriptor digests and shared metadata ordering without asserting
+dependency-plan readiness or live payload health.

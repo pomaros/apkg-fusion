@@ -594,6 +594,10 @@ static apkg_status one(apkg_ctx *c, const apkg_snapshot *s, apkg_text name,
     key[name.size] = 0;
     if (!ak_valid_name(key))
         return APKG_INVALID;
+    size_t matches = 0;
+    for (i = 0; i < s->nrows; i++)
+        if (!strcmp(key, s->rows[i].name.value.data) && ++matches > 1)
+            return APKG_CONFLICT;
     entries.max = c->object_max;
     ak_buf_add(&entries, "[");
     for (i = 0; i < s->nrows; i++) {

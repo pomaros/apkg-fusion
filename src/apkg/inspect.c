@@ -304,11 +304,17 @@ apkg_status apkg_client_info(const char *root, const char *name,
         goto done;
     }
     code = APKG_NOT_FOUND;
+    size_t matched = SIZE_MAX;
     for (size_t i = 0; i < snapshot->nrows; i++)
         if (!strcmp(snapshot->rows[i].name.value.data, name)) {
-            code = apkg_snapshot_inspect(snapshot, i, &info, error);
-            break;
+            if (matched != SIZE_MAX) {
+                code = APKG_CONFLICT;
+                goto done;
+            }
+            matched = i;
         }
+    if (matched != SIZE_MAX)
+        code = apkg_snapshot_inspect(snapshot, matched, &info, error);
     if (!code)
         code = apkg_inspection_format(info, field, out, error);
 done:
