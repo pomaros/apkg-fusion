@@ -34,6 +34,46 @@ remains open. After final candidate qualification, stop with the merge report;
 portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
 
+## Combined desktop library and primary filters
+
+The main PkgManager list combines fresh installed records with candidates from
+the loaded signed catalogue. It exposes All/Installed/Not installed/Updates,
+full-text search and dynamic top-level categories. An identical installed build
+is not duplicated; newer/older candidates, changed same-release content and
+other authorities remain distinct. Installed descriptive metadata comes from
+its own committed descriptor. Missing category and recorded empty category
+remain different facts. The list never converts typed records to imported
+fixed-size UI rows or shortens category names to the inherited 32-byte slots.
+
+The pure combined model requires matching root generation and snapshot digest.
+The window revalidates the captured catalogue offline before rebuilding, keeps
+the previous model on refresh failure, clears borrowed rows/category/detail
+pointers before releasing parents, and waits while a worker may borrow them.
+Filtering preserves the selected complete build identity. Installed rows retain
+local operations; candidate installation/update uses its exact signed selection
+and the existing common approval flow. With no catalogue, local installed rows
+remain available and the window labels availability/updates unknown.
+
+Evaluation: 24 focused tests pass normally and with an ASan/UBSan worker,
+including six combined-library tests. They cover all four primary state filters,
+own-build metadata, absent/empty fields, same-name authorities, same-release
+content conflict, 255-byte names, Unicode and more than 32 categories, stable
+category choices through empty searches, allocation failure, count limits and
+generation/digest mismatch. Native SDK syntax/type checking of the window and
+adapter passes without diagnostics. `make test-fusion` passes with 378 common
+tests, 78 default-product CLI checks and 78 publication checks. Local sanitizer
+evidence for this checkpoint is the focused 24-test run against a rebuilt
+ASan/UBSan worker, not a repeated full sanitizer run. The common sanitizer
+runner includes the new module for exact-source CI. Documentation checks cover
+81 files with no broken links. The inherited arospkg host suite passes too.
+
+[Desktop contract](desktop-library.md) and
+[tests](../../tests/apkg/test_library_browser.py) define this checkpoint.
+Recent/last-refresh news and remaining settings/ARexx work are not closed;
+unimplemented views report unavailable instead of displaying unrelated installed
+rows or inferred dates. GUI interaction/lifetime qualification remains for the
+final M1 candidate. No portal or target changes are included.
+
 ## Latest-transaction Rollback
 
 The installed Rollback shortcut and ARexx `ROLLBACK name` submit the new
@@ -84,8 +124,8 @@ common plan confirmation and resulting file checks. This thin window dispatch
 change does not change the engine qualified in the preceding checkpoint. The
 button click and complete GUI lifecycle still require the final M1 candidate
 test; SDK compilation and host worker execution do not prove that interaction.
-The latest-transaction Rollback integration does not close inherited
-category/state/recent controls, which remain open.
+The combined desktop checkpoint above covers primary category/state filters;
+recent views and remaining settings/automation integration remain open.
 No M1 execution, OS changes or portal implementation were performed.
 
 ## Signed descriptive metadata checkpoint

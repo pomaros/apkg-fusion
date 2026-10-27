@@ -519,6 +519,8 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
                 return code;
             }
             *destinations[field] = copy_text(&cursor, (apkg_text){text ? text : "", text ? strlen(text) : 0});
+            if (field == 0) r->summary_recorded = text != NULL;
+            else r->category_recorded = text != NULL;
             apkg_client_text_free(text);
         }
         r->revision = v->revision;
@@ -587,10 +589,13 @@ static int contains(apkg_text text, const char *term) {
             return 1;
     return 0;
 }
-static int installed_matches(const apkg_installed_view *v, const char *term) {
+static int installed_matches(const apkg_installed_view *v, const char *term,
+                             const char *summary, const char *category) {
     return contains(v->name.value, term) ||
            contains(v->authority.value, term) ||
-           contains(v->target.value, term);
+           contains(v->target.value, term) ||
+           (summary && term && strstr(summary, term)) ||
+           (category && term && strstr(category, term));
 }
 static int installed_version(char *out, size_t size,
                              const apkg_installed_view *v) {
@@ -619,6 +624,27 @@ static size_t installed_texts(const apkg_installed_view *v,
         size += parts[i].size + 1;
     return size;
 }
+static apkg_status installed_presentation(const apkg_snapshot *snapshot,
+    uint64_t index, char **summary, char **category, apkg_error **error) {
+    *summary = *category = NULL;
+    apkg_inspection *inspection = NULL;
+    apkg_status code = apkg_snapshot_inspect(snapshot, index, &inspection, error);
+    if (!code) {
+        apkg_bytes presentation = apkg_inspection_get(inspection)->presentation;
+        code = apkg_presentation_field(presentation, "summary", summary, error);
+        if (code == APKG_NOT_FOUND) code = APKG_OK;
+        if (!code) {
+            code = apkg_presentation_field(presentation, "category", category, error);
+            if (code == APKG_NOT_FOUND) code = APKG_OK;
+        }
+    }
+    apkg_inspection_free(inspection);
+    if (code) {
+        apkg_client_text_free(*summary); apkg_client_text_free(*category);
+        *summary = *category = NULL;
+    }
+    return code;
+}
 apkg_status pm_common_installed_read(const char *root, const char *term,
                                      pm_common_installed **out,
                                      apkg_error **error) {
@@ -636,6 +662,8 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
     apkg_ctx *ctx = NULL;
     apkg_snapshot *snapshot = NULL;
     pm_common_installed *model = NULL;
+    char **summaries = NULL, **categories = NULL;
+    uint64_t count = 0;
     apkg_status code = apkg_open(&options, &ctx, error);
     if (code)
         goto done;
@@ -648,10 +676,15 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
             state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED : APKG_POLICY;
         goto done;
     }
-    uint64_t count = apkg_snapshot_installed_count(snapshot);
+    count = apkg_snapshot_installed_count(snapshot);
     if (count > 4096) {
         code = APKG_LIMIT;
         goto done;
+    }
+    summaries = calloc(count ? (size_t)count : 1, sizeof *summaries);
+    categories = calloc(count ? (size_t)count : 1, sizeof *categories);
+    if (!summaries || !categories) {
+        code = APKG_NOMEM; goto done;
     }
     size_t total = sizeof *model + (size_t)count * sizeof *model->rows;
     for (uint64_t i = 0; i < count; i++) {
@@ -659,7 +692,9 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
         code = apkg_snapshot_installed_at(snapshot, i, &v, error);
         if (code)
             goto done;
-        if (!installed_matches(v, term))
+        code = installed_presentation(snapshot, i, &summaries[i], &categories[i], error);
+        if (code) goto done;
+        if (!installed_matches(v, term, summaries[i], categories[i]))
             continue;
         apkg_text parts[10];
         int n = installed_version(NULL, 0, v);
@@ -667,7 +702,9 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
             code = APKG_INVALID;
             goto done;
         }
-        size_t extra = installed_texts(v, parts) + (size_t)n + 1;
+        size_t extra = installed_texts(v, parts) + (size_t)n + 1 +
+            (summaries[i] ? strlen(summaries[i]) + 1 : 0) +
+            (categories[i] ? strlen(categories[i]) + 1 : 0);
         if (extra > PM_CATALOGUE_MAX || total > PM_CATALOGUE_MAX - extra) {
             code = APKG_LIMIT;
             goto done;
@@ -679,16 +716,22 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
         code = APKG_NOMEM;
         goto done;
     }
+    model->generation = apkg_snapshot_root(snapshot)->generation.value;
+    model->snapshot = apkg_snapshot_root(snapshot)->snapshot_digest;
     char *cursor = (char *)(model->rows + count);
     for (uint64_t i = 0; i < count; i++) {
         const apkg_installed_view *v = NULL;
         code = apkg_snapshot_installed_at(snapshot, i, &v, error);
         if (code)
             goto done;
-        if (!installed_matches(v, term))
+        if (!installed_matches(v, term, summaries[i], categories[i]))
             continue;
         pm_common_installed_row *row = &model->rows[model->count++];
         row->view = *v;
+        if (summaries[i]) row->summary = copy_text(&cursor,
+            (apkg_text){summaries[i], strlen(summaries[i])});
+        if (categories[i]) row->category = copy_text(&cursor,
+            (apkg_text){categories[i], strlen(categories[i])});
         apkg_text parts[10];
         installed_texts(v, parts);
         apkg_text *targets[9] = {
@@ -713,9 +756,111 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
     *out = model;
     model = NULL;
 done:
+    for (uint64_t i = 0; (summaries || categories) && i < count; i++) {
+        apkg_client_text_free(summaries ? summaries[i] : NULL);
+        apkg_client_text_free(categories ? categories[i] : NULL);
+    }
+    free(summaries); free(categories);
     FreeVec(model);
     apkg_snapshot_free(snapshot);
     apkg_close(ctx);
     return code;
+}
+/* The list view borrows complete rows; it never invents a catalogue build
+ * from a name-only installed match. Category labels are owned and untruncated. */
+static const char *library_category(const char *category, char out[256]) {
+    if (!category) return "[unrecorded]";
+    size_t n = strcspn(category, "/");
+    if (!n) return "(none)";
+    if (n > 255) return NULL;
+    memcpy(out, category, n); out[n] = 0;
+    return out;
+}
+static int category_order(const void *a, const void *b) {
+    return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+int pm_common_library_matches(const pm_common_library_row *row,
+    pm_library_filter filter, const char *term, const char *category) {
+    if (!row || (unsigned)filter > PM_LIBRARY_UPDATES) return 0;
+    if (filter == PM_LIBRARY_INSTALLED && !row->installed) return 0;
+    if (filter == PM_LIBRARY_NOT_INSTALLED && (!row->candidate || row->installed ||
+        row->candidate->comparison != APKG_CANDIDATE_NOT_INSTALLED)) return 0;
+    if (filter == PM_LIBRARY_UPDATES && (!row->candidate || row->installed ||
+        row->candidate->comparison != APKG_CANDIDATE_NEWER)) return 0;
+    if (term && *term && !strstr(row->name, term) &&
+        !strstr(row->authority, term) && !strstr(row->target, term) &&
+        !(row->summary && strstr(row->summary, term)) &&
+        !(row->category && strstr(row->category, term))) return 0;
+    if (category && *category) {
+        char top[256]; const char *value = library_category(row->category, top);
+        if (!value || strcmp(value, category)) return 0;
+    }
+    return 1;
+}
+apkg_status pm_common_library_build(const pm_common_installed *installed,
+    const pm_common_catalogue *catalogue, pm_common_library **out) {
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    if (!installed) return APKG_INVALID;
+    if (catalogue && (catalogue->root_generation != installed->generation ||
+        memcmp(catalogue->root_snapshot.bytes, installed->snapshot.bytes, 32)))
+        return APKG_STALE;
+    size_t count = installed->count;
+    if (count > 4096 || (catalogue && catalogue->count > 8192 - count))
+        return APKG_LIMIT;
+    if (catalogue) count += catalogue->count;
+    size_t total = sizeof(pm_common_library) + count * sizeof(pm_common_library_row)
+        + (count + 2) * sizeof(char *) + count * 256;
+    if (total > PM_CATALOGUE_MAX) return APKG_LIMIT;
+    pm_common_library *model = AllocVec(total, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!model) return APKG_NOMEM;
+    model->rows = (pm_common_library_row *)(model + 1);
+    model->categories = (char **)(model->rows + count);
+    char *cursor = (char *)(model->categories + count + 2);
+    for (size_t i = 0; i < installed->count; i++) {
+        const pm_common_installed_row *r = &installed->rows[i];
+        pm_common_library_row *row = &model->rows[model->count++];
+        row->installed = r;
+        row->name = r->view.name.value.data;
+        row->authority = r->view.authority.value.data;
+        row->target = r->view.target.value.data;
+        row->version = r->version_label;
+        row->summary = r->summary; row->category = r->category;
+        row->state = "installed";
+    }
+    if (catalogue) for (size_t i = 0; i < catalogue->count; i++) {
+        const pm_common_row *r = &catalogue->rows[i];
+        int current = 0;
+        if (r->comparison == APKG_CANDIDATE_CURRENT)
+            for (size_t k = 0; k < installed->count; k++)
+                if (!strcmp(r->name, model->rows[k].name) &&
+                    !strcmp(r->authority, model->rows[k].authority) &&
+                    !strcmp(r->target, model->rows[k].target)) { current = 1; break; }
+        if (current) continue;
+        pm_common_library_row *row = &model->rows[model->count++];
+        row->candidate = r;
+        row->name = r->name; row->authority = r->authority;
+        row->target = r->target; row->version = r->version;
+        row->summary = r->summary_recorded ? r->summary : NULL;
+        row->category = r->category_recorded ? r->category : NULL;
+        row->state = !r->target_matches ? "other target" :
+            r->signature != APKG_SIGNATURE_VALID ? "signature not verified" :
+            r->author_trust != APKG_TRUST_ACCEPTED ? "author not trusted" :
+            apkg_candidate_state_name(r->comparison);
+    }
+    model->categories[0] = "All categories";
+    for (size_t i = 0; i < model->count; i++) {
+        char top[256]; const char *category = library_category(model->rows[i].category, top);
+        if (!category) { FreeVec(model); return APKG_LIMIT; }
+        strcpy(cursor, category);
+        model->categories[i + 1] = cursor; cursor += strlen(cursor) + 1;
+    }
+    qsort(model->categories + 1, model->count, sizeof(char *), category_order);
+    for (size_t i = 1; i <= model->count; i++)
+        if (!model->category_count || strcmp(model->categories[i], model->categories[model->category_count]))
+            model->categories[++model->category_count] = model->categories[i];
+    model->categories[model->category_count + 1] = NULL;
+    *out = model;
+    return APKG_OK;
 }
 #endif

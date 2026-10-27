@@ -17,6 +17,7 @@ typedef struct {
     apkg_fact_state installed_revision_state;
     uint64_t review_observations, runtime_observations, revocations;
     char *summary, *category;
+    int summary_recorded, category_recorded;
 } pm_common_row;
 typedef struct {
     size_t count;
@@ -62,13 +63,37 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *,
 typedef struct {
     apkg_installed_view view;
     char *version_label;
+    char *summary, *category; /* NULL means unrecorded; empty remains recorded */
 } pm_common_installed_row;
 typedef struct {
     size_t count;
+    uint64_t generation;
+    apkg_digest snapshot;
     pm_common_installed_row rows[];
 } pm_common_installed;
 apkg_status pm_common_installed_read(const char *root, const char *term,
                                      pm_common_installed **, apkg_error **);
+/* Pure combined view. Inputs must outlive this AllocVec and its list rows.
+ * Candidate comparisons must come from the same captured root snapshot.
+ * Complete identities and exact candidate selections remain in the inputs. */
+typedef struct {
+    const pm_common_installed_row *installed;
+    const pm_common_row *candidate;
+    const char *name, *authority, *version, *target, *summary, *category, *state;
+} pm_common_library_row;
+typedef struct {
+    size_t count, category_count;
+    pm_common_library_row *rows;
+    char **categories; /* All categories, sorted top-level names, NULL */
+} pm_common_library;
+typedef enum {
+    PM_LIBRARY_ALL, PM_LIBRARY_INSTALLED, PM_LIBRARY_NOT_INSTALLED,
+    PM_LIBRARY_UPDATES
+} pm_library_filter;
+apkg_status pm_common_library_build(const pm_common_installed *,
+    const pm_common_catalogue *, pm_common_library **);
+int pm_common_library_matches(const pm_common_library_row *, pm_library_filter,
+    const char *term, const char *category);
 /* ARexx's 16-bit result boundary: refuse overflow, never truncate facts.
  * Successful text is owned by the client library; free with its text free. */
 /* Current-target names from a revalidated retained catalogue; no network.

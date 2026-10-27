@@ -56,6 +56,8 @@ static const char *channel_filters[] = {"All candidates", "Updates / blocked can
     "Not installed", "Other targets", "Untrusted authors", "Changed same release", "Indeterminate versions", "Review observations", "Runtime observations", "Revocation observations", NULL};
 static pm_common_catalogue *common_catalogue;
 static pm_common_installed *common_installed;
+static pm_common_library *common_library;
+static char common_category[256];
 static char *common_info_text, *common_verify_text;
 #define ID_COMMON_INSTALL 1001
 #define ID_CHANNEL_BROWSE 1002
@@ -166,23 +168,45 @@ static const pkg_news_row *news_row(const pkg_entry *e)
 /* ------------------------------------------------------------ list display */
 
 #ifdef APKG_FUSION
-static pm_common_installed_row *installed_selected(void)
+static pm_common_library_row *library_selected(void)
 {
-    pm_common_installed_row *row = NULL;
+    pm_common_library_row *row = NULL;
     DoMethod(lst, MUIM_List_GetEntry, MUIV_List_GetEntry_Active, (IPTR)&row);
     return row;
+}
+static const pm_common_installed_row *installed_selected(void)
+{
+    pm_common_library_row *row = library_selected();
+    return row ? row->installed : NULL;
+}
+static void common_library_clear(void)
+{
+    static const char *empty_categories[] = {"All categories", NULL};
+    DoMethod(lst, MUIM_List_Clear);
+    SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+    SetAttrs(txt_head, MUIA_Text_Contents, (IPTR)"", TAG_DONE);
+    SetAttrs(cyc_cat, MUIA_NoNotify, TRUE, MUIA_Cycle_Entries,
+        (IPTR)empty_categories, MUIA_Cycle_Active, 0, TAG_DONE);
+    FreeVec(common_library); common_library = NULL;
 }
 AROS_UFH3S(void, installed_display_func,
     AROS_UFHA(struct Hook *, hook, A0),
     AROS_UFHA(char **, array, A2),
-    AROS_UFHA(pm_common_installed_row *, row, A1))
+    AROS_UFHA(pm_common_library_row *, row, A1))
 {
     AROS_USERFUNC_INIT
     (void)hook;
-    array[0] = row ? (char *)row->view.name.value.data : "Package";
-    array[1] = row ? row->version_label : "Version / revision";
-    array[2] = row ? "installed" : "State";
-    array[3] = row ? (char *)row->view.target.value.data : "Target";
+    array[0] = row ? (char *)row->name : "Package";
+    array[1] = row ? (char *)row->version : "Version / revision";
+    if (row && row->candidate) {
+        /* Signed versions are at most 255 bytes; retain all 20 revision digits. */
+        static char candidate_version[320];
+        snprintf(candidate_version,sizeof candidate_version,"%s (revision %llu)",
+            row->candidate->version,(unsigned long long)row->candidate->revision);
+        array[1] = candidate_version;
+    }
+    array[2] = row ? (char *)row->state : "State";
+    array[3] = row ? (char *)(row->summary && *row->summary ? row->summary : row->target) : "Summary / target";
     AROS_USERFUNC_EXIT
 }
 AROS_UFH3S(void, common_display_func,
@@ -524,6 +548,75 @@ static void news_status(char *msg, size_t n, int shown)
  * an index that cannot be read, an index with nothing in it, and filters
  * that leave nothing -- a window that says "0 packages" for all four sends
  * the user to the wrong fix. */
+#ifdef APKG_FUSION
+static int same_library_row(const pm_common_library_row *a, const pm_common_library_row *b)
+{
+    if (!a || !b || !!a->installed != !!b->installed ||
+        strcmp(a->name,b->name) || strcmp(a->authority,b->authority) ||
+        strcmp(a->target,b->target)) return 0;
+    return a->installed ? !memcmp(a->installed->view.descriptor_digest.bytes,
+        b->installed->view.descriptor_digest.bytes,32) :
+        !strcmp(a->candidate->selection,b->candidate->selection);
+}
+static void common_main_refill(const char *term, const char *keep_name,
+                               const pm_common_library_row *keep)
+{
+    if (busy_now()) { status("Wait for the current operation before refreshing the list"); return; }
+    pm_common_installed *installed = NULL;
+    pm_common_catalogue *catalogue = NULL;
+    pm_common_library *model = NULL;
+    apkg_status code = pm_common_installed_read(root, NULL, &installed, NULL);
+    if (!code && common_catalogue)
+        code = pm_common_catalogue_refresh(root, common_catalogue, &catalogue);
+    if (!code) code = pm_common_library_build(installed, catalogue, &model);
+    if (code) {
+        static char error[128];
+        snprintf(error,sizeof error,"Common list refresh refused (code %d); displayed rows were not refreshed",(int)code);
+        status(error); FreeVec(installed); FreeVec(catalogue); FreeVec(model); return;
+    }
+    IPTR filter = state_now();
+    int active_row = -1, selected_category = 0, shown = 0;
+    for (size_t i = 1; i <= model->category_count; i++)
+        if (!strcmp(model->categories[i],common_category)) selected_category = (int)i;
+    if (!selected_category) common_category[0] = 0;
+    /* Resolve selection before releasing the old borrowed rows. */
+    for (size_t i=0; i<model->count; i++) {
+        pm_common_library_row *row=&model->rows[i];
+        if (!pm_common_library_matches(row,(pm_library_filter)filter,term,common_category)) continue;
+        if (same_library_row(row,keep) || (keep_name && !strcmp(row->name,keep_name) && row->installed)) active_row=shown;
+        shown++;
+    }
+    SetAttrs(lst,MUIA_List_Quiet,TRUE,TAG_DONE);
+    common_library_clear();
+    DoMethod(lst_channel,MUIM_List_Clear);
+    SetAttrs(txt_channel_detail,MUIA_Floattext_Text,(IPTR)"",TAG_DONE);
+    SetAttrs(txt_channel_summary,MUIA_Floattext_Text,(IPTR)"",TAG_DONE);
+    FreeVec(common_installed); FreeVec(common_catalogue);
+    common_installed=installed; common_catalogue=catalogue; common_library=model;
+    if(catalogue)snprintf(upd_label,sizeof upd_label,"Updates (%llu)",
+        (unsigned long long)catalogue->updates.newer);
+    else snprintf(upd_label,sizeof upd_label,"Updates (unknown)");
+    SetAttrs(cyc_state,MUIA_NoNotify,TRUE,MUIA_Cycle_Entries,(IPTR)state_entries,
+        MUIA_Cycle_Active,filter,TAG_DONE);
+    SetAttrs(cyc_cat,MUIA_NoNotify,TRUE,MUIA_Cycle_Entries,(IPTR)model->categories,
+        MUIA_Cycle_Active,selected_category,TAG_DONE);
+    for(size_t i=0;i<model->count;i++)
+        if(pm_common_library_matches(&model->rows[i],(pm_library_filter)filter,term,common_category))
+            DoMethod(lst,MUIM_List_InsertSingle,(IPTR)&model->rows[i],MUIV_List_Insert_Bottom);
+    SetAttrs(lst,MUIA_List_Quiet,FALSE,TAG_DONE);
+    if(active_row>=0)SetAttrs(lst,MUIA_List_Active,active_row,TAG_DONE);
+    if(catalogue)SetAttrs(txt_channel_summary,MUIA_Floattext_Text,(IPTR)catalogue->summary,TAG_DONE);
+    common_refill();
+    static char message[256];
+    snprintf(message,sizeof message,filter>PM_LIBRARY_UPDATES ?
+        "This view is unavailable in this development build" :
+        "%d rows shown; %lu installed packages; %s",shown,(unsigned long)installed->count,
+        catalogue ? "captured signed catalogue revalidated offline" : "no signed catalogue loaded; availability and updates unknown");
+    SetAttrs(txt_catalogue,MUIA_Text_Contents,(IPTR)message,TAG_DONE);
+    status(message);show_detail();
+}
+#endif
+
 static void refill(const char *term, const char *keep_id, const char *why)
 {
     pkg_ctx *c = NULL; pkg_err e; pkg_status st;
@@ -532,20 +625,8 @@ static void refill(const char *term, const char *keep_id, const char *why)
 
     memset(&e,0,sizeof e);
 #ifdef APKG_FUSION
-    pm_common_installed *installed = NULL;
-    apkg_status code = pm_common_installed_read(root, term, &installed, NULL);
-    if (code) { snprintf(msg, sizeof msg, "Common root query refused (code %d)", (int)code); status(msg); return; }
-    SetAttrs(lst,MUIA_List_Quiet,TRUE,TAG_DONE);DoMethod(lst,MUIM_List_Clear);
-    SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
-    SetAttrs(txt_head, MUIA_Text_Contents, (IPTR)"", TAG_DONE);
-    FreeVec(common_installed); common_installed = installed;
-    for(size_t row=0;row<installed->count;row++) {
-        pm_common_installed_row *r = &installed->rows[row];
-        DoMethod(lst,MUIM_List_InsertSingle,(IPTR)r,MUIV_List_Insert_Bottom);
-        if(keep_id&&!strcmp(keep_id,r->view.name.value.data))again=(int)row;
-    }
-    SetAttrs(lst,MUIA_List_Quiet,FALSE,TAG_DONE);if(again>=0)SetAttrs(lst,MUIA_List_Active,again,TAG_DONE);
-    snprintf(msg,sizeof msg,"%lu installed packages; local common root",(unsigned long)installed->count);status(msg);show_detail();return;
+    common_main_refill(term,keep_id,NULL);
+    return;
 #endif
     st = pkg_open(root, PKG_OPEN_READ, &c, &e);
     if (st != PKG_OK) { show_err("cannot open the package root", st, &e); return; }
@@ -684,11 +765,10 @@ static pkg_entry *selected(void)
 static void refill_keep(const char *why)
 {
 #ifdef APKG_FUSION
-    IPTR t = 0; char keep[256] = "";
-    pm_common_installed_row *row = installed_selected();
-    if (row) snprintf(keep, sizeof keep, "%s", row->view.name.value.data);
+    (void)why;
+    IPTR t = 0;
     GetAttr(MUIA_String_Contents, str_search, &t);
-    refill((const char *)t, keep[0] ? keep : NULL, why);
+    common_main_refill((const char *)t,NULL,library_selected());
 #else
     IPTR t = 0; pkg_entry *e = selected(); char keep[PKG_MAXID] = "";
     if (e) snprintf(keep, sizeof keep, "%s", e->id);
@@ -946,14 +1026,16 @@ static void show_detail(void)
     char reqs[1024] = "";
     pkg_entry *e = selected();
 #ifdef APKG_FUSION
-    pm_common_installed_row *row = installed_selected();
+    pm_common_library_row *selected_common = library_selected();
+    const pm_common_installed_row *row = selected_common ? selected_common->installed : NULL;
+    const pm_common_row *candidate = selected_common ? selected_common->candidate : NULL;
     SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
     apkg_client_text_free(common_info_text); common_info_text = NULL;
     apkg_status info_code = row ? apkg_client_info(root, row->view.name.value.data, NULL, &common_info_text, NULL) : APKG_OK;
     if (info_code) snprintf(buf, sizeof buf, "Inspection refused (code %d)", (int)info_code);
-    SetAttrs(txt_head,MUIA_Text_Contents,(IPTR)(row?row->view.name.value.data:""),TAG_DONE);
-    SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(common_info_text ? common_info_text : info_code ? buf : "Select an installed package"),TAG_DONE);
-    SetAttrs(btn_install,MUIA_Disabled,TRUE,TAG_DONE);
+    SetAttrs(txt_head,MUIA_Text_Contents,(IPTR)(selected_common?selected_common->name:""),TAG_DONE);
+    SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(common_info_text ? common_info_text : info_code ? buf : candidate ? candidate->detail : "Select a package"),TAG_DONE);
+    SetAttrs(btn_install,MUIA_Disabled,busy_now()||!pm_common_row_reviewable(candidate),TAG_DONE);
     SetAttrs(btn_remove,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_open,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_run,MUIA_Disabled,busy_now()||!row,TAG_DONE);
@@ -1222,6 +1304,11 @@ static void open_folder(const char *id)
 
 static void busy(int on)
 {
+#ifdef APKG_FUSION
+    SetAttrs(str_search,MUIA_Disabled,on,TAG_DONE);
+    SetAttrs(cyc_cat,MUIA_Disabled,on,TAG_DONE);
+    SetAttrs(cyc_state,MUIA_Disabled,on,TAG_DONE);
+#endif
 #ifdef APKG_FUSION
     SetAttrs(btn_channel_load, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(str_source_profile, MUIA_Disabled, on, TAG_DONE);
@@ -1987,6 +2074,7 @@ static int on_message(pm_msg *m)
             SetAttrs(txt_channel_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
             SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
             cur.common_observation = NULL;
+            common_library_clear();
             FreeVec(common_catalogue);
             common_catalogue = m->common_catalogue; m->common_catalogue = NULL;
             SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)common_catalogue->summary, TAG_DONE);
@@ -1996,7 +2084,7 @@ static int on_message(pm_msg *m)
                 SetAttrs(str_channel_endpoint,MUIA_String_Contents,(IPTR)common_catalogue->endpoint,TAG_DONE);
                 SetAttrs(str_channel_id,MUIA_String_Contents,(IPTR)identity,TAG_DONE);
             }
-            common_refill();
+            refill_keep("signed catalogue loaded");
             status("Signed catalogue loaded; review and runtime testing are not asserted");
         } else status(m->common_status == APKG_CANCELLED || cur.cancel ? "Discovery cancelled" : m->err.summary);
         cur.common_observation = NULL;
@@ -2639,11 +2727,14 @@ static void rx_show(rexx_msg *m, const rx_req *r)
        the very list it is to be shown in. */
     SetAttrs(str_search, MUIA_NoNotify, TRUE, MUIA_String_Contents, (IPTR)"", TAG_DONE);
     last_term[0] = 0; cat_chosen[0] = 0;
+#ifdef APKG_FUSION
+    common_category[0] = 0;
+#endif
     SetAttrs(cyc_cat,   MUIA_NoNotify, TRUE, MUIA_Cycle_Active, 0, TAG_DONE);
     SetAttrs(cyc_state, MUIA_NoNotify, TRUE, MUIA_Cycle_Active, 0, TAG_DONE);
     refill("", r->package, "arexx show");
 #ifdef APKG_FUSION
-    pm_common_installed_row *selected_row = installed_selected();
+    const pm_common_installed_row *selected_row = installed_selected();
     if (!selected_row || strcmp(selected_row->view.name.value.data, r->package)) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s could not be selected in the list", r->package); return; }
 #else
     sel = selected();
@@ -2783,11 +2874,12 @@ static void rx_outdated(rexx_msg *m, const rx_req *r)
             DoMethod(lst_channel, MUIM_List_Clear);
             SetAttrs(txt_channel_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
             SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+            common_library_clear();
             FreeVec(common_catalogue); common_catalogue = replacement; replacement = NULL;
             SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)common_catalogue->summary, TAG_DONE);
             SetAttrs(str_channel_search, MUIA_NoNotify, TRUE, MUIA_String_Contents, (IPTR)"", TAG_DONE);
             SetAttrs(cyc_channel_filter, MUIA_NoNotify, TRUE, MUIA_Cycle_Active, PM_CATALOGUE_UPDATES, TAG_DONE);
-            common_refill();
+            refill_keep("arexx outdated catalogue");
             SetAttrs(app, MUIA_Application_Iconified, FALSE, TAG_DONE);
             SetAttrs(win_common_catalogue, MUIA_Window_Open, TRUE, MUIA_Window_Activate, TRUE, TAG_DONE);
             DoMethod(win_common_catalogue, MUIM_Window_ToFront);
@@ -3311,8 +3403,16 @@ static int real_main(int argc, char **argv)
             IPTR a = 0, st = 0;
             GetAttr(MUIA_Cycle_Active, cyc_cat, &a);
             GetAttr(MUIA_Cycle_Active, cyc_state, &st);
+#ifdef APKG_FUSION
+            snprintf(common_category,sizeof common_category,"%s", common_library && a>0 && (size_t)a<=common_library->category_count ? common_library->categories[a] : "");
+#else
             snprintf(cat_chosen, sizeof cat_chosen, "%s", a ? cat_names[a - 1] : "");
+#endif
+#ifdef APKG_FUSION
+            logline("filter category=%s state=%s", common_category[0] ? common_category : "all", state_entries[st]);
+#else
             logline("filter category=%s state=%s", cat_chosen[0] ? cat_chosen : "all", state_entries[st]);
+#endif
             SetAttrs(btn_buy, MUIA_ShowMe, st == ST_DEMO, TAG_DONE);
             refill_keep("filter");
         } break;
@@ -3356,20 +3456,27 @@ static int real_main(int argc, char **argv)
             break;
 #endif
 #ifdef APKG_FUSION
-        case ID_REMOVE: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_REMOVE, row->view.name.value.data, "window"); } break;
-        case ID_OPEN: { pm_common_installed_row *row = installed_selected(); if (row) open_folder(row->view.name.value.data); } break;
-        case ID_RUN: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_RUN, row->view.name.value.data, "window"); } break;
-        case ID_VERIFY: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_VERIFY, row->view.name.value.data, "window"); } break;
+        case ID_REMOVE: { const pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_REMOVE, row->view.name.value.data, "window"); } break;
+        case ID_OPEN: { const pm_common_installed_row *row = installed_selected(); if (row) open_folder(row->view.name.value.data); } break;
+        case ID_RUN: { const pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_RUN, row->view.name.value.data, "window"); } break;
+        case ID_VERIFY: { const pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_VERIFY, row->view.name.value.data, "window"); } break;
         case ID_UPGRADE: {
-            pm_common_installed_row *row = installed_selected();
+            const pm_common_installed_row *row = installed_selected();
             if (row) begin(JOB_UPGRADE, row->view.name.value.data, "window");
         } break;
         case ID_ROLLBACK: {
-            pm_common_installed_row *row = installed_selected();
+            const pm_common_installed_row *row = installed_selected();
             if (row) begin(JOB_ROLLBACK, row->view.name.value.data, "window");
         } break;
-        case ID_INSTALL:
-            status("Use the common signed-plan operation panel or signed catalogue"); break;
+        case ID_INSTALL: {
+            pm_common_library_row *row = library_selected();
+            if (!busy_now() && common_catalogue && row && pm_common_row_reviewable(row->candidate)) {
+                SetAttrs(cyc_common_action,MUIA_Cycle_Active,APKG_CLIENT_CHANNEL,TAG_DONE);
+                SetAttrs(str_common_package,MUIA_String_Contents,(IPTR)common_catalogue->endpoint,TAG_DONE);
+                SetAttrs(str_common_pool,MUIA_String_Contents,(IPTR)row->candidate->selection,TAG_DONE);
+                begin(JOB_COMMON_INSTALL,NULL,"window");
+            }
+        } break;
 #else
         case ID_INSTALL: { pkg_entry *e = selected(); if (e) { logline("install pressed for %s", e->id); begin(JOB_INSTALL, e->id, "window"); } } break;
         case ID_REMOVE:  { pkg_entry *e = selected(); if (e) { logline("remove pressed for %s", e->id); begin(JOB_REMOVE, e->id, "window"); } } break;
@@ -3435,6 +3542,7 @@ static int real_main(int argc, char **argv)
 #endif
     MUI_DisposeObject(app);
 #ifdef APKG_FUSION
+    FreeVec(common_library);
     FreeVec(common_catalogue);
     FreeVec(common_installed);
     apkg_client_text_free(common_info_text);

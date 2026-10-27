@@ -97,9 +97,54 @@ int main(int argc, char **argv) {
     pm_msg final = {0};
     pkg_err error = {0};
     pkg_status result;
-    assert(argc >= 4 && argc <= 7);
+    assert(argc >= 4 && argc <= 9);
     assert(!job_uses_common_engine(JOB_NONE) && !job_uses_common_engine(JOB_INSTALL));
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 50) {
+        assert(argc == 9);
+        apkg_snapshot *snapshot = NULL;
+        apkg_channel *channel = NULL;
+        pm_common_catalogue *catalogue = NULL;
+        pm_common_installed *installed = NULL;
+        pm_common_library *model = (void *)1;
+        if (strcmp(argv[2], "-")) {
+            assert(apkg_client_channel_refresh(argv[1], argv[2], argv[5], 0, NULL,
+                &snapshot, &channel, NULL) == APKG_OK);
+            assert(pm_common_catalogue_copy(channel, snapshot, argv[2], &catalogue) == APKG_OK);
+        }
+        apkg_snapshot_free(snapshot); apkg_channel_free(channel);
+        assert(pm_common_installed_read(argv[1], NULL, &installed, NULL) == APKG_OK);
+        int fault = atoi(argv[8]);
+        if (fault == -1) installed->generation++;
+        if (fault == -2) installed->count = 4097;
+        if (fault == -3) installed->snapshot.bytes[0] ^= 1;
+        allocation_calls = 0; fail_at = fault > 0 ? fault : 0;
+        apkg_status code = pm_common_library_build(installed, catalogue, &model);
+        fail_at = 0;
+        printf("status %d\n", (int)code);
+        if (code) assert(!model);
+        else {
+            for (size_t i = 1; i <= model->category_count; i++) {
+                owned_text(model, (apkg_text){model->categories[i],strlen(model->categories[i])});
+                if (i > 1) assert(strcmp(model->categories[i-1],model->categories[i]) < 0);
+                printf("category\t%s\n", model->categories[i]);
+            }
+            assert(!model->categories[model->category_count+1]);
+            for (size_t i = 0; i < model->count; i++) {
+                const pm_common_library_row *r = &model->rows[i];
+                assert(!!r->installed != !!r->candidate);
+                if (r->candidate) assert(strstr(r->candidate->selection,"/"));
+                if (pm_common_library_matches(r,(pm_library_filter)atoi(argv[4]),argv[6],argv[7]))
+                    printf("row\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+                        r->installed ? "installed" : "candidate",r->name,r->authority,
+                        r->version,r->state,r->summary ? r->summary : "[unrecorded]",
+                        r->category ? r->category : "[unrecorded]");
+            }
+        }
+        FreeVec(model); FreeVec(installed); FreeVec(catalogue);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 47) {
         /* ROOT NAME 47 CHOICE: actual common diagnostic worker. */
         assert(argc == 5 && strlen(argv[1]) < sizeof j.root && strlen(argv[2]) < sizeof j.id);
