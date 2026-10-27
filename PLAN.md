@@ -211,7 +211,15 @@ suites, integration/memory checks and portal tests must pass in exact-source
 Linux/macOS CI. Record remaining acceptance obligations without promoting a
 host or fixture result into a platform/release claim.
 
-AROS execution and power-loss/distribution tests remain deferred. This goal
+Operator update: finish the other fusion workstreams, then run an isolated
+M1 runtime rehearsal before starting portal adaptation. The existing M1
+updater uses `libpkg`; another owner will migrate that integration. Do not
+replace its installed library or change its update/startup process during
+fusion tests. Keep candidate binaries, test roots and recovery fixtures separate.
+Record native results by exact build; this rehearsal does not establish
+power-loss durability or qualification of other distributions.
+
+Other AROS execution and power-loss/distribution tests remain deferred. This goal
 changes no OS repository and authorizes no deployment, live portal cutover,
 maintainer contact or joint-release announcement. Actual production inventory,
 distribution evidence and maintainer agreement remain separate release gates.

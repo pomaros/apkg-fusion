@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 John Knipper */
 #define _POSIX_C_SOURCE 200809L
+#ifdef __AROS__
+#define __AROS_ENABLE_ALLOCA__ /* DOS inline slow-stack varargs. */
+#endif
 #include "apkg_client.h"
 #include "internal.h"
 #include "pkg_application.h"
@@ -10,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 #ifdef __AROS__
+#include <alloca.h> /* DOS inline slow-stack varargs use alloca. */
 #include <proto/dos.h>
 #include <proto/exec.h>
 #include <proto/icon.h>

@@ -402,7 +402,7 @@ build/apkg-core: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h 
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O2 -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
-build/test_pm_common: tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h include/pkg_ameta.h components/arospkg/src/pkgmanager/job.h src/apkg/changes.inc src/apkg/internal.h
+build/test_pm_common: tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h include/pkg_ameta.h components/arospkg/src/pkgmanager/job.h components/arospkg/src/pkgmanager/common_catalogue.h src/apkg/changes.inc src/apkg/internal.h
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_FUSION -Iinclude -Isrc/apkg -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 

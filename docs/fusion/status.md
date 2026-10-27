@@ -16,13 +16,15 @@ implemented below; remaining service/operation integration is listed separately.
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP discovery, exact selection, root trust roles and replay floors work | Independent qualifications, online revocation/freshness and multi-channel configuration |
-| Clients/default product | Shared CLI/actual worker path works; default CLI/library/tools now use the common engine | Interactive native catalogue/settings and complete consumer/compatibility qualification |
+| Clients/default product | Shared CLI/actual worker path works; native catalogue is wired; default CLI/library/tools use the common engine | Installed-list/settings/news integration and complete native/consumer/compatibility qualification |
 | Legacy migration | Read-only legacy observation/baselines exist | Validated import, original-preserving commit/recovery and compatibility rehearsals |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
 workspace scenario and exact-source Linux/macOS CI must qualify the resulting
-product. AROS execution and deployment remain outside this host-alpha run.
+product. Native qualification is not established. The operator has now requested
+an isolated M1 runtime rehearsal after the other fusion work and before portal
+adaptation; deployment and live portal cutover remain outside this run.
 
 ## BASE qualification
 
@@ -744,8 +746,10 @@ Local `make test-fusion` passes 186 common methods and the existing integration
 checks. The sanitizer harness passes 106 methods, including real CLI/actual
 worker file/HTTP workflows through instrumented native binaries; direct ctypes
 cases use the ordinary test library. Documentation links pass for 67 files with
-zero broken links. Exact-source Linux/macOS CI must qualify this checkpoint
-separately.
+zero broken links. The subsequent exact-source
+[CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40429056823)
+passed on `517eda0484f03a96c2994a7083b6e3f6ee7754f7`, including both inherited
+suites on Linux/macOS and all 107 portal tests.
 
 This is one-channel host workflow integration. Default `build/apkg` replacement,
 interactive native catalogue/settings, independent qualifications, multi-channel
@@ -833,6 +837,43 @@ library. Documentation links cover 67 files with zero broken links. Exact-source
 Linux/macOS CI remains the subsequent qualification gate. No native execution
 or portal changes were performed in this batch.
 
+## FUSION-ALPHA progress: native catalogue discovery and selection wiring
+
+The fusion PkgManager has a separate signed-catalogue window with endpoint and
+channel identity, worker discovery, full-name/authority/target search, details,
+channel snapshot/floor/trust presentation and selected install/update review.
+The selection calls the same common plan/confirmation path already used by the
+CLI and mutation worker. Other-target and untrusted-author rows stay visible
+with review disabled; review and runtime qualifications are explicitly unasserted.
+
+Discovery transfers one bounded `AllocVec` model to the UI. It preserves
+255-character names/versions, full unsigned 64-bit revisions, exact selections
+and owned channel evidence after worker library handles are closed. Failure
+leaves the previous displayed catalogue intact. UI-owned cancellation tokens
+remain alive until completion, including during transport waits; closing the
+catalogue window cancels discovery. Ignored and shutdown messages release their
+owned catalogue copies.
+
+This closes source wiring for interactive discovery/selection, not the full
+native client gate. Installed-list projection, settings, news/update views and
+native interaction remain outstanding. The AROS SDK header/type check also
+found the DOS varargs inline's explicit `alloca` feature requirement in bundle
+launch; the native-only include now requests it, without enabling GNU stdio
+extensions. No OS repository or installed updater was changed.
+
+Batch evaluation: `make test-fusion` passed all 194 common methods, the
+78 default-product checks, 110 provisional CLI checks, 78 publishing checks and
+existing contract/target/application/initialization checks. The sanitizer run
+passed 114 selected methods, including actual worker copies with 255-character
+names/versions and maximum unsigned 64-bit revisions, blocked-author/target
+facts, empty catalogues, progress/model allocation failures, cancellation and
+discovery-to-install selection. Native clients/runners are instrumented;
+direct ctypes cases use the ordinary test library. The expanded
+`tools/check-apkg-aros.sh` passed header/type checks with the existing aarch64
+AROS SDK (its `vfork` declaration warnings remain). Documentation links pass
+for 67 files with zero broken links. These are host/type checks, not a native
+UI execution result; exact-source Linux/macOS CI remains the next gate.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
@@ -916,6 +957,8 @@ These checks remain scheduled work; they do not block BASE or contract design.
 | DOS and handlers | MAP / PLATFORMS: measure dos.library version/revision and handler capabilities on each distribution; exercise replacement and recovery rather than inferring compatibility from ABI. |
 | Self-update state | MAP / JOURNAL / SELF-UPDATE: map both existing journals, including `ENVARC:arospkg/self-update.json`, into one recovery model and test interrupted self-update recovery. |
 | Maintainer feedback | ALIGN: collect comments on the selected skeleton, trust administration and release scope when contact is authorized; development continues meanwhile. |
+| M1 rehearsal | Operator-authorized after the other fusion workstreams and before portal work. Test candidate binaries/roots separately; identify the exact runtime/build and exercise UI, operations and recovery. No native result is recorded yet. |
+| M1 updater | Existing update integration uses `libpkg`. Another owner will migrate it. Preserve the installed library and update/startup process; fusion runtime tests must not replace them. |
 | Existing portal | PORTAL-MIGRATE: migration of https://aros-pkg.azurewebsites.net/ is requested after fusion. Inventory real data/configuration, rehearse backup/restore and cutover, verify publishing/consumption and URLs, and retain rollback. No live migration has been attempted. |
 
 Portal migration work keeps credentials and private data outside the public
@@ -923,3 +966,4 @@ repository. Existing author signatures, channel trust and qualification evidence
 must retain their meaning; migration cannot grant review to unreviewed content.
 Per operator direction, porting this portal follows the other fusion workstreams,
 including client integration, independent qualification facts and legacy import.
+An isolated M1 runtime rehearsal now precedes portal adaptation as well.

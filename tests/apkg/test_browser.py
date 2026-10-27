@@ -10,6 +10,7 @@ from support import *
 from test_channel import CHANNEL, CP, CS, ChannelRow, catalog, entry, seed
 from test_channel_clients import apply, published, selection
 from test_http_channel import serve
+import test_client as clients
 
 lib.apkg_client_channel_open.argtypes = [C.c_char_p, C.c_char_p, C.c_char_p,
     C.c_uint64, C.c_void_p, C.POINTER(C.c_void_p), C.c_void_p]
@@ -34,8 +35,13 @@ def choose(channel, index):
     return code, text
 
 
-def fixture(endpoint, names, sequence=1, target=TARGET):
-    data = catalog([entry(descriptor(name=n, target=target)) for n in names], sequence)
+def fixture(endpoint, names, sequence=1, target=TARGET, version='1.0', revision=1):
+    items = []
+    for name in names:
+        body = json.loads(descriptor(name=name, target=target))['body']
+        body.update(version=version, revision=str(revision))
+        items.append(entry(wire('descriptor', body)))
+    data = catalog(items, sequence)
     digest = hashlib.sha256(data).hexdigest()
     directory = endpoint / 'snapshots' / digest
     directory.mkdir(parents=True)
@@ -165,3 +171,73 @@ class Browser(unittest.TestCase):
             self.assertFalse(out)
         finally:
             lib.apkg_cancel_free(token)
+
+    def test_actual_discovery_worker_copies_full_rows_and_owns_all_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            endpoint, root = d / 'channel', d / 'root'
+            names = ['a' * 255, 'a' * 254 + 'b']
+            version, revision = 'v' * 255, 18446744073709551615
+            digest = fixture(endpoint, names, version=version, revision=revision)
+            before = state(root, policy=seed())
+            with serve(endpoint) as (url, server):
+                result = subprocess.run([str(clients.WORKER), str(root), url,
+                    '9', '7', CHANNEL], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                rows = [line.split('\t') for line in result.stdout.splitlines()]
+                self.assertEqual({r[1] for r in rows}, set(names))
+                for r in rows:
+                    self.assertTrue(r[0].startswith(CHANNEL + '/' + digest + '/'))
+                    self.assertEqual(r[2:], [version, str(revision), '1', '1'])
+                self.assertFalse(any('/archives/' in p for p in server.requests))
+            self.assertEqual((root / '.apkg/state').read_bytes(), before)
+
+    def test_native_discovery_selection_drives_actual_install_worker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            endpoint, _ = published(d)
+            root = d / 'root'
+            state(root, policy=seed())
+            with serve(endpoint) as (url, server):
+                result = subprocess.run([str(clients.WORKER), str(root), url,
+                    '9', '7', CHANNEL], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                rows = [line.split('\t') for line in result.stdout.splitlines()]
+                selected = next(r[0] for r in rows if r[1] == 'app')
+                self.assertEqual(selected, selection(endpoint))
+                self.assertFalse(any('/archives/' in p for p in server.requests))
+                result = subprocess.run([str(clients.WORKER), str(root), url,
+                    '1', '7', selected], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertTrue((root / 'app').is_dir())
+                self.assertTrue((root / 'provider').is_dir())
+
+    def test_native_discovery_unknown_facts_allocation_failure_and_cancel(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            endpoint, root = d / 'channel', d / 'root'
+            fixture(endpoint, ['demo'], target='arm-aros-v11-native')
+            before = state(root, policy=seed(authors=False))
+            with serve(endpoint) as (url, server):
+                for choice in (9, 10, 11, 9):
+                    start = len(server.requests)
+                    result = subprocess.run([str(clients.WORKER), str(root), url,
+                        str(choice), '7', CHANNEL], capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    if choice == 9:
+                        self.assertEqual(result.stdout.strip().split('\t')[1:], ['demo', '1.0', '1', '2', '0'])
+                    else:
+                        self.assertEqual(result.stdout, '')
+                    if choice == 11:
+                        self.assertEqual(len(server.requests), start)
+            # Local discovery emits no transfer events: the first AllocVec
+            # failure is the packed model itself, rather than a progress copy.
+            result = subprocess.run([str(clients.WORKER), str(root), str(endpoint),
+                '10', '7', CHANNEL], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            fixture(endpoint, [], sequence=2)
+            result = subprocess.run([str(clients.WORKER), str(root), str(endpoint),
+                '9', '7', CHANNEL], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, '')
+            self.assertEqual((root / '.apkg/state').read_bytes(), before)

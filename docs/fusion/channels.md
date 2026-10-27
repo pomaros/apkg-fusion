@@ -375,5 +375,22 @@ selection string. `pm_common_channel_query` shares complete owned discovery JSON
 without reducing identities to legacy fixed-width table rows. Progress messages
 copy all 128 operation-id bits, 64-bit event sequence/counters and phase. A failed
 message allocation reports out-of-memory with the accurate filesystem outcome;
-the final completion message is preallocated. Interactive native catalogue row
-selection/settings wiring and native runtime qualification remain open.
+the final completion message is preallocated.
+
+The fusion UI now includes a signed-catalogue window. The user supplies a
+file/HTTP endpoint and channel identity, loads it on the DOS worker, searches
+full names/authorities/targets, inspects independent author/channel trust and
+target facts, and selects a row for install/update review. The worker copies
+the catalogue into one bounded `AllocVec` allocation, including all strings,
+64-bit revisions and exact selections; library handles die on the worker.
+Blocked rows remain inspectable. The review button passes the selected
+endpoint and exact snapshot/descriptor selection to the existing shared
+plan/confirmation path. Independent review/runtime claims remain not asserted.
+
+The UI owns the cancellation token until completion, allowing cancellation
+during an HTTP wait without depending on another progress event. Closing the
+catalogue window cancels an outstanding discovery. Failed/cancelled refreshes
+retain the previous catalogue. Host tests exercise the actual discovery and
+installation workers and allocation ownership; SDK header/type checks cover
+the UI wiring. Native interaction, settings/news/update views and the inherited
+installed-list projection still require further integration/qualification.

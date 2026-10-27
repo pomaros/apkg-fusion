@@ -46,7 +46,17 @@ static const char *common_actions[]={"Install signed package","Remove package","
 static char *common_detail_text;
 static int common_waiting;
 static char *common_preview_text;
+static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
+              *str_channel_search, *lst_channel, *txt_channel_detail,
+              *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary;
+static pm_common_catalogue *common_catalogue;
 #define ID_COMMON_INSTALL 1001
+#define ID_CHANNEL_BROWSE 1002
+#define ID_CHANNEL_LOAD 1003
+#define ID_CHANNEL_SELECT 1004
+#define ID_CHANNEL_REVIEW 1005
+#define ID_CHANNEL_SEARCH 1006
+#define ID_CHANNEL_CLOSE 1007
 #endif
 static Object *app, *win, *str_search, *cyc_cat, *cyc_state, *lst, *txt_detail,
               *txt_status, *gauge, *btn_install, *btn_remove, *btn_update, *btn_cancel,
@@ -140,6 +150,57 @@ static const pkg_news_row *news_row(const pkg_entry *e)
 }
 
 /* ------------------------------------------------------------ list display */
+
+#ifdef APKG_FUSION
+AROS_UFH3S(void, common_display_func,
+    AROS_UFHA(struct Hook *, hook, A0),
+    AROS_UFHA(char **, array, A2),
+    AROS_UFHA(pm_common_row *, row, A1))
+{
+    AROS_USERFUNC_INIT
+    (void)hook;
+    array[0] = row ? row->name : "Package";
+    array[1] = row ? row->version : "Version";
+    array[2] = row ? row->target : "Target";
+    array[3] = !row ? "Eligibility" : !row->target_matches ? "other target" :
+        row->author_trust != APKG_TRUST_ACCEPTED ? "author not trusted" :
+        row->signature != APKG_SIGNATURE_VALID ? "signature not verified" : "ready to plan";
+    AROS_USERFUNC_EXIT
+}
+static struct Hook common_display_hook;
+
+static pm_common_row *common_selected(void)
+{
+    pm_common_row *row = NULL;
+    DoMethod(lst_channel, MUIM_List_GetEntry, MUIV_List_GetEntry_Active, (IPTR)&row);
+    return row;
+}
+static void common_select(void)
+{
+    pm_common_row *row = common_selected();
+    SetAttrs(txt_channel_detail, MUIA_Floattext_Text,
+        (IPTR)(row ? row->detail : "Select a package. Review and runtime testing are not asserted."), TAG_DONE);
+    SetAttrs(btn_channel_review, MUIA_Disabled,
+        in_flight || !row || !row->target_matches ||
+        row->author_trust != APKG_TRUST_ACCEPTED ||
+        row->signature != APKG_SIGNATURE_VALID, TAG_DONE);
+}
+static void common_refill(void)
+{
+    IPTR term = 0;
+    GetAttr(MUIA_String_Contents, str_channel_search, &term);
+    SetAttrs(lst_channel, MUIA_List_Quiet, TRUE, TAG_DONE);
+    DoMethod(lst_channel, MUIM_List_Clear);
+    if (common_catalogue) for (size_t i = 0; i < common_catalogue->count; i++) {
+        pm_common_row *row = &common_catalogue->rows[i];
+        if (!term || !*(const char *)term || strstr(row->name, (const char *)term) ||
+            strstr(row->authority, (const char *)term) || strstr(row->target, (const char *)term))
+            DoMethod(lst_channel, MUIM_List_InsertSingle, (IPTR)row, MUIV_List_Insert_Bottom);
+    }
+    SetAttrs(lst_channel, MUIA_List_Quiet, FALSE, TAG_DONE);
+    common_select();
+}
+#endif
 
 AROS_UFH3S(void, display_func,
     AROS_UFHA(struct Hook *, hook,  A0),
@@ -1096,6 +1157,11 @@ static void open_folder(const char *id)
 static void busy(int on)
 {
 #ifdef APKG_FUSION
+    SetAttrs(btn_channel_load, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(str_channel_endpoint, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(str_channel_id, MUIA_Disabled, on, TAG_DONE);
+    common_select();
+    if (on) SetAttrs(btn_channel_review, MUIA_Disabled, TRUE, TAG_DONE);
     SetAttrs(btn_common_install, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(str_common_package, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(str_common_pool,MUIA_Disabled,on,TAG_DONE);
@@ -1122,6 +1188,7 @@ static const char *opname(job_kind k)
     switch (k) {
     case JOB_INSTALL: return "install";
     case JOB_COMMON_INSTALL: return "signed-install";
+    case JOB_COMMON_DISCOVER: return "channel-discovery";
     case JOB_REMOVE:  return "remove";
     case JOB_UPDATE:  return "update";
     case JOB_PREVIEW_UPGRADE: case JOB_UPGRADE: return "upgrade";
@@ -1193,15 +1260,18 @@ static int start(job_kind kind, const char *id)
     cur.reply = port;
     cur.su = &sujob;
 #ifdef APKG_FUSION
-    if (kind == JOB_COMMON_INSTALL) {
+    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER) {
         IPTR folder = 0;
-        GetAttr(MUIA_String_Contents, str_common_package, &folder);
+        GetAttr(MUIA_String_Contents, kind == JOB_COMMON_DISCOVER ? str_channel_endpoint : str_common_package, &folder);
         IPTR action=0,pool=0;GetAttr(MUIA_Cycle_Active,cyc_common_action,&action);cur.common_action=(int)action;
-        GetAttr(MUIA_String_Contents,str_common_pool,&pool);
+        GetAttr(MUIA_String_Contents,kind == JOB_COMMON_DISCOVER ? str_channel_id : str_common_pool,&pool);
         if(pool&&strlen((const char *)pool)>=sizeof cur.common_pool)return -1;
         if(pool)memcpy(cur.common_pool,(const char *)pool,strlen((const char *)pool)+1);
         if (!folder || (cur.common_action!=APKG_CLIENT_RECOVER && !*(const char *)folder) || strlen((const char *)folder) >= sizeof cur.common_package) return -1;
         memcpy(cur.common_package, (const char *)folder, strlen((const char *)folder) + 1);
+    }
+    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_RUN) {
+        if (apkg_cancel_create(&cur.common_cancel) != APKG_OK) return -1;
     }
 #endif
     last_phase[0] = 0; last_can_cancel = 0;
@@ -1216,8 +1286,23 @@ static int start(job_kind kind, const char *id)
            kind == JOB_SU_LOCATE ? "looking at this installation of arospkg..." :
            kind == JOB_SU_STAGE ? "downloading and checking the new arospkg..." :
            "working out what the rollback would do...");
-    if (job_start(&cur) != 0) { busy(0); status("could not start the worker process"); return -1; }
+    if (job_start(&cur) != 0) {
+#ifdef APKG_FUSION
+        apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
+#endif
+        busy(0); status("could not start the worker process"); return -1;
+    }
     in_flight = 1;
+#ifdef APKG_FUSION
+    common_select();
+    if (kind == JOB_COMMON_DISCOVER) {
+        SetAttrs(btn_cancel, MUIA_Disabled, FALSE, TAG_DONE);
+        status("Reading signed catalogue; managed files remain unchanged");
+        if (active) active->can_cancel = 1;
+        last_can_cancel = 1;
+        snprintf(last_phase, sizeof last_phase, "discovery");
+    }
+#endif
     return 0;
 }
 
@@ -1709,10 +1794,35 @@ static int on_message(pm_msg *m)
        cannot happen while in_flight holds the next one back; if it ever
        does, it is logged and not read as this job's. */
     if (!in_flight || m->seq != cur.seq) {
+#ifdef APKG_FUSION
+        FreeVec(m->common_catalogue); m->common_catalogue = NULL;
+        FreeVec(m->common_preview); m->common_preview = NULL;
+        FreeVec(m->common_record); m->common_record = NULL;
+#endif
         logline("message for job %ld ignored: job %ld is out%s", m->seq, cur.seq, in_flight ? "" : " (none)");
         return 0;
     }
 #ifdef APKG_FUSION
+    if (m->kind == PM_DONE && cur.kind == JOB_COMMON_DISCOVER) {
+        in_flight = 0;
+        apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
+        if (active) finish(active,
+            m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
+            m->common_status == APKG_OK ? "" : "DISCOVERY", m->err.summary);
+        if (m->common_status == APKG_OK && !quit_pending && !cur.cancel) {
+            DoMethod(lst_channel, MUIM_List_Clear);
+            SetAttrs(txt_channel_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+            SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+            FreeVec(common_catalogue);
+            common_catalogue = m->common_catalogue; m->common_catalogue = NULL;
+            SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)common_catalogue->summary, TAG_DONE);
+            common_refill();
+            status("Signed catalogue loaded; review and runtime testing are not asserted");
+        } else status(m->common_status == APKG_CANCELLED || cur.cancel ? "Discovery cancelled" : m->err.summary);
+        FreeVec(m->common_catalogue); m->common_catalogue = NULL;
+        busy(0);
+        return quit_pending;
+    }
     if (m->kind == PM_COMMON_PREVIEW) {
         if (quit_pending || cur.cancel) { cur.common_decision = -1; FreeVec(m->common_preview); return 0; }
         if (common_preview_text) FreeVec(common_preview_text);
@@ -1726,11 +1836,13 @@ static int on_message(pm_msg *m)
     if (m->kind == PM_COMMON_PROGRESS) {
         unsigned long pct = m->common_total_known && m->common_total
             ? (m->common_done >= m->common_total ? 100 : (unsigned long)((double)m->common_done * 100.0 / (double)m->common_total)) : 0;
-        SetAttrs(gauge, MUIA_Gauge_Current, pct, MUIA_Gauge_InfoText, (IPTR)"Installing signed package", TAG_DONE);
+        SetAttrs(gauge, MUIA_Gauge_Current, pct, MUIA_Gauge_InfoText,
+            (IPTR)(cur.kind == JOB_COMMON_DISCOVER ? "Reading signed catalogue" : "Applying signed plan"), TAG_DONE);
         SetAttrs(btn_cancel, MUIA_Disabled, !m->can_cancel || quit_pending, TAG_DONE);
         return 0;
     }
     if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_INSTALL || cur.kind == JOB_RUN)) {
+        apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         in_flight = 0; common_waiting = 0; confirm_close();
         if (common_preview_text) { FreeVec(common_preview_text); common_preview_text = NULL; }
         if (active) finish(active, m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
@@ -2010,6 +2122,9 @@ static void close_requested(void)
     if (!in_flight) return;
     quit_pending = 1;
     cur.cancel = 1;
+#ifdef APKG_FUSION
+    apkg_cancel_request(cur.common_cancel);
+#endif
     if (active) active->cancel_asked = 1;
     logline("close requested during %s can_cancel=%d", last_phase[0] ? last_phase : "start", last_can_cancel);
     status(last_can_cancel ? "closing: cancelling the download..."
@@ -2294,6 +2409,9 @@ static void rx_cancel(rexx_msg *m, const rx_req *r)
     }
     if (!rexx_prepare(m, "requested")) { rx_fail(m, RX_RC_ERROR, "NOMEM no memory for the answer; nothing was done"); return; }
     cur.cancel = 1; j->cancel_asked = 1;
+#ifdef APKG_FUSION
+    apkg_cancel_request(cur.common_cancel);
+#endif
     status("cancelling...");
     logline("cancel asked by ARexx for job %ld in %s", j->id, j->phase);
     rx_ok(m, "requested");
@@ -2439,6 +2557,9 @@ static int real_main(int argc, char **argv)
         else logline("no demo storefront: %s", why);
     }
     display_hook.h_Entry = (HOOKFUNC)AROS_ASMSYMNAME(display_func);
+#ifdef APKG_FUSION
+    common_display_hook.h_Entry = (HOOKFUNC)AROS_ASMSYMNAME(common_display_func);
+#endif
     cat_entries[0] = (STRPTR)"All categories"; cat_entries[1] = NULL;
 
     port = CreateMsgPort();
@@ -2583,6 +2704,7 @@ static int real_main(int argc, char **argv)
                     Child, (cyc_common_action=CycleObject,MUIA_Cycle_Entries,(IPTR)common_actions,End),
                     Child, (str_common_pool=StringObject,MUIA_String_MaxLen,4096,MUIA_ShortHelp,(IPTR)"Local candidate folder; for channel action: CHANNEL-ID/SNAPSHOT-SHA256/DESCRIPTOR-SHA256",End),
                     Child, (btn_common_install = SimpleButton("Review operation")),
+                    Child, (btn_channel_browse = SimpleButton("Browse channel...")),
                 End),
 #endif
                 Child, (gauge = GaugeObject,
@@ -2598,6 +2720,41 @@ static int real_main(int argc, char **argv)
                 End),
             End),
         End),
+#ifdef APKG_FUSION
+        SubWindow, (win_common_catalogue = WindowObject,
+            MUIA_Window_Title, (IPTR)"PkgManager: signed catalogue",
+            MUIA_Window_ID, MAKE_ID('P','K','G','S'),
+            WindowContents, (VGroup,
+                Child, (TextObject, MUIA_Text_Contents,
+                    (IPTR)"File/HTTP endpoint and trusted channel identity", End),
+                Child, (HGroup,
+                    Child, (str_channel_endpoint = StringObject,
+                        MUIA_String_MaxLen, 4096, End),
+                    Child, (str_channel_id = StringObject,
+                        MUIA_String_MaxLen, 33,
+                        MUIA_ShortHelp, (IPTR)"32 lowercase hexadecimal characters; must be granted by root policy", End),
+                    Child, (btn_channel_load = SimpleButton("Load catalogue")),
+                End),
+                Child, (str_channel_search = StringObject,
+                    MUIA_String_MaxLen, 256,
+                    MUIA_ShortHelp, (IPTR)"Filter by complete package name, authority or target", End),
+                Child, (txt_channel_summary = FloattextObject,
+                    MUIA_FixHeightTxt, (IPTR)"\n\n\n\n",
+                    MUIA_Floattext_Text, (IPTR)"", End),
+                Child, (lst_channel = ListviewObject,
+                    MUIA_Listview_List, (IPTR)(ListObject,
+                        MUIA_List_Format, (IPTR)"BAR,BAR,BAR,",
+                        MUIA_List_Title, TRUE,
+                        MUIA_List_DisplayHook, (IPTR)&common_display_hook,
+                    End),
+                End),
+                Child, (txt_channel_detail = FloattextObject,
+                    MUIA_FixHeightTxt, (IPTR)"\n\n\n\n\n\n\n\n",
+                    MUIA_Floattext_Text, (IPTR)"Load a signed catalogue. Browsing changes no managed files.", End),
+                Child, (btn_channel_review = SimpleButton("Review selected install/update")),
+            End),
+        End),
+#endif
         SubWindow, (win_about = WindowObject,
             MUIA_Window_Title, (IPTR)"About PkgManager",
             MUIA_Window_ID, MAKE_ID('P','K','G','A'),
@@ -2655,6 +2812,13 @@ static int real_main(int argc, char **argv)
     DoMethod(win_about, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_ABOUT_CLOSE);
 #ifdef APKG_FUSION
     DoMethod(btn_common_install, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_COMMON_INSTALL);
+    DoMethod(btn_channel_browse, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_BROWSE);
+    DoMethod(btn_channel_load, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_LOAD);
+    DoMethod(btn_channel_review, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_REVIEW);
+    DoMethod(lst_channel, MUIM_Notify, MUIA_List_Active, MUIV_EveryTime, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_SELECT);
+    DoMethod(str_channel_search, MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_SEARCH);
+    DoMethod(win_common_catalogue, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_CLOSE);
+    common_select();
 #endif
     DoMethod(btn_install, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_INSTALL);
     DoMethod(btn_remove,  MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_REMOVE);
@@ -2718,6 +2882,27 @@ static int real_main(int argc, char **argv)
         case ID_UPDATE:  logline("update pressed"); begin(JOB_UPDATE, NULL, "window"); break;
 #ifdef APKG_FUSION
         case ID_COMMON_INSTALL: if (!busy_now()) begin(JOB_COMMON_INSTALL, NULL, "window"); break;
+        case ID_CHANNEL_BROWSE:
+            SetAttrs(win_common_catalogue, MUIA_Window_Open, TRUE, MUIA_Window_Activate, TRUE, TAG_DONE); break;
+        case ID_CHANNEL_LOAD: if (!busy_now()) begin(JOB_COMMON_DISCOVER, NULL, "window"); break;
+        case ID_CHANNEL_SELECT: common_select(); break;
+        case ID_CHANNEL_SEARCH: common_refill(); break;
+        case ID_CHANNEL_REVIEW: {
+            pm_common_row *row = common_selected();
+            if (!busy_now() && row && common_catalogue && row->target_matches &&
+                row->author_trust == APKG_TRUST_ACCEPTED && row->signature == APKG_SIGNATURE_VALID) {
+                SetAttrs(cyc_common_action, MUIA_Cycle_Active, APKG_CLIENT_CHANNEL, TAG_DONE);
+                SetAttrs(str_common_package, MUIA_String_Contents, (IPTR)common_catalogue->endpoint, TAG_DONE);
+                SetAttrs(str_common_pool, MUIA_String_Contents, (IPTR)row->selection, TAG_DONE);
+                begin(JOB_COMMON_INSTALL, NULL, "catalogue");
+            }
+        } break;
+        case ID_CHANNEL_CLOSE:
+            SetAttrs(win_common_catalogue, MUIA_Window_Open, FALSE, TAG_DONE);
+            if (in_flight && cur.kind == JOB_COMMON_DISCOVER) {
+                cur.cancel = 1; apkg_cancel_request(cur.common_cancel);
+            }
+            break;
 #endif
         case ID_INSTALL: { pkg_entry *e = selected(); if (e) { logline("install pressed for %s", e->id); begin(JOB_INSTALL, e->id, "window"); } } break;
         case ID_REMOVE:  { pkg_entry *e = selected(); if (e) { logline("remove pressed for %s", e->id); begin(JOB_REMOVE, e->id, "window"); } } break;
@@ -2728,7 +2913,11 @@ static int real_main(int argc, char **argv)
         case ID_ROLLBACK:{ pkg_entry *e = selected(); if (e) { logline("rollback pressed for %s", e->id); begin(JOB_PREVIEW_ROLLBACK, e->id, "window"); } } break;
         case ID_CHECK:   logline("check for a newer version pressed"); begin(JOB_CHECK_RELEASE, NULL, "window"); break;
         case ID_SELFUPDATE: logline("update arospkg pressed"); su_begin(); break;
-        case ID_CANCEL:  if (in_flight) { cur.cancel = 1; if (active) active->cancel_asked = 1; status("cancelling..."); logline("cancel pressed for %s", cur.id); } break;
+        case ID_CANCEL:  if (in_flight) { cur.cancel = 1;
+#ifdef APKG_FUSION
+            apkg_cancel_request(cur.common_cancel);
+#endif
+            if (active) active->cancel_asked = 1; status("cancelling..."); logline("cancel pressed for %s", cur.id); } break;
         case ID_PROCEED: proceed("confirmed"); break;
         case ID_DECLINE: if (buy_showing) buy_close(); else decline("declined"); break;
         case ID_BUY:     { pkg_entry *e = selected(); demo_offer *o = demo_offer_of(e);
@@ -2762,6 +2951,7 @@ static int real_main(int argc, char **argv)
       while ((pending = (pm_msg *)GetMsg(port))) {
           if (pending->common_preview) FreeVec(pending->common_preview);
           if (pending->common_record) FreeVec(pending->common_record);
+          if (pending->common_catalogue) FreeVec(pending->common_catalogue);
           if (pending->listing) FreeVec(pending->listing);
           FreeVec(pending);
       }
@@ -2773,8 +2963,12 @@ static int real_main(int argc, char **argv)
 #ifdef APKG_FUSION
     if (common_preview_text) FreeVec(common_preview_text);
     if(common_detail_text)apkg_client_text_free(common_detail_text);
+    apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
 #endif
     MUI_DisposeObject(app);
+#ifdef APKG_FUSION
+    FreeVec(common_catalogue);
+#endif
     pkg_entries_free(&rows);
     pkg_updates_free(&upd);
     DeleteMsgPort(port);

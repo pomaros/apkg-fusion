@@ -64,7 +64,9 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     apkg_observer observer = {progress, j, NULL};
     apkg_status status;
     pkg_status legacy;
-    if (apkg_cancel_create(&cancel) != APKG_OK) {
+    int owns_cancel = j->common_cancel == NULL;
+    cancel = j->common_cancel;
+    if (owns_cancel && apkg_cancel_create(&cancel) != APKG_OK) {
         if (error) {
             memset(error, 0, sizeof *error);
             error->status = PKG_E_NOMEM;
@@ -74,11 +76,29 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
         return PKG_E_NOMEM;
     }
     observer.cancel = cancel;
-    status = j->kind == JOB_RUN
-                 ? apkg_client_run(j->root, j->id, &detail)
-                 : apkg_client_apply((apkg_client_action)j->common_action,
-                                     j->root, j->common_package, j->common_pool,
-                                     ask, j, &observer, &result, &detail);
+    if (j->cancel)
+        apkg_cancel_request(cancel);
+    if (j->kind == JOB_COMMON_DISCOVER) {
+        apkg_channel *channel = NULL;
+        status =
+            apkg_client_channel_open(j->root, j->common_package, j->common_pool,
+                                     0, &observer, &channel, &detail);
+        if (!status && !j->cancel)
+            status = pm_common_catalogue_copy(channel, j->common_package,
+                                              &j->done->common_catalogue);
+        if (j->cancel) {
+            FreeVec(j->done->common_catalogue);
+            j->done->common_catalogue = NULL;
+            status = APKG_CANCELLED;
+        }
+        apkg_channel_free(channel);
+    } else
+        status =
+            j->kind == JOB_RUN
+                ? apkg_client_run(j->root, j->id, &detail)
+                : apkg_client_apply((apkg_client_action)j->common_action,
+                                    j->root, j->common_package, j->common_pool,
+                                    ask, j, &observer, &result, &detail);
     if (status == APKG_CANCELLED && j->done->common_status == APKG_NOMEM)
         status = APKG_NOMEM;
     j->done->common_status = status;
@@ -112,7 +132,8 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     }
     apkg_error_free(detail);
     apkg_result_free(result);
-    apkg_cancel_free(cancel);
+    if (owns_cancel)
+        apkg_cancel_free(cancel);
     return legacy;
 }
 #endif

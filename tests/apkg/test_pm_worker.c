@@ -96,6 +96,46 @@ int main(int argc, char **argv) {
            strlen(argv[2]) < sizeof j.common_package);
     strcpy(j.root, argv[1]);
     strcpy(j.common_package, argv[2]);
+    if (choice >= 9 && choice <= 11) {
+        assert(argc == 6);
+        j.kind = JOB_COMMON_DISCOVER;
+        fail_at = choice == 10 ? 1 : 0;
+        assert(apkg_cancel_create(&j.common_cancel) == APKG_OK);
+        if (choice == 11)
+            apkg_cancel_request(j.common_cancel);
+        result = pm_common_install(&j, &error);
+        apkg_cancel_free(j.common_cancel);
+        assert(previews == 0);
+        if (choice == 11)
+            assert(progress_count == 0);
+        if (choice == 9) {
+            assert(result == PKG_OK && final.common_status == APKG_OK);
+            assert(final.common_catalogue);
+            assert(!strcmp(final.common_catalogue->endpoint, argv[2]));
+            assert(strstr(final.common_catalogue->summary, argv[5]));
+            assert(strstr(final.common_catalogue->summary,
+                          "online freshness: unknown"));
+            assert(final.common_catalogue->channel.signature ==
+                   APKG_SIGNATURE_VALID);
+            for (size_t i = 0; i < final.common_catalogue->count; i++) {
+                pm_common_row *row = &final.common_catalogue->rows[i];
+                assert(strlen(row->selection) == 162);
+                assert(strstr(row->detail, "Review: not asserted"));
+                assert(strstr(row->detail, "Runtime testing: not asserted"));
+                assert(strstr(row->detail, row->name));
+                printf("%s\t%s\t%s\t%llu\t%d\t%d\n", row->selection, row->name,
+                       row->version, (unsigned long long)row->revision,
+                       row->author_trust, row->target_matches);
+            }
+        } else {
+            assert(!final.common_catalogue);
+            assert(final.common_status ==
+                   (choice == 10 ? APKG_NOMEM : APKG_CANCELLED));
+        }
+        FreeVec(final.common_catalogue);
+        assert(allocations == 0);
+        return 0;
+    }
     result = pm_common_install(&j, &error);
     if (j.common_action == APKG_CLIENT_CHANNEL &&
         (choice == 3 || choice == 4 || choice == 6))

@@ -8,11 +8,15 @@
 #include "../libpkg/release.h"
 #include "../libpkg/selfup.h"
 #include <exec/ports.h>
+#ifdef APKG_FUSION
+#include "common_catalogue.h"
+#endif
 
 typedef enum { JOB_NONE, JOB_INSTALL, JOB_REMOVE, JOB_UPDATE,
                JOB_PREVIEW_UPGRADE, JOB_UPGRADE, JOB_PREVIEW_ROLLBACK, JOB_ROLLBACK,
                JOB_CHECK_RELEASE, JOB_VERIFY, JOB_RUN,
-               JOB_SU_LOCATE, JOB_SU_STAGE, JOB_COMMON_INSTALL } job_kind;
+               JOB_SU_LOCATE, JOB_SU_STAGE, JOB_COMMON_INSTALL,
+               JOB_COMMON_DISCOVER } job_kind;
 
 /* Updating arospkg (libpkg/selfup.h): what the worker finds and stages for
    the window, which shows it and decides. Too big for a message, and only
@@ -53,6 +57,9 @@ typedef struct {
     int             common_action;
     char            common_pool[4096];
     volatile int    common_decision;      /* 0 waiting, 1 approve, -1 decline */
+#ifdef APKG_FUSION
+    apkg_cancel    *common_cancel; /* UI owns until PM_DONE; worker borrows */
+#endif
     su_job         *su;         /* JOB_SU_*: the window's record of the update */
 } job;
 
@@ -78,6 +85,9 @@ typedef struct pm_msg_s {
     pkg_run_result run;         /* JOB_RUN: what was started */
     pkg_removal    rem;         /* JOB_REMOVE: what was kept in place */
     char          *common_preview, *common_record; /* AllocVec ownership to UI */
+#ifdef APKG_FUSION
+    pm_common_catalogue *common_catalogue; /* one AllocVec, ownership to UI */
+#endif
     unsigned long long common_done, common_total, common_event_sequence;
     unsigned char common_operation_id[16];
     int common_phase;
