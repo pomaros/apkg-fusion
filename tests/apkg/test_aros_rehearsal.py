@@ -2,14 +2,52 @@
 # Copyright (c) 2026 John Knipper
 """An exported marker cannot hide a partial or semantically wrong target run."""
 import json
+import hashlib
 from pathlib import Path
 import runpy
+import subprocess
+import sys
+import tempfile
 import unittest
 
 verify = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'aros/verify_rehearsal.py'))['verify']
 
 
 class RehearsalEvidence(unittest.TestCase):
+    def test_preparation_uses_real_signed_fixtures_without_shipping_secrets(self):
+        import test_client as clients
+        script = Path(__file__).resolve().parents[1] / 'aros/prepare_rehearsal.py'
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary) / 'prepared'
+            command = [sys.executable, str(script), '--output', str(out)]
+            # Host executables are inert stand-ins for explicit target inputs;
+            # preparation copies these files and must never execute the helpers.
+            for option in ('--cli', '--gui', '--launch', '--norequesters'):
+                command.extend([option, str(clients.CLI)])
+            result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            prepared = json.loads((out / 'prepared.json').read_text())
+            self.assertEqual(len(prepared['steps']), 25)
+            self.assertEqual(prepared['native_execution'], 'not-performed')
+            payload = out / 'payload'
+            observed = {str(p.relative_to(payload)): hashlib.sha256(p.read_bytes()).hexdigest()
+                        for p in payload.rglob('*') if p.is_file()}
+            self.assertEqual(observed, prepared['files'])
+            secrets = [(out / 'host' / name).read_bytes()
+                       for name in ('author-key', 'channel-key')]
+            for p in payload.rglob('*'):
+                if p.is_file():
+                    self.assertFalse(any(secret in p.read_bytes() for secret in secrets), str(p))
+            script_text = (payload / 'APKGTrial/Trial').read_text()
+            self.assertIn('BEGIN refuse-tamper', script_text)
+            self.assertIn('If NOT $APKGRC EQ 10 VAL', script_text)
+            self.assertIn('>RAM:APKGTrialRoot/trial/Drawer/.hidden', script_text)
+            before = dict(observed)
+            refused = subprocess.run(command, capture_output=True, text=True, timeout=120)
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertEqual({str(p.relative_to(payload)): hashlib.sha256(p.read_bytes()).hexdigest()
+                              for p in payload.rglob('*') if p.is_file()}, before)
+
     def fixture(self):
         info = dict(name='trial', version='1.2', revision=1, arch='aarch64',
                     abi='v1', signature='verified', authortrust='accepted', installed=True)
