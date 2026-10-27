@@ -224,7 +224,7 @@ int ak_descriptor(const ak_json *j) {
     for (i = 0; s[i]; i++)
         if (!(isalnum((unsigned char)s[i]) || strchr("._-+", s[i])))
             return 0;
-    if (ak_u64(j, ak_member(j, b, "revision"), &v) || !v ||
+    if (ak_u64(j, ak_member(j, b, "revision"), &v) ||
         ak_string(j, ak_member(j, b, "target"), s, sizeof s) ||
         pkg_target_parse(s, NULL, NULL, 0))
         return 0;

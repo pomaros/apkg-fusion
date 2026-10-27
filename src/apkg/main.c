@@ -18,6 +18,15 @@ static int confirm(void *user, const apkg_plan *plan, const char *text) {
             digest);
     return 0;
 }
+static int json_preview(void *user, const apkg_plan *plan,
+                        const char *presentation) {
+    (void)user;
+    (void)presentation;
+    apkg_bytes bytes = apkg_plan_get(plan)->canonical;
+    fwrite(bytes.data, 1, bytes.size, stdout);
+    putchar('\n');
+    return 0;
+}
 static void report(apkg_status code, apkg_result *result, apkg_error *error) {
     if (error) {
         const apkg_error_view *e = apkg_error_get(error);
@@ -56,7 +65,7 @@ int main(int argc, char **argv) {
             "POLICY "
             "[--yes] | install ROOT "
             "PACKAGE-DIRECTORY [--confirm "
-            "DIGEST]\nadopt ROOT ARTIFACT --evidence FILE [--confirm DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
+            "DIGEST]\nadopt-set ROOT MANIFEST [--json | --confirm DIGEST]\nadopt ROOT ARTIFACT --evidence FILE [--confirm DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
             "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
@@ -95,6 +104,23 @@ int main(int argc, char **argv) {
         code = apkg_client_channel_apply(argv[2], argv[3], selection,
                                          recommendations, confirm,
                                          (void *)confirmation, NULL, &r, &e);
+        goto done;
+    }
+    if (!strcmp(argv[1], "adopt-set")) {
+        int json = argc == 5 && !strcmp(argv[4], "--json");
+        if (argc != 4 && !json &&
+            !(argc == 6 && !strcmp(argv[4], "--confirm")))
+            return APKG_INVALID;
+        code = apkg_client_apply(APKG_CLIENT_ADOPT_SET, argv[2], argv[3], NULL,
+                                 json ? json_preview : confirm,
+                                 argc == 6 ? argv[5] : NULL, NULL, &r, &e);
+        if (json) {
+            if (code != APKG_CANCELLED)
+                fprintf(stderr, "adoption preview status=%d\n", code);
+            apkg_error_free(e);
+            apkg_result_free(r);
+            return code;
+        }
         goto done;
     }
     if (!strcmp(argv[1], "channel-accept")) {

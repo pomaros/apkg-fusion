@@ -112,9 +112,10 @@ void ak_entry_write(ak_buf *b, const apkg_package *p, const char *reason,
     ak_buf_add(b, "\"descriptor\":%s,\"reason\":\"%s\",\"signature\":%s}",
                p->raw, reason, p->signature);
 }
-apkg_status apkg_plan_adopt(apkg_ctx *c, const apkg_snapshot *s,
-                            const apkg_package *package, apkg_bytes evidence,
-                            apkg_plan **out, apkg_error **error) {
+static apkg_status prepare_adoption(apkg_ctx *c, const apkg_snapshot *s,
+                                    const apkg_package *package,
+                                    apkg_bytes evidence, char **entry,
+                                    char **observed) {
     ak_json spec = {0}, live = {0};
     ak_buf guards = {0}, entries = {0};
     char *tree = NULL, *unowned = NULL, *preserve = NULL, path[AK_PATH],
@@ -123,11 +124,8 @@ apkg_status apkg_plan_adopt(apkg_ctx *c, const apkg_snapshot *s,
     apkg_package adopted = {0};
     struct stat binding;
     apkg_status code = APKG_INVALID;
-    if (error)
-        *error = NULL;
-    if (!out)
-        return APKG_INVALID;
-    *out = NULL;
+    *entry = NULL;
+    *observed = NULL;
     if (!c || !s || !package || !evidence.data || !evidence.size)
         return APKG_INVALID;
     if (evidence.size > c->object_max || evidence.size > c->memory_max / 32)
@@ -217,48 +215,13 @@ apkg_status apkg_plan_adopt(apkg_ctx *c, const apkg_snapshot *s,
     adopted = *package;
     adopted.adoption = guards.data;
     ak_string(&spec, ak_member(&spec, b, "reason"), reason, sizeof reason);
-    ak_buf_add(&entries, "[");
-    for (size_t i = 0; i < s->nrows; i++)
-        ak_buf_add(&entries, "%s%s", i ? "," : "", s->records[i]);
     ak_entry_write(&entries, &adopted, reason, NULL);
-    ak_buf_add(&entries, "]");
     code = entries.bad;
-    if (!code)
-        code = ak_plan_records(c, s, entries.data, APKG_PLAN_ADOPT,
-                               package->name, out, error);
-    /* The guard classification and immutable before-tree must be one
-     * observation. */
     if (!code) {
-        ak_json changes = {0};
-        if (ak_json_parse((*out)->changes, strlen((*out)->changes), &changes))
-            code = errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
-        else {
-            int found = 0;
-            for (size_t i = 1; i < changes.tokens[0].next;
-                 i = changes.tokens[i].next)
-                if (ak_equal(&changes, ak_member(&changes, i, "name"),
-                             package->name)) {
-                    int t = ak_member(&changes, i, "before");
-                    found = 1;
-                    if (t < 0 ||
-                        strlen(tree) !=
-                            changes.tokens[t].end - changes.tokens[t].start ||
-                        memcmp(tree, changes.text + changes.tokens[t].start,
-                               strlen(tree)))
-                        code = APKG_STALE;
-                }
-            if (!found)
-                code = APKG_STALE;
-        }
-        ak_json_free(&changes);
-        if (!code) {
-            (*out)->effects[0].kind = APKG_EFFECT_OWNERSHIP;
-            code = ak_plan_bind(c, *out, &package, 1);
-        }
-        if (code) {
-            apkg_plan_free(*out);
-            *out = NULL;
-        }
+        *entry = entries.data;
+        entries.data = NULL;
+        *observed = tree;
+        tree = NULL;
     }
 done:
     free(tree);
@@ -269,4 +232,117 @@ done:
     ak_json_free(&live);
     ak_json_free(&spec);
     return code;
+}
+
+apkg_status apkg_plan_adopt_many(apkg_ctx *c, const apkg_snapshot *s,
+                                 const apkg_adoption_input *inputs,
+                                 size_t count, apkg_plan **out,
+                                 apkg_error **error) {
+    char *trees[128] = {0};
+    const apkg_package *packages[128] = {0};
+    ak_buf entries = {0};
+    ak_json changes = {0};
+    apkg_status code = APKG_INVALID;
+    size_t retained = 0;
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!c || !s || !inputs || !count)
+        return APKG_INVALID;
+    if (count > 128)
+        return APKG_LIMIT;
+    entries.max =
+        c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
+    ak_buf_add(&entries, "[");
+    for (size_t i = 0; i < s->nrows; i++)
+        ak_buf_add(&entries, "%s%s", i ? "," : "", s->records[i]);
+    if (entries.bad) {
+        code = entries.bad;
+        goto done;
+    }
+    for (size_t i = 0; i < count; i++) {
+        char *entry = NULL;
+        code = APKG_INVALID;
+        packages[i] = inputs[i].package;
+        if (!packages[i])
+            goto done;
+        for (size_t k = 0; k < i; k++)
+            if (!strcmp(packages[k]->name, packages[i]->name)) {
+                code = APKG_CONFLICT;
+                goto done;
+            }
+        code = prepare_adoption(c, s, packages[i], inputs[i].evidence, &entry,
+                                &trees[i]);
+        if (code) {
+            free(entry);
+            goto done;
+        }
+        size_t n = strlen(trees[i]);
+        if (n > entries.max - retained) {
+            free(entry);
+            code = APKG_LIMIT;
+            goto done;
+        }
+        retained += n;
+        ak_buf_add(&entries, "%s%s", entries.size > 1 ? "," : "", entry);
+        free(entry);
+        if (entries.bad) {
+            code = entries.bad;
+            goto done;
+        }
+    }
+    ak_buf_add(&entries, "]");
+    code = entries.bad;
+    if (!code)
+        code = ak_plan_records(c, s, entries.data, APKG_PLAN_ADOPT, NULL, out,
+                               error);
+    if (code)
+        goto done;
+    if (ak_json_parse((*out)->changes, strlen((*out)->changes), &changes)) {
+        code = errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
+        goto done;
+    }
+    /* Classification and the approved before-trees must be one observation. */
+    for (size_t k = 0; k < count; k++) {
+        int found = 0;
+        for (size_t i = 1; i < changes.tokens[0].next;
+             i = changes.tokens[i].next)
+            if (ak_equal(&changes, ak_member(&changes, i, "name"),
+                         packages[k]->name)) {
+                int t = ak_member(&changes, i, "before");
+                found = 1;
+                if (t < 0 ||
+                    strlen(trees[k]) !=
+                        changes.tokens[t].end - changes.tokens[t].start ||
+                    memcmp(trees[k], changes.text + changes.tokens[t].start,
+                           strlen(trees[k]))) {
+                    code = APKG_STALE;
+                    goto done;
+                }
+            }
+        if (!found) {
+            code = APKG_STALE;
+            goto done;
+        }
+    }
+    (*out)->effects[0].kind = APKG_EFFECT_OWNERSHIP;
+    code = ak_plan_bind(c, *out, packages, count);
+done:
+    if (code && *out) {
+        apkg_plan_free(*out);
+        *out = NULL;
+    }
+    for (size_t i = 0; i < count && i < 128; i++)
+        free(trees[i]);
+    free(entries.data);
+    ak_json_free(&changes);
+    return code;
+}
+apkg_status apkg_plan_adopt(apkg_ctx *c, const apkg_snapshot *s,
+                            const apkg_package *package, apkg_bytes evidence,
+                            apkg_plan **out, apkg_error **error) {
+    apkg_adoption_input input = {package, evidence};
+    return apkg_plan_adopt_many(c, s, &input, 1, out, error);
 }

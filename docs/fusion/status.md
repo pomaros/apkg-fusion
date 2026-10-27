@@ -17,7 +17,7 @@ implemented below; remaining service/operation integration is listed separately.
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal | Remote revocation/freshness policy, rotation/reset and multi-channel configuration |
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
-| Legacy migration | Read-only legacy baselines and journaled existing-bundle adoption exist | Validated import, original-preserving commit/recovery and compatibility rehearsals |
+| Legacy migration | Schema-1 host copy import, immutable approval and common recovery work on pinned synthetic fixtures | Broader relations/placements, active settings/launch/history conversion, script compatibility and distribution qualification |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
@@ -1387,6 +1387,63 @@ qualification remain open.
 This is a common-engine prerequisite, not the completed legacy importer: legacy record mapping, original-preserving copies, settings/history,
 interruption/compatibility rehearsals and distribution evidence remain required.
 The M1's installed libpkg updater remains owned by another migration effort.
+
+The existing-bundle adoption checkpoint
+`8621185091b75b953b4e7b8db4fee8e936266d5d` has passed its complete
+[CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40451055119),
+including Linux/macOS common and inherited suites, memory/symbol/documentation
+checks and all 107 portal tests.
+
+## Schema-1 legacy copy import rehearsal
+
+The [host adapter](legacy-copy.md) inventories a quiescent arospkg root, creates
+an out-of-place copy, retains original database bytes under `.apkg-legacy`, and
+previews one exact common plan. Its immutable receipt binds complete source/copy
+inventories, physical roots, explicit artifacts and policy, target and original
+observations. Confirmation refuses changed inputs; no original/root-global
+settings or installed M1 updater are changed. Only the common engine initializes
+policy, changes installed records and recovers mutations. A partial preparation
+is preserved and retried into a fresh destination, never overwritten.
+
+Common `apkg_plan_adopt_many`, CLI `adopt-set` and the actual PkgManager worker
+share an atomic adoption set, including cyclic dependency cases. Context bounds
+cover counts and aggregate captured trees. Migration compares verified selected
+identity/version/revision/CPU/recorded ABI and baseline hashes/sizes. Original
+signatures remain unknown. Missing ABI/reason/relations and effective revision
+zero retain separate provenance. Common descriptors and dependency floors now
+accept revision zero; it is not replaced with an invented packaging revision.
+The rehearsal also corrected rollback of a removal whose unowned/personal bundle
+contents remain: the final plan comes from verified retained before/after trees,
+while ordinary installation still refuses taking over a foreign bundle.
+
+Fourteen new host cases exercise pinned current/omission fixtures, original-byte
+preservation, edited configuration, root attributes, hidden/empty paths, unowned
+Workbench icons/settings, missing prior history, signature/build mismatch,
+unsafe/mixed/pending legacy inputs, exact-approval input changes, CLI/worker set
+equality, cyclic sets, zero revisions/floors and 1,200 set-planning allocation
+failures. Preparation death/fresh retry and four common commit/recovery death
+boundaries preserve the original; decided recovery and committed retry work with
+source/artifacts offline. An unrelated pending plan refuses automatic recovery.
+The imported copy supports common inspection, repair, removal and offline
+rollback. The final `make test-fusion` passed 269 common methods, the fusion
+ARexx corpus, 78 default-product checks, 110 provisional CLI checks, 78 publishing
+checks and the existing contract/target/application/initialization gates. The
+final ASan/UBSan run passed 176 selected methods plus the instrumented ARexx
+corpus. Host CLI/worker processes are instrumented; direct ctypes allocation and
+forked common-journal faults use the ordinary test library. The signed PKG/1
+archive variant also passed a final targeted ordinary/instrumented run after its
+addition to the omission-fixture case. Public symbols and all 74 documentation
+files pass checks. Final native sources pass aarch64 AROS SDK header/type checks
+with the existing `vfork` warnings. Exact-source Linux/macOS CI and both complete
+inherited suites remain required for this checkpoint.
+
+The profile explicitly refuses nonempty legacy relations/system requirements,
+owned shared icons and unknown record fields. It retains launch/settings and
+prior-version history as source evidence, without activating or converting them.
+External associations, old script/command behavior, broader profiles and actual
+distribution/native/DOS/power-loss evidence remain required. These fixture passes
+do not complete ALPHA-IMPORT or the full alpha goal. Portal work remains deferred
+until the other workstreams and isolated M1 rehearsal.
 
 ## Implemented integration pieces
 

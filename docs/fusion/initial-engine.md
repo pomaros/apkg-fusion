@@ -69,7 +69,10 @@ unknown execution metadata is refused. It does not discard unsupported fields.
 | Plan | `action`, `anchor_dev`, `anchor_ino`, `before`, `generation`, `new_state`, `root_path`, `target_path` |
 
 Root state is `.apkg/state`. Generation starts at 1. Installed entries preserve
-commit order; the current operation is always an explicit installation reason.
+commit order. Dependency resolution and [adoption](adoption.md) retain explicit,
+dependency, recommendation or unrecorded installation reasons. Packaging revisions
+and common dependency floors are unsigned and may be zero; the root generation
+starts at one independently.
 Legacy `db/`/`.pkg/` roots are inspectable as LEGACY and require migration.
 Legacy transaction entries report PENDING and refuse common recovery until
 validated migration exists. Coexisting common/legacy databases report INVALID,

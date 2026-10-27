@@ -26,3 +26,8 @@ Still missing: real distribution roots and scripts, complete rollback bytes,
 attributes/empty-directory inventories, persisted user settings, pending package
 transaction captures, and older-version upgrade-route captures. Source code
 and imported tests inform their required cases; these samples do not fill them.
+
+The [host copy rehearsal](../../../docs/fusion/legacy-copy.md) consumes the
+current/legacy record fixtures, builds independent synthetic trees and signed
+artifacts, and checks original preservation, unknown facts and interruption.
+Those generated host cases are not additional real-distribution captures.

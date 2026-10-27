@@ -36,6 +36,48 @@ static int compare_package(const void *a, const void *b) {
         cmp = memcmp(x->digest.bytes, y->digest.bytes, 32);
     return cmp;
 }
+static apkg_status read_adoptions(apkg_ctx *c, const char *path,
+                                  const apkg_observer *observer, ak_json *j,
+                                  apkg_adoption_input *inputs,
+                                  apkg_package **packages, size_t *count,
+                                  apkg_error **error) {
+    unsigned char *bytes = NULL;
+    size_t size = 0;
+    *count = 0;
+    if (ak_read(path, &bytes, &size, c->object_max))
+        return errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+    int parsed = ak_json_parse(bytes, size, j);
+    free(bytes);
+    if (parsed)
+        return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+    int b = ak_member(j, 0, "body"), a = ak_member(j, b, "packages");
+    if (!ak_object(j, "adoption-set") ||
+        !ak_fields(j, b, (const char *const[]){"packages"}, 1) || a < 0 ||
+        j->tokens[a].type != '[')
+        return APKG_INVALID;
+    for (size_t i = a + 1; i < j->tokens[a].next; i = j->tokens[i].next) {
+        char artifact[AK_PATH];
+        int e = ak_member(j, i, "evidence");
+        if (*count == 128)
+            return APKG_LIMIT;
+        if (!ak_fields(j, i, (const char *const[]){"artifact", "evidence"},
+                       2) ||
+            ak_string(j, ak_member(j, i, "artifact"), artifact,
+                      sizeof artifact) ||
+            !*artifact || e < 0)
+            return APKG_INVALID;
+        apkg_status code =
+            read_package(c, artifact, observer, &packages[*count], error);
+        if (code)
+            return code;
+        inputs[*count].package = packages[*count];
+        inputs[*count].evidence =
+            (apkg_bytes){(const unsigned char *)j->text + j->tokens[e].start,
+                         j->tokens[e].end - j->tokens[e].start};
+        (*count)++;
+    }
+    return *count ? APKG_OK : APKG_INVALID;
+}
 apkg_status apkg_client_apply(apkg_client_action action, const char *root,
                               const char *arg, const char *pool,
                               apkg_confirm_fn confirm, void *user,
@@ -44,6 +86,8 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     apkg_ctx *c = NULL;
     apkg_snapshot *snapshot = NULL;
     apkg_package *package = NULL, *candidates[128] = {0};
+    apkg_adoption_input adoptions[128];
+    ak_json adoption_set = {0};
     apkg_plan *p = NULL;
     apkg_approval *a = NULL;
     char *text = NULL;
@@ -66,8 +110,9 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     if (action == APKG_CLIENT_INSTALL)
         return apkg_client_install(root, arg, confirm, user, observer, out, e);
     if (action < APKG_CLIENT_REMOVE ||
-        (action > APKG_CLIENT_RECOVER && action != APKG_CLIENT_ADOPT) || !arg ||
-        !confirm)
+        (action > APKG_CLIENT_RECOVER && action != APKG_CLIENT_ADOPT &&
+         action != APKG_CLIENT_ADOPT_SET) ||
+        !arg || !confirm)
         return APKG_INVALID;
     if (action == APKG_CLIENT_ADOPT && (!pool || !*pool))
         return APKG_INVALID;
@@ -82,7 +127,12 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     if (code)
         goto done;
     apkg_text argument = {arg, strlen(arg)};
-    if (action == APKG_CLIENT_REMOVE)
+    if (action == APKG_CLIENT_ADOPT_SET) {
+        code = read_adoptions(c, arg, observer, &adoption_set, adoptions,
+                              candidates, &n, e);
+        if (!code)
+            code = apkg_plan_adopt_many(c, snapshot, adoptions, n, &p, e);
+    } else if (action == APKG_CLIENT_REMOVE)
         code = apkg_plan_remove(c, snapshot, argument, &p, e);
     else if (action == APKG_CLIENT_REPAIR)
         code = apkg_plan_repair(c, snapshot, argument, &p, e);
@@ -168,6 +218,7 @@ done:
     apkg_approval_free(a);
     free(text);
     free(evidence);
+    ak_json_free(&adoption_set);
     apkg_snapshot_free(snapshot);
     apkg_close(c);
     return code;

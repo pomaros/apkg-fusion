@@ -42,7 +42,7 @@ enum { ID_SEARCH = 1, ID_INSTALL, ID_REMOVE, ID_UPDATE, ID_CANCEL, ID_SELECT, ID
 
 #ifdef APKG_FUSION
 static Object *str_common_package, *btn_common_install, *cyc_common_action, *str_common_pool;
-static const char *common_actions[]={"Install signed package","Remove package","Repair package","Upgrade from signed folder","Rollback from retained history","Resolve with local package pool","Recover pending transaction","Install/update from signed channel","Accept channel observations","Adopt existing bundle",NULL};
+static const char *common_actions[]={"Install signed package","Remove package","Repair package","Upgrade from signed folder","Rollback from retained history","Resolve with local package pool","Recover pending transaction","Install/update from signed channel","Accept channel observations","Adopt existing bundle","Adopt existing bundle set",NULL};
 static int common_waiting;
 static char *common_preview_text;
 static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,

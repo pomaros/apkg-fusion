@@ -545,14 +545,21 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
             apkg_package_free(old);
             goto done;
         }
-        if (!old && strcmp(live, "null") && kind != APKG_PLAN_ADOPT) {
+        if (!old && strcmp(live, "null") && kind != APKG_PLAN_ADOPT &&
+            kind != APKG_PLAN_ROLLBACK) {
             free(live);
             apkg_package_free(old);
             code = APKG_CONFLICT;
             goto done;
         }
-        if (kind == APKG_PLAN_ADOPT && !old && nw && nw->adoption &&
-            strcmp(live, "null")) {
+        if (kind == APKG_PLAN_ROLLBACK && !old && nw) {
+            /* Rollback replaces this provisional tree from verified retained
+             * before/after inventories before exposing an approvable plan.
+             * A removed bundle may still contain preserved personal files. */
+            next = ak_copy(live, strlen(live));
+            code = next ? APKG_OK : APKG_NOMEM;
+        } else if (kind == APKG_PLAN_ADOPT && !old && nw && nw->adoption &&
+                   strcmp(live, "null")) {
             ak_json empty = {0};
             code = desired(live, &empty, &empty, NULL, APKG_PLAN_ADOPT,
                            state.max, &next);

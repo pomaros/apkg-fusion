@@ -5,7 +5,8 @@
 
 This inventory maps the pinned inputs in [provenance](provenance.md) to the
 preservation obligations in [architecture](architecture.md). It is evidence for
-CONTRACT and MIGRATE, not an importer, a new database schema or a migration pass.
+CONTRACT and MIGRATE; implementation evidence belongs to [status](status.md),
+with the bounded [host copy adapter](legacy-copy.md) specified separately.
 No installed root or production portal was modified for this inventory.
 
 ## Evidence and distributions
@@ -46,11 +47,10 @@ Primary readers/writers: arospkg [core.c](../../components/arospkg/src/libpkg/co
 [root services](../../src/pkg_lib_root.c),
 [internal contracts](../../src/pkg_internal.h).
 
-Important skeleton gap: `pkg_open` currently creates root/database/cache/tmp
-paths **before** checking `PKG_OPEN_READ`. It avoids locking/recovery in that
-mode, but does not satisfy the common side-effect-free read contract. CONTEXT
-must test absent-root inspection without calling this path unchanged. MAP must
-not use opening a mutation context as a supposedly passive inventory operation.
+The pinned `pkg_open` created root/database/cache/tmp paths before checking
+`PKG_OPEN_READ`. The integration corrects that imported read path and exercises
+the side-effect-free common context separately; see [status](status.md). Migration
+inventory must never open a mutation context as supposedly passive observation.
 
 ## Installed record mapping
 
@@ -145,13 +145,14 @@ persistent journals. Never execute restart arguments found in imported state.
 The [fixture README](../../tests/fixtures/migration/README.md) explains the
 synthetic records and observations. They cover edited and foreign files,
 missing history, legacy omissions, independent icon ownership, incomplete
-inventories and interrupted self-update. They are inputs for designing the
-contract; no importer has consumed them and no migration success is claimed.
+inventories and interrupted self-update. The [host copy rehearsal](legacy-copy.md)
+consumes current/omission records and rejects unresolved operations. Passing
+synthetic fixtures does not establish release migration qualification.
 
-Before implementation, CONTRACT must decide root/database identity, unknown
-metadata representation, version/revision ordering, delivered versus live
-inventory, target evidence and validation errors. Split it into data-model and
-context API tasks as [PLAN](../../PLAN.md#bounded-execution-batches) specifies.
+Root identity, unknown metadata, ordering, delivered versus live inventories and
+target evidence follow the [data model](data-model.md) and [API](api.md). The
+[bounded batches](../../PLAN.md#bounded-execution-batches) retain the broader
+MIGRATE obligations beyond the first host profile.
 
 Before MIGRATE qualification obtain, with publication permission or an
 anonymization procedure: actual database and prior records; referenced archives
@@ -160,3 +161,11 @@ self-update states; exact distribution/APKG/DOS/handler identities. Cover
 legacy ABI omissions, pre-0.6 relations, old catalogue URLs and pre-0.5 client
 upgrade routes. Missing samples do not block CONTRACT, but synthetic fixtures
 cannot substitute for release migration qualification.
+
+## Host copy adapter
+
+The [legacy-copy rehearsal](legacy-copy.md) implements a bounded schema-1 profile
+using the [common adoption-set API](adoption.md). It preserves originals and
+unknown facts, retains source records/history bytes, and commits only the exact
+validated common plan. Broader relation/placement/settings/launch conversion,
+command compatibility and distribution qualification remain separate obligations.

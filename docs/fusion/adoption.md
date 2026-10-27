@@ -13,6 +13,7 @@ an explicit ownership-evidence object. It grants no publisher key or review.
 apkg adopt ROOT ARTIFACT --evidence FILE
 apkg adopt ROOT ARTIFACT --evidence FILE --confirm APPROVED-DIGEST
 apkg info ROOT PACKAGE adoption
+apkg adopt-set ROOT MANIFEST [--json | --confirm APPROVED-DIGEST]
 ```
 
 The CLI and PkgManager worker call `apkg_plan_adopt` through the same client
@@ -20,6 +21,16 @@ entry point. The desktop action uses the signed-package input for the artifact
 and the auxiliary input for the evidence file. Preview includes exact local
 ownership evidence and distinguishes the supplied artifact's valid signature
 from unknown authentication of the original installation.
+
+`apkg_plan_adopt_many` and the shared `ADOPT_SET` client action register an
+explicit set in one plan/journal, including mutually dependent bundles. The
+canonical `adoption-set` envelope has `body.packages` rows with exactly
+`artifact` (a local folder/archive path) and `evidence` (the adoption envelope
+below). The limit is 128 inputs plus aggregate context tree/metadata budgets.
+The desktop action takes the manifest path in its package input. CLI `--json`
+previews exact canonical plan bytes and returns the normal declined status 16;
+it never approves. [Legacy copy import](legacy-copy.md) uses this interface and
+the same exact digest confirmation as other clients.
 
 ## Evidence and ownership
 
@@ -68,6 +79,7 @@ restores the retained unmanaged tree while preserving later personal edits.
 
 This primitive does not convert a legacy root in place. Common contexts continue
 to refuse mixed or pending legacy state. The [migration mapping](migration.md)
-requires a validated importer, original-preserving copy, history/settings/launch
-handling and compatibility rehearsals. Native runtime and power-loss behavior
+requires history/settings/launch handling, broader validated import profiles and
+compatibility rehearsals. The [host copy adapter](legacy-copy.md) supplies the
+first explicitly bounded schema-1 rehearsal. Native runtime and power-loss behavior
 require target evidence. Implementation checks are recorded in [status](status.md).

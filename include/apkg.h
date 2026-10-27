@@ -411,6 +411,15 @@ apkg_status apkg_plan_install(apkg_ctx *, const apkg_snapshot *,
 apkg_status apkg_plan_adopt(apkg_ctx *, const apkg_snapshot *,
                            const apkg_package *, apkg_bytes evidence,
                            apkg_plan **, apkg_error **);
+typedef struct {
+    const apkg_package *package;
+    apkg_bytes evidence;
+} apkg_adoption_input;
+/* One ownership transaction, including mutually dependent existing bundles.
+ * Up to 128 inputs, within context aggregate metadata/tree budgets.
+ * All inputs are explicit; no resolution, transfer or trust expansion. */
+apkg_status apkg_plan_adopt_many(apkg_ctx *, const apkg_snapshot *,
+    const apkg_adoption_input *, size_t count, apkg_plan **, apkg_error **);
 /* Configuration entries use config="preserve" in signed file metadata.
  * Mutation plans retain exact observed trees, including foreign/edited files.
  */

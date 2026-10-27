@@ -37,7 +37,6 @@ int ak_relations_valid(const ak_json *j, int rel) {
                           sizeof version) ||
                 ak_version_compare(version, version) != 0 ||
                 ak_u64(j, ak_member(j, (int)i, "min_revision"), &revision) ||
-                !revision ||
                 ak_string(j, ak_member(j, (int)i, "target"), target,
                           sizeof target))
                 return 0;
