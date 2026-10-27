@@ -22,6 +22,7 @@ typedef struct {
     apkg_channel_view channel;
     uint64_t root_generation;
     apkg_digest root_snapshot;
+    apkg_update_summary_view updates; /* entries/text deep-copied into AllocVec */
     pm_common_row rows[];
 } pm_common_catalogue;
 typedef enum {
@@ -56,4 +57,5 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
  * Successful text is owned by the client library; free with its text free. */
 apkg_status pm_common_rexx_info(const char *, const char *, const char *,
                                 char **);
+apkg_status pm_common_rexx_outdated(const char *root, const pm_common_catalogue *, const char *field, char **);
 #endif

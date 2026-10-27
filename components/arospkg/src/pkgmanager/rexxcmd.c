@@ -36,7 +36,11 @@ static const cmddef cmds[] = {
     { RXC_CANCEL,       "CANCEL",       1, { A_POS_ID }, 0 },
     { RXC_QUIT,         "QUIT",         0, { 0 }, 0 },
     { RXC_LASTERROR,    "LASTERROR",    0, { 0 }, 0 },
+#ifdef APKG_FUSION
+    { RXC_OUTDATED,     "OUTDATED",     2, { A_SWITCH_SHOW, A_KEY_FIELD }, 0 },
+#else
     { RXC_OUTDATED,     "OUTDATED",     1, { A_SWITCH_SHOW }, 0 },
+#endif
     { RXC_RUN,          "RUN",          1, { A_POS_PKG }, 1 },
     { RXC_VERIFY,       "VERIFY",       1, { A_POS_PKG }, 1 },
 };

@@ -58,6 +58,45 @@ apkg_status pm_common_rexx_info(const char *root, const char *name,
     }
     return code;
 }
+apkg_status pm_common_rexx_outdated(const char *root,
+                                    const pm_common_catalogue *model,
+                                    const char *field, char **out) {
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!root)
+        return APKG_INVALID;
+    if (!model)
+        return APKG_NOT_FOUND;
+    apkg_open_options options = {0};
+    options.contract_version = APKG_CONTRACT_VERSION;
+    options.struct_size = sizeof options;
+    options.root = (apkg_text){root, strlen(root)};
+    apkg_ctx *ctx = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_status code = apkg_open(&options, &ctx, NULL);
+    if (!code)
+        code = apkg_snapshot_read(ctx, &snapshot, NULL);
+    if (!code) {
+        const apkg_root_view *v = apkg_snapshot_root(snapshot);
+        if (v->state != APKG_ROOT_READY)
+            code = v->state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
+                                                 : APKG_POLICY;
+        else if (memcmp(v->snapshot_digest.bytes, model->root_snapshot.bytes,
+                        32))
+            code = APKG_STALE;
+    }
+    if (!code)
+        code = apkg_update_summary_format(&model->updates, field, out, NULL);
+    if (!code && strlen(*out) > RX_MAXRESULT) {
+        apkg_client_text_free(*out);
+        *out = NULL;
+        code = APKG_LIMIT;
+    }
+    apkg_snapshot_free(snapshot);
+    apkg_close(ctx);
+    return code;
+}
 static int channel_summary(char *out, size_t size, const apkg_channel_view *v) {
     const char hex[] = "0123456789abcdef";
     char identity[33], digest[65], floor[32];
@@ -176,14 +215,47 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
             return APKG_LIMIT;
         total += extra;
     }
+    apkg_update_summary *updates = NULL;
+    apkg_status code =
+        apkg_channel_summarize(snapshot, channel, &updates, NULL);
+    if (code)
+        return code;
+    const apkg_update_summary_view *summary = apkg_update_summary_get(updates);
+    size_t extra =
+        (size_t)summary->entry_count * sizeof(apkg_update_entry_view);
+    for (uint64_t i = 0; i < summary->entry_count; i++) {
+        const apkg_update_entry_view *r = &summary->entries[i];
+        extra += r->authority.size + r->name.size + r->target.size +
+                 r->installed_version.size + 4;
+    }
+    if (extra > PM_CATALOGUE_MAX || total > PM_CATALOGUE_MAX - extra) {
+        apkg_update_summary_free(updates);
+        return APKG_LIMIT;
+    }
+    total += extra;
     pm_common_catalogue *model = AllocVec(total, MEMF_PUBLIC | MEMF_CLEAR);
-    if (!model)
+    if (!model) {
+        apkg_update_summary_free(updates);
         return APKG_NOMEM;
+    }
     model->count = (size_t)view->entry_count;
     model->channel = *view;
     model->root_generation = apkg_snapshot_root(snapshot)->generation.value;
     model->root_snapshot = apkg_snapshot_root(snapshot)->snapshot_digest;
-    char *cursor = (char *)(model->rows + model->count);
+    apkg_update_entry_view *entries =
+        (apkg_update_entry_view *)(model->rows + model->count);
+    char *cursor = (char *)(entries + summary->entry_count);
+    model->updates = *summary;
+    model->updates.entries = entries;
+    for (uint64_t i = 0; i < summary->entry_count; i++) {
+        entries[i] = summary->entries[i];
+        entries[i].authority.data = copy_text(&cursor, entries[i].authority);
+        entries[i].name.data = copy_text(&cursor, entries[i].name);
+        entries[i].target.data = copy_text(&cursor, entries[i].target);
+        entries[i].installed_version.data =
+            copy_text(&cursor, entries[i].installed_version);
+    }
+    apkg_update_summary_free(updates);
     model->channel.accepted_sequence.evidence.data =
         copy_text(&cursor, view->accepted_sequence.evidence);
     model->summary = cursor;

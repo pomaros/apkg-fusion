@@ -62,6 +62,15 @@ apkg_status apkg_client_channel_refresh(const char *root, const char *endpoint,
 apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
     const char *identity, uint64_t minimum_sequence, const apkg_observer *,
     char **, apkg_error **);
+const char *apkg_outdated_fields(void);
+/* Accepts a library view or its unchanged owned deep copy. Unknown readiness
+ * and freshness remain explicit. Ambiguous unqualified package lists refuse.
+ * Text is owned; release with apkg_client_text_free. */
+apkg_status apkg_update_summary_format(const apkg_update_summary_view *,
+    const char *field, char **, apkg_error **);
+apkg_status apkg_client_outdated(const char *root, const char *endpoint,
+    const char *identity, const char *field, const apkg_observer *, char **,
+    apkg_error **);
 apkg_status apkg_client_folder(const char *, const char *, char **,
                                apkg_error **);
 apkg_status apkg_client_run(const char *, const char *, apkg_error **);

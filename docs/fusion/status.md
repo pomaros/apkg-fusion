@@ -1002,6 +1002,52 @@ has now passed its complete
 including both inherited suites on Linux/macOS and all 107 portal tests. That
 result does not qualify this subsequent comparison/hardening change.
 
+## FUSION-ALPHA progress: package summaries, UPDATE and OUTDATED
+
+The common `apkg_channel_summarize` now counts qualified installed packages
+separately from offered builds. It reports known newer packages, metadata
+eligibility/blocking, conflict/indeterminate candidates and absence from this
+observed source. It owns complete qualified entries/versions/revisions after
+its input objects close. Duplicate identities and ambiguous bare-name lists
+refuse; scalar and qualified fields remain available. Plan readiness and online
+freshness stay unknown, and missing source coverage is not called withdrawal.
+
+`apkg outdated ROOT ENDPOINT CHANNEL-ID [FIELD]` shares the formatter with
+fusion ARexx OUTDATED. The actual discovery worker deep-copies the view, entry
+array and text into its owned catalogue, which displays observed generation
+and distinct metadata/readiness counts. `OUTDATED SHOW` opens its update filter.
+`UPDATE`/Refresh use common signed discovery rather than the old index writer;
+the imported non-fusion command corpus retains interface 1 behavior.
+
+The cached native query makes no network request and refuses changed/pending
+root observations instead of claiming current counts. Result-size overflow
+refuses without truncation; individual fields remain usable. Persistent source
+settings and offline cached-source re-evaluation after root changes remain
+required integration work, alongside dated news and runtime qualification.
+
+Six new host cases cover logical-package counts across multiple versions and
+keys, metadata/readiness separation, qualified/unqualified ambiguity, empty
+sources/coverage, large ARexx answers, owned lifetimes, allocation-failure retry
+and stale/pending root refusal with no query-time network. The host C harness
+checks all copied summary strings belong to the native allocation and formats
+the engine object after its snapshot/channel inputs have been freed.
+
+Batch evaluation: `make test-fusion` passed 219 common methods, the fusion
+ARexx corpus, 78 default-product checks, 110 provisional CLI checks, 78
+publishing checks and the existing contract/target/application/initialization
+gates. The sanitizer suite passed 139 selected methods plus the instrumented
+fusion ARexx corpus; host C clients/workers/owned-copy harnesses are instrumented,
+while direct ctypes fault-injection cases use the ordinary test library.
+SDK header/type checks passed on the existing aarch64 AROS headers with the
+previously noted `vfork` warnings. All 69 documentation files pass link checks.
+Native ARexx/UI dispatch still has source/type evidence rather than execution
+evidence. This source revision still needs its exact Linux/macOS CI gate.
+
+The preceding comparison checkpoint `bcf6a65478d0e7970d4d21d543efa999a3b37b18`
+has passed its complete
+[CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40436282928),
+including both inherited suites on Linux/macOS and all 107 portal tests.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

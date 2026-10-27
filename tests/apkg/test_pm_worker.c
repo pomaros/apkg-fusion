@@ -73,8 +73,33 @@ int main(int argc, char **argv) {
     pm_msg final = {0};
     pkg_err error = {0};
     pkg_status result;
-    assert(argc >= 4 && argc <= 6);
+    assert(argc >= 4 && argc <= 7);
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 19) {
+        assert(argc == 6 || argc == 7);
+        apkg_snapshot *snapshot = NULL;
+        apkg_channel *channel = NULL;
+        apkg_update_summary *summary = NULL;
+        assert(apkg_client_channel_refresh(argv[1], argv[2], argv[5], 0, NULL,
+                                           &snapshot, &channel,
+                                           NULL) == APKG_OK);
+        assert(apkg_channel_summarize(snapshot, channel, &summary, NULL) ==
+               APKG_OK);
+        apkg_snapshot_free(snapshot);
+        apkg_channel_free(channel);
+        char *text = NULL;
+        apkg_status status =
+            apkg_update_summary_format(apkg_update_summary_get(summary),
+                                       argc == 7 ? argv[6] : NULL, &text, NULL);
+        printf("status %d\n", (int)status);
+        if (!status)
+            puts(text);
+        else
+            assert(!text);
+        apkg_client_text_free(text);
+        apkg_update_summary_free(summary);
+        return 0;
+    }
     if (atoi(argv[3]) == 15) {
         apkg_open_options options = {0};
         options.contract_version = APKG_CONTRACT_VERSION;
@@ -126,7 +151,7 @@ int main(int argc, char **argv) {
         assert(allocations == 0);
         return 0;
     }
-    if (argc == 6) {
+    if (argc >= 6) {
         assert(strlen(argv[5]) < sizeof j.common_pool);
         strcpy(j.common_pool, argv[5]);
     }
@@ -205,8 +230,9 @@ int main(int argc, char **argv) {
         assert(allocations == 0);
         return 0;
     }
-    if ((choice >= 9 && choice <= 11) || choice == 16) {
-        assert(argc == 6);
+    if ((choice >= 9 && choice <= 11) || choice == 16 || choice == 17 ||
+        choice == 18) {
+        assert(argc == 6 || ((choice == 17 || choice == 18) && argc == 7));
         j.kind = JOB_COMMON_DISCOVER;
         fail_at = choice == 10 ? 1 : 0;
         assert(apkg_cancel_create(&j.common_cancel) == APKG_OK);
@@ -217,7 +243,7 @@ int main(int argc, char **argv) {
         assert(previews == 0);
         if (choice == 11)
             assert(progress_count == 0);
-        if (choice == 9 || choice == 16) {
+        if (choice == 9 || choice == 16 || choice == 17 || choice == 18) {
             assert(result == PKG_OK && final.common_status == APKG_OK);
             assert(final.common_catalogue);
             assert(!strcmp(final.common_catalogue->endpoint, argv[2]));
@@ -226,6 +252,36 @@ int main(int argc, char **argv) {
                           "online freshness: unknown"));
             assert(final.common_catalogue->channel.signature ==
                    APKG_SIGNATURE_VALID);
+            for (uint64_t i = 0;
+                 i < final.common_catalogue->updates.entry_count; i++) {
+                const apkg_update_entry_view *r =
+                    &final.common_catalogue->updates.entries[i];
+                owned_text(final.common_catalogue, r->authority);
+                owned_text(final.common_catalogue, r->name);
+                owned_text(final.common_catalogue, r->target);
+                owned_text(final.common_catalogue, r->installed_version);
+            }
+            if (choice == 17 || choice == 18) {
+                if (choice == 18) {
+                    char input[2];
+                    puts("loaded");
+                    fflush(stdout);
+                    assert(fgets(input, sizeof input, stdin));
+                }
+                char *text = NULL;
+                apkg_status status =
+                    pm_common_rexx_outdated(j.root, final.common_catalogue,
+                                            argc == 7 ? argv[6] : NULL, &text);
+                printf("status %d\n", (int)status);
+                if (status)
+                    assert(!text);
+                else
+                    puts(text);
+                apkg_client_text_free(text);
+                FreeVec(final.common_catalogue);
+                assert(allocations == 0);
+                return 0;
+            }
             if (choice == 16)
                 printf("generation %llu\n",
                        (unsigned long long)

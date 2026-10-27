@@ -64,6 +64,56 @@ requires a real plan. Older/conflicting/indeterminate/other-owner/other-target
 rows cannot start an automatic review through that button.
 
 These views describe their captured installed state; reload to observe later
-changes. Legacy OUTDATED aggregation, settings, publication chronology and
-broader native/ARexx compatibility remain further work. Host/type/runtime
-evidence is tracked separately in [status](status.md).
+changes. Package aggregation and OUTDATED are described below. Settings,
+publication chronology and broader native/ARexx compatibility remain further
+work. Host/type/runtime evidence is tracked separately in [status](status.md).
+
+## Package summary and OUTDATED
+
+`apkg_channel_summarize` aggregates by qualified installed authority/name/target.
+Multiple newer builds of one package count once in `newer`, while
+`newercandidates` counts each build. It retains independently owned entries,
+installed versions/revisions and candidate counts, after snapshot/channel close.
+Exact duplicate installed identities refuse with CONFLICT.
+
+`metadataeligible` counts packages with at least one newer candidate whose
+descriptor signature, author grant and root target permit metadata-level review.
+`blocked` counts newer packages with no such candidate; `blockedcandidates`
+counts those rejected newer builds. Dependencies, ownership effects, live files
+and runtime requirements still need a plan. `ready` remains `unknown`, and
+`planreadiness` is `not-checked`. Conflicting and indeterminate candidates have
+separate counters; zero known newer packages does not erase those cases.
+
+`notlisted` means the qualified installed identity has no matching offer in
+this observed channel. It asserts no global withdrawal. Publication time,
+online freshness and stale-source status stay `unknown`; no dates or freshness
+are inferred from sequence numbers or signatures.
+
+```sh
+./build/apkg outdated ROOT ENDPOINT CHANNEL-ID
+./build/apkg outdated ROOT ENDPOINT CHANNEL-ID newer
+./build/apkg outdated ROOT ENDPOINT CHANNEL-ID qualifiedpackages
+```
+
+`apkg_outdated_fields` lists scalar, identity and package-list fields. Formatting
+accepts the library view or its unchanged owned deep copy, retaining unknown
+readiness/freshness. Unsupported known readiness/freshness flags refuse.
+`packages` retains bare names only when unambiguous in the installed namespace;
+otherwise that field/full answer refuses. Scalar fields and `qualifiedpackages`
+remain available without selecting an arbitrary owner.
+
+The native discovery worker copies the complete summary view, entry array and
+all text into its one `AllocVec` catalogue. The catalogue displays observed
+generation, package counts, metadata eligibility, conflicts and uncertainty.
+Fusion ARexx `OUTDATED [SHOW] [FIELD name]` shares that formatter. `SHOW` opens
+the signed catalogue's updates/blocked-candidates view. Results over 65,535
+bytes refuse with TOOLONG; individual fields remain available.
+
+ARexx `UPDATE` and the main Refresh button use the signed-discovery worker with
+the endpoint/channel controls; they do not invoke the legacy index writer.
+Source settings/persistence still need their common integration. Native cached
+OUTDATED performs no network requests and verifies current committed bytes
+against its captured root digest. Changed or pending roots refuse until refresh
+or recovery; the previous observation remains available in the UI, labelled by
+its observed generation. Offline cached-source re-evaluation after root changes
+remains part of the settings/cache integration, not a completed capability.

@@ -21,6 +21,7 @@ typedef struct apkg_error apkg_error;
 typedef struct apkg_cancel apkg_cancel;
 typedef struct apkg_event_copy apkg_event_copy;
 typedef struct apkg_inspection apkg_inspection;
+typedef struct apkg_update_summary apkg_update_summary;
 typedef struct apkg_observer apkg_observer;
 /* Length excludes terminator. Text is UTF-8, no embedded NUL; bytes are opaque.
  * A zero length permits NULL. All returned views are borrowed, never free(). */
@@ -258,6 +259,28 @@ typedef struct {
 apkg_status apkg_channel_compare(const apkg_snapshot *, const apkg_channel *,
     uint64_t index, apkg_candidate_view *, apkg_error **);
 const char *apkg_candidate_state_name(apkg_candidate_state);
+/* Owned aggregation by qualified installed identity, with every candidate
+ * retained by the separate comparison API. Counts do not assert plan/runtime
+ * readiness. Views borrow summary-owned bytes; native clients may deep-copy
+ * the complete view for presentation across their worker boundary. */
+typedef struct {
+    apkg_text authority, name, target, installed_version;
+    uint64_t installed_revision, newer_candidates, eligible_candidates;
+} apkg_update_entry_view;
+typedef struct {
+    uint64_t installed, newer, metadata_eligible, blocked, newer_candidates;
+    uint64_t blocked_candidates, indeterminate_candidates, conflict_candidates, not_listed;
+    uint64_t generation, sequence, entry_count;
+    apkg_digest root_snapshot, channel_snapshot;
+    apkg_id channel_id;
+    apkg_fact_state plan_readiness, freshness;
+    int names_ambiguous;
+    const apkg_update_entry_view *entries;
+} apkg_update_summary_view;
+apkg_status apkg_channel_summarize(const apkg_snapshot *, const apkg_channel *,
+    apkg_update_summary **, apkg_error **);
+const apkg_update_summary_view *apkg_update_summary_get(const apkg_update_summary *);
+void apkg_update_summary_free(apkg_update_summary *);
 
 typedef enum {
     APKG_PHASE_CHECK = 0,

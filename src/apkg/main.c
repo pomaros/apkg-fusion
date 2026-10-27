@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
             "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
-            "[MIN-SEQUENCE]\n"
+            "[MIN-SEQUENCE]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel "
             "JSONFILE\nverify-object descriptor|channel JSONFILE SIGNATURE\n"
@@ -223,6 +223,13 @@ int main(int argc, char **argv) {
         apkg_package_free(package);
         apkg_error_free(e);
         apkg_close(c);
+        return (int)code;
+    }
+    if (!strcmp(argv[1], "outdated")) {
+        if (argc != 5 && argc != 6) return APKG_INVALID;
+        code = apkg_client_outdated(argv[2], argv[3], argv[4], argc == 6 ? argv[5] : NULL, NULL, &text, &e);
+        if (!code) puts(text); else report(code, NULL, e);
+        apkg_client_text_free(text); apkg_error_free(e);
         return (int)code;
     }
     if (!strcmp(argv[1], "channel-inspect") ||

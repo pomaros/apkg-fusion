@@ -47,7 +47,8 @@ static int common_waiting;
 static char *common_preview_text;
 static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
               *str_channel_search, *lst_channel, *txt_channel_detail,
-              *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary, *cyc_channel_filter;
+              *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary, *cyc_channel_filter, *txt_channel_counts;
+static char channel_counts_text[320];
 static const char *channel_filters[] = {"All candidates", "Updates / blocked candidates",
     "Not installed", "Other targets", "Untrusted authors", "Changed same release", "Indeterminate versions", NULL};
 static pm_common_catalogue *common_catalogue;
@@ -207,6 +208,17 @@ static void common_select(void)
 }
 static void common_refill(void)
 {
+    if (common_catalogue) {
+        const apkg_update_summary_view *v = &common_catalogue->updates;
+        snprintf(channel_counts_text, sizeof channel_counts_text,
+            "Observed root generation %llu: %llu installed; %llu with newer versions; %llu metadata eligible\n"
+            "%llu metadata blocked; %llu indeterminate candidates; %llu conflicts; plans not checked",
+            (unsigned long long)v->generation, (unsigned long long)v->installed,
+            (unsigned long long)v->newer, (unsigned long long)v->metadata_eligible,
+            (unsigned long long)v->blocked, (unsigned long long)v->indeterminate_candidates,
+            (unsigned long long)v->conflict_candidates);
+    } else snprintf(channel_counts_text, sizeof channel_counts_text, "No captured catalogue; load a signed source");
+    SetAttrs(txt_channel_counts, MUIA_Text_Contents, (IPTR)channel_counts_text, TAG_DONE);
     IPTR term = 0, filter = 0;
     GetAttr(MUIA_String_Contents, str_channel_search, &term);
     GetAttr(MUIA_Cycle_Active, cyc_channel_filter, &filter);
@@ -1232,7 +1244,7 @@ static const char *opname(job_kind k)
     switch (k) {
     case JOB_INSTALL: return "install";
     case JOB_COMMON_INSTALL: return "signed-install";
-    case JOB_COMMON_DISCOVER: return "channel-discovery";
+    case JOB_COMMON_DISCOVER: return "update";
     case JOB_REMOVE:  return "remove";
     case JOB_UPDATE:  return "update";
     case JOB_PREVIEW_UPGRADE: case JOB_UPGRADE: return "upgrade";
@@ -1360,6 +1372,7 @@ static void proceed(const char *how);
 static rx_job *begin(job_kind kind, const char *pkg, const char *origin)
 {
 #ifdef APKG_FUSION
+    if (kind == JOB_UPDATE) kind = JOB_COMMON_DISCOVER;
     if(kind==JOB_REMOVE) {
         SetAttrs(cyc_common_action,MUIA_Cycle_Active,APKG_CLIENT_REMOVE,TAG_DONE);
         SetAttrs(str_common_package,MUIA_String_Contents,(IPTR)(pkg?pkg:""),TAG_DONE);
@@ -2445,6 +2458,8 @@ static void rx_start(rexx_msg *m, const rx_req *r)
         return;
     }
 #ifdef APKG_FUSION
+    if (kind == JOB_UPDATE) kind = JOB_COMMON_DISCOVER;
+    if (kind != JOB_COMMON_DISCOVER) {
     if (kind != JOB_REMOVE && kind != JOB_RUN) {
         rx_fail(m, RX_RC_ERROR, "UNSUPPORTED use a common signed-plan operation for this command"); return;
     }
@@ -2456,6 +2471,7 @@ static void rx_start(rexx_msg *m, const rx_req *r)
     FreeVec(items);
     if (code) { rx_fail(m, RX_RC_ERROR, "COMMON root query refused (code %d)", (int)code); return; }
     if (!found) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not installed", r->package); return; }
+    }
 #else
     if (kind != JOB_UPDATE) {
         pkg_ctx *c = rx_open(m); pkg_entry e; int in_index, known;
@@ -2533,6 +2549,29 @@ static void rx_cancel(rexx_msg *m, const rx_req *r)
    widget's action asks for when PkgManager is already running. */
 static void rx_outdated(rexx_msg *m, const rx_req *r)
 {
+#ifdef APKG_FUSION
+    char *text = NULL;
+    apkg_status code = pm_common_rexx_outdated(root, common_catalogue, r->field, &text);
+    if (code == APKG_NOT_FOUND) rx_fail(m, RX_RC_ERROR, "NOINDEX load a signed catalogue with UPDATE first");
+    else if (code == APKG_STALE) rx_fail(m, RX_RC_ERROR, "STALE the installed state changed; UPDATE the captured catalogue");
+    else if (code == APKG_CONFLICT) rx_fail(m, RX_RC_ERROR, "CONFLICT ambiguous names; request FIELD qualifiedpackages or a scalar field");
+    else if (code == APKG_LIMIT) rx_fail(m, RX_RC_ERROR, "TOOLONG request an individual FIELD");
+    else if (code == APKG_INVALID) rx_fail(m, RX_RC_FAIL, "BADARGS fields: %s", apkg_outdated_fields());
+    else if (code) rx_fail(m, RX_RC_ERROR, "COMMON update summary refused (code %d)", (int)code);
+    else {
+        if (r->show) {
+            SetAttrs(str_channel_search, MUIA_NoNotify, TRUE, MUIA_String_Contents, (IPTR)"", TAG_DONE);
+            SetAttrs(cyc_channel_filter, MUIA_NoNotify, TRUE, MUIA_Cycle_Active, PM_CATALOGUE_UPDATES, TAG_DONE);
+            common_refill();
+            SetAttrs(app, MUIA_Application_Iconified, FALSE, TAG_DONE);
+            SetAttrs(win_common_catalogue, MUIA_Window_Open, TRUE, MUIA_Window_Activate, TRUE, TAG_DONE);
+            DoMethod(win_common_catalogue, MUIM_Window_ToFront);
+        }
+        rx_ok(m, text);
+    }
+    apkg_client_text_free(text);
+    return;
+#endif
     pkg_ctx *c; pkg_updates u; pkg_err e;
     if (r->show) {
         SetAttrs(str_search, MUIA_NoNotify, TRUE, MUIA_String_Contents, (IPTR)"", TAG_DONE);
@@ -2709,7 +2748,11 @@ static int real_main(int argc, char **argv)
                     Child, (cyc_state = CycleObject,
                         MUIA_Cycle_Entries, (IPTR)state_entries,
                     End),
+#ifdef APKG_FUSION
+                    Child, (btn_update = SimpleButton("Refresh signed catalogue")),
+#else
                     Child, (btn_update = SimpleButton("Update index")),
+#endif
                     Child, (btn_about = SimpleButton("About")),
                 End),
                 Child, (txt_catalogue = TextObject,
@@ -2852,6 +2895,7 @@ static int real_main(int argc, char **argv)
                     MUIA_String_MaxLen, 256,
                     MUIA_ShortHelp, (IPTR)"Filter by complete package name, authority or target", End),
                 Child, (cyc_channel_filter = CycleObject, MUIA_Cycle_Entries, (IPTR)channel_filters, End),
+                Child, (txt_channel_counts = TextObject, MUIA_Text_Contents, (IPTR)"Load a signed source for update counts", MUIA_Text_SetMin, FALSE, End),
                 Child, (txt_channel_summary = FloattextObject,
                     MUIA_FixHeightTxt, (IPTR)"\n\n\n\n",
                     MUIA_Floattext_Text, (IPTR)"", End),

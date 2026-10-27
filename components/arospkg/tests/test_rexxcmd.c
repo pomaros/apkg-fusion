@@ -180,6 +180,11 @@ int main(void)
         rx_req r; char err[200], out[512];
         pkg_update_row rows[2]; pkg_updates up;
         CHECK(rx_parse("OUTDATED", &r, err, sizeof err) == 0 && r.cmd == RXC_OUTDATED && !r.show);
+#ifdef APKG_FUSION
+        CHECK(rx_parse("OUTDATED SHOW FIELD qualifiedpackages", &r, err, sizeof err) == 0 && r.show && !strcmp(r.field, "qualifiedpackages"));
+#else
+        CHECK(rx_parse("OUTDATED FIELD newer", &r, err, sizeof err) == RX_RC_FAIL);
+#endif
         CHECK(rx_parse("outdated SHOW", &r, err, sizeof err) == 0 && r.show);
         CHECK(rx_parse("OUTDATED SHOW=1", &r, err, sizeof err) == RX_RC_FAIL);
         CHECK(rx_parse("OUTDATED folio", &r, err, sizeof err) == RX_RC_FAIL);
