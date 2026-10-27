@@ -42,6 +42,18 @@ apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,
 apkg_status apkg_client_channel_query(const char *root, const char *endpoint,
     const char *identity, uint64_t minimum_sequence, const apkg_observer *,
     char **, apkg_error **);
+/* Typed read-only discovery for interactive clients. The returned channel
+ * owns every view, independently of the temporary read context. Release with
+ * apkg_channel_free. Browse with apkg_channel_get/entry_at; no archive transfer
+ * or root mutation. Signature/trust/target facts remain separate.
+ * Selection retains the observed snapshot identity: apply refuses a changed
+ * head rather than silently choosing a replacement. Caller owns *selection
+ * and releases it with apkg_client_text_free. */
+apkg_status apkg_client_channel_open(const char *root, const char *endpoint,
+    const char *identity, uint64_t minimum_sequence, const apkg_observer *,
+    apkg_channel **, apkg_error **);
+apkg_status apkg_client_channel_selection(const apkg_channel *, uint64_t index,
+    char **selection, apkg_error **);
 apkg_status apkg_client_folder(const char *, const char *, char **,
                                apkg_error **);
 apkg_status apkg_client_run(const char *, const char *, apkg_error **);

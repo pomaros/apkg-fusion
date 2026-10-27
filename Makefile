@@ -406,7 +406,7 @@ build/test_pm_common: tests/apkg/test_pm_worker.c components/arospkg/src/pkgmana
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_FUSION -Iinclude -Isrc/apkg -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
-build/test_channel_memory: tests/apkg/test_channel_memory.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h src/apkg/internal.h src/apkg/changes.inc
+build/test_channel_memory: tests/apkg/test_channel_memory.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h src/apkg/internal.h src/apkg/changes.inc
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg tests/apkg/test_channel_memory.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 

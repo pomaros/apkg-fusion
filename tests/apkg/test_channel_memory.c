@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 John Knipper */
+#include "apkg_client.h"
 #include "internal.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -48,6 +49,25 @@ static int prepared_plan(char **argv) {
     return 0;
 }
 int main(int argc, char **argv) {
+    if (argc == 5 && !strcmp(argv[4], "--browse")) {
+        apkg_channel *channel = NULL;
+        assert(apkg_client_channel_open(argv[1], argv[2], argv[3], 0, NULL,
+                                        &channel, NULL) == APKG_OK);
+        const apkg_channel_view *view = apkg_channel_get(channel);
+        for (uint64_t i = 0; i < view->entry_count; i++) {
+            const apkg_channel_entry_view *row = NULL;
+            char *selection = NULL;
+            assert(apkg_channel_entry_at(channel, i, &row, NULL) == APKG_OK);
+            assert(row->name.size && row->version.size);
+            assert(apkg_client_channel_selection(channel, i, &selection,
+                                                 NULL) == APKG_OK);
+            assert(strlen(selection) == 162);
+            assert(!memcmp(selection, argv[3], 32));
+            apkg_client_text_free(selection);
+        }
+        apkg_channel_free(channel);
+        return 0;
+    }
     if (argc == 5 && !strcmp(argv[4], "--plan"))
         return prepared_plan(argv);
     apkg_open_options options = {0};

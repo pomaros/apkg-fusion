@@ -2,6 +2,7 @@
  * Copyright (c) 2026 John Knipper */
 #include "apkg_client.h"
 #include "internal.h"
+#include <stdlib.h>
 #include <string.h>
 static apkg_status open_source(const char *root, const char *endpoint,
                                const char *identity, uint64_t floor,
@@ -27,10 +28,10 @@ static apkg_status open_source(const char *root, const char *endpoint,
                : apkg_channel_open_file(*ctx, source, &id, floor, channel,
                                         error);
 }
-apkg_status apkg_client_channel_query(const char *root, const char *endpoint,
-                                      const char *identity, uint64_t floor,
-                                      const apkg_observer *observer, char **out,
-                                      apkg_error **error) {
+apkg_status apkg_client_channel_open(const char *root, const char *endpoint,
+                                     const char *identity, uint64_t floor,
+                                     const apkg_observer *observer,
+                                     apkg_channel **out, apkg_error **error) {
     if (error)
         *error = NULL;
     if (!out)
@@ -44,9 +45,53 @@ apkg_status apkg_client_channel_query(const char *root, const char *endpoint,
             : open_source(root, endpoint, identity, floor, APKG_READ, observer,
                           &ctx, &channel, error);
     if (!code)
+        *out = channel;
+    else
+        apkg_channel_free(channel);
+    apkg_close(ctx);
+    return code;
+}
+apkg_status apkg_client_channel_selection(const apkg_channel *channel,
+                                          uint64_t index, char **out,
+                                          apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!channel)
+        return APKG_INVALID;
+    const apkg_channel_entry_view *entry = NULL;
+    apkg_status code = apkg_channel_entry_at(channel, index, &entry, error);
+    if (code)
+        return code;
+    const apkg_channel_view *view = apkg_channel_get(channel);
+    char *selection = malloc(163);
+    if (!selection)
+        return APKG_NOMEM;
+    ak_tohex(view->id.bytes, 16, selection);
+    selection[32] = '/';
+    ak_tohex(view->snapshot_digest.bytes, 32, selection + 33);
+    selection[97] = '/';
+    ak_tohex(entry->descriptor_digest.bytes, 32, selection + 98);
+    *out = selection;
+    return APKG_OK;
+}
+apkg_status apkg_client_channel_query(const char *root, const char *endpoint,
+                                      const char *identity, uint64_t floor,
+                                      const apkg_observer *observer, char **out,
+                                      apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    apkg_channel *channel = NULL;
+    apkg_status code = apkg_client_channel_open(root, endpoint, identity, floor,
+                                                observer, &channel, error);
+    if (!code)
         code = ak_channel_format(channel, out);
     apkg_channel_free(channel);
-    apkg_close(ctx);
     return code;
 }
 apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,

@@ -338,6 +338,14 @@ are included only when explicitly requested.
 
 Shared convenience entry points live in `apkg_client.h`:
 
+- `apkg_client_channel_open` returns an owned typed catalogue for interactive
+  browsing, using the same read-only discovery as JSON queries. Channel and
+  entry views remain valid after its temporary context closes. Names, versions,
+  revisions and trust/target facts retain their complete common representation.
+  `apkg_client_channel_selection` creates the exact selection string for a row;
+  it never substitutes a name lookup or asserts installation authorization.
+  Browsing and creating that string fetch no archives. A subsequent apply
+  revalidates the observed snapshot and package authorization.
 - `apkg_client_channel_query` performs read-only file/HTTP discovery and returns
   owned complete JSON facts, including blocked-author/target rows, accepted
   sequence, exact digests, unknown online freshness and unasserted independent

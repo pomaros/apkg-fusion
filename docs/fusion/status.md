@@ -804,6 +804,35 @@ Interactive native catalogue/settings, independent qualifications, validated
 legacy import and portal adaptation/rehearsal remain open. No live portal or
 AROS/OS operation occurred.
 
+## FUSION-ALPHA progress: typed catalogue selection
+
+Interactive clients now have `apkg_client_channel_open` and
+`apkg_client_channel_selection` in the installed client API. JSON discovery
+uses that same read-only opening path. The channel owns complete typed rows
+after the temporary context closes; row selection returns the observed
+channel/snapshot/descriptor identities without projecting through the inherited
+63-character PkgManager name field. Selection itself grants no authority and
+downloads no archive. Applying it still uses the shared dependency-aware plan
+and refuses a changed channel head.
+
+The host browser cases cover two distinct 255-character names, full typed
+facts, read-only HTTP discovery, out-of-range selection, allocation failure
+and retry, pre-cancellation, dependency installation and changed-head refusal.
+The native memory harness exercises view/selection ownership after context
+closure and is included in the sanitizer run. This is an API integration step;
+interactive PkgManager row selection, settings and native runtime qualification
+remain open.
+
+Batch evaluation: `make test-fusion` passed (190 common methods at collection,
+78 default-product, 110 provisional CLI and 78 publishing checks, plus the
+existing contract/target/application/initialization gates). The final five-case
+browser suite passed separately, including its subsequently added cancellation
+case. `tests/apkg/sanitize.sh` passed all 111 selected methods with instrumented
+native CLI/worker/memory harnesses; direct ctypes cases use the ordinary test
+library. Documentation links cover 67 files with zero broken links. Exact-source
+Linux/macOS CI remains the subsequent qualification gate. No native execution
+or portal changes were performed in this batch.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
@@ -892,3 +921,5 @@ These checks remain scheduled work; they do not block BASE or contract design.
 Portal migration work keeps credentials and private data outside the public
 repository. Existing author signatures, channel trust and qualification evidence
 must retain their meaning; migration cannot grant review to unreviewed content.
+Per operator direction, porting this portal follows the other fusion workstreams,
+including client integration, independent qualification facts and legacy import.
