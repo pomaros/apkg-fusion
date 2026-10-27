@@ -1232,6 +1232,64 @@ The preceding row-refresh checkpoint
 [CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40440800308),
 including both inherited suites on Linux/macOS and all 107 portal tests.
 
+## Signed observation carriage, publication and catalogue rows
+
+Channels now carry bounded per-entry [attestation sets](attestations.md#channel-carriage-and-catalogue-presentation).
+The common validator checks embedded signatures, exact descriptor binding,
+canonical set order, duplicate/fork conflicts and supplied history links.
+Preflight uses signature/schema facts only; discovery computes role/independence
+facts from a real captured root snapshot. No synthetic root approval is exposed.
+Library getters retain wire order, complete signed bytes, captured provenance
+and unchecked history/freshness where evidence is missing.
+
+The file-channel publisher accepts explicit claim folders, verifies their
+binding against the actual archive and preflights the set before endpoint
+creation. Repeated publication preserves prior observations; new claims produce
+a new immutable snapshot, exact repeats remain unchanged, and conflicting
+signatures for one record digest refuse instead of replacing provenance. New
+content receives no observations by name/version similarity. Author publication
+and installation remain independent of reviewer authorization.
+
+Discovery and updates JSON expose each raw record/envelope and separate policy,
+independence, target, prefix and freshness facts. The PkgManager worker copies
+the shared complete formatted evidence into its existing bounded native model.
+New review/runtime/revocation observation filters never assert current approval.
+Saved source profiles and offline model rebuilds revalidate the same complete
+signed channel. The common variadic text builder now has compiler format checks;
+the targeted suite found and fixed a presentation argument mismatch before push.
+
+Five new host cases exercise real TOML archive publication, append/idempotence,
+immutable prior heads, HTTP CLI/worker presentation, cached/offline restart,
+role withdrawal, self-reports and unreviewed installation, content separation,
+signature/identity/history/order/fork refusals, signature replacement refusal,
+64/65-record limits, owner lifetimes and allocation-failure cleanup. Host workers
+check owned detail strings and all three observation-filter counts after library
+handles are gone. No additional archive requests occur during discovery/restore.
+
+This is not current qualification/revocation tracking across sources: omitting
+known evidence from a later source and obtaining fresh revocation observations
+still require their own policy/state work. The new filters inspect observations;
+no reviewed/tested approval requirement is silently enabled. Portal adaptation,
+native UI/runtime and release qualification remain open.
+
+Batch evaluation: the final `make test-fusion` passed 239 common methods,
+the fusion ARexx corpus, 78 default-product checks, 110 provisional CLI checks,
+78 publishing checks and the existing contract/target/application/initialization
+gates. Legacy native-harness assertions were updated to check explicit current
+approval remains unasserted; ownership and exact-selection checks remain active.
+The final sanitizer suite passed 159 selected methods plus the instrumented
+fusion ARexx corpus; host C CLI/worker/model/history harnesses are instrumented,
+while direct ctypes fault-injection cases use the ordinary test library.
+Public library symbol checks passed. Native sources passed SDK header/type checks
+with the existing aarch64 AROS headers and previously recorded `vfork` warnings.
+All 71 documentation files pass link checks. Native row/filter execution remains
+unqualified; exact-source Linux/macOS CI still must qualify this checkpoint.
+
+The preceding portable-claim checkpoint
+`85f369b6914394816ccdf8675e85bcf6f7dc9f98` has passed its complete
+[CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40443095605),
+including both inherited suites on Linux/macOS and all 107 portal tests.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

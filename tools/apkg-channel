@@ -206,7 +206,19 @@ def replace_current(endpoint, expected_before, digest):
         staged.unlink(missing_ok=True)
 
 
+def merge_observations(records):
+    unique = {}
+    for item in records:
+        digest = hashlib.sha256(encode(item['record'])).hexdigest()
+        if digest in unique and unique[digest] != item:
+            raise Refusal('attestation digest already has a different signature')
+        unique[digest] = item
+    return [unique[k] for k in sorted(unique)]
+
 def publish(args):
+    claim_folders = getattr(args, 'attestation', [])
+    if len(claim_folders) > 64:
+        raise Refusal('at most 64 attestation folders may be supplied')
     if fcntl is None:
         raise Refusal('publisher locking is not implemented on this host')
     archive = Path(args.archive).absolute()
@@ -238,6 +250,26 @@ def publish(args):
             raise Refusal('archive metadata changed during validation')
         incoming = dict(archive=dict(sha256=archive_identity[0], size=str(archive_identity[1])), **checked)
         descriptor_digest = hashlib.sha256(encode(incoming['descriptor'])).hexdigest()
+        observations = []
+        for index, source in enumerate(claim_folders):
+            source = Path(source)
+            record = read_small(source / 'attestation.json', META_MAX)
+            signature = read_small(source / 'attestation.signature.json', 16384)
+            # Validate binding to the archive's exact descriptor, not to any
+            # descriptor supplied in the report folder. This grants no issuer role.
+            check = temporary / ('claim-' + str(index))
+            check.mkdir()
+            (check / 'descriptor.json').write_bytes(encode(incoming['descriptor']))
+            (check / 'signature.json').write_bytes(encode(incoming['signature']))
+            (check / 'attestation.json').write_bytes(record)
+            (check / 'attestation.signature.json').write_bytes(signature)
+            engine_run(args.engine, 'attestation-check', root, check)
+            observations.append(dict(record=json.loads(record), signature=json.loads(signature)))
+        if observations:
+            incoming['attestations'] = merge_observations(observations)
+            proposed = temporary / 'claims-channel.json'
+            proposed.write_bytes(encode(dict(body=dict(entries=[incoming], id=args.id, sequence='1'), format='apkg-json-1', requires=[], schema='1', type='channel')))
+            engine_run(args.engine, 'channel-validate', proposed)
         # Invalid input reaches neither endpoint creation nor its writer lock.
         endpoint.parent.mkdir(parents=True, exist_ok=True)
         directory(endpoint)
@@ -262,16 +294,28 @@ def publish(args):
                     raise Refusal('channel identity differs')
                 entries = snapshot['body']['entries']
                 sequence = int(snapshot['body']['sequence'])
-            for old in entries:
+            found = False
+            for position, old in enumerate(entries):
                 if hashlib.sha256(encode(old['descriptor'])).hexdigest() == descriptor_digest:
-                    if old != incoming:
+                    found = True
+                    old_base = {k: v for k, v in old.items() if k != 'attestations'}
+                    new_base = {k: v for k, v in incoming.items() if k != 'attestations'}
+                    if old_base != new_base:
                         raise Refusal('descriptor already has a different archive or signature')
-                    retain_archive(endpoint / 'archives' / (archive_identity[0] + '.pkg'), archive, archive_identity)
-                    flush_dir(endpoint)
-                    return dict(changed=False, sequence=str(sequence), snapshot=before[:-1].decode(), archive_sha256=archive_identity[0])
+                    observations = merge_observations(old.get('attestations', []) + incoming.get('attestations', []))
+                    merged = dict(old_base)
+                    if observations or 'attestations' in old:
+                        merged['attestations'] = observations
+                    if merged == old:
+                        retain_archive(endpoint / 'archives' / (archive_identity[0] + '.pkg'), archive, archive_identity)
+                        flush_dir(endpoint)
+                        return dict(changed=False, sequence=str(sequence), snapshot=before[:-1].decode(), archive_sha256=archive_identity[0])
+                    entries[position] = merged
+                    break
             if sequence == 2**64 - 1:
                 raise Refusal('channel sequence exhausted')
-            entries.append(incoming)
+            if not found:
+                entries.append(incoming)
             entries.sort(key=lambda item: hashlib.sha256(encode(item['descriptor'])).digest())
             candidate = dict(body=dict(entries=entries, id=args.id, sequence=str(sequence + 1)), format='apkg-json-1', requires=[], schema='1', type='channel')
             document = encode(candidate)
@@ -298,6 +342,8 @@ def main():
     parser.add_argument('--directory', required=True)
     parser.add_argument('--id', required=True)
     parser.add_argument('--sign', required=True)
+    parser.add_argument('--attestation', action='append', default=[], metavar='CLAIM-FOLDER',
+                        help='append signed qualification observations without requiring review for publication')
     parser.add_argument('--engine', default=str(HERE / 'build/apkg'))
     args = parser.parse_args()
     try:

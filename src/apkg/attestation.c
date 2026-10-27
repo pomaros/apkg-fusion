@@ -97,20 +97,18 @@ void apkg_attestation_free(apkg_attestation *a) {
 const apkg_attestation_view *apkg_attestation_get(const apkg_attestation *a) {
     return a ? &a->view : NULL;
 }
-apkg_status apkg_attestation_read(const apkg_snapshot *snapshot,
-                                  apkg_bytes descriptor,
-                                  apkg_bytes descriptor_signature,
-                                  apkg_bytes record, apkg_bytes signature,
-                                  const apkg_attestation *previous,
-                                  apkg_attestation **out, apkg_error **error) {
+apkg_status ak_attestation_observe(const apkg_snapshot *snapshot,
+                                   apkg_bytes descriptor,
+                                   apkg_bytes descriptor_signature,
+                                   apkg_bytes record, apkg_bytes signature,
+                                   const apkg_attestation *previous,
+                                   apkg_attestation **out, apkg_error **error) {
     if (error)
         *error = NULL;
     if (!out)
         return APKG_INVALID;
     *out = NULL;
-    if (!snapshot)
-        return APKG_INVALID;
-    if (snapshot->view.state != APKG_ROOT_READY)
+    if (snapshot && snapshot->view.state != APKG_ROOT_READY)
         return snapshot->view.state == APKG_ROOT_PENDING
                    ? APKG_RECOVERY_REQUIRED
                    : APKG_POLICY;
@@ -231,6 +229,8 @@ apkg_status apkg_attestation_read(const apkg_snapshot *snapshot,
         }
         a->view.prefix_complete = v->prefix_complete;
     }
+    if (!snapshot)
+        goto metadata; /* Internal schema checks expose no policy facts. */
     parsed = ak_json_parse(snapshot->policy, strlen(snapshot->policy), &policy);
     if (parsed) {
         code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
@@ -254,9 +254,10 @@ apkg_status apkg_attestation_read(const apkg_snapshot *snapshot,
                           memcmp(author_key, issuer_key, 32) &&
                           !ak_policy(&policy, 0, a->authority, issuer);
     a->view.target_matches = !strcmp(a->target, snapshot->target);
-    a->view.signature = a->view.descriptor_signature = APKG_SIGNATURE_VALID;
     a->view.snapshot_digest = snapshot->view.snapshot_digest;
     a->view.generation = snapshot->view.generation.value;
+metadata:
+    a->view.signature = a->view.descriptor_signature = APKG_SIGNATURE_VALID;
     ak_string(&a->json, ak_member(&a->json, b, "summary"), a->summary,
               sizeof a->summary);
     ak_string(&a->json, ak_member(&a->json, b, "evidence"), a->evidence,
@@ -285,6 +286,45 @@ done:
     apkg_attestation_free(a);
     return code ? ak_fail(error, code, "signed attestation refused", "")
                 : APKG_OK;
+}
+apkg_status apkg_attestation_read(const apkg_snapshot *snapshot,
+                                  apkg_bytes descriptor,
+                                  apkg_bytes descriptor_signature,
+                                  apkg_bytes record, apkg_bytes signature,
+                                  const apkg_attestation *previous,
+                                  apkg_attestation **out, apkg_error **error) {
+    if (!snapshot) {
+        if (out)
+            *out = NULL;
+        if (error)
+            *error = NULL;
+        return APKG_INVALID;
+    }
+    return ak_attestation_observe(snapshot, descriptor, descriptor_signature,
+                                  record, signature, previous, out, error);
+}
+int ak_attestation_scope_equal(const apkg_attestation *a,
+                               const apkg_attestation *b) {
+    if (a->view.kind != b->view.kind ||
+        memcmp(a->view.issuer.bytes, b->view.issuer.bytes, 16) ||
+        memcmp(a->view.descriptor_digest.bytes, b->view.descriptor_digest.bytes,
+               32))
+        return 0;
+    if (a->view.kind == APKG_ATTEST_RUNTIME) {
+        int ae =
+            ak_member(&a->json, ak_member(&a->json, 0, "body"), "environment");
+        int be =
+            ak_member(&b->json, ak_member(&b->json, 0, "body"), "environment");
+        const char *fields[] = {"hardware", "os_build", "test_suite"};
+        for (size_t i = 0; i < 3; i++) {
+            char value[256];
+            if (ak_string(&a->json, ak_member(&a->json, ae, fields[i]), value,
+                          sizeof value) ||
+                !ak_equal(&b->json, ak_member(&b->json, be, fields[i]), value))
+                return 0;
+        }
+    }
+    return 1;
 }
 apkg_status apkg_attestation_format(const apkg_attestation *a, char **out,
                                     apkg_error **error) {

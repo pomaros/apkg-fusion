@@ -187,7 +187,7 @@ apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
             "\"name\":\"%.*s\",\"plan_readiness\":\"not-checked\",\"review\":"
             "\"not-asserted\",\"revision\":\"%" PRIu64
             "\",\"runtime_tests\":\"not-asserted\",\"selection\":\"%s\","
-            "\"target\":\"%.*s\",\"target_matches\":%s,\"version\":\"%.*s\"}",
+            "\"target\":\"%.*s\",\"target_matches\":%s,\"version\":\"%.*s\"",
             comparison.installed
                 ? (int)comparison.installed->authority.value.size
                 : 0,
@@ -200,6 +200,9 @@ apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
             (int)row->target.size, row->target.data,
             row->target_matches ? "true" : "false", (int)row->version.size,
             row->version.data);
+        ak_buf_add(&b, ",\"attestations\":");
+        ak_channel_claims_json(channel, i, &b);
+        ak_buf_add(&b, "}");
         apkg_client_text_free(selection);
     }
     ak_buf_add(&b,

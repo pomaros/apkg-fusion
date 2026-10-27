@@ -233,6 +233,7 @@ typedef struct {
     apkg_trust_state author_trust;
     int target_matches;
     apkg_bytes descriptor, signature_envelope;
+    uint64_t attestation_count; /* signed observations, not current approval */
 } apkg_channel_entry_view;
 apkg_status apkg_channel_read(apkg_ctx *, const apkg_id *expected_id,
                               uint64_t minimum_sequence, apkg_bytes object,
@@ -264,6 +265,9 @@ const apkg_channel_view *apkg_channel_get(const apkg_channel *);
 apkg_status apkg_channel_entry_at(const apkg_channel *, uint64_t,
                                   const apkg_channel_entry_view **,
                                   apkg_error **);
+/* Wire-order immutable claims, borrowed from the channel owner. */
+apkg_status apkg_channel_attestation_at(const apkg_channel *, uint64_t entry,
+    uint64_t observation, const apkg_attestation_view **, apkg_error **);
 /* Recheck the bound root policy/target and decode a selected descriptor. This
  * is metadata only: archive transfer and blob availability are separate.
  * File/HTTP selections retain owned origins which bind subsequent plans. */

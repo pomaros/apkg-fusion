@@ -15,6 +15,7 @@ typedef struct {
     apkg_candidate_state comparison;
     uint64_t installed_revision;
     apkg_fact_state installed_revision_state;
+    uint64_t review_observations, runtime_observations, revocations;
 } pm_common_row;
 typedef struct {
     size_t count;
@@ -35,6 +36,7 @@ typedef enum {
     PM_CATALOGUE_UNTRUSTED,
     PM_CATALOGUE_CONTENT_CONFLICT,
     PM_CATALOGUE_INDETERMINATE,
+    PM_CATALOGUE_REVIEW_OBSERVATIONS, PM_CATALOGUE_RUNTIME_OBSERVATIONS, PM_CATALOGUE_REVOCATIONS,
     PM_CATALOGUE_FILTER_COUNT
 } pm_catalogue_filter;
 /* Pure offline rebuild; input remains owned by the UI and unchanged on failure.

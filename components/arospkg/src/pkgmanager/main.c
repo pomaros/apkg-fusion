@@ -52,7 +52,7 @@ static Object *str_source_profile, *btn_source_save, *btn_source_load, *btn_atte
 static char source_profile[4096] = "ENVARC:apkg-fusion.source";
 static char channel_counts_text[320];
 static const char *channel_filters[] = {"All candidates", "Updates / blocked candidates",
-    "Not installed", "Other targets", "Untrusted authors", "Changed same release", "Indeterminate versions", NULL};
+    "Not installed", "Other targets", "Untrusted authors", "Changed same release", "Indeterminate versions", "Review observations", "Runtime observations", "Revocation observations", NULL};
 static pm_common_catalogue *common_catalogue;
 static pm_common_installed *common_installed;
 static char *common_info_text;

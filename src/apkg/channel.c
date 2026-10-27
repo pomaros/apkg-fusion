@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 John Knipper */
+#include "apkg_client.h"
 #include "internal.h"
 #include "pkg_fs.h"
 #include <errno.h>
@@ -12,6 +13,7 @@ struct apkg_channel {
     ak_json json;
     apkg_bytes signature;
     apkg_channel_entry_view *rows;
+    apkg_attestation ***claims;
     char *policy, *target, *endpoint;
     char root[AK_PATH], anchor[AK_PATH];
     struct stat binding;
@@ -63,10 +65,10 @@ apkg_status ak_channel_validate(const ak_json *j) {
         int archive = ak_member(j, (int)i, "archive"),
             descriptor = ak_member(j, (int)i, "descriptor"),
             signature = ak_member(j, (int)i, "signature");
-        if (!ak_fields(
+        if (!ak_fields_optional(
                 j, (int)i,
-                (const char *const[]){"archive", "descriptor", "signature"},
-                3) ||
+                (const char *const[]){"archive", "descriptor", "signature"}, 3,
+                (const char *const[]){"attestations"}, 1) ||
             !ak_fields(j, archive, (const char *const[]){"sha256", "size"},
                        2)) {
             code = APKG_UNSUPPORTED;
@@ -100,6 +102,12 @@ apkg_status ak_channel_validate(const ak_json *j) {
             goto done;
         }
         code = ak_signature_check(d, s, "descriptor", key, &hash);
+        if (code) {
+            ak_json_free(&package);
+            goto done;
+        }
+        code = ak_channel_attestations(
+            NULL, d, s, j, ak_member(j, (int)i, "attestations"), NULL, NULL);
         if (code) {
             ak_json_free(&package);
             goto done;
@@ -248,6 +256,13 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         code = APKG_NOMEM;
         goto done;
     }
+    channel->claims =
+        calloc(channel->view.entry_count ? channel->view.entry_count : 1,
+               sizeof *channel->claims);
+    if (!channel->claims) {
+        code = APKG_NOMEM;
+        goto done;
+    }
     for (size_t i = (size_t)entries + 1; i < channel->json.tokens[entries].next;
          i = channel->json.tokens[i].next) {
         const ak_json *j = &channel->json;
@@ -277,6 +292,14 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         row->signature = APKG_SIGNATURE_VALID;
         row->target_matches =
             ak_equal(j, ak_member(j, b, "target"), snapshot->target);
+        size_t count = 0;
+        code = ak_channel_attestations(snapshot, row->descriptor,
+                                       row->signature_envelope, j,
+                                       ak_member(j, (int)i, "attestations"),
+                                       &channel->claims[k - 1], &count);
+        if (code)
+            goto done;
+        row->attestation_count = count;
     }
     channel->policy = ak_copy(snapshot->policy, strlen(snapshot->policy));
     channel->target = ak_copy(snapshot->target, strlen(snapshot->target));
@@ -333,6 +356,37 @@ apkg_status apkg_channel_entry_at(const apkg_channel *c, uint64_t index,
         return APKG_NOT_FOUND;
     *out = &c->rows[index];
     return APKG_OK;
+}
+apkg_status apkg_channel_attestation_at(const apkg_channel *channel,
+                                        uint64_t entry, uint64_t observation,
+                                        const apkg_attestation_view **out,
+                                        apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!channel)
+        return APKG_INVALID;
+    if (entry >= channel->view.entry_count ||
+        observation >= channel->rows[entry].attestation_count)
+        return APKG_NOT_FOUND;
+    *out = apkg_attestation_get(channel->claims[entry][observation]);
+    return APKG_OK;
+}
+apkg_status ak_channel_claim_format(const apkg_channel *channel, uint64_t entry,
+                                    uint64_t observation, char **out,
+                                    apkg_error **error) {
+    const apkg_attestation_view *v = NULL;
+    apkg_status code =
+        apkg_channel_attestation_at(channel, entry, observation, &v, error);
+    if (code) {
+        if (out)
+            *out = NULL;
+        return code;
+    }
+    return apkg_attestation_format(channel->claims[entry][observation], out,
+                                   error);
 }
 apkg_status ak_channel_snapshot_check(const apkg_snapshot *s,
                                       const apkg_channel *c) {
@@ -981,6 +1035,14 @@ apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
 void apkg_channel_free(apkg_channel *c) {
     if (!c)
         return;
+    if (c->claims) {
+        for (uint64_t i = 0; i < c->view.entry_count; i++) {
+            for (uint64_t k = 0; k < c->rows[i].attestation_count; k++)
+                apkg_attestation_free(c->claims[i][k]);
+            free(c->claims[i]);
+        }
+        free(c->claims);
+    }
     free((void *)c->signature.data);
     free(c->endpoint);
     free(c->rows);
@@ -1072,13 +1134,16 @@ apkg_status ak_channel_format(const apkg_channel *channel, char **out) {
             "sha256\":\"%s\",\"name\":\"%.*s\",\"review\":\"not-asserted\","
             "\"revision\":\"%" PRIu64
             "\",\"runtime_tests\":\"not-asserted\",\"target\":\"%.*s\","
-            "\"target_matches\":%s,\"version\":\"%.*s\"}",
+            "\"target_matches\":%s,\"version\":\"%.*s\"",
             i ? "," : "", archive, r->archive_bytes,
             r->author_trust == APKG_TRUST_ACCEPTED ? "accepted" : "rejected",
             (int)r->authority.size, r->authority.data, sha, (int)r->name.size,
             r->name.data, r->revision, (int)r->target.size, r->target.data,
             r->target_matches ? "true" : "false", (int)r->version.size,
             r->version.data);
+        ak_buf_add(&b, ",\"attestations\":");
+        ak_channel_claims_json(channel, i, &b);
+        ak_buf_add(&b, "}");
     }
     ak_buf_add(&b,
                "],\"freshness\":\"unknown\",\"payload_availability\":\"not-"

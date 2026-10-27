@@ -94,9 +94,57 @@ native allocation failure leave root state unchanged. Native button/dialog
 wiring has header/type evidence until runtime qualification; actual worker/helper
 inspection and exact CLI answer equivalence run in the host suites.
 
-Channel transport/publication of these records, qualified row/details/filter
-projection, cached history/revocation-head handling and portal adaptation remain
-required integration work. Installation policy requiring current review/testing
-is unsupported; these observations cannot silently authorize such a policy.
-No joint-release approval or target/runtime qualification follows from this
-module's host tests.
+## Channel carriage and catalogue presentation
+
+Channel entries optionally contain `attestations`, a set of at most 64 objects
+with exactly `record` and `signature`. Records use the profile above and the
+existing signature envelope. Set order is strictly increasing record SHA-256;
+duplicates, competing records with the same issuer/kind/content/environment
+scope and sequence, contradictory predecessors, malformed signatures and
+cross-content links refuse. Empty/absent sets mean no supplied observations.
+Older readers refuse the new field rather than silently discarding evidence.
+This is a bounded discovery set, not an implicit limit on separately retained
+history; over-limit publications refuse without removing older records.
+
+The unsigned proposal checker `channel-validate JSONFILE` verifies this embedded
+cryptography/binding/history without granting root-policy roles. Actual discovery
+re-evaluates each record using the captured root's current author/reviewer/tester
+roles and target. The entry getter exposes a count and borrowed wire-order claim
+views. JSON discovery/updates expose complete signed records, signature envelopes,
+trust/independence/target/history/freshness facts and their captured root digest
+and generation. Neither these observations nor their order assert current review
+approval, current runtime qualification or publication chronology.
+
+```
+apkg-channel PACKAGE.pkg --directory CHANNEL --id CHANNEL-ID --sign CHANNEL-KEY \
+  --attestation CLAIM-FOLDER [--attestation ANOTHER-CLAIM-FOLDER]
+```
+
+Each folder supplies `attestation.json` and `attestation.signature.json`.
+Preflight binds them to the archive's exact descriptor, not a substitute supplied
+by the folder. The proposed set is checked before creating a new public endpoint.
+Republishing the same artifact appends/deduplicates exact observations while
+preserving existing history, then publishes a new immutable channel snapshot.
+Repeating an addition or publishing without reports does not erase evidence or
+advance an unchanged snapshot. A same-record digest with a different signature
+refuses; key replacement requires an explicit new history record, never silent
+replacement of provenance. Conflicts/refusals preserve the previous current head.
+Publication still needs no independent reviewer grant. Self-reports retain their
+author provenance and cannot satisfy independence or reviewer/tester authority.
+New content or target identity inherits no observations by name/version matching.
+
+PkgManager deep-copies the shared formatted evidence into its bounded native
+row model before the worker exits. Review, runtime and revocation observation
+filters use explicit counts; they are not approval filters. Details retain every
+claim and its separate authorization/independence/result/environment facts.
+Offline row rebuilding and source-profile restoration revalidate the retained
+signed channel, including its observation sets, without additional requests.
+The common channel replay floor applies to the entire signed snapshot.
+
+Persisting independent qualification/revocation heads across sources, observing
+newer revocations/current freshness, enforcing a policy requiring fresh review,
+and portal adaptation remain required work. A later channel can omit evidence;
+its signature alone cannot prove no revocation exists. No current-approval policy
+is silently accepted by these observation APIs. Native row/filter behavior still
+requires runtime qualification, and no joint-release or target/runtime claim
+follows from host tests.

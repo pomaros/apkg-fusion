@@ -54,7 +54,11 @@ apkg_status ak_channel_snapshot_check(const apkg_snapshot *, const apkg_channel 
 apkg_status ak_channel_snapshot_capture(const apkg_snapshot *, apkg_channel *);
 apkg_status ak_channel_inspect(const char *, const char *, const char *,
                                uint64_t, int, char **, apkg_error **);
+#if defined(__GNUC__) || defined(__clang__)
+int ak_buf_add(ak_buf *, const char *, ...) __attribute__((format(printf, 2, 3)));
+#else
 int ak_buf_add(ak_buf *, const char *, ...);
+#endif
 apkg_status ak_tree_normalize(const char *, char **);
 apkg_status ak_blob_retain(apkg_ctx *, const char *, uint64_t, const char *);
 int ak_fault(int);
@@ -156,6 +160,13 @@ struct apkg_error {
 void ak_hash(const void *, size_t, apkg_digest *);
 apkg_status ak_snapshot(apkg_ctx *, apkg_snapshot **, apkg_error **);
 int ak_policy(const ak_json *, int, const char *, const char *);
+apkg_status ak_attestation_observe(const apkg_snapshot *, apkg_bytes, apkg_bytes,
+    apkg_bytes, apkg_bytes, const apkg_attestation *, apkg_attestation **, apkg_error **);
+int ak_attestation_scope_equal(const apkg_attestation *, const apkg_attestation *);
+apkg_status ak_channel_attestations(const apkg_snapshot *, apkg_bytes, apkg_bytes,
+    const ak_json *, int, apkg_attestation ***, size_t *);
+apkg_status ak_channel_claim_format(const apkg_channel *,uint64_t,uint64_t,char **,apkg_error **);
+int ak_channel_claims_json(const apkg_channel *, uint64_t, ak_buf *);
 apkg_status ak_attestation_validate(const ak_json *);
 int ak_attestation_policy(const ak_json *, const char *, const char *, const char *);
 int ak_policy_valid(const ak_json *);

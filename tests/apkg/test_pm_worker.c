@@ -91,6 +91,46 @@ int main(int argc, char **argv) {
     pkg_status result;
     assert(argc >= 4 && argc <= 7);
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 30 || atoi(argv[3]) == 31) {
+        assert(strlen(argv[1]) < sizeof j.root &&
+               strlen(argv[2]) < sizeof j.common_package);
+        strcpy(j.root, argv[1]);
+        strcpy(j.common_package, argv[2]);
+        j.kind =
+            atoi(argv[3]) == 30 ? JOB_COMMON_DISCOVER : JOB_COMMON_SOURCE_LOAD;
+        if (j.kind == JOB_COMMON_DISCOVER) {
+            assert(argc == 6);
+            assert(strlen(argv[5]) < sizeof j.common_pool);
+            strcpy(j.common_pool, argv[5]);
+        }
+        j.done = &final;
+        running = &j;
+        pm_common_install(&j, &error);
+        printf("status %d\n", final.common_status);
+        if (!final.common_status) {
+            for (size_t i = 0; i < final.common_catalogue->count; i++) {
+                const pm_common_row *r = &final.common_catalogue->rows[i];
+                owned_text(final.common_catalogue,
+                           (apkg_text){r->detail, strlen(r->detail)});
+                printf("row %s %llu %llu %llu\n%s\n", r->name,
+                       (unsigned long long)r->review_observations,
+                       (unsigned long long)r->runtime_observations,
+                       (unsigned long long)r->revocations, r->detail);
+                assert(pm_common_row_matches(
+                           r, PM_CATALOGUE_REVIEW_OBSERVATIONS, NULL) ==
+                       (r->review_observations != 0));
+                assert(pm_common_row_matches(
+                           r, PM_CATALOGUE_RUNTIME_OBSERVATIONS, NULL) ==
+                       (r->runtime_observations != 0));
+                assert(pm_common_row_matches(r, PM_CATALOGUE_REVOCATIONS,
+                                             NULL) == (r->revocations != 0));
+            }
+        } else
+            assert(!final.common_catalogue);
+        FreeVec(final.common_catalogue);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 29) {
         const char *names[] = {
             "descriptor.json",  "signature.json",
@@ -494,8 +534,8 @@ int main(int argc, char **argv) {
             for (size_t i = 0; i < final.common_catalogue->count; i++) {
                 pm_common_row *row = &final.common_catalogue->rows[i];
                 assert(strlen(row->selection) == 162);
-                assert(strstr(row->detail, "Review: not asserted"));
-                assert(strstr(row->detail, "Runtime testing: not asserted"));
+                assert(strstr(row->detail, "Current review approval: not asserted"));
+                assert(strstr(row->detail, "Current runtime approval: not asserted"));
                 assert(strstr(row->detail, row->name));
                 owned_text(final.common_catalogue,
                            (apkg_text){row->installed_version,

@@ -400,3 +400,7 @@ identities. Installed LIST/SHOW and RUN/REMOVE have common ARexx source wiring;
 legacy queries without an adapter refuse explicitly. Native interaction,
 settings/news/filter/update views and the remaining ARexx/compatibility cases
 still require integration/qualification.
+
+The [attestation profile](attestations.md#channel-carriage-and-catalogue-presentation)
+adds optional per-entry signed observation sets. They preserve review/runtime
+claims independently of open publication, author trust and current approval.

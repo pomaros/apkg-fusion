@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
             "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
             "[MIN-SEQUENCE]\nsource-save PROFILE ENDPOINT CHANNEL-ID\n"
             "source-cache ROOT PROFILE ENDPOINT CHANNEL-ID\nsource-show PROFILE\n"
-            "attestation-check ROOT FOLDER\nsource-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
+            "channel-validate JSONFILE\nattestation-check ROOT FOLDER\nsource-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel|attestation "
             "JSONFILE\nverify-object descriptor|channel|attestation JSONFILE SIGNATURE\n"
@@ -226,6 +226,13 @@ int main(int argc, char **argv) {
         apkg_error_free(e);
         apkg_close(c);
         return (int)code;
+    }
+    if (!strcmp(argv[1], "channel-validate")) {
+        if (argc!=3) return APKG_INVALID;
+        unsigned char *bytes=NULL; size_t size=0; ak_json object={0};
+        if (ak_read(argv[2],&bytes,&size,AK_MAX/8)) code=errno==ENOMEM ? APKG_NOMEM : errno==EFBIG ? APKG_LIMIT : APKG_IO;
+        else { int parsed=ak_json_parse(bytes,size,&object); code=parsed ? (parsed==-2 ? APKG_NOMEM : APKG_INVALID) : ak_channel_validate(&object); }
+        ak_json_free(&object); free(bytes); report(code,NULL,NULL); return code;
     }
     if (!strcmp(argv[1], "attestation-check")) {
         if (argc != 4) return APKG_INVALID;
