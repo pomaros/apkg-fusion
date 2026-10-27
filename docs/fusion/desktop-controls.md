@@ -73,3 +73,9 @@ own nonempty plan and exact digest before Proceed can be used. On Zune, changing
 Floattext while its window is closed can clear its layout without rebuilding
 it when the unchanged-size window reopens; host worker tests do not exercise
 this rendering lifecycle.
+
+After VERIFY completes, JOB and WAIT (including FIELD message) must retain the
+verification counts/report independently of the worker message and the window's
+report buffer. Exercise a subsequent job or model refresh before reading the
+completed job again; successful verification must not return an empty error
+summary in place of its report.

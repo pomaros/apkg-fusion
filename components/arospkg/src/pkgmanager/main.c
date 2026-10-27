@@ -2160,7 +2160,8 @@ static int on_message(pm_msg *m)
     if (m->kind == PM_DONE && cur.kind == JOB_VERIFY) {
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL; in_flight = 0;
         if (active) finish(active, rx_common_result(m->common_status, m->common_outcome, 0),
-                           m->common_status == APKG_OK ? "" : "VERIFY", m->err.summary);
+                           m->common_status == APKG_OK ? "" : "VERIFY",
+                           m->common_status == APKG_OK ? m->common_record : m->err.summary);
         busy(0);
         if (!quit_pending && !cur.cancel && m->common_status == APKG_OK) {
             SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
