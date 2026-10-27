@@ -461,9 +461,11 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
     if (ak_json_parse(raw, len, &j))
         goto invalid;
     if (!ak_object(&j, "root") ||
-        !ak_fields_optional(
-            &j, ak_member(&j, 0, "body"), fields, 5,
-            (const char *const[]){"channel_heads", "package_generation"}, 2))
+        !ak_fields_optional(&j, ak_member(&j, 0, "body"), fields, 5,
+                            (const char *const[]){"channel_heads",
+                                                  "package_generation",
+                                                  "qualification_records"},
+                            3))
         goto unsupported;
     b = ak_member(&j, 0, "body");
     {
@@ -513,6 +515,15 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
         if (!s->channel_heads)
             goto nomem;
     }
+    {
+        int records = ak_member(&j, b, "qualification_records");
+        if (!ak_qualification_records_valid(&j, records))
+            goto invalid;
+        s->qualification_records =
+            records < 0 ? ak_copy("[]", 2) : ak_slice(&j, records);
+        if (!s->qualification_records)
+            goto nomem;
+    }
     arr = ak_member(&j, b, "installed");
     if (arr < 0 || j.tokens[arr].type != '[')
         goto invalid;
@@ -556,7 +567,8 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
             }
             body = ak_member(&j, desc, "body");
             ak_hash(j.text + j.tokens[desc].start,
-                j.tokens[desc].end - j.tokens[desc].start, &r->descriptor_digest);
+                    j.tokens[desc].end - j.tokens[desc].start,
+                    &r->descriptor_digest);
             s->records[row] = ak_copy(j.text + j.tokens[i].start,
                                       j.tokens[i].end - j.tokens[i].start);
             if (!s->records[row])
@@ -723,5 +735,6 @@ void apkg_snapshot_free(apkg_snapshot *s) {
     free(s->target);
     free(s->diagnostic);
     free(s->channel_heads);
+    free(s->qualification_records);
     free(s);
 }

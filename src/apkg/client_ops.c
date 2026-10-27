@@ -55,6 +55,9 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     if (!out)
         return APKG_INVALID;
     *out = NULL;
+    if (action == APKG_CLIENT_CHANNEL_ACCEPT)
+        return apkg_client_channel_accept(root, arg, pool, confirm, user,
+                                          observer, out, e);
     if (action == APKG_CLIENT_CHANNEL)
         return apkg_client_channel_apply(root, arg, pool, 0, confirm, user,
                                          observer, out, e);
@@ -258,6 +261,35 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
                        id, signer, sha, sequence);
         }
         ak_json_free(&origins);
+    }
+    int qualifications = ak_member(&state, ak_member(&state, 0, "body"),
+                                   "qualification_records");
+    if (qualifications >= 0 && !ak_empty(&state, qualifications)) {
+        ak_buf_add(&b, "\nRetain accepted signed observations; current "
+                       "approval/freshness are not asserted:\n");
+        for (size_t q = (size_t)qualifications + 1;
+             q < state.tokens[qualifications].next; q = state.tokens[q].next) {
+            int record = ak_member(&state, (int)q, "record"),
+                body = ak_member(&state, record, "body");
+            char issuer[33], kind[16], result[16], descriptor[65], target[32];
+            uint64_t sequence;
+            ak_string(&state, ak_member(&state, body, "issuer"), issuer,
+                      sizeof issuer);
+            ak_string(&state, ak_member(&state, body, "kind"), kind,
+                      sizeof kind);
+            ak_string(&state, ak_member(&state, body, "result"), result,
+                      sizeof result);
+            ak_string(&state, ak_member(&state, body, "descriptor_sha256"),
+                      descriptor, sizeof descriptor);
+            ak_string(&state, ak_member(&state, body, "target"), target,
+                      sizeof target);
+            ak_u64(&state, ak_member(&state, body, "sequence"), &sequence);
+            ak_buf_add(&b,
+                       "Issuer: %s; kind: %s; result: %s; sequence: %llu; "
+                       "target: %s; descriptor: %s\n",
+                       issuer, kind, result, (unsigned long long)sequence,
+                       target, descriptor);
+        }
     }
     if (p->view.kind == APKG_PLAN_CHANNEL_ACCEPT) {
         arr = ak_member(&state, ak_member(&state, 0, "body"), "channel_heads");

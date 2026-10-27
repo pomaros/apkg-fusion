@@ -134,3 +134,7 @@ legacy-format cases before any installation claim.
 Independent review/runtime claim bodies and reviewer/tester role grants are
 defined by the [attestation profile](attestations.md). Their signatures use
 domain tag 3; a signed result is separate from current approval or freshness.
+
+The optional root `qualification_records` array retains exact signed observations
+through the common journal. Its strict record ordering, bounds and compatibility
+rules are defined in [accepted qualification memory](qualification-memory.md).

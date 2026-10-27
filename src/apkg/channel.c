@@ -293,6 +293,11 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         row->target_matches =
             ak_equal(j, ak_member(j, b, "target"), snapshot->target);
         size_t count = 0;
+        int supplied = ak_member(j, (int)i, "attestations");
+        if (supplied >= 0)
+            for (size_t t = (size_t)supplied + 1; t < j->tokens[supplied].next;
+                 t = j->tokens[t].next)
+                row->source_attestation_count++;
         code = ak_channel_attestations(snapshot, row->descriptor,
                                        row->signature_envelope, j,
                                        ak_member(j, (int)i, "attestations"),
@@ -1003,14 +1008,17 @@ apkg_status apkg_plan_channel_accept(apkg_ctx *ctx, const apkg_snapshot *s,
         strcmp(s->target, channel->target))
         return APKG_STALE;
     apkg_status code = source_current(channel, NULL);
-    char *heads = NULL;
+    char *heads = NULL, *qualifications = NULL;
     if (!code)
         code =
             ak_channel_heads_add(s, &channel->view.id, channel->view.sequence,
                                  &channel->view.snapshot_digest, &heads);
     if (!code)
-        code = ak_plan_heads(ctx, s, heads, out, error);
+        code = ak_qualification_records_add(s, channel, &qualifications);
+    if (!code)
+        code = ak_plan_heads(ctx, s, heads, qualifications, out, error);
     free(heads);
+    free(qualifications);
     if (!code) {
         apkg_package source = {0};
         code = package_origin(channel, &source);
@@ -1141,7 +1149,9 @@ apkg_status ak_channel_format(const apkg_channel *channel, char **out) {
             r->name.data, r->revision, (int)r->target.size, r->target.data,
             r->target_matches ? "true" : "false", (int)r->version.size,
             r->version.data);
-        ak_buf_add(&b, ",\"attestations\":");
+        ak_buf_add(&b,
+                   ",\"source_attestation_count\":\"%llu\",\"attestations\":",
+                   (unsigned long long)r->source_attestation_count);
         ak_channel_claims_json(channel, i, &b);
         ak_buf_add(&b, "}");
     }

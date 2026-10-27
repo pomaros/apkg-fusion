@@ -15,8 +15,8 @@ implemented below; remaining service/operation integration is listed separately.
 |---|---|---|
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
-| Channels/trust | File/HTTP discovery, exact selection, root trust roles and replay floors work | Independent qualifications, online revocation/freshness and multi-channel configuration |
-| Clients/default product | Shared CLI/worker, native catalogue and full typed installed rows are wired; default CLI/library/tools use the common engine | Settings/news/filter and remaining ARexx integration; native/consumer/compatibility qualification |
+| Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal | Remote revocation/freshness policy, rotation/reset and multi-channel configuration |
+| Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
 | Legacy migration | Read-only legacy observation/baselines exist | Validated import, original-preserving commit/recovery and compatibility rehearsals |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
@@ -1288,6 +1288,60 @@ unqualified; exact-source Linux/macOS CI still must qualify this checkpoint.
 The preceding portable-claim checkpoint
 `85f369b6914394816ccdf8675e85bcf6f7dc9f98` has passed its complete
 [CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40443095605),
+including both inherited suites on Linux/macOS and all 107 portal tests.
+
+## Journaled accepted observation memory across sources
+
+The common root now retains [accepted qualification records](qualification-memory.md)
+in the same state/journal as packages and channel floors. Explicit approved
+channel acceptance and selected channel installation add exact signed records
+only for currently authorized independent reviewers/testers. Reads never commit
+observations. All earlier pairs are retained, with duplicate/fork/signature and
+history consistency checks and strict metadata/count bounds; old roots normalize
+missing memory to empty. No second mutation engine or recovery model is added.
+
+Discovery re-associates retained evidence by exact descriptor digest, verifies
+its signatures and current role/independence facts, and appends omitted evidence
+after supplied observations. Origins, accepted sequence/digest and
+older-than-accepted facts remain explicit. A source omitting a revocation, an old
+positive cache or an unauthorized higher sequence cannot erase this local memory.
+Role withdrawal changes current trust facts without rewriting accepted history.
+No observed sequence or passed claim implies online freshness/current approval.
+
+The common CLI and actual worker share explicit channel-acceptance behavior and
+preview retained identities/results before confirmation. Metadata acceptance
+compares/preserves exact installed records and skips payload/relation changes,
+including for withdrawn publisher grants and personal file edits. PkgManager exposes that
+shared action alongside its signed package actions. Selected installation records
+packages, source floor and qualified evidence in one plan. Package operations
+preserve records; package rollback across later channel acceptance keeps current
+memory. Recovery remains repeatable and offline on both sides of the decision.
+
+Seven new host cases cover cross-source omission/HTTP/offline cached projection,
+decline and CLI/worker acceptance equality, unauthorized counters/withdrawal,
+content/fork/signature/corruption refusal, direct/selected installs and repair/
+removal, rollback across later acceptance, process death/interrupted recovery and
+allocation-failure cleanup. Remote freshness/expiry and newly published revocation
+discovery, current-approval policy, reset/rotation, portal adaptation and native
+runtime/power-loss qualification remain open. The installed M1 updater is untouched.
+The allocation campaign also corrected pre-existing planner/history error mapping
+and prevents a failed unchanged-entry comparison from producing payload work.
+
+Batch evaluation: the final `make test-fusion` passed 246 common methods,
+the fusion ARexx corpus, 78 default-product checks, 110 provisional CLI checks,
+78 publishing checks and the existing contract/target/application/initialization
+gates. The final sanitizer suite passed 166 selected methods plus the instrumented
+fusion ARexx corpus; host C CLI/worker/model/history harnesses are instrumented,
+while direct ctypes allocation faults and forked journal faults use the ordinary
+test library. Public library symbol checks passed. Final native sources passed SDK
+header/type checks with the existing aarch64 AROS headers and previously recorded
+`vfork` warnings. All 72 documentation files pass link checks. Native menu/runtime,
+handler durability and power-loss behavior remain unqualified; exact-source
+Linux/macOS CI still must qualify this checkpoint and both inherited suites.
+
+The preceding channel-carriage checkpoint
+`2ed08ce81ae2f516dc67ba33432bbc84f03bf560` has passed its complete
+[CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40445111372),
 including both inherited suites on Linux/macOS and all 107 portal tests.
 
 ## Implemented integration pieces

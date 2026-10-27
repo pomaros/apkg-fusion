@@ -192,6 +192,10 @@ typedef struct {
     apkg_trust_state issuer_trust, author_trust;
     int independent, target_matches, has_previous, prefix_complete;
     apkg_fact_state freshness;
+    apkg_digest scope_digest, accepted_digest;
+    uint64_t accepted_sequence;
+    int observation_origin; /* 0 standalone, 1 source, 2 retained, 3 both */
+    int older_than_accepted;
 } apkg_attestation_view;
 apkg_status apkg_attestation_read(const apkg_snapshot *, apkg_bytes descriptor,
     apkg_bytes descriptor_signature, apkg_bytes record, apkg_bytes signature,
@@ -233,7 +237,8 @@ typedef struct {
     apkg_trust_state author_trust;
     int target_matches;
     apkg_bytes descriptor, signature_envelope;
-    uint64_t attestation_count; /* signed observations, not current approval */
+    uint64_t attestation_count; /* supplied plus retained observations */
+    uint64_t source_attestation_count;
 } apkg_channel_entry_view;
 apkg_status apkg_channel_read(apkg_ctx *, const apkg_id *expected_id,
                               uint64_t minimum_sequence, apkg_bytes object,
@@ -265,7 +270,8 @@ const apkg_channel_view *apkg_channel_get(const apkg_channel *);
 apkg_status apkg_channel_entry_at(const apkg_channel *, uint64_t,
                                   const apkg_channel_entry_view **,
                                   apkg_error **);
-/* Wire-order immutable claims, borrowed from the channel owner. */
+/* Supplied claims in wire order, then retained observations in digest order.
+ * Views are immutable and borrow the channel owner. */
 apkg_status apkg_channel_attestation_at(const apkg_channel *, uint64_t entry,
     uint64_t observation, const apkg_attestation_view **, apkg_error **);
 /* Recheck the bound root policy/target and decode a selected descriptor. This
@@ -416,8 +422,9 @@ apkg_status apkg_plan_resolve(apkg_ctx *, const apkg_snapshot *,
                               apkg_package *const *candidates,
                               size_t candidate_count, int include_recommends,
                               apkg_plan **, apkg_error **);
-/* Explicit journaled metadata change. Preserves installed packages and grants
- * no keys/review. Rechecks a bound endpoint; same-sequence forks refuse. */
+/* Explicit journaled metadata change: retain channel floor and independently
+ * authorized signed observations. Preserves packages and grants no keys or
+ * current approval. Rechecks a bound endpoint; same-sequence forks refuse. */
 apkg_status apkg_plan_channel_accept(apkg_ctx *, const apkg_snapshot *,
                                       const apkg_channel *, apkg_plan **,
                                       apkg_error **);

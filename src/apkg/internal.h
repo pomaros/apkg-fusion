@@ -145,7 +145,7 @@ struct apkg_ctx {
 };
 struct apkg_snapshot {
     apkg_root_view view;
-    char *raw, *policy, *target, *diagnostic, *channel_heads;
+    char *raw, *policy, *target, *diagnostic, *channel_heads, *qualification_records;
     apkg_installed_view *rows;
     size_t nrows;
     uint64_t package_generation;
@@ -160,6 +160,11 @@ struct apkg_error {
 void ak_hash(const void *, size_t, apkg_digest *);
 apkg_status ak_snapshot(apkg_ctx *, apkg_snapshot **, apkg_error **);
 int ak_policy(const ak_json *, int, const char *, const char *);
+apkg_status ak_attestation_scope(const ak_json *, apkg_digest *);
+void ak_attestation_memory(apkg_attestation *, int, uint64_t, const apkg_digest *);
+int ak_qualification_records_valid(const ak_json *, int);
+apkg_status ak_qualification_records_add(const apkg_snapshot *,const apkg_channel *,char **);
+apkg_status ak_qualification_augment(const apkg_snapshot *,apkg_bytes,apkg_bytes,apkg_attestation ***,size_t *);
 apkg_status ak_attestation_observe(const apkg_snapshot *, apkg_bytes, apkg_bytes,
     apkg_bytes, apkg_bytes, const apkg_attestation *, apkg_attestation **, apkg_error **);
 int ak_attestation_scope_equal(const apkg_attestation *, const apkg_attestation *);
@@ -208,7 +213,7 @@ struct apkg_event_copy {
 };
 apkg_status ak_plan_records_heads(apkg_ctx *, const apkg_snapshot *,
                                   const char *, apkg_plan_kind, const char *,
-                                  const char *, apkg_plan **, apkg_error **);
+                                  const char *, const char *, apkg_plan **, apkg_error **);
 apkg_status ak_plan_records(apkg_ctx *, const apkg_snapshot *, const char *,
                             apkg_plan_kind, const char *, apkg_plan **,
                             apkg_error **);
@@ -228,7 +233,7 @@ int ak_channel_heads_valid(const ak_json *, int);
 apkg_status ak_channel_head_check(const apkg_snapshot *, const apkg_id *,
                                   uint64_t, const apkg_digest *,
                                   apkg_u64_fact *);
-apkg_status ak_plan_heads(apkg_ctx *, const apkg_snapshot *, const char *,
+apkg_status ak_plan_heads(apkg_ctx *, const apkg_snapshot *, const char *, const char *,
                           apkg_plan **, apkg_error **);
 int ak_cancelled(const apkg_observer *);
 int ak_descriptor(const ak_json *);

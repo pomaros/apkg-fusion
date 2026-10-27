@@ -141,10 +141,10 @@ Offline row rebuilding and source-profile restoration revalidate the retained
 signed channel, including its observation sets, without additional requests.
 The common channel replay floor applies to the entire signed snapshot.
 
-Persisting independent qualification/revocation heads across sources, observing
-newer revocations/current freshness, enforcing a policy requiring fresh review,
-and portal adaptation remain required work. A later channel can omit evidence;
-its signature alone cannot prove no revocation exists. No current-approval policy
-is silently accepted by these observation APIs. Native row/filter behavior still
-requires runtime qualification, and no joint-release or target/runtime claim
-follows from host tests.
+[Accepted qualification memory](qualification-memory.md) now retains independently
+authorized observations through the common journal and projects omitted evidence
+across sources. Views distinguish source/retained origin and older-than-accepted
+records; supplied wire order is preserved before appended retained pairs.
+Remote revocation discovery, expiry/current-freshness policy and portal adaptation
+remain required. No current-approval requirement is silently accepted by these
+observation APIs. Native row/filter behavior still needs runtime qualification.

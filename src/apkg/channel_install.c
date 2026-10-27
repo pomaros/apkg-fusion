@@ -60,7 +60,7 @@ apkg_status apkg_plan_channel_install(apkg_ctx *ctx, const apkg_snapshot *s,
     apkg_package *pool[AK_CANDIDATES + 1] = {0}, *installed[128] = {0};
     ak_resolution resolution = {0};
     unsigned char *seen = NULL;
-    char *heads = NULL;
+    char *heads = NULL, *qualifications = NULL;
     size_t count = 0, checks = 0;
     apkg_status code = APKG_INVALID;
     if (error)
@@ -195,9 +195,11 @@ apkg_status apkg_plan_channel_install(apkg_ctx *ctx, const apkg_snapshot *s,
             goto done;
     }
     if (!code)
+        code = ak_qualification_records_add(s, channel, &qualifications);
+    if (!code)
         code =
             ak_plan_records_heads(ctx, s, resolution.entries, APKG_PLAN_RESOLVE,
-                                  NULL, heads, out, error);
+                                  NULL, heads, qualifications, out, error);
     if (!code) {
         code = ak_plan_bind(ctx, *out,
                             (const apkg_package *const *)resolution.packages,
@@ -209,6 +211,7 @@ apkg_status apkg_plan_channel_install(apkg_ctx *ctx, const apkg_snapshot *s,
     }
 done:
     free(heads);
+    free(qualifications);
     free(seen);
     for (size_t i = 0; i < count; i++)
         apkg_package_free(pool[i]);

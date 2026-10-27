@@ -298,7 +298,8 @@ apkg_status ak_verified_entry(apkg_ctx *c, const char *entry,
 apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
                                   const char *entries, apkg_plan_kind kind,
                                   const char *focus, const char *heads,
-                                  apkg_plan **out, apkg_error **e) {
+                                  const char *qualifications, apkg_plan **out,
+                                  apkg_error **e) {
     apkg_snapshot *current = NULL;
     ak_json list = {0};
     ak_buf state = {0}, changes = {0}, raw = {0};
@@ -319,6 +320,8 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
     if (s->view.state != APKG_ROOT_READY)
         return s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
                                                   : APKG_POLICY;
+    if (!heads || !qualifications)
+        return APKG_INVALID;
     if (!c->binding.st_ino || strcmp(c->anchor, s->anchor) ||
         c->binding.st_dev != s->binding.st_dev ||
         c->binding.st_ino != s->binding.st_ino ||
@@ -345,48 +348,67 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
     }
     for (i = 1; i < list.tokens[0].next; i = list.tokens[i].next)
         n++;
-    packages = calloc(n ? n : 1, sizeof *packages);
-    if (!packages) {
-        code = APKG_NOMEM;
-        goto done;
-    }
-    k = 0;
-    for (i = 1; i < list.tokens[0].next; i = list.tokens[i].next) {
-        char *entry = ak_slice(&list, (int)i);
-        if (!entry) {
+    if (kind == APKG_PLAN_CHANNEL_ACCEPT) {
+        if (n != s->nrows) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        size_t index = 0;
+        for (size_t token = 1; token < list.tokens[0].next;
+             token = list.tokens[token].next, index++) {
+            size_t size = list.tokens[token].end - list.tokens[token].start;
+            if (strlen(s->records[index]) != size ||
+                memcmp(s->records[index], list.text + list.tokens[token].start,
+                       size)) {
+                code = APKG_INVALID;
+                goto done;
+            }
+        }
+    } else {
+        packages = calloc(n ? n : 1, sizeof *packages);
+        if (!packages) {
             code = APKG_NOMEM;
             goto done;
         }
-        code = ak_verified_entry(c, entry, &packages[k]);
-        free(entry);
-        if (code)
-            goto done;
-        for (size_t x = 0; x < k; x++)
-            if (!strcmp(packages[x]->name, packages[k]->name)) {
-                code = APKG_CONFLICT;
+        k = 0;
+        for (i = 1; i < list.tokens[0].next; i = list.tokens[i].next) {
+            char *entry = ak_slice(&list, (int)i);
+            if (!entry) {
+                code = APKG_NOMEM;
                 goto done;
             }
-        k++;
+            code = ak_verified_entry(c, entry, &packages[k]);
+            free(entry);
+            if (code)
+                goto done;
+            for (size_t x = 0; x < k; x++)
+                if (!strcmp(packages[x]->name, packages[k]->name)) {
+                    code = APKG_CONFLICT;
+                    goto done;
+                }
+            k++;
+        }
+        code = ak_relations_check(packages, n);
+        if (code)
+            goto done;
     }
-    code = ak_relations_check(packages, n);
-    if (code)
-        goto done;
     state.max = changes.max = raw.max =
         c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
     ak_tohex(s->view.root_id.bytes, 16, id);
     ak_buf_add(&state,
                "{\"body\":{\"channel_heads\":%s,\"generation\":\"%" PRIu64
                "\",\"installed\":%s,\"package_generation\":\"%" PRIu64
-               "\",\"policy\":%s,\"root_id\":\"%s\",\"target\":"
+               "\",\"policy\":%s,\"qualification_records\":%s,\"root_id\":\"%"
+               "s\",\"target\":"
                "\"%s\"},\"format\":\"apkg-json-1\",\"requires\":[],\"schema\":"
                "\"1\",\"type\":\"root\"}",
                heads, s->view.generation.value + 1, entries,
                s->package_generation + (kind != APKG_PLAN_CHANNEL_ACCEPT),
-               s->policy, id, s->target);
+               s->policy, qualifications, id, s->target);
     ak_buf_add(&changes, "[");
     k = 0;
     /* Existing entries first, followed by newly selected packages. */
-    for (i = 0; i < s->nrows + n; i++) {
+    for (i = 0; kind != APKG_PLAN_CHANNEL_ACCEPT && i < s->nrows + n; i++) {
         const char *name;
         const apkg_package *nw = NULL;
         apkg_package *old = NULL;
@@ -412,11 +434,18 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
                 int identical = 0;
                 if (ak_json_parse(s->records[i], strlen(s->records[i]),
                                   &oldentry)) {
-                    code = APKG_INVALID;
+                    code = errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
                     goto done;
                 }
                 d = ak_slice(&oldentry, ak_member(&oldentry, 0, "descriptor"));
                 sg = ak_slice(&oldentry, ak_member(&oldentry, 0, "signature"));
+                if (!d || !sg) {
+                    free(d);
+                    free(sg);
+                    ak_json_free(&oldentry);
+                    code = APKG_NOMEM;
+                    goto done;
+                }
                 if (d && sg)
                     identical =
                         !strcmp(d, nw->raw) && !strcmp(sg, nw->signature);
@@ -549,10 +578,12 @@ apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
                             const char *focus, apkg_plan **out,
                             apkg_error **e) {
     return ak_plan_records_heads(c, s, entries, kind, focus,
-                                 s ? s->channel_heads : NULL, out, e);
+                                 s ? s->channel_heads : NULL,
+                                 s ? s->qualification_records : NULL, out, e);
 }
 apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
-                          const char *heads, apkg_plan **out, apkg_error **e) {
+                          const char *heads, const char *qualifications,
+                          apkg_plan **out, apkg_error **e) {
     ak_json j = {0};
     int parsed = ak_json_parse(s->raw, s->view.source_record.size, &j);
     if (parsed)
@@ -562,13 +593,14 @@ apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
     ak_json_free(&j);
     if (!entries)
         return APKG_NOMEM;
-    apkg_status code = ak_plan_records_heads(
-        c, s, entries, APKG_PLAN_CHANNEL_ACCEPT, NULL, heads, out, e);
+    apkg_status code =
+        ak_plan_records_heads(c, s, entries, APKG_PLAN_CHANNEL_ACCEPT, NULL,
+                              heads, qualifications, out, e);
     free(entries);
     if (!code) {
         apkg_plan *p = *out;
         p->effects[0].kind = APKG_EFFECT_DATABASE;
-        p->effects[0].destination.data = ".apkg/state#channel_heads";
+        p->effects[0].destination.data = ".apkg/state#observations";
         p->effects[0].destination.size = strlen(p->effects[0].destination.data);
         p->effects[0].record.data = (unsigned char *)p->root_record;
         p->effects[0].record.size = strlen(p->root_record);
@@ -685,12 +717,20 @@ static apkg_status rollback_applicable(const apkg_snapshot *s,
             &j, b,
             (const char *const[]){"generation", "installed", "policy",
                                   "root_id", "target"},
-            5, (const char *const[]){"channel_heads", "package_generation"},
-            2) ||
+            5,
+            (const char *const[]){"channel_heads", "package_generation",
+                                  "qualification_records"},
+            3) ||
         ak_u64(&j, ak_member(&j, b, "generation"), &generation) ||
         !generation || generation > s->view.generation.value ||
         !ak_channel_heads_valid(&j, ak_member(&j, b, "channel_heads")))
         goto done;
+    if (!ak_qualification_records_valid(
+            &j, ak_member(&j, b, "qualification_records"))) {
+        if (errno == ENOMEM)
+            code = APKG_NOMEM;
+        goto done;
+    }
     package_generation = generation;
     int pg = ak_member(&j, b, "package_generation");
     if (pg >= 0 && (ak_u64(&j, pg, &package_generation) ||
@@ -746,9 +786,10 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
     path[history.size] = 0;
     {
         char canonical[AK_PATH];
+        errno = 0;
         if (pkg_fs_path_is_link(path) != 0 ||
             pkg_fs_canonical_dir(path, canonical, sizeof canonical))
-            return APKG_INVALID;
+            return errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
         strcpy(path, canonical);
     }
     if (snprintf(prefix, sizeof prefix, "%s.apkg-history.", c->root) >=
@@ -762,13 +803,14 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
     size_t max =
         c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
     changes.max = raw.max = max;
+    errno = 0;
     if (ak_path(file, path, "plan") || ak_read(file, &intent, &in, max) ||
         ak_path(file, path, "plan-sha") || ak_read(file, &digest, &dn, 64) ||
         dn != 64 || ak_path(file, path, "old-state") ||
         ak_read(file, &old, &on, max) || ak_path(file, path, "new-state") ||
         ak_read(file, &after, &an, max) || ak_path(file, path, "decision") ||
         ak_exists(file) != 1) {
-        code = APKG_RECOVERY_REQUIRED;
+        code = errno == ENOMEM ? APKG_NOMEM : APKG_RECOVERY_REQUIRED;
         goto done;
     }
     code = rollback_applicable(s, (char *)after, an);

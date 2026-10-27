@@ -42,7 +42,7 @@ enum { ID_SEARCH = 1, ID_INSTALL, ID_REMOVE, ID_UPDATE, ID_CANCEL, ID_SELECT, ID
 
 #ifdef APKG_FUSION
 static Object *str_common_package, *btn_common_install, *cyc_common_action, *str_common_pool;
-static const char *common_actions[]={"Install signed package","Remove package","Repair package","Upgrade from signed folder","Rollback from retained history","Resolve with local package pool","Recover pending transaction","Install/update from signed channel",NULL};
+static const char *common_actions[]={"Install signed package","Remove package","Repair package","Upgrade from signed folder","Rollback from retained history","Resolve with local package pool","Recover pending transaction","Install/update from signed channel","Accept channel observations",NULL};
 static int common_waiting;
 static char *common_preview_text;
 static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
@@ -2937,7 +2937,7 @@ static int real_main(int argc, char **argv)
                         MUIA_ShortHelp, (IPTR)"Signed package, package name, history folder, or file/HTTP channel endpoint",
                     End),
                     Child, (cyc_common_action=CycleObject,MUIA_Cycle_Entries,(IPTR)common_actions,End),
-                    Child, (str_common_pool=StringObject,MUIA_String_MaxLen,4096,MUIA_ShortHelp,(IPTR)"Local candidate folder; for channel action: CHANNEL-ID/SNAPSHOT-SHA256/DESCRIPTOR-SHA256",End),
+                    Child, (str_common_pool=StringObject,MUIA_String_MaxLen,4096,MUIA_ShortHelp,(IPTR)"Local candidate folder; install from channel: CHANNEL-ID/SNAPSHOT-SHA256/DESCRIPTOR-SHA256; accept observations: CHANNEL-ID",End),
                     Child, (btn_common_install = SimpleButton("Review operation")),
                     Child, (btn_channel_browse = SimpleButton("Browse channel...")),
                     Child, (btn_attestation = SimpleButton("Inspect attestation folder")),

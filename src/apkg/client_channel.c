@@ -200,7 +200,9 @@ apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
             (int)row->target.size, row->target.data,
             row->target_matches ? "true" : "false", (int)row->version.size,
             row->version.data);
-        ak_buf_add(&b, ",\"attestations\":");
+        ak_buf_add(&b,
+                   ",\"source_attestation_count\":\"%llu\",\"attestations\":",
+                   (unsigned long long)row->source_attestation_count);
         ak_channel_claims_json(channel, i, &b);
         ak_buf_add(&b, "}");
         apkg_client_text_free(selection);
@@ -236,6 +238,50 @@ apkg_status apkg_client_channel_query(const char *root, const char *endpoint,
     if (!code)
         code = ak_channel_format(channel, out);
     apkg_channel_free(channel);
+    return code;
+}
+apkg_status apkg_client_channel_accept(const char *root, const char *endpoint,
+                                       const char *identity,
+                                       apkg_confirm_fn confirm, void *user,
+                                       const apkg_observer *observer,
+                                       apkg_result **out, apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!confirm)
+        return APKG_INVALID;
+    apkg_ctx *ctx = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    apkg_plan *plan = NULL;
+    apkg_approval *approval = NULL;
+    char *text = NULL;
+    apkg_status code =
+        ak_cancelled(observer)
+            ? APKG_CANCELLED
+            : open_source(root, endpoint, identity, 0, APKG_WRITE, observer,
+                          &ctx, &channel, error);
+    if (!code)
+        code = apkg_snapshot_read(ctx, &snapshot, error);
+    if (!code)
+        code = apkg_plan_channel_accept(ctx, snapshot, channel, &plan, error);
+    if (!code)
+        code = apkg_plan_format(plan, &text);
+    if (!code && (!confirm(user, plan, text) || ak_cancelled(observer)))
+        code = APKG_CANCELLED;
+    if (!code)
+        code = apkg_plan_approve(ctx, plan, &apkg_plan_get(plan)->plan_digest,
+                                 &approval, error);
+    if (!code)
+        code = apkg_execute(ctx, plan, approval, observer, out, error);
+    apkg_client_text_free(text);
+    apkg_approval_free(approval);
+    apkg_plan_free(plan);
+    apkg_snapshot_free(snapshot);
+    apkg_channel_free(channel);
+    apkg_close(ctx);
     return code;
 }
 apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,

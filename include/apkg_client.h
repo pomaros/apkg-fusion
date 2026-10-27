@@ -26,7 +26,8 @@ typedef enum {
     APKG_CLIENT_ROLLBACK,
     APKG_CLIENT_RESOLVE,
     APKG_CLIENT_RECOVER,
-    APKG_CLIENT_CHANNEL
+    APKG_CLIENT_CHANNEL,
+    APKG_CLIENT_CHANNEL_ACCEPT
 } apkg_client_action;
 apkg_status apkg_client_apply(apkg_client_action, const char *root,
                               const char *argument, const char *pool,
@@ -39,6 +40,8 @@ apkg_status apkg_client_apply(apkg_client_action, const char *root,
 apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,
     const char *selection, int recommendations, apkg_confirm_fn, void *,
     const apkg_observer *, apkg_result **, apkg_error **);
+apkg_status apkg_client_channel_accept(const char *root,const char *endpoint,
+    const char *identity,apkg_confirm_fn,void *,const apkg_observer *,apkg_result **,apkg_error **);
 apkg_status apkg_client_channel_query(const char *root, const char *endpoint,
     const char *identity, uint64_t minimum_sequence, const apkg_observer *,
     char **, apkg_error **);

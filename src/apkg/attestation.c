@@ -5,6 +5,7 @@
 #include "pkg_target.h"
 #include <errno.h>
 #include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 #define CLAIM_MAX (AK_MAX / 32)
 struct apkg_attestation {
@@ -87,6 +88,46 @@ apkg_status ak_attestation_validate(const ak_json *j) {
         return APKG_UNSUPPORTED;
     return APKG_OK;
 }
+apkg_status ak_attestation_scope(const ak_json *j, apkg_digest *out) {
+    int b = ak_member(j, 0, "body"), env = ak_member(j, b, "environment");
+    ak_buf text = {0};
+    text.max = 8192;
+    const char *fields[] = {"descriptor_sha256", "issuer", "kind"};
+    ak_buf_add(&text, "APKG-ATTESTATION-SCOPE-1\n");
+    for (size_t i = 0; i < 3; i++) {
+        char value[256];
+        if (ak_string(j, ak_member(j, b, fields[i]), value, sizeof value)) {
+            free(text.data);
+            return APKG_INVALID;
+        }
+        ak_buf_add(&text, "%s\n", value);
+    }
+    if (ak_equal(j, ak_member(j, b, "kind"), "runtime")) {
+        const char *scope[] = {"hardware", "os_build", "test_suite"};
+        for (size_t i = 0; i < 3; i++) {
+            char value[256];
+            if (ak_string(j, ak_member(j, env, scope[i]), value,
+                          sizeof value)) {
+                free(text.data);
+                return APKG_INVALID;
+            }
+            ak_buf_add(&text, "%s\n", value);
+        }
+    }
+    apkg_status code = (apkg_status)text.bad;
+    if (!code)
+        ak_hash(text.data, text.size, out);
+    free(text.data);
+    return code;
+}
+void ak_attestation_memory(apkg_attestation *a, int origin, uint64_t sequence,
+                           const apkg_digest *digest) {
+    a->view.observation_origin = origin;
+    a->view.accepted_sequence = sequence;
+    if (digest)
+        a->view.accepted_digest = *digest;
+    a->view.older_than_accepted = sequence && a->view.sequence < sequence;
+}
 void apkg_attestation_free(apkg_attestation *a) {
     if (a) {
         ak_json_free(&a->json);
@@ -131,6 +172,9 @@ apkg_status ak_attestation_observe(const apkg_snapshot *snapshot,
     if (code)
         goto done;
     code = ak_attestation_validate(&a->json);
+    if (code)
+        goto done;
+    code = ak_attestation_scope(&a->json, &a->view.scope_digest);
     if (code)
         goto done;
     parsed = ak_json_parse(descriptor.data, descriptor.size, &d);
@@ -367,6 +411,23 @@ apkg_status apkg_attestation_format(const apkg_attestation *a, char **out,
         v->prefix_complete ? "linked-prefix" : "not-checked", a->summary,
         a->evidence, (int)v->environment.size,
         (const char *)v->environment.data);
+    char accepted[65], sequence[32];
+    ak_tohex(v->accepted_digest.bytes, 32, accepted);
+    if (v->accepted_sequence)
+        snprintf(sequence, sizeof sequence, "%llu",
+                 (unsigned long long)v->accepted_sequence);
+    else {
+        strcpy(sequence, "unknown");
+        strcpy(accepted, "unknown");
+    }
+    ak_buf_add(&b,
+               "origin %s\nacceptedsequence %s\nacceptedrecord "
+               "%s\nolderthanaccepted %s\n",
+               v->observation_origin == 1   ? "source"
+               : v->observation_origin == 2 ? "retained"
+               : v->observation_origin == 3 ? "source-and-retained"
+                                            : "standalone",
+               sequence, accepted, v->older_than_accepted ? "yes" : "no");
     if (b.bad) {
         apkg_status code = (apkg_status)b.bad;
         free(b.data);

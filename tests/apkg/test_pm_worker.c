@@ -43,8 +43,11 @@ void PutMsg(struct MsgPort *port, struct Message *message) {
         assert(m->common_preview);
         assert(strstr(m->common_preview, "Approved plan:"));
         assert(strstr(m->common_preview, "SHA-256"));
-        if (running->common_action != 1 && running->common_action != 4)
+        if (running->common_action != 1 && running->common_action != 4 &&
+            running->common_action != APKG_CLIENT_CHANNEL_ACCEPT)
             assert(strstr(m->common_preview, "Signature: verified"));
+        if (running->common_action == APKG_CLIENT_CHANNEL_ACCEPT)
+            assert(strstr(m->common_preview, "Channel signing key:"));
         running->common_decision = choice == 0 ? -1 : 1;
         if (choice == 2) {
             running->common_decision = 0;
@@ -534,8 +537,10 @@ int main(int argc, char **argv) {
             for (size_t i = 0; i < final.common_catalogue->count; i++) {
                 pm_common_row *row = &final.common_catalogue->rows[i];
                 assert(strlen(row->selection) == 162);
-                assert(strstr(row->detail, "Current review approval: not asserted"));
-                assert(strstr(row->detail, "Current runtime approval: not asserted"));
+                assert(strstr(row->detail,
+                              "Current review approval: not asserted"));
+                assert(strstr(row->detail,
+                              "Current runtime approval: not asserted"));
                 assert(strstr(row->detail, row->name));
                 owned_text(final.common_catalogue,
                            (apkg_text){row->installed_version,

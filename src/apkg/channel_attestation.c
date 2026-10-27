@@ -17,23 +17,22 @@ apkg_status ak_channel_attestations(const apkg_snapshot *snapshot,
         *out = NULL;
     if (count_out)
         *count_out = 0;
-    if (array < 0)
-        return APKG_OK;
-    if (j->tokens[array].type != '[')
+    if (array >= 0 && j->tokens[array].type != '[')
         return APKG_UNSUPPORTED;
     size_t count = 0;
-    for (size_t i = (size_t)array + 1; i < j->tokens[array].next;
+    for (size_t i = (size_t)array + 1; array >= 0 && i < j->tokens[array].next;
          i = j->tokens[i].next)
         if (++count > CLAIMS_PER_ENTRY)
             return APKG_LIMIT;
-    if (!count)
+    if (!count && (!snapshot || !strcmp(snapshot->qualification_records, "[]")))
         return APKG_OK;
-    apkg_attestation **claims = calloc(count, sizeof *claims);
+    apkg_attestation **claims = calloc(count ? count : 1, sizeof *claims);
     if (!claims)
         return APKG_NOMEM;
     apkg_status code = APKG_OK;
+    unsigned char *processed = NULL;
     size_t index = 0;
-    for (size_t i = (size_t)array + 1; i < j->tokens[array].next;
+    for (size_t i = (size_t)array + 1; array >= 0 && i < j->tokens[array].next;
          i = j->tokens[i].next, index++) {
         if (!ak_fields(j, (int)i, (const char *const[]){"record", "signature"},
                        2)) {
@@ -47,6 +46,7 @@ apkg_status ak_channel_attestations(const apkg_snapshot *snapshot,
             &claims[index], NULL);
         if (code)
             goto done;
+        ak_attestation_memory(claims[index], 1, 0, NULL);
         const apkg_attestation_view *v = apkg_attestation_get(claims[index]);
         if (index &&
             memcmp(apkg_attestation_get(claims[index - 1])->record_digest.bytes,
@@ -61,7 +61,23 @@ apkg_status ak_channel_attestations(const apkg_snapshot *snapshot,
                 goto done;
             }
     }
-    unsigned char processed[CLAIMS_PER_ENTRY] = {0};
+    code = ak_qualification_augment(snapshot, descriptor, signature, &claims,
+                                    &count);
+    if (code)
+        goto done;
+    for (size_t i = 0; i < count; i++)
+        for (size_t k = 0; k < i; k++)
+            if (apkg_attestation_get(claims[i])->sequence ==
+                    apkg_attestation_get(claims[k])->sequence &&
+                ak_attestation_scope_equal(claims[i], claims[k])) {
+                code = APKG_CONFLICT;
+                goto done;
+            }
+    processed = calloc(count ? count : 1, 1);
+    if (!processed) {
+        code = APKG_NOMEM;
+        goto done;
+    }
     for (size_t pass = 0; pass < count; pass++) {
         size_t chosen = count;
         for (size_t i = 0; i < count; i++)
@@ -97,8 +113,23 @@ apkg_status ak_channel_attestations(const apkg_snapshot *snapshot,
                                       previous, &linked, NULL);
         if (code)
             goto done;
+        ak_attestation_memory(linked, v->observation_origin, 0, NULL);
         apkg_attestation_free(claims[chosen]);
         claims[chosen] = linked;
+    }
+    for (size_t i = 0; i < count; i++) {
+        const apkg_attestation_view *accepted = NULL;
+        for (size_t k = 0; k < count; k++) {
+            const apkg_attestation_view *v = apkg_attestation_get(claims[k]);
+            if ((v->observation_origin & 2) &&
+                ak_attestation_scope_equal(claims[i], claims[k]) &&
+                (!accepted || v->sequence > accepted->sequence))
+                accepted = v;
+        }
+        const apkg_attestation_view *v = apkg_attestation_get(claims[i]);
+        ak_attestation_memory(claims[i], v->observation_origin,
+                              accepted ? accepted->sequence : 0,
+                              accepted ? &accepted->record_digest : NULL);
     }
     if (out) {
         *out = claims;
@@ -107,6 +138,7 @@ apkg_status ak_channel_attestations(const apkg_snapshot *snapshot,
         claims = NULL;
     }
 done:
+    free(processed);
     if (claims) {
         for (size_t i = 0; i < count; i++)
             apkg_attestation_free(claims[i]);
@@ -140,7 +172,7 @@ int ak_channel_claims_json(const apkg_channel *channel, uint64_t entry,
             "generation\":\"%llu\",\"root_snapshot_sha256\":\"%s\",\"record\":%"
             ".*s,"
             "\"record_sha256\":\"%s\",\"signature\":%.*s,\"signature_state\":"
-            "\"verified\",\"target_matches\":%s}",
+            "\"verified\",\"target_matches\":%s",
             i ? "," : "",
             v->author_trust == APKG_TRUST_ACCEPTED ? "accepted" : "rejected",
             v->prefix_complete ? "linked-prefix" : "not-checked",
@@ -150,6 +182,20 @@ int ak_channel_claims_json(const apkg_channel *channel, uint64_t entry,
             (const char *)v->record.data, hash, (int)v->signature_envelope.size,
             (const char *)v->signature_envelope.data,
             v->target_matches ? "true" : "false");
+        char accepted[65];
+        ak_tohex(v->accepted_digest.bytes, 32, accepted);
+        ak_buf_add(b,
+                   ",\"observation_origin\":\"%s\",\"older_than_accepted\":%s,"
+                   "\"accepted_sequence\":",
+                   v->observation_origin == 1   ? "source"
+                   : v->observation_origin == 2 ? "retained"
+                                                : "source-and-retained",
+                   v->older_than_accepted ? "true" : "false");
+        if (v->accepted_sequence)
+            ak_buf_add(b, "\"%llu\",\"accepted_record\":\"%s\"}",
+                       (unsigned long long)v->accepted_sequence, accepted);
+        else
+            ak_buf_add(b, "null,\"accepted_record\":null}");
     }
     return ak_buf_add(b, "]");
 }
