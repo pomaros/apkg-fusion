@@ -99,6 +99,29 @@ int main(int argc, char **argv) {
     assert(argc >= 4 && argc <= 7);
     assert(!job_uses_common_engine(JOB_NONE) && !job_uses_common_engine(JOB_INSTALL));
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 45) {
+        /* ROOT ENDPOINT 45 WAIT CHANNEL-ID MATCH: retain, then query offline. */
+        assert(argc == 7);
+        assert(strlen(argv[1]) < sizeof j.root && strlen(argv[2]) < sizeof j.common_package && strlen(argv[5]) < sizeof j.common_pool);
+        strcpy(j.root, argv[1]); strcpy(j.common_package, argv[2]); strcpy(j.common_pool, argv[5]);
+        j.kind = JOB_COMMON_DISCOVER; j.done = &final; running = &j;
+        pm_common_install(&j, &error);
+        assert(final.common_status == APKG_OK);
+        if (atoi(argv[4])) {
+            char line[2]; puts("loaded"); fflush(stdout);
+            assert(fgets(line, sizeof line, stdin));
+        }
+        char *text = NULL;
+        assert(pm_common_rexx_list(j.root, NULL, NULL, &text) == APKG_NOT_FOUND && !text);
+        apkg_status code = pm_common_rexx_list(j.root, final.common_catalogue, argv[6], &text);
+        FreeVec(final.common_catalogue);
+        printf("status %d\n", code);
+        if (!code) { assert(text && strlen(text) <= RX_MAXRESULT); puts(text); }
+        else assert(!text);
+        apkg_client_text_free(text);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 30 || atoi(argv[3]) == 31) {
         assert(strlen(argv[1]) < sizeof j.root &&
                strlen(argv[2]) < sizeof j.common_package);
@@ -168,7 +191,8 @@ int main(int argc, char **argv) {
                strlen(argv[2]) < sizeof j.id);
         strcpy(j.root, argv[1]);
         strcpy(j.id, argv[2]);
-        j.kind = JOB_COMMON_SOURCE_INSTALL;
+        j.kind = job_for_common_rexx(RXC_INSTALL);
+        assert(j.kind == JOB_COMMON_SOURCE_INSTALL && job_for_common_rexx(RXC_UPGRADE) == j.kind);
         assert(job_uses_common_engine(j.kind));
         j.done = &final;
         running = &j;

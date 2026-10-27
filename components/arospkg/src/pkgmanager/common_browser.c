@@ -93,6 +93,58 @@ static apkg_status catalogue_open(const char *root,
         code = apkg_snapshot_read(*ctx, snapshot, NULL);
     return code;
 }
+static int contains(apkg_text text, const char *term);
+apkg_status pm_common_rexx_list(const char *root,
+                                const pm_common_catalogue *model,
+                                const char *match, char **out) {
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    apkg_ctx *ctx = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    const apkg_channel_entry_view **seen = NULL;
+    char *text = NULL;
+    size_t used = 0, count = 0;
+    apkg_status code = catalogue_open(root, model, &ctx, &snapshot, &channel);
+    uint64_t entries = code ? 0 : apkg_channel_get(channel)->entry_count;
+    if (!code) {
+        seen = calloc(entries ? (size_t)entries : 1, sizeof *seen);
+        text = malloc(RX_MAXRESULT + 1);
+        if (!seen || !text) code = APKG_NOMEM;
+        else text[0] = 0;
+    }
+    for (uint64_t i = 0; !code && i < entries; i++) {
+        const apkg_channel_entry_view *row = NULL;
+        code = apkg_channel_entry_at(channel, i, &row, NULL);
+        if (code) break;
+        if (!row->target_matches || !contains(row->name, match)) continue;
+        int duplicate = 0;
+        for (size_t k = 0; k < count; k++) {
+            if (row->name.size != seen[k]->name.size || memcmp(row->name.data, seen[k]->name.data, row->name.size)) continue;
+            duplicate = 1;
+            if (row->authority.size != seen[k]->authority.size || memcmp(row->authority.data, seen[k]->authority.data, row->authority.size)) code = APKG_CONFLICT;
+            break;
+        }
+        if (code || duplicate) continue;
+        size_t separator = used ? 1 : 0;
+        if (row->name.size + separator > RX_MAXRESULT - used) {
+            code = APKG_LIMIT;
+            break;
+        }
+        if (separator) text[used++] = ' ';
+        memcpy(text + used, row->name.data, row->name.size);
+        used += row->name.size;
+        text[used] = 0;
+        seen[count++] = row;
+    }
+    if (!code) { *out = text; text = NULL; }
+    free(text);
+    free(seen);
+    apkg_channel_free(channel);
+    apkg_snapshot_free(snapshot);
+    apkg_close(ctx);
+    return code;
+}
 apkg_status pm_common_catalogue_refresh(const char *root,
                                         const pm_common_catalogue *model,
                                         pm_common_catalogue **out) {

@@ -1609,6 +1609,27 @@ ARexx, target and application gates. AArch64 SDK type checking and links across
 74 documentation files pass. Exact-source Linux/macOS CI remains pending;
 native UI execution is still deferred to the isolated runtime rehearsal.
 
+## Common ARexx catalogue and source operations
+
+Fusion LIST now revalidates the retained signed channel against the current root
+and returns full current-target names without network access. Multiple builds
+collapse by author/name; ambiguous authors and oversized replies refuse without
+partial output. MATCH uses bounded text spans, including 255-byte names.
+INSTALL and UPGRADE route through common source installation with plan approval;
+UPGRADE keeps its script-visible operation name and installed-name precondition.
+
+Four added catalogue methods cover offline retained answers, target filtering,
+version deduplication, current trust withdrawal, author ambiguity and the 65,535
+byte reply boundary. The worker source test now also upgrades an installed
+package through the same command routing. The 12 focused methods pass, including with the actual worker bridge under
+ASan/UBSan. SDK header/type checking and documentation links also pass. The
+full host integration passes 325 common methods, 78 default-product checks,
+110 provisional CLI checks, 78 publication checks and the existing contract,
+ARexx, target and application gates. Exact-source CI is pending for this
+checkpoint. Live ARexx/native UI interaction remains
+unqualified. Common event propagation into script job counters is the next
+ARexx adapter task.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

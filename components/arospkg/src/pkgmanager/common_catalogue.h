@@ -70,6 +70,10 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
                                      pm_common_installed **, apkg_error **);
 /* ARexx's 16-bit result boundary: refuse overflow, never truncate facts.
  * Successful text is owned by the client library; free with its text free. */
+/* Current-target names from a revalidated retained catalogue; no network.
+ * Duplicate builds collapse, but different authorities sharing a name refuse. */
+apkg_status pm_common_rexx_list(const char *root, const pm_common_catalogue *,
+                                const char *match, char **);
 apkg_status pm_common_rexx_info(const char *, const char *, const char *,
                                 char **);
 apkg_status pm_common_rexx_outdated(const char *root,

@@ -2450,7 +2450,17 @@ static int lookup(pkg_ctx *c, const char *id, pkg_entry *out, int *in_index, pkg
 static void rx_list(rexx_msg *m, const rx_req *r)
 {
 #ifdef APKG_FUSION
-    if (!r->installed) { rx_fail(m, RX_RC_ERROR, "UNSUPPORTED catalogue LIST needs a common-channel adapter; LIST INSTALLED is available"); return; }
+    if (!r->installed) {
+        char *text = NULL;
+        apkg_status code = pm_common_rexx_list(root, common_catalogue, r->match, &text);
+        if (code == APKG_NOT_FOUND) rx_fail(m, RX_RC_ERROR, "NOINDEX load a signed catalogue with UPDATE first");
+        else if (code == APKG_LIMIT) rx_fail(m, RX_RC_ERROR, "TOOLONG narrow LIST with MATCH");
+        else if (code == APKG_CONFLICT) rx_fail(m, RX_RC_ERROR, "CONFLICT catalogue contains ambiguous names or a changed snapshot");
+        else if (code) rx_fail(m, RX_RC_ERROR, "COMMON catalogue query refused (code %d)", (int)code);
+        else rx_ok(m, text);
+        apkg_client_text_free(text);
+        return;
+    }
     pm_common_installed *items = NULL;
     apkg_status code = pm_common_installed_read(root, r->match, &items, NULL);
     if (code) { rx_fail(m, RX_RC_ERROR, "COMMON root query refused (code %d)", (int)code); return; }
@@ -2603,19 +2613,19 @@ static void rx_start(rexx_msg *m, const rx_req *r)
         return;
     }
 #ifdef APKG_FUSION
-    if (kind == JOB_UPDATE) kind = JOB_COMMON_DISCOVER;
-    if (kind != JOB_COMMON_DISCOVER) {
-    if (kind != JOB_REMOVE && kind != JOB_RUN) {
+    kind = job_for_common_rexx(r->cmd);
+    if (kind == JOB_NONE) {
         rx_fail(m, RX_RC_ERROR, "UNSUPPORTED use a common signed-plan operation for this command"); return;
     }
-    pm_common_installed *items = NULL;
-    apkg_status code = pm_common_installed_read(root, r->package, &items, NULL);
-    int found = 0;
-    if (items) for (size_t i = 0; i < items->count; i++)
-        if (!strcmp(items->rows[i].view.name.value.data, r->package)) found = 1;
-    FreeVec(items);
-    if (code) { rx_fail(m, RX_RC_ERROR, "COMMON root query refused (code %d)", (int)code); return; }
-    if (!found) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not installed", r->package); return; }
+    if (r->cmd == RXC_REMOVE || r->cmd == RXC_RUN || r->cmd == RXC_UPGRADE) {
+        pm_common_installed *items = NULL;
+        apkg_status code = pm_common_installed_read(root, r->package, &items, NULL);
+        int found = 0;
+        if (items) for (size_t i = 0; i < items->count; i++)
+            if (!strcmp(items->rows[i].view.name.value.data, r->package)) found = 1;
+        FreeVec(items);
+        if (code) { rx_fail(m, RX_RC_ERROR, "COMMON root query refused (code %d)", (int)code); return; }
+        if (!found) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not installed", r->package); return; }
     }
 #else
     if (kind != JOB_UPDATE) {
@@ -2636,6 +2646,9 @@ static void rx_start(rexx_msg *m, const rx_req *r)
     if (!rexx_prepare(m, rxout)) { rx_fail(m, RX_RC_ERROR, "NOMEM no memory for the answer; nothing was started"); return; }
     j = begin(kind, r->package, "arexx");
     if (!j || j->state == RXJ_FAILED) { rx_fail(m, RX_RC_ERROR, "CANNOTSTART could not start the worker process"); return; }
+#ifdef APKG_FUSION
+    if (r->cmd == RXC_UPGRADE) snprintf(j->op, sizeof j->op, "upgrade");
+#endif
     rx_ok(m, rxout);
 }
 

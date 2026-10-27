@@ -10,6 +10,7 @@
 #include <exec/ports.h>
 #ifdef APKG_FUSION
 #include "common_catalogue.h"
+#include "rexxcmd.h"
 #endif
 
 typedef enum { JOB_NONE, JOB_INSTALL, JOB_REMOVE, JOB_UPDATE,
@@ -21,6 +22,16 @@ typedef enum { JOB_NONE, JOB_INSTALL, JOB_REMOVE, JOB_UPDATE,
                JOB_COMMON_SOURCE_ADD, JOB_COMMON_SOURCE_REMOVE,
                JOB_COMMON_SOURCE_LIST } job_kind;
 #ifdef APKG_FUSION
+/* ARexx mutations still use the window's common-plan approval flow. */
+static inline job_kind job_for_common_rexx(rx_cmd command) {
+    switch (command) {
+    case RXC_UPDATE: return JOB_COMMON_DISCOVER;
+    case RXC_INSTALL: case RXC_UPGRADE: return JOB_COMMON_SOURCE_INSTALL;
+    case RXC_REMOVE: return JOB_REMOVE;
+    case RXC_RUN: return JOB_RUN;
+    default: return JOB_NONE;
+    }
+}
 /* Shared by the native dispatcher and the window's cancellation setup. */
 static inline int job_uses_common_engine(job_kind kind) {
     switch (kind) {

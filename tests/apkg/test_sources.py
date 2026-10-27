@@ -93,6 +93,11 @@ class RootSources(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn('status 0 outcome 1 previews 1', result.stdout)
             self.assertEqual((s.root / 'client/Drawer/program').read_bytes(), b'new')
+            s.offer(s.extra, 'client', '3.0', b'upgraded')
+            result = subprocess.run([str(clients.WORKER), str(s.root), 'client', '41'], capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('status 0 outcome 1 previews 1', result.stdout)
+            self.assertEqual((s.root / 'client/Drawer/program').read_bytes(), b'upgraded')
 
     def test_worker_source_controls_match_cli_and_preserve_state_on_refusal(self):
         def worker(s, name, mode, choice=1, *extra):

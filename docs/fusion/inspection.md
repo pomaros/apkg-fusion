@@ -52,6 +52,23 @@ fabricating upgrade/rollback booleans. INFO currently describes installed
 records; catalogue-only INFO and remaining queries need common adapters.
 The imported non-fusion client retains interface 1 and its original corpus.
 
+Fusion `LIST [MATCH text]` now reads the retained signed catalogue after
+revalidation against current root policy, target and replay floors. It returns
+current-target names, collapses multiple builds of the same author's package,
+and refuses a name shared by different authors. MATCH searches the complete
+name. An untrusted author's name can be discovered; listing grants no install
+permission. There is no network fallback and no root mutation. `LIST INSTALLED`
+continues to use the installed-record view.
+
+ARexx `INSTALL name` and `UPGRADE name` use the root's ordered source list,
+resolve through the common engine and wait for plan confirmation in the window.
+UPGRADE requires an installed name and keeps its `upgrade` job label. Source
+setup uses the [root source controls](sources.md#root-source-list-controls);
+loading a catalogue with UPDATE alone does not add it as an installation source.
+Job numbers, WAIT and cancellation keep their existing asynchronous protocol.
+Rollback/verification command adapters and live REQUIREMENTS queries remain
+separate outstanding work, as do catalogue-only INFO and dated news.
+
 ARexx refuses answers over 65,535 bytes with LIMIT/TOOLONG and frees them.
 Callers can request smaller fields. CLI/library formatting uses the bounded
 common metadata limit. Neither path truncates identities or relations.
