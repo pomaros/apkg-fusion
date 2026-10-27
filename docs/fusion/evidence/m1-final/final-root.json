@@ -1,0 +1,58 @@
+{
+  "body": {
+    "channel_heads": [
+      {
+        "id": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "sequence": "2",
+        "snapshot_sha256": "203d4baf6790d491070a91a0fc1d3a40e931aeb41d3a5dd437db3e440f946c89"
+      }
+    ],
+    "generation": "9",
+    "installed": [],
+    "package_generation": "8",
+    "policy": {
+      "body": {
+        "authorities": [
+          {
+            "id": "abababababababababababababababab",
+            "keys": [
+              {
+                "algorithm": "ed25519",
+                "public_key": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8"
+              }
+            ]
+          }
+        ],
+        "channels": [
+          {
+            "id": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+            "keys": [
+              {
+                "algorithm": "ed25519",
+                "public_key": "712651f450ba05b63898b99ef5f7ba45632e8e2527f7f715cd671ec4024cc51e"
+              }
+            ]
+          }
+        ]
+      },
+      "format": "apkg-json-1",
+      "requires": [],
+      "schema": "1",
+      "type": "policy"
+    },
+    "qualification_records": [],
+    "root_id": "9b8317ad077fd48964a1664b2bd933b9",
+    "sources": [
+      {
+        "endpoint": "RAM:APKGFinalChannel",
+        "id": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+        "name": "native-trial"
+      }
+    ],
+    "target": "aarch64-aros-v1-native"
+  },
+  "format": "apkg-json-1",
+  "requires": [],
+  "schema": "1",
+  "type": "root"
+}

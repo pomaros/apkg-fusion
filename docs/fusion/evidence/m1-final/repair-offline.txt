@@ -1,0 +1,27 @@
+Repair
+Root folder: RAM Disk:APKGFinalRoot
+Approved plan: 571f2b40fd793113f4e02ba647397612d8d0a291e41d2838487946bcce6b02ee
+
+Selected: fusion-calculator-trial 1.0 revision 1
+Publisher: abababababababababababababababab
+Target: aarch64-aros-v1-native
+Signature: verified, authorized key 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+
+Review/runtime qualification: no independent qualification asserted
+
+Package folder: fusion-calculator-trial
+Preserve fusion-calculator-trial/CalculatorTrial (directory, mode 493)
+Preserve fusion-calculator-trial/CalculatorTrial/.hidden; 12 bytes, mode 448, SHA-256 82b6a5a7fc9870146705c6f6d8baf3aa2215317334ed049a2453304a08176b73
+Preserve fusion-calculator-trial/CalculatorTrial/Empty (directory, mode 493)
+Preserve fusion-calculator-trial/CalculatorTrial/Package.arospkg.toml; 319 bytes, mode 420, SHA-256 499e008c7cc61b1ff71157156c31b139a597ce263804847ec17d5002593ceab8
+Preserve fusion-calculator-trial/CalculatorTrial/Personal (directory, mode 448)
+Preserve fusion-calculator-trial/CalculatorTrial/Personal/keep.txt; 14 bytes, mode 448, SHA-256 956d1f64bb0c1f69b305f839b8415036024099e20013865e0c60fe6dee4667ad
+Preserve fusion-calculator-trial/CalculatorTrial/application.json; 312 bytes, mode 420, SHA-256 6e788dd286709912ac3bac16e30548c558885cf12ae44ffe81f6ef3580ad6c5e
+Preserve fusion-calculator-trial/CalculatorTrial/program; 54648 bytes, mode 493, SHA-256 770a386a828e299680297f37cc10a60d86de4673d1ad8dc07f74989f9004fc76
+Replace fusion-calculator-trial/CalculatorTrial/program.info; 8078 bytes, mode 420, SHA-256 fa39c0703bad8615c8ddb7b5312b446eb2dbe888f35eaa089119b5a928f6cdec
+
+Commit .apkg/state at generation 6
+
+status=0 outcome=1
+record=RAM Disk:APKGFinalRoot.apkg-history.03e6d50f62ad670a3d8fd9c3fe6a1c2b
+result 0

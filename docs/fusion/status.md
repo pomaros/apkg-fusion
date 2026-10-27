@@ -6,8 +6,9 @@
 This is a development integration workspace. It does not replace released APKG
 installations. The checkout starts from pkg with an arospkg import. The
 [architecture](architecture.md#implementation-skeleton) selects arospkg’s
-context-based core as the skeleton. The initial common installation path is
-implemented below; remaining service/operation integration is listed separately.
+context-based core as the skeleton. The common engine and clients are
+implemented below; measured gates and remaining release obligations are listed
+separately.
 
 ## Alpha progress at a glance
 
@@ -30,41 +31,72 @@ to bypass unfinished non-portal integration or to resume the portal automaticall
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format |
-| Clients/default product | Shared CLI/worker, explicit source settings, persistent current/previous observations, last-refresh comparison, combined typed rows, recent publications and installed/catalogue INFO/SHOW; default CLI/library/tools use the common engine | Final frozen-candidate host and native interaction qualification against the desktop control inventory; broader historical continuity is deferred |
+| Clients/default product | Shared CLI/worker, explicit source settings, persistent current/previous observations, last-refresh comparison, combined typed rows, recent publications and installed/catalogue INFO/SHOW; default CLI/library/tools use the common engine | Broader native desktop/platform qualification; historical continuity is deferred |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Deferred: placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification; see support choices above |
 | Portal | Common channel HTTP members, verified metadata API and authenticated signed-snapshot commits use the common executable; existing service and regression baseline retained | Common self-service link-only publication, publishing client, catalogue/qualification integration and migration/backup/restore/rollback rehearsal; no live cutover |
 
-These are implementation positions, not six completed gates. The final clean
-workspace scenario and exact-source Linux/macOS CI must qualify the resulting
-product. The isolated M1 RAM component profile below passes; broader native qualification
-remains open. After final candidate qualification, stop with the merge report;
-portal adaptation requires a later operator instruction. Deployment and live
-portal cutover remain outside this run.
+The current stop boundary is reached: the frozen product candidate passes the
+clean-workspace scenario and exact-source Linux/macOS CI, the scoped M1 lifecycle
+and native regressions pass, and the [merge report](merge-report.md) is delivered.
+This does not complete every release obligation in the table. Legacy completion
+is deferred and portal adaptation requires a later operator instruction. No
+live portal cutover is included.
 
-## M1 candidate trial: confirmation reuse defect found
+## Final host qualification and M1 lifecycle passed
 
-The `698b3e1` candidate runs on the physical M1 under the supervised RAM-only
-reference. Installation and seven-element verification, managed launch of the
-Calculator trial application, moved unregistered bundle launch, version 1.0 →
-2.0 upgrade, offline rollback and offline repair have executed successfully.
-Edited configuration and personal data survive. PkgManager/ARexx queries, busy
-refusal, declined and approved upgrade, independent CLI comparison, Last refresh
-1 → 2 and unchanged 2 → 2, and offline source-profile restoration also execute.
-These observations are retained evidence, not completion of M1-FINAL.
+The [final M1 evidence](evidence/m1-final/README.md) records candidate
+`f73eec77d3c0aba17fe5e7b3b65cc22c3f918c53`. Its CLI is byte-identical to the
+preceding host-qualified candidate. The two native corrections change
+PkgManager confirmation layout and verification job reports only. Source
+`08e6cf8` passes local `make test-fusion`: 407 common tests and the CLI/publication
+checks. The final source's
+[exact-source CI](https://github.com/pomaros/apkg-fusion/actions/runs/40562000506)
+passes both fusion jobs and both portal baseline regression jobs. The
+[CI receipt](evidence/m1-final/host-ci.json) records the exact source and required
+steps; the preceding source's pass is not substituted. Both hosts pass 407 common
+tests, 303 selected tests plus C helpers under ASan/UBSan, 110 provisional CLI
+checks, 78 default CLI checks, 78 publishing checks, both inherited suites and
+symbol checks. CI checks 85 documentation files; the final report/evidence
+checkout checks 86, with zero broken links. Portal regression success does not
+complete or resume the deferred portal work.
 
-Repeated same-size confirmation exposed a blank rollback plan. That request was
-declined. The client now opens the confirmation window before assigning its
-Floattext, so Zune can lay out the new plan with an attached window. Host and
-cross-build checks and the repeated native confirmation/removal regression must
-qualify this correction before closure. Final removal/file/process inspection
-and the merge report remain pending; portal work has not resumed.
+The physical-M1 supervised RAM trial passes signed installation and seven-element
+verification, real managed Calculator launch/interaction, moved unregistered
+launch, upgrade preserving edited configuration and personal data, offline
+rollback and repair, PkgManager/ARexx queries, busy/ambiguity refusal, declined
+and approved operations, Last refresh 1 → 2 and unchanged 2 → 2, and offline
+source-profile restoration. The corrected GUI repeats rollback confirmation at
+identical size, then displays and executes its distinct removal plan. The
+final-source fresh-root follow-up verifies ARexx report ownership across two
+different verification outcomes, actual managed launch/interaction through
+PkgManager, removal and independent cleanup. The replayable job-report verifier
+compares native outputs and rejects empty, altered and replaced historical reports.
 
-The reference uses a retained SDK/runtime with development CRT differences.
-It is M1 application evidence under HV, not bare-metal OS acceptance. An earlier
-newer-runtime attempt stopped before the kernel/application workload and was
-inspected through the independent debugger; it supplies no APKG runtime result.
-The installed M1 updater and storage were not modified.
+The preceding GUI failed a blank repeated confirmation; that operation was
+declined. Opening the window before assigning Floattext fixes the native layout
+lifecycle. Successful first/reopened rollback and later removal scanouts and
+independent outputs qualify the correction. The base lifecycle ends with zero
+installed packages at generation 9, replay sequence 2, no transaction or
+preparation, and exactly the edited configuration and personal file left in the
+application drawer. The final-source fresh-root follow-up ends at generation 4
+with zero installed packages. Its removal preserves an icon whose manual copy
+changed permissions; explicit test cleanup removes that icon, leaving the edited
+configuration and personal note. These inspection stages are recorded separately.
+Independent task inventory confirms client/worker/application
+exit. All eight supervisor CPUs exit and a fresh proxy identity is observed.
+
+This is a scoped application lifecycle pass, not the exhaustive native desktop
+matrix or general release acceptance. The retained runtime/SDK has development
+C-runtime differences and reports failed secondary Exec startup: application
+tests run on one active AROS core. Eight-CPU supervisor cleanup is not AROS SMP
+acceptance. An earlier newer-runtime attempt stopped before the
+kernel/application workload and was inspected through the independent debugger;
+it supplies no APKG runtime result. Installed libpkg, startup, updater and
+persistent storage are unchanged. Broader native filesystem/metadata, network,
+self-update, interruption and power-loss qualification stay explicit. The
+[merge report](merge-report.md) distinguishes inherited features, fusion changes
+and these remaining obligations. Portal work has not resumed.
 
 ## HOST-FINAL passed on the preceding frozen candidate
 
@@ -88,12 +120,10 @@ are retained for the M1 trial. SDK diagnostics include its existing `vfork`
 declaration warning and an imported `STRPTR` signedness warning; linkage and
 program-root checks pass. Cross-linking is not target execution.
 
-The operator has made the M1 available for this trial. A read-only proxy check
-confirms a fresh proxy with no initialized hypervisor. M1 candidate application,
-GUI/ARexx, lifecycle and cleanup results remain pending. The installed `libpkg`
-updater and its migration stay separate. No OS source, installed updater or
-portal change is included in this checkpoint. The detailed merge report remains
-the deliverable after M1 testing, followed by the requested stop before portal.
+The subsequent [M1 lifecycle and final-source follow-up](evidence/m1-final/README.md)
+supply separate application evidence and recovery-to-proxy observations. The
+installed libpkg updater and its migration stay separate. No OS source, installed
+updater or portal change is included.
 
 ## Frozen-candidate lifecycle qualification: removal inspection
 

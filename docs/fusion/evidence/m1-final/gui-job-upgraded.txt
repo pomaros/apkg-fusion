@@ -1,0 +1,14 @@
+command=JOB
+rexx_rc=0
+id 3
+op upgrade
+package fusion-calculator-trial
+origin arexx
+state done
+phase commit
+done 0
+total unknown
+cancancel 0
+error 
+message 
+result=0

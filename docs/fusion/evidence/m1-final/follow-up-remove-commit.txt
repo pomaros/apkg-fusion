@@ -1,0 +1,20 @@
+Remove
+Root folder: RAM Disk:APKGFinalRoot
+Approved plan: 92e5a04f5f2baa8d172f6933072f3ed6b0c83c13c88bebf8a1686c416cdca4b1
+
+Review/runtime qualification: no independent qualification asserted
+
+Package folder: fusion-calculator-trial
+Preserve fusion-calculator-trial/CalculatorTrial (directory, mode 493)
+Preserve fusion-calculator-trial/CalculatorTrial/.hidden; 12 bytes, mode 448, SHA-256 82b6a5a7fc9870146705c6f6d8baf3aa2215317334ed049a2453304a08176b73
+Preserve fusion-calculator-trial/CalculatorTrial/note.txt; 14 bytes, mode 448, SHA-256 956d1f64bb0c1f69b305f839b8415036024099e20013865e0c60fe6dee4667ad
+Preserve fusion-calculator-trial/CalculatorTrial/program.info; 8078 bytes, mode 448, SHA-256 fa39c0703bad8615c8ddb7b5312b446eb2dbe888f35eaa089119b5a928f6cdec
+Remove fusion-calculator-trial/CalculatorTrial/Package.arospkg.toml; 319 bytes, mode 420, SHA-256 499e008c7cc61b1ff71157156c31b139a597ce263804847ec17d5002593ceab8
+Remove fusion-calculator-trial/CalculatorTrial/application.json; 312 bytes, mode 420, SHA-256 6e788dd286709912ac3bac16e30548c558885cf12ae44ffe81f6ef3580ad6c5e
+Remove fusion-calculator-trial/CalculatorTrial/program; 54648 bytes, mode 493, SHA-256 770a386a828e299680297f37cc10a60d86de4673d1ad8dc07f74989f9004fc76
+
+Commit .apkg/state at generation 4
+
+status=0 outcome=1
+record=RAM Disk:APKGFinalRoot.apkg-history.df948fcef3fffac02b76daabd4c580ff
+result 0

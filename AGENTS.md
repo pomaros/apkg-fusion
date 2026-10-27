@@ -27,6 +27,8 @@ from a sibling or ancestor project.
 - Publish only material whose provenance and licence permit publication here.
   Private source, histories, credentials, machine-specific records and product
   integrations stay outside this repository.
+- Write project documentation and public project communications in English.
+  Preserve original legal notices and upstream attribution.
 - Preserve original notices. New original source carries
   `SPDX-License-Identifier: MIT` and `Copyright (c) 2026 John Knipper`.
   Adapted files retain their upstream authorship and licence too.

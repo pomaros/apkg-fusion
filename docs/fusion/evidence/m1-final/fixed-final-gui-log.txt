@@ -1,0 +1,53 @@
+no demo storefront: no storefront file at PROGDIR:Demo/storefront.json
+start PkgManager 0.6.0 sha256 6715e3b7ba861899fd33a31045adb0820267b8350ef358a707b82efec00fb93e root RAM:APKGFinalRoot: ARexx port PKGMANAGER
+job 1 source-load - from startup
+job 1 source-load - done
+arexx> VERSION
+arexx< rc=0 len=96 PkgManager 0.6.0 ARexx 2 sha256 6715e3b7ba861899fd33a31045adb0820267b83...
+arexx> HELP
+arexx< rc=0 len=130 VERSION HELP LIST INFO REQUIREMENTS SHOW UPDATE INSTALL REMOVE UPGRADE ...
+arexx> LIST INSTALLED
+arexx< rc=0 len=23 fusion-calculator-trial
+arexx> INFO fusion-calculator-trial
+arexx< rc=0 len=799 id fusion-calculator-trial|version 2.0|revision 1|state installed|insta...
+arexx> REQUIREMENTS fusion-calculator-trial
+arexx< rc=0 len=143 System requirements observed now for abababababababababababababababab/f...
+arexx> OUTDATED
+arexx< rc=0 len=517 catalogue ok|updated unknown|stale unknown|installed 1|newer 0|ready un...
+arexx> JOB
+arexx< rc=0 len=110 id 1|op source-load|package |origin startup|state done|phase |done 0|to...
+arexx> ROLLBACK fusion-calculator-trial
+job 2 rollback fusion-calculator-trial from arexx
+arexx< rc=0 len=1 2
+arexx> CANCEL
+arexx< rc=0 len=8 declined
+job 2 rollback fusion-calculator-trial declined COMMONINSTALL: signed installation refused (code 16)
+arexx> ROLLBACK fusion-calculator-trial
+job 3 rollback fusion-calculator-trial from arexx
+arexx< rc=0 len=1 3
+job 3 rollback fusion-calculator-trial done
+arexx> JOB
+arexx< rc=0 len=134 id 3|op rollback|package fusion-calculator-trial|origin arexx|state don...
+arexx> REMOVE fusion-calculator-trial
+job 4 remove fusion-calculator-trial from arexx
+arexx< rc=0 len=1 4
+job 4 remove fusion-calculator-trial done
+arexx> JOB
+arexx< rc=0 len=132 id 4|op remove|package fusion-calculator-trial|origin arexx|state done|...
+arexx> VERSION
+arexx< rc=0 len=96 PkgManager 0.6.0 ARexx 2 sha256 6715e3b7ba861899fd33a31045adb0820267b83...
+arexx> HELP
+arexx< rc=0 len=130 VERSION HELP LIST INFO REQUIREMENTS SHOW UPDATE INSTALL REMOVE UPGRADE ...
+arexx> LIST INSTALLED
+arexx< rc=0 len=0 
+arexx> INFO fusion-calculator-trial
+arexx< rc=10 CONFLICT fusion-calculator-trial has several builds; choose an exact build in the window
+arexx> REQUIREMENTS fusion-calculator-trial
+arexx< rc=0 len=143 System requirements observed now for abababababababababababababababab/f...
+arexx> OUTDATED
+arexx< rc=0 len=517 catalogue ok|updated unknown|stale unknown|installed 0|newer 0|ready un...
+arexx> JOB
+arexx< rc=0 len=132 id 4|op remove|package fusion-calculator-trial|origin arexx|state done|...
+arexx> SHOW fusion-calculator-trial
+arexx< rc=10 CONFLICT fusion-calculator-trial has several catalogue builds; choose an exact build in the window
+result 0

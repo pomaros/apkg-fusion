@@ -1,0 +1,15 @@
+Initialize package root
+Root folder: RAM Disk:APKGFinalRoot
+Root identity: 9b8317ad077fd48964a1664b2bd933b9
+Target: aarch64-aros-v1-native
+Approved plan: c9f8fdc1f2f906a0266b52a03c2643e879ac14477c94a4e256669028d4373231
+
+Authorize publisher abababababababababababababababab with key 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+Authorize channel cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd with key 712651f450ba05b63898b99ef5f7ba45632e8e2527f7f715cd671ec4024cc51e
+All planned effects:
+Trust grants .apkg/state#policy
+Commit database .apkg/state
+
+status=0 outcome=1
+record=RAM Disk:APKGFinalRoot.apkg-history.413a07962cbb38eb0d26d6c8f0d18a25
+result 0

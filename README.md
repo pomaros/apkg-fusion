@@ -5,14 +5,16 @@
 
 A common AROS package manager combining PkgManager's native desktop experience
 with portable package operations, autonomous bundles, signed publishing, open
-author channels and an independently reviewed catalogue.
+author channels and independent review/runtime evidence.
 
 **This is a development alpha.** The default `apkg` executable and `libapkg.a`
 use the common context engine. CLI and the PkgManager worker share signed
-selection, dependency plans and transaction recovery. Interactive native
-catalogue integration, independent qualifications, existing-user migration and
-portal adaptation remain work. The [status overview](docs/fusion/status.md#alpha-progress-at-a-glance)
-separates implemented host behavior from the remaining alpha/release gates.
+selection, dependency plans and transaction recovery. The native catalogue and
+automation use the common engine; broader qualification, existing-user migration
+and portal adaptation remain work. The [status overview](docs/fusion/status.md#alpha-progress-at-a-glance)
+separates host qualification, the isolated M1 application trial and remaining
+release gates. The [merge report](docs/fusion/merge-report.md) compares inherited
+capabilities and fusion changes. Portal work is outside the current stop boundary.
 
 The common engine in `src/apkg/` follows APKG's context model and links pkg's
 portable services, cryptography, ownership and publishing code. The
@@ -122,7 +124,8 @@ require the still-pending validated migration/rehearsal before replacement.
 - [Portal guide](portal/README.md): current portal service and tests.
 
 The portal regression command is `dotnet test portal/tests/Portal.Tests`.
-No live portal cutover, OS modification or AROS execution is part of the current
-host qualification. The projects' own code is MIT licensed; original and
+Host qualification and the isolated M1 application trial are separate evidence;
+neither claims general AROS platform acceptance. No live portal cutover or OS
+source modification is included. The projects' own code is MIT licensed; original and
 third-party notices are preserved. See [LICENSE](LICENSE) and
 [provenance](docs/fusion/provenance.md).

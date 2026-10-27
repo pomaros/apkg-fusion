@@ -1,0 +1,54 @@
+command=VERSION
+rexx_rc=0
+PkgManager 0.6.0 ARexx 2 sha256 58f1cf5dd0fe576368fb3d91b09321b73dafa3f2983e14562f564a52ea19985b
+command=HELP
+rexx_rc=0
+VERSION HELP LIST INFO REQUIREMENTS SHOW UPDATE INSTALL REMOVE UPGRADE ROLLBACK JOB WAIT CANCEL QUIT LASTERROR OUTDATED RUN VERIFY
+command=LIST INSTALLED
+rexx_rc=0
+fusion-calculator-trial
+command=INFO fusion-calculator-trial
+rexx_rc=0
+id fusion-calculator-trial
+version 1.0
+revision 1
+state installed
+installedversion 1.0
+installedrevision 1
+summary Author test
+category util
+license MIT
+repository unknown
+arch aarch64
+abi v1
+kind application
+size unknown
+requires unknown
+canupgrade unknown
+canrollback unknown
+compatibility target-match
+requirements not-checked
+authority abababababababababababababababab
+target aarch64-aros-v1-native
+reason explicit
+signature verified
+authortrust accepted
+payloadbytes 63363
+files 5
+directories 2
+relations {"conflicts":[],"depends":[],"recommends":[],"replaces":[]}
+review not-asserted
+runtime not-asserted
+payloadverification not-checked
+rootstate ready
+rootid a05373d8a8f881e882bfbbe5a74cfaef
+generation 3
+snapshot f4e2241950b4d65822c4e7687e279664f6a7957b4455e41df7951d19999515f9
+adoption none
+command=REQUIREMENTS fusion-calculator-trial
+rexx_rc=10
+command=OUTDATED
+rexx_rc=10
+command=JOB
+rexx_rc=10
+result=10

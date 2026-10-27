@@ -1,0 +1,13 @@
+Directory "RAM:APKGFinalRoot/fusion-calculator-trial" on Tuesday 10/27/26:
+CalculatorTrial              Dir ---rwed Today       19:12:09
+1 directory - 1 block used
+Directory "RAM:APKGFinalRoot/fusion-calculator-trial/CalculatorTrial" on Tuesday 10/27/26:
+.hidden                       12 ---rwed Today       19:12:09
+Personal                     Dir ---rwed Today       19:12:09
+1 file - 1 directory - 2 blocks used
+Directory "RAM:APKGFinalRoot/fusion-calculator-trial/CalculatorTrial/Personal" on Tuesday 10/27/26:
+keep.txt                      14 ---rwed Today       19:12:09
+1 file - 1 block used
+
+TOTAL: 2 files - 2 directories - 4 blocks used
+result 0

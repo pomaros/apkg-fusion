@@ -56,6 +56,14 @@ incorrect return codes, accepted tampering, wrong installed versions/signatures,
 missing files and lost configuration. A final PASS marker alone is insufficient.
 Its rejection tests run with the common host suite.
 
+`verify_job_report.py` independently compares exported native CLI verification
+with ARexx `JOB FIELD message`, then checks an earlier job after a second
+verification replaces the window's report. Use different changed/missing/unknown
+counts for the second run. It rejects empty reports, incorrect counts and loss
+of the earlier job's owned copy. The
+[final M1 evidence](../../docs/fusion/evidence/m1-final/README.md) provides the
+retained outputs and a replay command.
+
 `StartGUI` launches PkgManager on the separate prepared GUI root and records
 `RAM:APKGManager.log`. Launch success alone does not qualify the GUI: retain
 independent interaction, operation and shutdown evidence. These basic fixtures

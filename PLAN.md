@@ -249,23 +249,23 @@ The remaining non-portal work, in order:
 Host and native evidence stay distinct. An AROS type check is not runtime
 qualification, and no step above claims power-loss durability.
 
-### Remaining closure batches
+### Closure batches before the portal
 
-This is the operator-facing breakdown through the stop before portal work.
-Sizes describe relative remaining effort, not calendar promises: S small,
-M medium, L substantial, XL several implementation sub-batches. Each batch
-needs its own evaluation; a passing earlier checkpoint does not close it.
+This table records evaluated closure evidence through the operator's requested
+stop before portal work. Remaining release obligations are tracked in status;
+deferred legacy sizes belong in the support-choice document below.
 
-| Batch | Deliverable / exit evidence | Remaining size |
+| Batch | Deliverable / exit evidence | State |
 |---|---|---|
-| M1-FINAL | Test that candidate's CLI/window, real application launch and full package lifecycle on the M1; retain independent results and cleanup checks. | M–L, depending on native defects |
-| REPORT | Deliver the detailed APKG comparison, evidence and limits; stop before the portal. | S |
+| M1-FINAL | Scoped RAM lifecycle and representative window/ARexx interactions pass, including corrected repeated confirmation, retained verification reports, real managed launch through both clients and independent post-removal/process cleanup. Broader native release qualification remains explicit. | Complete for this trial |
+| HOST-RECHECK | The final native client corrections pass exact-source Linux/macOS integration, memory, inherited suites and symbol/documentation checks; portal baseline regressions also pass. | Complete |
+| REPORT | Detailed APKG comparison, source/binary/CI/M1 evidence and explicit limits are delivered in English; stop before the portal. | Complete |
 
 NEWS-LAST, the named DESKTOP-CLOSE implementation/audit and HOST-FINAL have
 evaluated host checkpoints in [status](docs/fusion/status.md). HOST-FINAL passes
 on the frozen candidate, including exact-source Linux/macOS CI and post-removal
-inspection. Native interactions remain M1-FINAL work; they are not claimed
-complete by those host results.
+inspection. The final M1 trial supplies distinct application and native client
+evidence; its verdict does not turn wider native release obligations into passes.
 
 CLI-CONTINUITY, IMPORT-PROFILES and PRIOR-VERSIONS (previous lots 3–5) are
 deferred, not completed, and do not block this sequence. Their support choices,

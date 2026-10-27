@@ -1,0 +1,8 @@
+Compared authenticated observations
+Channel: cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
+Sequence: 2
+Snapshot: 203d4baf6790d491070a91a0fc1d3a40e931aeb41d3a5dd437db3e440f946c89
+Package changes: 0 applications, 0 target builds, 1 versions, 0 same-release changes; 0 indeterminate groups. Freshness unknown.
+updated abababababababababababababababab/fusion-calculator-trial 2.0 revision 1 target aarch64-aros-v1-native descriptor 826e3ea07982e9317c3588d34b6e783418a28f511ce83fc976972dce6b09ac35
+  Previous: 1.0 revision 1; direction: newer
+result 0

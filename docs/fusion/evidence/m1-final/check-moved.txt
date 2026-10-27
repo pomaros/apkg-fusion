@@ -1,0 +1,12 @@
+Bundle: RAM Disk:APKGFinalMoved
+Application: fusion-calculator-trial 1.0
+Target: aarch64-aros-v1-native
+Executable: RAM Disk:APKGFinalMoved/program
+Working directory: RAM Disk:APKGFinalMoved
+Mode: workbench
+System requirements: 0 (runtime probing required at launch)
+Registration: not required
+Runtime qualification: not asserted
+
+status=0 outcome=0
+result 0

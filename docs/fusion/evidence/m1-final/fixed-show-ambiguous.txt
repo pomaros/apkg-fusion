@@ -1,0 +1,3 @@
+command=SHOW fusion-calculator-trial
+rexx_rc=10
+result=10

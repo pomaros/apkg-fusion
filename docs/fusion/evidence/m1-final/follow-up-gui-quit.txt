@@ -1,0 +1,4 @@
+command=QUIT
+rexx_rc=0
+closing
+result=0

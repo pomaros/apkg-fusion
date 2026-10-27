@@ -1,0 +1,2 @@
+RAM:APKGFinalRoot/fusion-calculator-trial/CalculatorTrial/program.info  Deleted
+result 0

@@ -1,0 +1,14 @@
+command=JOB
+rexx_rc=0
+id 6
+op source-load
+package 
+origin window
+state done
+phase 
+done 0
+total unknown
+cancancel 0
+error 
+message 
+result=0

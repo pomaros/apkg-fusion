@@ -1,0 +1,29 @@
+Resolve/install
+Root folder: RAM Disk:APKGFinalRoot
+Approved plan: 23c50d5535c215c380a6e7036af2d0ad05a3588b7f1f968dce6d97adafe71a8b
+
+Channel: cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
+Channel signing key: 712651f450ba05b63898b99ef5f7ba45632e8e2527f7f715cd671ec4024cc51e
+Snapshot SHA-256: d66f6ae0eefd6b8130a2bc1b623813e406714a7a54831ca18a22bf769c72b97b
+Record replay floor at commit: 1
+
+Selected: fusion-calculator-trial 1.0 revision 1
+Publisher: abababababababababababababababab
+Target: aarch64-aros-v1-native
+Signature: verified, authorized key 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+
+Review/runtime qualification: no independent qualification asserted
+
+Package folder: fusion-calculator-trial
+Create fusion-calculator-trial/CalculatorTrial (directory, mode 493)
+Create fusion-calculator-trial/CalculatorTrial/.hidden; 6 bytes, mode 420, SHA-256 e564b4081d7a9ea4b00dada53bdae70c99b87b6fce869f0c3dd4d2bfa1e53e1c
+Create fusion-calculator-trial/CalculatorTrial/Empty (directory, mode 493)
+Create fusion-calculator-trial/CalculatorTrial/Package.arospkg.toml; 319 bytes, mode 420, SHA-256 499e008c7cc61b1ff71157156c31b139a597ce263804847ec17d5002593ceab8
+Create fusion-calculator-trial/CalculatorTrial/application.json; 312 bytes, mode 420, SHA-256 6e788dd286709912ac3bac16e30548c558885cf12ae44ffe81f6ef3580ad6c5e
+Create fusion-calculator-trial/CalculatorTrial/program; 54648 bytes, mode 493, SHA-256 770a386a828e299680297f37cc10a60d86de4673d1ad8dc07f74989f9004fc76
+Create fusion-calculator-trial/CalculatorTrial/program.info; 8078 bytes, mode 420, SHA-256 fa39c0703bad8615c8ddb7b5312b446eb2dbe888f35eaa089119b5a928f6cdec
+
+Commit .apkg/state at generation 3
+
+status=16 outcome=0
+result 16

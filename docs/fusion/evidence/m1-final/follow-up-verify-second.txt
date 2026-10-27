@@ -1,0 +1,4 @@
+command=VERIFY fusion-calculator-trial
+rexx_rc=0
+2
+result=0

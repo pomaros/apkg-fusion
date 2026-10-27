@@ -1,112 +1,111 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2026 John Knipper -->
 
-# Compatibilité legacy : choix et travaux différés
+# Legacy support choices and deferred work
 
-Les lots CLI-CONTINUITY (3), IMPORT-PROFILES (4) et PRIOR-VERSIONS (5) sont
-différés sur instruction de l'opérateur. Leur achèvement ne conditionne plus
-la validation du candidat courant sur macOS/Linux puis M1, ni le bilan avant
-le portail. Ce report ne vaut pas validation d'une migration d'installation
-existante. Les adaptateurs et tests déjà présents restent conservés.
+CLI-CONTINUITY (batch 3), IMPORT-PROFILES (4) and PRIOR-VERSIONS (5) are deferred
+at the operator's request. Their completion no longer gates qualification of
+the current candidate on macOS/Linux and M1 or the report before the portal.
+This deferral does not qualify migration of an existing installation. Existing
+adapters and tests remain intact.
 
-Le [statut](status.md) porte les résultats ; le
-[plan](../../PLAN.md#remaining-closure-batches) porte la séquence active.
-Les tailles ci-dessous sont relatives, sans engagement de délai.
+[Status](status.md) owns measured results; the
+[plan](../../PLAN.md#closure-batches-before-the-portal) owns the execution sequence.
+Sizes below describe relative effort, not calendar commitments.
 
-## Choisir le support promis
+## Select the support promise
 
-Ces profils sont combinables : reprendre des installations n'impose pas de
-reproduire toutes les commandes historiques. Conserver une archive ne la rend
-pas automatiquement utilisable pour restaurer une version.
+These profiles can be combined: importing installations does not require
+reproducing every historical command. Retaining an archive does not
+automatically make it usable to restore a version.
 
-| Support choisi | Promesse et limite | Travail supplémentaire | Taille indicative |
+| Selected support | Promise and limitation | Additional work | Indicative size |
 |---|---|---|---|
-| Installation neuve uniquement | Moteur, clients et formats communs sur une racine neuve ; aucune reprise automatique de racines ou scripts historiques. | Documenter l'installation séparée et les refus ; conserver les tests des adaptateurs existants. | S de documentation, qualification dans les lots actifs |
-| Conservation et consultation | Garder les originaux et leurs faits, y compris les inconnues ; aucune activation implicite des paramètres ou historiques. | Définir les formats admis, inventaire/export et diagnostics ; vérifier copies, permissions, absences et interruptions sur des captures réelles. | M, selon les formats |
-| Reprise des installations | Retrouver les applications, éditions personnelles, placements, paramètres et lancements dans le modèle commun. | IMPORT-PROFILES ci-dessous ; scripts anciens à sélectionner séparément. | L |
-| Continuité des commandes et scripts | Ensemble nommé de commandes, options, sorties JSON et codes de retour historiques. | CLI-CONTINUITY pour le corpus choisi ; aucune compatibilité universelle implicite. | L pour le périmètre précédemment prévu |
-| Reprise des anciennes versions | Restaurer les versions dont l'identité et les octets sont disponibles et admissibles. | PRIOR-VERSIONS ; déclarer les restaurations impossibles. | L–XL, incertitude la plus forte |
+| Fresh installations only | Common engine, clients and formats on a fresh root; no automatic import of historical roots or scripts. | Document separate installation and refusals; retain existing adapter tests. | S documentation; qualification remains in active batches |
+| Preservation and inspection | Retain originals and their facts, including unknowns; do not implicitly activate settings or history. | Define admitted formats, inventory/export and diagnostics; check copies, permissions, missing data and interruptions against real captures. | M, depending on formats |
+| Installation import | Recover applications, personal edits, placement, settings and launch behavior in the common model. | IMPORT-PROFILES below; select old-script support separately. | L |
+| Command/script continuity | A named set of historical commands, options, JSON outputs and return codes. | CLI-CONTINUITY for the selected corpus; no implied universal compatibility. | L for the previously planned scope |
+| Historical-version import | Restore versions whose identity and bytes are available and admissible. | PRIOR-VERSIONS; explicitly identify impossible restores. | L–XL, with the greatest uncertainty |
 
-## CLI-CONTINUITY — commandes et scripts (lot 3)
+## CLI-CONTINUITY — commands and scripts (batch 3)
 
-Le [profil existant](legacy-commands.md) couvre un sous-ensemble natif de
-list/info/verify/install/upgrade/remove/doctor et des aperçus. Il ne garantit
-pas tous les scripts d'une ancienne distribution.
+The [existing profile](legacy-commands.md) covers a native subset of
+list/info/verify/install/upgrade/remove/doctor and previews. It does not
+guarantee every script from an old distribution.
 
-À sélectionner puis réaliser selon les consommateurs réellement retenus :
+Select and implement according to the consumers actually supported:
 
-- update/search/recent/outdated, mises à jour groupées et rollback par nom :
-  définir leur correspondance avec les sélections et plans communs.
-- Catalogues `--index`/`--index-url`, arguments de lancement et options
-  d'auto-mise à jour. Une adaptation de syntaxe ne peut authentifier un ancien
-  catalogue non signé.
-- Champs JSON, valeurs absentes, sorties texte, codes de retour et confirmation
-  attendus par les scripts sélectionnés ; documenter les changements imposés.
-- Options d'injection/rapport réservées aux tests : décider de les exclure ou
-  de les fournir dans un outil de test plutôt que de les promettre implicitement.
+- Map update/search/recent/outdated, grouped upgrades and rollback by name to
+  common selections and plans.
+- Cover `--index`/`--index-url` catalogues, launch arguments and self-update
+  options. Syntax adaptation cannot authenticate an old unsigned catalogue.
+- Define JSON fields, missing values, text outputs, return codes and
+  confirmation expected by the selected scripts; document required changes.
+- Decide whether to exclude test-only injection/report options or provide them
+  through test tooling rather than implicitly promising them in the product.
 
-Sortie du lot : corpus versionné de scripts, succès et refus sur copie importée,
-effets équivalents aux plans communs et aucun argument silencieusement ignoré.
-Compléter les essais sur les environnements effectivement revendiqués.
+Exit evidence: a versioned script corpus, successful and refused operations on
+an imported copy, effects equivalent to common plans, and no silently ignored
+arguments. Complete qualification on the environments actually claimed.
 
-## IMPORT-PROFILES — installations, paramètres et lancement (lot 4)
+## IMPORT-PROFILES — installations, settings and launch (batch 4)
 
-La [copie existante](legacy-copy.md) importe un profil schema-1 avec relations
-et exigences système sous approbation explicite. Des octets de paramétrage ou
-de lancement conservés ne sont pas une configuration active convertie.
-La [cartographie](migration.md) décrit les données et leurs incertitudes.
+The [existing copy importer](legacy-copy.md) imports a schema-1 profile with
+relations and system requirements under explicit approval. Retained settings or
+launch bytes are not converted active configuration. The
+[mapping](migration.md) describes the data and its uncertainties.
 
-- Fixer versions sources, schémas et variantes admis ; recueillir des captures
-  originales autorisées avec un inventaire reproductible.
-- Compléter les placements : chemins partagés, icônes, propriétaires,
-  collisions, fichiers modifiés/inconnus et attributs du système de fichiers.
-- Convertir paramètres, associations ENV/ENVARC, racines et sources avec leur
-  portée. Ne pas déduire une confiance ou qualification d'une préférence client.
-- Réconcilier métadonnées de lancement et `application.json` ; valider chemins
-  et désaccords sans exécuter de programme pendant l'import.
-- Éprouver validation, copie, interruption, reprise et répétition ; garder
-  l'installation source utilisable et refuser les cas non admis.
+- Pin admitted source versions, schemas and variants; obtain authorized
+  original captures with reproducible inventories.
+- Complete placement handling: shared paths, icons, owners, collisions,
+  modified/unknown files and filesystem attributes.
+- Convert settings, ENV/ENVARC associations, roots and sources with their scope.
+  Do not infer trust or qualification from a client preference.
+- Reconcile launch metadata with `application.json`; validate paths and
+  disagreements without executing programs during import.
+- Test validation, copying, interruption, recovery and retry; keep the source
+  installation usable and refuse unsupported cases.
 
-Sortie du lot : rapport source → état commun, conservation vérifiée des
-originaux, puis diagnostic, lancement, mise à jour, réparation et suppression
-de la copie. Inspecter fichiers, données personnelles et journal ; compléter
-par les essais natifs nécessaires aux attributs DOS.
+Exit evidence: source-to-common-state report and verified preservation of the
+originals, followed by diagnosis, launch, upgrade, repair and removal on the
+copy. Inspect files, personal data and journal; add native tests needed for DOS
+attributes.
 
-## PRIOR-VERSIONS — historiques et restauration (lot 5)
+## PRIOR-VERSIONS — history and restoration (batch 5)
 
-Le rollback de versions créées par le moteur commun reste dans les tests
-actifs. Seule la conversion de l'ancien historique est différée ici.
+Rollback of versions created by the common engine remains in active tests.
+Only conversion of historical state is deferred here.
 
-- Inventorier registres précédents, archives, références et journaux
-  d'auto-mise à jour : disponible, absent, non résolu et non vérifié sont distincts.
-- Définir identité, version/révision, cible, provenance, admissibilité et
-  propriété pour chaque version reprise. Des octets retenus ne gagnent aucune
-  signature ou autorisation rétrospective.
-- Construire les entrées utilisables par les plans et le journal communs ;
-  préserver séparément les preuves non convertibles.
-- Définir rétention/nettoyage et traitement des anciens journaux non terminés,
-  sans exécuter deux modèles de récupération sur la même mutation.
+- Inventory earlier registries, archives, references and self-update journals:
+  available, missing, unresolved and unverified are distinct states.
+- Define identity, version/revision, target, provenance, admissibility and
+  ownership for each imported version. Retained bytes gain no retrospective
+  signature or authorization.
+- Construct entries usable by common plans and the common journal; separately
+  preserve evidence that cannot be converted.
+- Define retention/cleanup and handling of unfinished historical journals,
+  without running two recovery models over the same mutation.
 
-Sortie du lot : restauration hors ligne des versions déclarées disponibles,
-refus motivé des autres, interruption/reprise, contrôle des éditions personnelles
-et de l'état enregistré. Une archive absente interdit de promettre sa restauration.
+Exit evidence: offline restoration of versions declared available, explained
+refusal of other cases, interruption/recovery, and inspection of personal edits
+and recorded state. A missing archive prevents promising its restoration.
 
-## Informations nécessaires à la reprise
+## Information needed before resuming
 
-La seconde distribution, les versions APKG déployées, les versions de
-`dos.library`, les gestionnaires de fichiers et les scripts réels ne sont pas
-établis. La cartographie cite AROS One 1.3 à partir de documents amont ; ce n'est
-pas une capture ni une qualification de cette distribution.
+The second distribution, deployed APKG versions, `dos.library` versions,
+filesystem handlers and real scripts are not established. The mapping identifies
+AROS One 1.3 from upstream documents; that is neither a captured installation nor
+qualification of the distribution.
 
-Avant toute promesse, nommer le profil, ses versions et son corpus, collecter
-ces données et définir les conditions de refus/repli. L'accord des mainteneurs
-et la qualification des distributions restent des conditions de diffusion
-commune ; les tests hôtes ne les établissent pas.
+Before making a support promise, name its profile, versions and corpus, collect
+these inputs and define refusal/fallback conditions. Maintainer agreement and
+distribution qualification remain conditions of a joint release; host tests do
+not establish them.
 
-## Séparations à conserver
+## Keep these responsibilities separate
 
-La migration entre versions de l'outil APKG lui-même (exécutable, bibliothèque,
-formats persistants, clients, sauvegarde et retour arrière) fait l'objet d'une
-revue distincte dans [TODO](../../TODO.md). Un import d'applications ne la démontre
-pas. La migration du consommateur `libpkg` qui met le M1 à jour garde son
-propriétaire séparé. Le portail reste après la frontière d'arrêt demandée.
+Migration between versions of the APKG tool itself—executable, library,
+persistent formats, clients, backup and rollback—has a separate review item in
+[TODO](../../TODO.md). Application import does not prove tool migration. Another
+owner will migrate the `libpkg` consumer that updates the M1. The portal remains
+after the requested stop boundary.

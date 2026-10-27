@@ -1,0 +1,5 @@
+Root: RAM Disk:APKGFinalRoot
+State: 2
+
+status=0 outcome=0
+result 0

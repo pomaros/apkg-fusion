@@ -1,0 +1,227 @@
+{
+  "source": "08e6cf851c957a35f70d8b79e7b892535e2f640a",
+  "preceding_source": "698b3e1ded7f0cc0e54a0c1ab781817c59d5075e",
+  "verdict": "PASS",
+  "scope": "Isolated RAM application lifecycle on physical M1 under HV; not bare-metal OS acceptance",
+  "cli_sha256": "8a55238fd5f00206c99bf0b49037b271bbb8c51327760c5f6b689bf0a76189cb",
+  "gui_sha256": "6715e3b7ba861899fd33a31045adb0820267b8350ef358a707b82efec00fb93e",
+  "cli_identical_to_preceding_candidate": true,
+  "old_gui_verdict": "FAIL: blank repeated confirmation; declined; replaced and retested",
+  "managed_and_moved_bundle_launch": "PASS: independently captured real Calculator windows; managed application interaction observed",
+  "confirmation_reuse": "PASS: rollback declined then reopened at identical size and approved; subsequent removal displays its own plan",
+  "final_generation": 9,
+  "installed_count": 0,
+  "pending_transactions": 0,
+  "preparation_directories": 0,
+  "retained_files": [
+    "CalculatorTrial/.hidden",
+    "CalculatorTrial/Personal/keep.txt"
+  ],
+  "replay_sequence_after_rollback_and_removal": 2,
+  "client_worker_application_exit": "PASS: independent task inventory after quit contains none of the three",
+  "supervisor_cleanup": "All eight CPUs exited; fresh proxy firmware identity observed afterward",
+  "installed_updater_modified": false,
+  "runtime_scope": "Retained RAM reference and matching SDK with development CRT differences; newer runtime attempt failed before application workload",
+  "cases": [
+    {
+      "case": "initialize",
+      "output": "initialize.txt",
+      "sha256": "9396fb30d436cb322fb126f28bddf1b32f6e31e25d7ccc8bd77409a7e657eb29"
+    },
+    {
+      "case": "install-preview",
+      "output": "install-preview.txt",
+      "sha256": "8bdb8293dad846773410d5ce2e54d558ac96d31c017a015e54feda5d72d00e2b"
+    },
+    {
+      "case": "install-commit",
+      "output": "install-commit.txt",
+      "sha256": "007c8adb7d399f602fd2db206f86a22efcdaa0006e1bf89d1af1ac446c7a6c7c"
+    },
+    {
+      "case": "verify-v1",
+      "output": "verify-v1.txt",
+      "sha256": "4deaff8c0fed714f61f4a9145e25ed6879ad4b3cf66440a63680824062a4053f"
+    },
+    {
+      "case": "upgrade-commit",
+      "output": "upgrade-commit.txt",
+      "sha256": "c1fd2748caebbaebab71786282b3f24da95509ac4300fc5406c1e090e7d3937b"
+    },
+    {
+      "case": "verify-v2",
+      "output": "verify-v2.txt",
+      "sha256": "0a1f64ad30633c22cfafcba71450b745860917db4504c9b7d3d46d2b8b62383c"
+    },
+    {
+      "case": "news-v2",
+      "output": "news-v2.txt",
+      "sha256": "d51c9241bddd252d406db4471e5f95c693d22c2455ddf2119116e8e445030b60"
+    },
+    {
+      "case": "rollback-offline",
+      "output": "rollback-offline.txt",
+      "sha256": "27176512160cebf735791f1bfa02bc3e39709cbed0f06ba3a770cfc71fa2be4a"
+    },
+    {
+      "case": "info-rolled",
+      "output": "info-rolled.txt",
+      "sha256": "bcc97ec6ba03565b35815c04296adb4464c83973305c787041a869399173c526"
+    },
+    {
+      "case": "repair-offline",
+      "output": "repair-offline.txt",
+      "sha256": "e3baa491a4822870b2d6bf3ddb7a9d48b6b0cc8efa16fdf879eeae6d2cfdfa93"
+    },
+    {
+      "case": "verify-repaired",
+      "output": "verify-repaired.txt",
+      "sha256": "f26f46bcb140ad5de51b32e07789441750c72ddbd169c03e19c450236576f472"
+    },
+    {
+      "case": "check-moved",
+      "output": "check-moved.txt",
+      "sha256": "00cd73cdc92f92c97316eb2db84f952458e500a91ed24cb5f3bda9bcc0ce379b"
+    },
+    {
+      "case": "gui-job-declined",
+      "output": "gui-job-declined.txt",
+      "sha256": "f3955edbf620c11d1e87f0ede5bfea64116f717098116698eb26ee97b96a208e"
+    },
+    {
+      "case": "gui-job-upgraded",
+      "output": "gui-job-upgraded.txt",
+      "sha256": "a9b1b2da7f9a8b34d4a8985648e3a4d80ee51c56b35b4d265b2f0332f1e70fb3"
+    },
+    {
+      "case": "gui-restore-offline-result",
+      "output": "gui-restore-offline-result.txt",
+      "sha256": "c809c3be3fc70045f9e6dd4b15f1c3120f859b6b33f765b6fad894d8ff1f3f57"
+    },
+    {
+      "case": "fixed-gui-identity",
+      "output": "fixed-gui-identity.txt",
+      "sha256": "60fbf0a8f575ef287c8432edd7a79ab978b21eed4c800a38b3ae9c7f7e77c2ae"
+    },
+    {
+      "case": "fixed-rollback-result",
+      "output": "fixed-rollback-result.txt",
+      "sha256": "48604e59bea50cf58690b29827b07c89e3800d448e1ae69fddf3b7327259cac3"
+    },
+    {
+      "case": "fixed-rollback-version",
+      "output": "fixed-rollback-version.txt",
+      "sha256": "bcc97ec6ba03565b35815c04296adb4464c83973305c787041a869399173c526"
+    },
+    {
+      "case": "fixed-remove-result",
+      "output": "fixed-remove-result.txt",
+      "sha256": "390d121a85e2306f6ff6ba48fe2ad0c02130baae735fa8cc90880a3f1dae28b1"
+    },
+    {
+      "case": "post-remove-inspect",
+      "output": "post-remove-inspect.txt",
+      "sha256": "cffe32ba56d41c292afe0afae42bb942790a2b8c0ea1b7e54004b05eb9b1d5f3"
+    },
+    {
+      "case": "post-remove-list",
+      "output": "post-remove-list.txt",
+      "sha256": "0a9ae62f19c0a35288551d94c39de71b065ce1b4ffec727f9ea4eb4cb2f270ce"
+    },
+    {
+      "case": "post-remove-info",
+      "output": "post-remove-info.txt",
+      "sha256": "a6988f765f83166fd3be14a7b286cf3b184c03b29a28d26bff09238303e1bc81"
+    },
+    {
+      "case": "post-remove-verify",
+      "output": "post-remove-verify.txt",
+      "sha256": "a6988f765f83166fd3be14a7b286cf3b184c03b29a28d26bff09238303e1bc81"
+    },
+    {
+      "case": "post-remove-folder",
+      "output": "post-remove-folder.txt",
+      "sha256": "a6988f765f83166fd3be14a7b286cf3b184c03b29a28d26bff09238303e1bc81"
+    },
+    {
+      "case": "post-remove-files",
+      "output": "post-remove-files.txt",
+      "sha256": "5b7b1242ef0a1abb9e2bb8aa8b627ef9619803f3d03caa8cc03e20cb39631bd5"
+    },
+    {
+      "case": "post-remove-config",
+      "output": "post-remove-config.txt",
+      "sha256": "ac29bb64afe11b9158819b548e5761241c216a92d09d88dbffc77377547e8339"
+    },
+    {
+      "case": "post-remove-personal",
+      "output": "post-remove-personal.txt",
+      "sha256": "29b860cce62cc8f2891545629d2fa73894013308b27e3ae494a732a0a0f41e14"
+    },
+    {
+      "case": "post-remove-transaction",
+      "output": "post-remove-transaction.txt",
+      "sha256": "92e384f629d9f0eb38130ab2ee027b13e8e873ecdf28e5715395e8b935855f83"
+    },
+    {
+      "case": "post-remove-preparations",
+      "output": "post-remove-preparations.txt",
+      "sha256": "bc9e40f6e90ed8a774cc76728a956cc0fa2ce1041316c71746bb1657b9b44940"
+    },
+    {
+      "case": "fixed-catalogue-only-queries",
+      "output": "fixed-catalogue-only-queries.txt",
+      "sha256": "60dbba1a97457ccc965fb0948ea708040632831dd7725b0ab20acb6ac571cec9"
+    },
+    {
+      "case": "fixed-show-ambiguous",
+      "output": "fixed-show-ambiguous.txt",
+      "sha256": "6805120909b4857e74f9758e0237152ee24435769338f4b2331b53dc3ef11041"
+    },
+    {
+      "case": "fixed-final-gui-log",
+      "output": "fixed-final-gui-log.txt",
+      "sha256": "b0b341728987ab40614d05660928c158d74798e2105e04d604639124f209f546"
+    },
+    {
+      "case": "fixed-final-quit",
+      "output": "fixed-final-quit.txt",
+      "sha256": "9365733fd497c1516c055b28dfec40f62ad87ad8344e6d785c42cf616dd41251"
+    }
+  ],
+  "persistent_storage_writes": false,
+  "scanout_witnesses": [
+    {
+      "case": "managed Calculator visible",
+      "sha256": "a714008bb0ecacae77745301c603fa0f1193d9d793db5565fb022b290c8bb7f6"
+    },
+    {
+      "case": "managed Calculator interaction",
+      "sha256": "5df392a2ee773b376b8b2bb125ce8d27f75bfd445dfd826c5811015c54785b89"
+    },
+    {
+      "case": "moved unregistered Calculator visible",
+      "sha256": "6b234506d834c6d6f416aa7c137a1f9623ecb17ee086b779d27886ad21cecd01"
+    },
+    {
+      "case": "Last refresh 1 to 2",
+      "sha256": "b2013138fd6f126cde834f5625b08d6450c26757d06ea7464c7b9db05f65cf99"
+    },
+    {
+      "case": "Last refresh 2 to 2",
+      "sha256": "db740a8414f5b03b6da18c3be8e4361e40b6bcce8ade4676aa3537efcd3a30d2"
+    },
+    {
+      "case": "fixed first rollback plan",
+      "sha256": "37131b20124d65ebd015751974bb50bfedf5a144ab586948263501fea15a5b32"
+    },
+    {
+      "case": "fixed same-size reopened rollback plan",
+      "sha256": "37131b20124d65ebd015751974bb50bfedf5a144ab586948263501fea15a5b32"
+    },
+    {
+      "case": "fixed later removal plan",
+      "sha256": "d1dab930d3bbff4d3ea3de1752b0fb2f6322876bfd78fa38778d364559eca51e"
+    }
+  ]
+}

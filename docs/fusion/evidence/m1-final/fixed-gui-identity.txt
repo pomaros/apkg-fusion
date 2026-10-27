@@ -1,0 +1,91 @@
+command=VERSION
+rexx_rc=0
+PkgManager 0.6.0 ARexx 2 sha256 6715e3b7ba861899fd33a31045adb0820267b8350ef358a707b82efec00fb93e
+command=HELP
+rexx_rc=0
+VERSION HELP LIST INFO REQUIREMENTS SHOW UPDATE INSTALL REMOVE UPGRADE ROLLBACK JOB WAIT CANCEL QUIT LASTERROR OUTDATED RUN VERIFY
+command=LIST INSTALLED
+rexx_rc=0
+fusion-calculator-trial
+command=INFO fusion-calculator-trial
+rexx_rc=0
+id fusion-calculator-trial
+version 2.0
+revision 1
+state installed
+installedversion 2.0
+installedrevision 1
+summary Author test
+category util
+license MIT
+repository unknown
+arch aarch64
+abi v1
+kind application
+size unknown
+requires unknown
+canupgrade unknown
+canrollback unknown
+compatibility target-match
+requirements not-checked
+authority abababababababababababababababab
+target aarch64-aros-v1-native
+reason explicit
+signature verified
+authortrust accepted
+payloadbytes 63363
+files 5
+directories 2
+relations {"conflicts":[],"depends":[],"recommends":[],"replaces":[]}
+review not-asserted
+runtime not-asserted
+payloadverification not-checked
+rootstate ready
+rootid 9b8317ad077fd48964a1664b2bd933b9
+generation 7
+snapshot deb6d8c789245d542b58edea17ea4fe352a3ebc63b8eed0f6fedd67388b4b29b
+adoption none
+command=REQUIREMENTS fusion-calculator-trial
+rexx_rc=0
+System requirements observed now for abababababababababababababababab/fusion-calculator-trial 2.0 (revision 1)
+No system requirements declared.
+command=OUTDATED
+rexx_rc=0
+catalogue ok
+updated unknown
+stale unknown
+installed 1
+newer 0
+ready unknown
+blocked 0
+packages 
+metadataeligible 0
+newercandidates 0
+blockedcandidates 0
+indeterminate 0
+conflicts 0
+notlisted 0
+qualifiedpackages 
+generation 7
+snapshot deb6d8c789245d542b58edea17ea4fe352a3ebc63b8eed0f6fedd67388b4b29b
+channel cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
+sequence 2
+channelsnapshot 203d4baf6790d491070a91a0fc1d3a40e931aeb41d3a5dd437db3e440f946c89
+planreadiness not-checked
+freshness unknown
+review not-asserted
+runtime not-asserted
+command=JOB
+rexx_rc=0
+id 1
+op source-load
+package 
+origin startup
+state done
+phase 
+done 0
+total unknown
+cancancel 0
+error 
+message 
+result=0

@@ -1,0 +1,19 @@
+Verification of abababababababababababababababab/fusion-calculator-trial 1.0 (revision 1)
+Signature: verified
+Author trust: accepted
+ok 6
+changed 1
+missing 0
+unknown 2
+ok CalculatorTrial
+changed CalculatorTrial/.hidden [configuration]
+ok CalculatorTrial/Empty
+ok CalculatorTrial/Package.arospkg.toml
+ok CalculatorTrial/application.json
+ok CalculatorTrial/program
+ok CalculatorTrial/program.info
+unknown CalculatorTrial/Personal
+unknown CalculatorTrial/Personal/keep.txt
+
+status=0 outcome=0
+result 0

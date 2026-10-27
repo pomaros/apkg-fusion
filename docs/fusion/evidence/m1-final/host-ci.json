@@ -1,0 +1,237 @@
+{
+  "databaseId": 40562000506,
+  "headSha": "f73eec77d3c0aba17fe5e7b3b65cc22c3f918c53",
+  "status": "completed",
+  "conclusion": "success",
+  "url": "https://github.com/pomaros/apkg-fusion/actions/runs/40562000506",
+  "jobs": [
+    {
+      "name": "portal (macos-latest)",
+      "id": 122393207727,
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build native package verifier for portal integration tests",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-dotnet@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Portal regression and qualification tests",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-dotnet@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "fusion (ubuntu-latest)",
+      "id": 122393207983,
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Linux archive test dependencies",
+          "conclusion": "success"
+        },
+        {
+          "name": "macOS archive test dependencies",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Build and test common integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "Common context memory checks",
+          "conclusion": "success"
+        },
+        {
+          "name": "Inherited engine regression suite",
+          "conclusion": "success"
+        },
+        {
+          "name": "Inherited client and authoring host suite",
+          "conclusion": "success"
+        },
+        {
+          "name": "Public library symbols",
+          "conclusion": "success"
+        },
+        {
+          "name": "Documentation links",
+          "conclusion": "success"
+        },
+        {
+          "name": "Preserve test logs on failure",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "fusion (macos-latest)",
+      "id": 122393207992,
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Linux archive test dependencies",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "macOS archive test dependencies",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build and test common integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "Common context memory checks",
+          "conclusion": "success"
+        },
+        {
+          "name": "Inherited engine regression suite",
+          "conclusion": "success"
+        },
+        {
+          "name": "Inherited client and authoring host suite",
+          "conclusion": "success"
+        },
+        {
+          "name": "Public library symbols",
+          "conclusion": "success"
+        },
+        {
+          "name": "Documentation links",
+          "conclusion": "success"
+        },
+        {
+          "name": "Preserve test logs on failure",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "name": "portal (ubuntu-latest)",
+      "id": 122393208029,
+      "conclusion": "success",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build native package verifier for portal integration tests",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-dotnet@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Portal regression and qualification tests",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-dotnet@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ]
+}

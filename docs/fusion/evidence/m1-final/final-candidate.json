@@ -1,0 +1,155 @@
+{
+  "source": "f73eec77d3c0aba17fe5e7b3b65cc22c3f918c53",
+  "base_lifecycle_source": "08e6cf851c957a35f70d8b79e7b892535e2f640a",
+  "base_lifecycle_verdict": "verdict.json",
+  "scope": "Additional fresh-root M1 HV RAM application trial; not OS acceptance",
+  "cli_sha256": "8a55238fd5f00206c99bf0b49037b271bbb8c51327760c5f6b689bf0a76189cb",
+  "gui_sha256": "58f1cf5dd0fe576368fb3d91b09321b73dafa3f2983e14562f564a52ea19985b",
+  "cli_identical_to_base": true,
+  "verification_counts_first": {
+    "ok": 5,
+    "changed": 1,
+    "missing": 1,
+    "unknown": 1
+  },
+  "verification_counts_second": {
+    "ok": 4,
+    "changed": 1,
+    "missing": 2,
+    "unknown": 1
+  },
+  "job_report_retention": "PASS: first job retains independent first CLI report after second worker report replaces GUI report",
+  "managed_gui_run": "PASS: actual Calculator window and interaction captured; job done",
+  "final_root": "ready, zero installed, generation 4, no pending transaction or preparation",
+  "removal": "unmodified managed files removed; edited configuration/personal note preserved; manually restored icon mode changed to 0700 so preserved as locally changed, then explicitly deleted as test cleanup",
+  "process_exit": "independent task inventory excludes client, worker and Calculator",
+  "runtime_limit": "Guest reports failed secondary Exec startup; application workload runs on one AROS core. Eight-CPU supervisor cleanup is not an AROS SMP claim. Retained SDK/runtime has development CRT differences.",
+  "private_tooling_published": false,
+  "persistent_storage_or_updater_changes": false,
+  "cases": [
+    {
+      "case": "install-commit",
+      "output": "follow-up-install-commit.txt",
+      "sha256": "112bcb0e933957360d7eb6a206dedf8e8816ca03c2c696b363e43cfd2e11ca3a"
+    },
+    {
+      "case": "verify-cli-first",
+      "output": "follow-up-verify-cli-first.txt",
+      "sha256": "8cf35e1920a90123333c05e827dd26bc865b3dab7d701f507a45ddc609806e94"
+    },
+    {
+      "case": "verify-first",
+      "output": "follow-up-verify-first.txt",
+      "sha256": "c91074551a4746955014190668ebe00d02dc47ea932e34bcdf1643389d893e93"
+    },
+    {
+      "case": "verify-job-first",
+      "output": "follow-up-verify-job-first.txt",
+      "sha256": "c8431206fb3a343b0f13889624e3465b909fb277256c3e44387705e6e1c974ea"
+    },
+    {
+      "case": "verify-cli-second",
+      "output": "follow-up-verify-cli-second.txt",
+      "sha256": "ec4c236468ba9618983af6cd12558d5733fa301115ec7965e5f74075f5375663"
+    },
+    {
+      "case": "verify-second",
+      "output": "follow-up-verify-second.txt",
+      "sha256": "392c85b8138069a283b8a8967376880ba8a1a1e11fcd80de1af10a9fb195c9a4"
+    },
+    {
+      "case": "verify-job-second",
+      "output": "follow-up-verify-job-second.txt",
+      "sha256": "58dc35ef10006fda170a033e224b4d5e2223f5b6b4fc97ebb1570440c67157bc"
+    },
+    {
+      "case": "verify-job-retained",
+      "output": "follow-up-verify-job-retained.txt",
+      "sha256": "6503217e5db9673e5d06ca8de9f29053bc1d903737e09d17f0eb0ac6f58de027"
+    },
+    {
+      "case": "gui-identity",
+      "output": "follow-up-gui-identity.txt",
+      "sha256": "50230cbd8123519099cccb485d0b3788cea7099f9c7a19c39e116bc80ae33fb7"
+    },
+    {
+      "case": "gui-run",
+      "output": "follow-up-gui-run.txt",
+      "sha256": "23a0fce06f47b0c426707acf78736e12faf741116b150bfd65787621b7329c40"
+    },
+    {
+      "case": "gui-run-result",
+      "output": "follow-up-gui-run-result.txt",
+      "sha256": "ac3f07fada6f59208202649168c157f86e670cdedb55e25325dec06b025177a3"
+    },
+    {
+      "case": "gui-quit",
+      "output": "follow-up-gui-quit.txt",
+      "sha256": "9365733fd497c1516c055b28dfec40f62ad87ad8344e6d785c42cf616dd41251"
+    },
+    {
+      "case": "remove-preview",
+      "output": "follow-up-remove-preview.txt",
+      "sha256": "1417a50029ab0146b3016fc65cc3bdf6eb711b37877db939ab51887f9fe41f0e"
+    },
+    {
+      "case": "remove-commit",
+      "output": "follow-up-remove-commit.txt",
+      "sha256": "3f17ce65f41b84e38af91d9cdfa0d48781a5f72326cdc275788d7577ef67a836"
+    },
+    {
+      "case": "final-inspect",
+      "output": "follow-up-final-inspect.txt",
+      "sha256": "73aaaedb2f66beda23084922fd8ed044b2e1ed5b37b92933820e0c08b88b8a4c"
+    },
+    {
+      "case": "final-files",
+      "output": "follow-up-final-files.txt",
+      "sha256": "af37bfda190604cf6a203de82e4947312eb77e4812acbb6bb9be0de42f593597"
+    },
+    {
+      "case": "cleanup-restored-icon",
+      "output": "follow-up-cleanup-restored-icon.txt",
+      "sha256": "3dad62d2472f4d770d8a685676b4a8f5e44ca124cc15e85bbeee8e64dcdd753f"
+    },
+    {
+      "case": "final-files-after-cleanup",
+      "output": "follow-up-final-files-after-cleanup.txt",
+      "sha256": "149ec6641a056745c982d18d9917e93fac12bbc8f84ef720da20ef2f5e34fbf5"
+    },
+    {
+      "case": "final-config",
+      "output": "follow-up-final-config.txt",
+      "sha256": "ac29bb64afe11b9158819b548e5761241c216a92d09d88dbffc77377547e8339"
+    },
+    {
+      "case": "final-personal",
+      "output": "follow-up-final-personal.txt",
+      "sha256": "29b860cce62cc8f2891545629d2fa73894013308b27e3ae494a732a0a0f41e14"
+    },
+    {
+      "case": "final-transaction",
+      "output": "follow-up-final-transaction.txt",
+      "sha256": "92e384f629d9f0eb38130ab2ee027b13e8e873ecdf28e5715395e8b935855f83"
+    },
+    {
+      "case": "final-preparations",
+      "output": "follow-up-final-preparations.txt",
+      "sha256": "bc9e40f6e90ed8a774cc76728a956cc0fa2ce1041316c71746bb1657b9b44940"
+    }
+  ],
+  "scanout_witnesses": [
+    {
+      "case": "GUI managed launch",
+      "sha256": "9a78feaf8c5312611f63829d350ef6fd9a4065e5c71dcb571283ff4d5e6e80cf"
+    },
+    {
+      "case": "GUI-launched Calculator interaction",
+      "sha256": "712cf0d4360a9cb5344d5980978004f071a25b0b79c4ca36ce8cbdb6194f86b9"
+    }
+  ],
+  "verdict": "PASS",
+  "supervisor_cleanup": "All eight CPUs exited; fresh proxy identity observed after reset; two earlier readiness observations preceded re-enumeration",
+  "job_report_verifier": "tests/aros/verify_job_report.py passes on retained outputs; rejects empty, altered-count and replaced-old-job mutations",
+  "host_ci": "host-ci.json"
+}

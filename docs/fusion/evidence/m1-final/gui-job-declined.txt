@@ -1,0 +1,14 @@
+command=JOB
+rexx_rc=0
+id 2
+op upgrade
+package fusion-calculator-trial
+origin arexx
+state declined
+phase declining
+done 0
+total unknown
+cancancel 0
+error COMMONINSTALL
+message signed installation refused (code 16)
+result=0
