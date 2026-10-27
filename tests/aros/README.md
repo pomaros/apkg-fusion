@@ -26,7 +26,9 @@ identities and verify that all original system files remain unchanged. Qualify
 independent debugger interruption before running the application workload.
 Do not replace an installed package manager or invoke its updater.
 
-Execute `SYS:APKGTrial/Trial` from a Shell. It uses separate `RAM:APKG…`
+For keyboard-driven control, verify letters, digits and path punctuation against
+the active Shell keymap before sending commands. Set the Shell's command stack
+to 8 MiB (`Stack 8388608`). Execute `SYS:APKGTrial/Trial` from that Shell. It uses separate `RAM:APKG…`
 namespaces and must run once in a fresh runtime. Its 25 steps cover fresh root
 initialization, signed source installation, archive tampering refusal, upgrade,
 installed-file verification, removal and preservation of edited configuration.

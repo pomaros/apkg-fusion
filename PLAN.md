@@ -17,6 +17,8 @@ and [status](docs/fusion/status.md) records measured progress. This plan owns
 the implementation order. A completed experiment is evidence for its scope;
 it does not complete a later integration gate.
 
+[TODO.md](TODO.md) records additional follow-up proposals outside these gates.
+
 ## Establish the integration baseline
 
 Preserve pinned public inputs, licences and both regression suites. Establish
