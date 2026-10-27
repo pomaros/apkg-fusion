@@ -9,12 +9,13 @@
 #include "../libpkg/pkg.h"
 #include <stddef.h>
 
-#define RX_INTERFACE 1          /* bumped when a reply changes meaning */
 #define RX_PORTNAME  "PKGMANAGER"
 #define RX_MAXRESULT 65535      /* an argstring's length is 16 bits */
 #ifdef APKG_FUSION
+#define RX_INTERFACE 2 /* common target/fact meanings; unknown is explicit */
 #define RX_PACKAGE_MAX 256
 #else
+#define RX_INTERFACE 1
 #define RX_PACKAGE_MAX PKG_MAXID
 #endif
 

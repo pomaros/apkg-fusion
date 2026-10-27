@@ -3,12 +3,23 @@
 #ifdef APKG_FUSION
 #include "apkg_client.h"
 #include "job.h"
+#include "rexxcmd.h"
 #include <proto/exec.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define PM_CATALOGUE_MAX (16u * 1024u * 1024u)
+apkg_status pm_common_rexx_info(const char *root, const char *name,
+                                const char *field, char **out) {
+    apkg_status code = apkg_client_info(root, name, field, out, NULL);
+    if (!code && strlen(*out) > RX_MAXRESULT) {
+        apkg_client_text_free(*out);
+        *out = NULL;
+        return APKG_LIMIT;
+    }
+    return code;
+}
 static int channel_summary(char *out, size_t size, const apkg_channel_view *v) {
     const char hex[] = "0123456789abcdef";
     char identity[33], digest[65], floor[32];

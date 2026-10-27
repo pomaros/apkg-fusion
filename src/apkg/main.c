@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
             "PACKAGE-DIRECTORY [--confirm "
             "DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
             "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
-            "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | "
+            "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
             "channel-inspect|channel-open ROOT DIRECTORY CHANNEL-ID "
@@ -287,6 +287,12 @@ int main(int argc, char **argv) {
                 puts(text);
         } else
             code = apkg_client_run(argv[2], argv[3], &e);
+        goto done;
+    }
+    if (!strcmp(argv[1], "info")) {
+        if (argc != 4 && argc != 5) goto done;
+        code = apkg_client_info(argv[2], argv[3], argc == 5 ? argv[4] : NULL, &text, &e);
+        if (!code) puts(text);
         goto done;
     }
     if (!strcmp(argv[1], "list") || !strcmp(argv[1], "show")) {

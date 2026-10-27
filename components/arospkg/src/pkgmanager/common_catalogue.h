@@ -33,4 +33,7 @@ typedef struct {
 } pm_common_installed;
 apkg_status pm_common_installed_read(const char *root, const char *term,
                                      pm_common_installed **, apkg_error **);
+/* ARexx's 16-bit result boundary: refuse overflow, never truncate facts.
+ * Successful text is owned by the client library; free with its text free. */
+apkg_status pm_common_rexx_info(const char *, const char *, const char *, char **);
 #endif

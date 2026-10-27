@@ -1,0 +1,60 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Copyright (c) 2026 John Knipper -->
+
+# Installed inspection
+
+`apkg_snapshot_inspect` owns an immutable copy of one installed record,
+independent of snapshot/context lifetime. Its view retains exact descriptor,
+signature and relation bytes; complete names/versions and unsigned revisions;
+declared payload counts; and captured root/generation/state/snapshot identity.
+Free it with `apkg_inspection_free`. Borrowed views expire with that object.
+
+READY and PENDING common snapshots can be inspected without recovery. Absent,
+legacy and invalid roots refuse without creating state. Out-of-range rows
+return NOT_FOUND. Allocating outputs clear on entry and failure.
+
+The reader checks the descriptor signature against exact captured bytes and
+checks author grants against captured policy. A valid signature with a withdrawn
+grant reports `rejected`; an invalid signature reports `invalid` with author
+trust `unknown`. Diagnostic metadata grants no permission to install or run it.
+Target comparison uses the root's declaration, independently of the running OS.
+Review and runtime qualifications remain `not-asserted`.
+
+It fetches no archives and checks or repairs no installed payload. Signature
+verification cannot qualify modified/missing live files: `payloadverification`
+is `not-checked`. Declared file bytes and explicit directories are counted;
+archive size remains `unknown`. Byte-sum overflow returns LIMIT. All four
+relation sets retain authority, target, version and revision constraints.
+Absent relations in a common schema-1 descriptor mean empty sets; legacy
+missing facts still need the separate import policy.
+
+`apkg_client_info(ROOT, NAME, FIELD, ...)` performs read-only exact-name lookup
+and returns owned text. Empty FIELD emits name/value lines; a case-insensitive
+field emits its value. Release text with `apkg_client_text_free`.
+
+```sh
+./build/apkg info ROOT NAME
+./build/apkg info ROOT NAME signature
+./build/apkg info ROOT NAME relations
+```
+
+`apkg_info_fields` advertises fields. Existing information field names remain,
+with explicit `unknown` for unestablished summary/category/archive size/runtime
+requirements/upgrade availability/rollback applicability. `requirements` is
+`not-checked`. Installed version/revision describe the committed record. Added
+fields expose author, target, reason, signature/trust, declared payload counts,
+full relations, independent qualifications and snapshot provenance.
+
+PkgManager installed details and fusion ARexx INFO share that inspection.
+Fusion advertises **ARexx interface 2**: INFO reports explicit unknowns and
+`target-match`/`target-mismatch`, without inferring runtime compatibility or
+fabricating upgrade/rollback booleans. INFO currently describes installed
+records; catalogue-only INFO and remaining queries need common adapters.
+The imported non-fusion client retains interface 1 and its original corpus.
+
+ARexx refuses answers over 65,535 bytes with LIMIT/TOOLONG and frees them.
+Callers can request smaller fields. CLI/library formatting uses the bounded
+common metadata limit. Neither path truncates identities or relations.
+
+[Status](status.md) records host/type evidence. Native ARexx/UI interaction and
+script compatibility still need the scheduled M1 rehearsal and further tests.

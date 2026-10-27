@@ -59,6 +59,14 @@ apkg_status apkg_client_folder(const char *, const char *, char **,
 apkg_status apkg_client_run(const char *, const char *, apkg_error **);
 apkg_status apkg_client_query(const char *root, const char *match, char **,
                               apkg_error **);
+/* Exact installed name, read-only inspection. NULL/empty field emits all
+ * fields as name/value lines; a field emits its value only. Unperformed
+ * checks remain unknown/not-checked. Free text with apkg_client_text_free. */
+const char *apkg_info_fields(void);
+apkg_status apkg_inspection_format(const apkg_inspection *, const char *field,
+    char **, apkg_error **);
+apkg_status apkg_client_info(const char *root, const char *name,
+    const char *field, char **, apkg_error **);
 /* Bundle inspection/launch requires no registration and mutates no root. */
 apkg_status apkg_bundle_check(const char *folder, const char *target, char **,
                               apkg_error **);

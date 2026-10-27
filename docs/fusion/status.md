@@ -912,6 +912,44 @@ warnings. All 67 documentation files pass link checks. ARexx/UI dispatch has
 source/type evidence, not native runtime evidence. Exact-source Linux/macOS
 CI remains required, alongside both unchanged inherited regression suites.
 
+## FUSION-ALPHA progress: shared installed inspection and INFO
+
+The common library now owns `apkg_snapshot_inspect`, an immutable independent
+inspection of a committed installed record. It verifies the captured descriptor
+signature and evaluates its signer against captured author grants. Policy
+withdrawal, invalid signature, root-target agreement and independent
+qualifications remain separate facts. It exposes full metadata/relations,
+declared file/directory/byte counts and root/generation/snapshot provenance.
+Live payload verification, runtime requirements, review/testing evidence and
+upgrade/rollback availability remain unperformed/unknown rather than inferred.
+
+`apkg info ROOT NAME [FIELD]`, native installed details and fusion ARexx INFO
+share the formatter and exact-name read path. The native ARexx adapter refuses
+oversized answers without truncation and supports smaller field queries.
+Fusion advertises ARexx interface 2 for the explicit unknown and declared-target
+semantics; the imported non-fusion client retains interface 1. The
+[inspection profile](inspection.md) records those meanings and limits. This
+does not complete runtime REQUIREMENTS, catalogue-only INFO or all ARexx
+compatibility adapters, and supplies no independent review attestations.
+
+Seven host cases cover CLI/native read-adapter equivalence, independent lifetime
+after snapshot/context close, captured-policy versus subsequent withdrawal,
+invalid signatures, edited live files, target mismatch, full 255-character and
+unsigned 64-bit values, all relation data, pending/absent/legacy roots, byte-sum
+overflow, allocation-failure/retry and the 65,535-byte ARexx boundary. A native
+instrumented harness reads/formats owned inspection views after freeing their
+inputs. Native UI/ARexx dispatch still needs runtime qualification.
+
+Batch evaluation: `make test-fusion` passed all 206 common methods, the fusion
+ARexx corpus, 78 default-product checks, 110 provisional CLI checks, 78
+publishing checks and the existing contract/target/application/initialization
+gates. The sanitizer run passed 126 selected methods plus the instrumented
+fusion ARexx corpus. Host C clients/read-adapter lifetime harnesses are
+instrumented; direct ctypes allocation-injection cases use the ordinary test
+library. The aarch64 AROS SDK header/type check passed with the previously
+noted SDK `vfork` warnings. Documentation links pass for 68 files. Exact-source
+Linux/macOS CI and native runtime qualification remain separate gates.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

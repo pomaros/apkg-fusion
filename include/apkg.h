@@ -20,6 +20,7 @@ typedef struct apkg_result apkg_result;
 typedef struct apkg_error apkg_error;
 typedef struct apkg_cancel apkg_cancel;
 typedef struct apkg_event_copy apkg_event_copy;
+typedef struct apkg_inspection apkg_inspection;
 typedef struct apkg_observer apkg_observer;
 /* Length excludes terminator. Text is UTF-8, no embedded NUL; bytes are opaque.
  * A zero length permits NULL. All returned views are borrowed, never free(). */
@@ -147,6 +148,28 @@ uint64_t apkg_snapshot_installed_count(const apkg_snapshot *);
 apkg_status apkg_snapshot_installed_at(const apkg_snapshot *, uint64_t,
                                        const apkg_installed_view **,
                                        apkg_error **);
+/* Owns its bytes independently of the snapshot/context. Checks descriptor
+ * signature and author grant against captured snapshot policy, without
+ * fetching, checking installed payload bytes or probing the running OS.
+ * Root-target agreement is not runtime qualification. */
+typedef struct {
+    apkg_text authority, name, version, target, kind;
+    uint64_t revision, payload_bytes, file_count, directory_count;
+    apkg_root_state root_state;
+    apkg_id root_id;
+    apkg_digest snapshot_digest;
+    uint64_t generation;
+    apkg_reason reason;
+    apkg_signature_state signature;
+    apkg_trust_state author_trust;
+    int target_matches;
+    apkg_fact_state review, runtime_testing;
+    apkg_bytes descriptor, signature_envelope, relations;
+} apkg_inspection_view;
+apkg_status apkg_snapshot_inspect(const apkg_snapshot *, uint64_t,
+    apkg_inspection **, apkg_error **);
+const apkg_inspection_view *apkg_inspection_get(const apkg_inspection *);
+void apkg_inspection_free(apkg_inspection *);
 /* Source bytes/signatures are copied; no implicit fetching or trust changes. */
 apkg_status apkg_package_read(apkg_ctx *, apkg_bytes descriptor,
                               apkg_bytes signature_envelope, apkg_package **,

@@ -35,6 +35,11 @@ static void bad(const char *line, const char *prefix)
 int main(void)
 {
     rx_req r; char err[200], out[4096];
+#ifdef APKG_FUSION
+    CHECK(RX_INTERFACE == 2);
+#else
+    CHECK(RX_INTERFACE == 1);
+#endif
 
     /* commands, any case, whole names only */
     ok("VERSION", RXC_VERSION, "");

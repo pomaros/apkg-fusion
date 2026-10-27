@@ -50,6 +50,7 @@ static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
               *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary;
 static pm_common_catalogue *common_catalogue;
 static pm_common_installed *common_installed;
+static char *common_info_text;
 #define ID_COMMON_INSTALL 1001
 #define ID_CHANNEL_BROWSE 1002
 #define ID_CHANNEL_LOAD 1003
@@ -924,8 +925,12 @@ static void show_detail(void)
     pkg_entry *e = selected();
 #ifdef APKG_FUSION
     pm_common_installed_row *row = installed_selected();
+    SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+    apkg_client_text_free(common_info_text); common_info_text = NULL;
+    apkg_status info_code = row ? apkg_client_info(root, row->view.name.value.data, NULL, &common_info_text, NULL) : APKG_OK;
+    if (info_code) snprintf(buf, sizeof buf, "Inspection refused (code %d)", (int)info_code);
     SetAttrs(txt_head,MUIA_Text_Contents,(IPTR)(row?row->view.name.value.data:""),TAG_DONE);
-    SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(row?(const char *)row->view.record.data:"Select an installed package"),TAG_DONE);
+    SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(common_info_text ? common_info_text : info_code ? buf : "Select an installed package"),TAG_DONE);
     SetAttrs(btn_install,MUIA_Disabled,TRUE,TAG_DONE);
     SetAttrs(btn_remove,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_open,MUIA_Disabled,busy_now()||!row,TAG_DONE);
@@ -2330,6 +2335,17 @@ static void rx_list(rexx_msg *m, const rx_req *r)
 
 static void rx_info(rexx_msg *m, const rx_req *r)
 {
+#ifdef APKG_FUSION
+    char *text = NULL;
+    apkg_status code = pm_common_rexx_info(root, r->package, r->field, &text);
+    if (code == APKG_NOT_FOUND) rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not installed", r->package);
+    else if (code == APKG_INVALID) rx_fail(m, RX_RC_FAIL, "BADARGS unknown field; fields: %s", apkg_info_fields());
+    else if (code == APKG_LIMIT) rx_fail(m, RX_RC_ERROR, "TOOLONG inspect one FIELD at a time");
+    else if (code) rx_fail(m, RX_RC_ERROR, "COMMON inspection refused (code %d)", (int)code);
+    else rx_ok(m, text);
+    apkg_client_text_free(text);
+    return;
+#endif
     pkg_ctx *c = rx_open(m); pkg_entry e; int in_index, up = 0, back = 0, f;
     char why[240]; pkg_compat rv = PKG_COMPAT_UNDETERMINED; char reqs[16] = "";
     if (!c) return;
@@ -3073,6 +3089,7 @@ static int real_main(int argc, char **argv)
 #ifdef APKG_FUSION
     FreeVec(common_catalogue);
     FreeVec(common_installed);
+    apkg_client_text_free(common_info_text);
 #endif
     pkg_entries_free(&rows);
     pkg_updates_free(&upd);

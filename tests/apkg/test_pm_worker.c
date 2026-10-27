@@ -75,6 +75,57 @@ int main(int argc, char **argv) {
     pkg_status result;
     assert(argc >= 4 && argc <= 6);
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 15) {
+        apkg_open_options options = {0};
+        options.contract_version = APKG_CONTRACT_VERSION;
+        options.struct_size = sizeof options;
+        options.root = (apkg_text){argv[1], strlen(argv[1])};
+        apkg_ctx *ctx = NULL;
+        apkg_snapshot *snapshot = NULL;
+        apkg_inspection *inspection = NULL;
+        assert(apkg_open(&options, &ctx, NULL) == APKG_OK);
+        assert(apkg_snapshot_read(ctx, &snapshot, NULL) == APKG_OK);
+        for (uint64_t i = 0; i < apkg_snapshot_installed_count(snapshot); i++) {
+            const apkg_installed_view *row = NULL;
+            assert(apkg_snapshot_installed_at(snapshot, i, &row, NULL) ==
+                   APKG_OK);
+            if (!strcmp(row->name.value.data, argv[2])) {
+                assert(apkg_snapshot_inspect(snapshot, i, &inspection, NULL) ==
+                       APKG_OK);
+                break;
+            }
+        }
+        assert(inspection);
+        apkg_snapshot_free(snapshot);
+        apkg_close(ctx);
+        const apkg_inspection_view *view = apkg_inspection_get(inspection);
+        assert(!strcmp(view->name.data, argv[2]));
+        assert(view->descriptor.size && view->signature_envelope.size &&
+               view->relations.size);
+        assert(view->review == APKG_UNKNOWN &&
+               view->runtime_testing == APKG_UNKNOWN);
+        char *text = NULL;
+        assert(apkg_inspection_format(inspection, argc >= 5 ? argv[4] : NULL,
+                                      &text, NULL) == APKG_OK);
+        puts("status 0");
+        puts(text);
+        apkg_client_text_free(text);
+        apkg_inspection_free(inspection);
+        return 0;
+    }
+    if (atoi(argv[3]) == 14) {
+        char *text = NULL;
+        apkg_status code = pm_common_rexx_info(
+            argv[1], argv[2], argc >= 5 ? argv[4] : NULL, &text);
+        printf("status %d\n", (int)code);
+        if (text)
+            puts(text);
+        if (code)
+            assert(!text);
+        apkg_client_text_free(text);
+        assert(allocations == 0);
+        return 0;
+    }
     if (argc == 6) {
         assert(strlen(argv[5]) < sizeof j.common_pool);
         strcpy(j.common_pool, argv[5]);

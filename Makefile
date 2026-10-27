@@ -388,7 +388,7 @@ clean:
 	rm -rf build
 
 # Common context engine, separate from the provisional global-state backend.
-APKG_ENGINE = src/apkg/client_channel.c src/apkg/channel_install.c src/apkg/heads.c src/apkg/origin.c src/apkg/transfer.c src/apkg/http.c src/apkg/channel.c src/apkg/author.c src/apkg/source.c src/apkg/attributes.c src/apkg/blob.c src/apkg/archive.c src/apkg/client_ops.c src/apkg/bundle.c src/apkg/relations.c src/apkg/version.c src/apkg/tree.c src/apkg/operations.c src/apkg/alloc.c src/apkg/json.c src/apkg/context.c src/apkg/schema.c src/apkg/signed.c src/apkg/plan.c src/apkg/events.c src/apkg/execute.c src/apkg/client.c
+APKG_ENGINE = src/apkg/inspect.c src/apkg/client_channel.c src/apkg/channel_install.c src/apkg/heads.c src/apkg/origin.c src/apkg/transfer.c src/apkg/http.c src/apkg/channel.c src/apkg/author.c src/apkg/source.c src/apkg/attributes.c src/apkg/blob.c src/apkg/archive.c src/apkg/client_ops.c src/apkg/bundle.c src/apkg/relations.c src/apkg/version.c src/apkg/tree.c src/apkg/operations.c src/apkg/alloc.c src/apkg/json.c src/apkg/context.c src/apkg/schema.c src/apkg/signed.c src/apkg/plan.c src/apkg/events.c src/apkg/execute.c src/apkg/client.c
 APKG_SERVICES = src/pkg_ameta.c src/pkg_container.c src/pkg_sha256.c src/pkg_sha512.c src/pkg_ed25519.c src/pkg_target.c src/pkg_application.c src/pkg_fs_posix.c
 build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/pkg_ameta.h src/apkg/internal.h src/apkg/changes.inc
 	@mkdir -p build
@@ -411,7 +411,7 @@ build/apkg-core: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h 
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O2 -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
-build/test_pm_common: tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h include/pkg_ameta.h components/arospkg/src/pkgmanager/job.h components/arospkg/src/pkgmanager/common_catalogue.h src/apkg/changes.inc src/apkg/internal.h
+build/test_pm_common: tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h include/pkg_ameta.h components/arospkg/src/pkgmanager/job.h components/arospkg/src/pkgmanager/common_catalogue.h components/arospkg/src/pkgmanager/rexxcmd.h src/apkg/changes.inc src/apkg/internal.h
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_FUSION -Iinclude -Isrc/apkg -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
