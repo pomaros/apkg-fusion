@@ -33,6 +33,27 @@ product. The isolated M1 RAM component profile below passes; broader native qual
 remains open. Portal adaptation follows this rehearsal; deployment and live
 portal cutover remain outside this run.
 
+## Installed-window Upgrade shortcut
+
+The common installed list enabled Run/Verify/Remove but disabled Upgrade even
+though the common source-list worker already implemented named upgrades. The
+button now submits the selected complete package name as an Upgrade request;
+the existing common routing reads the root's sources, resolves and prepares a
+held plan and requests approval. The operation retains its requested job label.
+It creates no second resolver or unsigned-catalogue fallback. Root sources must
+be configured explicitly; the source profile shown in the catalogue window does
+not silently become a root source or trust grant.
+
+Evaluation: an AArch64 native SDK syntax/type check passes without diagnostics
+for the window, common browser and changed engine modules. The existing actual
+worker scenario passes installation followed by named source upgrade, with
+common plan confirmation and resulting file checks. This thin window dispatch
+change does not change the engine qualified in the preceding checkpoint. The
+button click and complete GUI lifecycle still require the final M1 candidate
+test; SDK compilation and host worker execution do not prove that interaction.
+The Rollback shortcut and inherited category/state/recent controls remain open.
+No M1 execution, OS changes or portal implementation were performed.
+
 ## Signed descriptive metadata checkpoint
 
 Common authoring preserved summary/category/license/repository only in archived

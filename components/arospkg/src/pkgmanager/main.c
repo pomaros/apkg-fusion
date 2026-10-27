@@ -958,7 +958,7 @@ static void show_detail(void)
     SetAttrs(btn_open,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_run,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_verify,MUIA_Disabled,busy_now()||!row,TAG_DONE);
-    SetAttrs(btn_upgrade,MUIA_Disabled,TRUE,TAG_DONE);
+    SetAttrs(btn_upgrade,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_rollback,MUIA_Disabled,TRUE,TAG_DONE);
     return;
 #endif
@@ -3355,7 +3355,11 @@ static int real_main(int argc, char **argv)
         case ID_OPEN: { pm_common_installed_row *row = installed_selected(); if (row) open_folder(row->view.name.value.data); } break;
         case ID_RUN: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_RUN, row->view.name.value.data, "window"); } break;
         case ID_VERIFY: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_VERIFY, row->view.name.value.data, "window"); } break;
-        case ID_INSTALL: case ID_UPGRADE: case ID_ROLLBACK:
+        case ID_UPGRADE: {
+            pm_common_installed_row *row = installed_selected();
+            if (row) begin(JOB_UPGRADE, row->view.name.value.data, "window");
+        } break;
+        case ID_INSTALL: case ID_ROLLBACK:
             status("Use the common signed-plan operation panel or signed catalogue"); break;
 #else
         case ID_INSTALL: { pkg_entry *e = selected(); if (e) { logline("install pressed for %s", e->id); begin(JOB_INSTALL, e->id, "window"); } } break;
