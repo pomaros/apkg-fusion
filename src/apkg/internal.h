@@ -177,12 +177,17 @@ int ak_attestation_policy(const ak_json *, const char *, const char *, const cha
 int ak_policy_valid(const ak_json *);
 struct apkg_package {
     char *raw, *signature, *name, *version, *authority, *target, *origin;
+    char *adoption; /* operator ownership evidence, never publisher metadata */
     size_t raw_size;
     uint64_t revision;
     ak_json json;
     unsigned char key[32];
     apkg_digest digest;
 };
+int ak_adoption_valid(const ak_json *, int, const ak_json *);
+int ak_adoption_protected(const ak_json *, const char *);
+void ak_entry_write(ak_buf *, const apkg_package *, const char *,
+                    const apkg_package *);
 struct apkg_plan {
     apkg_plan_view view;
     apkg_effect_view *effects;

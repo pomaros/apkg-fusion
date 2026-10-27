@@ -545,13 +545,10 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
             int desc = ak_member(&j, (int)i, "descriptor"), body;
             char temp[256];
             uint64_t revision;
-            static const char *const entry_fields[] = {"descriptor",
-                                                       "signature"};
-            if ((!ak_fields(&j, (int)i, entry_fields, 2) &&
-                 !ak_fields(
-                     &j, (int)i,
-                     (const char *const[]){"descriptor", "reason", "signature"},
-                     3)) ||
+            if (!ak_fields_optional(
+                    &j, (int)i,
+                    (const char *const[]){"descriptor", "signature"}, 2,
+                    (const char *const[]){"adoption", "reason"}, 2) ||
                 desc < 0)
                 goto invalid;
             {
@@ -561,6 +558,13 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
                                   &d) ||
                     !ak_descriptor(&d)) {
                     ak_json_free(&d);
+                    goto invalid;
+                }
+                int adoption = ak_member(&j, (int)i, "adoption");
+                if (adoption >= 0 && !ak_adoption_valid(&j, adoption, NULL)) {
+                    ak_json_free(&d);
+                    if (errno == ENOMEM)
+                        goto nomem;
                     goto invalid;
                 }
                 ak_json_free(&d);
@@ -602,6 +606,9 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
                 else if (ak_equal(&j, ak_member(&j, (int)i, "reason"),
                                   "recommendation"))
                     r->reason = APKG_REASON_RECOMMENDATION;
+                else if (ak_equal(&j, ak_member(&j, (int)i, "reason"),
+                                  "unrecorded"))
+                    r->reason = APKG_REASON_UNKNOWN;
                 else if (!ak_equal(&j, ak_member(&j, (int)i, "reason"),
                                    "explicit"))
                     goto invalid;

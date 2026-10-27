@@ -109,6 +109,9 @@ apkg_status apkg_snapshot_inspect(const apkg_snapshot *snapshot, uint64_t index,
     }
     v->descriptor = slice(&info->record, descriptor);
     v->signature_envelope = slice(&info->record, signature);
+    int ad = ak_member(&info->record, 0, "adoption");
+    if (ad >= 0)
+        v->adoption = slice(&info->record, ad);
     int relations = ak_member(&info->record, body, "relations");
     v->relations = relations < 0
                        ? (apkg_bytes){(const unsigned char *)empty_relations,
@@ -157,7 +160,7 @@ static const char fields[] = "id version revision state installedversion "
                              "authority target reason signature authortrust "
                              "payloadbytes files directories "
                              "relations review runtime payloadverification "
-                             "rootstate rootid generation snapshot";
+                             "rootstate rootid generation snapshot adoption";
 const char *apkg_info_fields(void) { return fields; }
 static void field_value(ak_buf *b, const apkg_inspection_view *v,
                         const char *field) {
@@ -192,8 +195,16 @@ static void field_value(ak_buf *b, const apkg_inspection_view *v,
         ak_buf_add(b, "%s",
                    v->reason == APKG_REASON_DEPENDENCY       ? "dependency"
                    : v->reason == APKG_REASON_RECOMMENDATION ? "recommendation"
+                   : v->reason == APKG_REASON_UNKNOWN        ? "unrecorded"
                                                              : "explicit");
-    else if (!strcmp(field, "signature"))
+    else if (!strcmp(field, "adoption")) {
+        if (v->adoption.size)
+            ak_buf_add(b,
+                       "original-authentication=unknown; local-evidence=%.*s",
+                       (int)v->adoption.size, (const char *)v->adoption.data);
+        else
+            ak_buf_add(b, "none");
+    } else if (!strcmp(field, "signature"))
         ak_buf_add(b, "%s",
                    v->signature == APKG_SIGNATURE_VALID     ? "verified"
                    : v->signature == APKG_SIGNATURE_INVALID ? "invalid"

@@ -17,7 +17,7 @@ implemented below; remaining service/operation integration is listed separately.
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal | Remote revocation/freshness policy, rotation/reset and multi-channel configuration |
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
-| Legacy migration | Read-only legacy observation/baselines exist | Validated import, original-preserving commit/recovery and compatibility rehearsals |
+| Legacy migration | Read-only legacy baselines and journaled existing-bundle adoption exist | Validated import, original-preserving commit/recovery and compatibility rehearsals |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
@@ -1343,6 +1343,50 @@ The preceding channel-carriage checkpoint
 `2ed08ce81ae2f516dc67ba33432bbc84f03bf560` has passed its complete
 [CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40445111372),
 including both inherited suites on Linux/macOS and all 107 portal tests.
+
+The observation-memory checkpoint `e7ad01312986e47d5df7d556318e2fa02a86b9d4`
+has passed its complete [CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40448150525):
+Linux/macOS common and inherited suites, memory checks, symbols/documentation and
+all 107 portal tests.
+
+## Existing-bundle adoption and persistent ownership guards
+
+[Adoption](adoption.md) adds explicit registration through the common planner,
+CLI and actual PkgManager worker. A trusted supplied artifact authenticates its
+signed baseline; matching historical file hashes/sizes bind recorded ownership.
+Raw source records and unknown installation reason remain local evidence.
+Original legacy authentication stays unknown and is shown separately from the
+supplied artifact's valid signature. No synthetic publisher or author grant is
+created. The native menu exposes the shared action; native execution is untested.
+
+The adoption transaction preserves the full observed tree. Local ownership guards
+protect edits, unknown files (including bytes identical to the artifact), hidden
+files and empty directories through repair, direct/resolved updates and removal.
+The same immutable preconditions and journal implement stale-plan refusal,
+interruption/repeat recovery and rollback to an unmanaged bundle. Missing recorded
+files can be explicitly repaired from the actual signed baseline. An existing
+managed owner or mismatched/invalid recorded baseline refuses before commit.
+
+Nine host tests cover these behaviors, CLI/actual-worker state equality and
+inspection, root/file AROS attributes and unsupported-node/case-alias refusal,
+plus 1,000 injected allocation failures each for adoption planning, adopted-state
+reading and repair planning. The tree-merge correction also preserves existing
+bundle-root attributes in ordinary operations, including observation, staging and
+journal recovery. The final `make test-fusion` passed 255 common methods,
+the fusion ARexx corpus, 78 default-product checks, 110 provisional CLI checks,
+78 publishing checks and the existing contract/target/application/initialization
+gates. The final ASan/UBSan run passed 167 selected methods and the instrumented
+ARexx corpus. Its actual CLI/worker adoption scenario also repairs, upgrades and
+removes the adopted bundle; direct ctypes/fork allocation and journal faults use
+the ordinary test library. Public symbols and links across 73 documentation files
+pass. Final native sources pass the aarch64 AROS SDK header/type check with the
+existing `vfork` warnings. Exact-source Linux/macOS CI and both complete inherited
+suites remain required for this checkpoint; native runtime and power-loss
+qualification remain open.
+
+This is a common-engine prerequisite, not the completed legacy importer: legacy record mapping, original-preserving copies, settings/history,
+interruption/compatibility rehearsals and distribution evidence remain required.
+The M1's installed libpkg updater remains owned by another migration effort.
 
 ## Implemented integration pieces
 

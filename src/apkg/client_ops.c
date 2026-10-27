@@ -47,6 +47,8 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     apkg_plan *p = NULL;
     apkg_approval *a = NULL;
     char *text = NULL;
+    unsigned char *evidence = NULL;
+    size_t evidence_size = 0;
     apkg_status code;
     size_t n = 0, i;
     DIR *dir = NULL;
@@ -63,8 +65,11 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
                                          observer, out, e);
     if (action == APKG_CLIENT_INSTALL)
         return apkg_client_install(root, arg, confirm, user, observer, out, e);
-    if (action < APKG_CLIENT_REMOVE || action > APKG_CLIENT_RECOVER || !arg ||
+    if (action < APKG_CLIENT_REMOVE ||
+        (action > APKG_CLIENT_RECOVER && action != APKG_CLIENT_ADOPT) || !arg ||
         !confirm)
+        return APKG_INVALID;
+    if (action == APKG_CLIENT_ADOPT && (!pool || !*pool))
         return APKG_INVALID;
     code = open_root(root, APKG_WRITE, &c, e);
     if (code)
@@ -87,7 +92,15 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
         code = read_package(c, arg, observer, &package, e);
         if (code)
             goto done;
-        if (action == APKG_CLIENT_UPGRADE)
+        if (action == APKG_CLIENT_ADOPT) {
+            if (!pool ||
+                ak_read(pool, &evidence, &evidence_size, c->object_max))
+                code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+            else
+                code = apkg_plan_adopt(c, snapshot, package,
+                                       (apkg_bytes){evidence, evidence_size},
+                                       &p, e);
+        } else if (action == APKG_CLIENT_UPGRADE)
             code = apkg_plan_upgrade(c, snapshot, package, &p, e);
         else {
             if (pool && *pool) {
@@ -154,6 +167,7 @@ done:
     apkg_plan_free(p);
     apkg_approval_free(a);
     free(text);
+    free(evidence);
     apkg_snapshot_free(snapshot);
     apkg_close(c);
     return code;
@@ -222,7 +236,9 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
         ak_json_free(&state);
         return errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
     }
-    const char *action = p->view.kind == APKG_PLAN_REMOVE     ? "Remove"
+    const char *action = p->view.kind == APKG_PLAN_ADOPT
+                             ? "Adopt existing bundle"
+                         : p->view.kind == APKG_PLAN_REMOVE   ? "Remove"
                          : p->view.kind == APKG_PLAN_REPAIR   ? "Repair"
                          : p->view.kind == APKG_PLAN_UPGRADE  ? "Upgrade"
                          : p->view.kind == APKG_PLAN_ROLLBACK ? "Rollback"
@@ -308,6 +324,11 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
         }
         goto finish;
     }
+    if (p->view.kind == APKG_PLAN_ADOPT)
+        ak_buf_add(&b, "Adoption: keep the entire observed bundle; register "
+                       "ownership only.\n"
+                       "Signature authenticates the supplied artifact. "
+                       "Original legacy authentication: unknown.\n");
     arr = ak_member(&state, ak_member(&state, 0, "body"), "installed");
     for (i = (size_t)arr + 1; i < state.tokens[arr].next;
          i = state.tokens[i].next) {
@@ -326,6 +347,19 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
         ak_string(&state, ak_member(&state, body, "target"), target,
                   sizeof target);
         ak_u64(&state, ak_member(&state, body, "revision"), &revision);
+        int ad = ak_member(&state, (int)i, "adoption");
+        if (ad >= 0) {
+            char *record = ak_slice(&state, ad);
+            if (!record) {
+                b.bad = APKG_NOMEM;
+                break;
+            }
+            ak_buf_add(&b,
+                       "\nOwnership adoption evidence (local, original "
+                       "authentication unknown): %s\n",
+                       record);
+            free(record);
+        }
         ak_buf_add(&b,
                    "\nSelected: %s %s revision %" PRIu64
                    "\nPublisher: %s\nTarget: %s\nSignature: verified, "

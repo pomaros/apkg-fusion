@@ -167,6 +167,7 @@ typedef struct {
     int target_matches;
     apkg_fact_state review, runtime_testing;
     apkg_bytes descriptor, signature_envelope, relations;
+    apkg_bytes adoption; /* owned local evidence; original authentication unknown */
 } apkg_inspection_view;
 apkg_status apkg_snapshot_inspect(const apkg_snapshot *, uint64_t,
     apkg_inspection **, apkg_error **);
@@ -366,7 +367,8 @@ typedef enum {
     APKG_PLAN_UPGRADE,
     APKG_PLAN_ROLLBACK,
     APKG_PLAN_RESOLVE,
-    APKG_PLAN_CHANNEL_ACCEPT
+    APKG_PLAN_CHANNEL_ACCEPT,
+    APKG_PLAN_ADOPT
 } apkg_plan_kind;
 typedef struct {
     apkg_plan_kind kind;
@@ -402,6 +404,13 @@ apkg_status apkg_plan_initialize(apkg_ctx *, const apkg_snapshot *absent,
 apkg_status apkg_plan_install(apkg_ctx *, const apkg_snapshot *,
                               const apkg_package *, const apkg_observer *,
                               apkg_plan **, apkg_error **);
+/* Explicitly register an existing bundle without changing its observed tree.
+ * Canonical adoption evidence supplies recorded file baselines and provenance;
+ * these must match the supplied trusted descriptor. Original authentication
+ * remains unknown. Personal/unowned paths remain protected in later changes. */
+apkg_status apkg_plan_adopt(apkg_ctx *, const apkg_snapshot *,
+                           const apkg_package *, apkg_bytes evidence,
+                           apkg_plan **, apkg_error **);
 /* Configuration entries use config="preserve" in signed file metadata.
  * Mutation plans retain exact observed trees, including foreign/edited files.
  */

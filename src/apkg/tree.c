@@ -234,7 +234,7 @@ static int records(const void *a, const void *b) {
                   ((const ak_tree_row *)b)->path);
 }
 static apkg_status tree_read(const char *base, size_t max, char **out,
-                             struct stat *identity, int source) {
+                             struct stat *identity) {
     ak_buf files = {0}, result = {0};
     ak_json j = {0};
     ak_tree_row *rows = NULL;
@@ -254,9 +254,9 @@ static apkg_status tree_read(const char *base, size_t max, char **out,
         return APKG_UNSUPPORTED;
     code = ak_attributes_read(base, (uint64_t)(identity->st_mode & 0777),
                               &rootattrs);
-    if (code || (rootattrs && !source)) {
+    if (code) {
         free(rootattrs);
-        return code ? code : APKG_UNSUPPORTED;
+        return code;
     }
     size_t names_memory = 0;
     code = scan(base, "", &files, 0, &names_memory);
@@ -334,11 +334,11 @@ done:
 }
 apkg_status ak_tree_read(const char *base, size_t max, char **out,
                          struct stat *identity) {
-    return tree_read(base, max, out, identity, 0);
+    return tree_read(base, max, out, identity);
 }
 apkg_status ak_tree_source_read(const char *base, size_t max, char **out,
                                 struct stat *identity) {
-    return tree_read(base, max, out, identity, 1);
+    return tree_read(base, max, out, identity);
 }
 /* Observe exactly one selected authoring entry, without enumerating siblings
  * or reading their content. The caller supplies a validated relative name. */
@@ -421,15 +421,29 @@ apkg_status ak_tree_normalize(const char *raw, char **out) {
         goto done;
     }
     arr = ak_member(&j, 0, "files");
-    if (!ak_fields(&j, 0, (const char *const[]){"files", "mode"}, 2) ||
+    errno = 0;
+    if (!ak_fields_optional(&j, 0, (const char *const[]){"files", "mode"}, 2,
+                            (const char *const[]){"amiga"}, 1) ||
         arr < 0 || j.tokens[arr].type != '[' ||
         ak_u64(&j, ak_member(&j, 0, "mode"), &permissions) ||
         permissions > 0777 ||
+        !ak_attributes_valid(&j, ak_member(&j, 0, "amiga"), permissions) ||
         ak_string(&j, ak_member(&j, 0, "mode"), mode, sizeof mode)) {
-        code = APKG_INVALID;
+        code = errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
         goto done;
     }
-    ak_buf_add(&b, "{\"files\":[");
+    ak_buf_add(&b, "{");
+    int root_attributes = ak_member(&j, 0, "amiga");
+    if (root_attributes >= 0) {
+        char *attributes = ak_slice(&j, root_attributes);
+        if (!attributes) {
+            code = APKG_NOMEM;
+            goto done;
+        }
+        ak_buf_add(&b, "\"amiga\":%s,", attributes);
+        free(attributes);
+    }
+    ak_buf_add(&b, "\"files\":[");
     for (i = (size_t)arr + 1; i < j.tokens[arr].next; i = j.tokens[i].next) {
         char path[AK_PATH], fm[24], sha[65], size[24];
         if (ak_string(&j, ak_member(&j, (int)i, "path"), path, sizeof path) ||

@@ -48,9 +48,9 @@ static int pathcmp(const void *a, const void *b) {
  * survive uninstall/update; repair replaces non-config damage from signed data.
  */
 static apkg_status desired(const char *observed, const ak_json *old,
-                           const ak_json *nw, apkg_plan_kind kind, size_t max,
-                           char **out) {
-    ak_json live = {0};
+                           const ak_json *nw, const char *guard_record,
+                           apkg_plan_kind kind, size_t max, char **out) {
+    ak_json live = {0}, guards = {0};
     ak_tree_row *rows = NULL;
     size_t count = 0, k = 0, i;
     int arrays[2], pass, code = APKG_OK;
@@ -63,6 +63,11 @@ static apkg_status desired(const char *observed, const ak_json *old,
     if (strcmp(observed, "null") &&
         ak_string(&live, ak_member(&live, 0, "mode"), mode, sizeof mode)) {
         code = APKG_INVALID;
+        goto done;
+    }
+    if (guard_record &&
+        ak_json_parse(guard_record, strlen(guard_record), &guards)) {
+        code = errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
         goto done;
     }
     arrays[0] = files(nw);
@@ -98,12 +103,25 @@ static apkg_status desired(const char *observed, const ak_json *old,
                 code = APKG_INVALID;
                 goto done;
             }
+            int protected =
+                guard_record && ak_adoption_protected(&guards, path);
             o = find_file(old, path);
             l = find_file(&live, path);
             n = find_file(nw, path);
             if (pass && n >= 0)
                 continue;
             if (!pass) {
+                if (protected && l >= 0) {
+                    char type[20];
+                    ak_string(&live, ak_member(&live, l, "type"), type,
+                              sizeof type);
+                    if (!ak_equal(nw, ak_member(nw, n, "type"), type)) {
+                        code = APKG_CONFLICT;
+                        goto done;
+                    }
+                    rows[k].token = -l - 2;
+                    goto selected;
+                }
                 if (l >= 0 && o < 0 && !same_file(&live, l, nw, n)) {
                     code = APKG_CONFLICT;
                     goto done;
@@ -124,7 +142,7 @@ static apkg_status desired(const char *observed, const ak_json *old,
                 }
                 rows[k].token = keep ? -l - 2 : n;
             } else {
-                if (o >= 0 && same_file(&live, l, old, o)) {
+                if (!protected && o >= 0 && same_file(&live, l, old, o)) {
                     int equal = ak_attributes_equal(&live, l, old, o);
                     if (equal < 0) {
                         code = APKG_NOMEM;
@@ -135,6 +153,7 @@ static apkg_status desired(const char *observed, const ak_json *old,
                 }
                 rows[k].token = -l - 2;
             }
+        selected:
             rows[k].path = ak_copy(path, strlen(path));
             if (!rows[k].path) {
                 code = APKG_NOMEM;
@@ -197,12 +216,24 @@ static apkg_status desired(const char *observed, const ak_json *old,
             }
         }
 
-    if (!k && kind == APKG_PLAN_REMOVE) {
+    if (!k && kind == APKG_PLAN_REMOVE && !guard_record &&
+        ak_member(&live, 0, "amiga") < 0) {
         *out = ak_copy("null", 4);
         code = *out ? APKG_OK : APKG_NOMEM;
         goto done;
     }
-    ak_buf_add(&b, "{\"files\":[");
+    ak_buf_add(&b, "{");
+    int root_attributes = ak_member(&live, 0, "amiga");
+    if (root_attributes >= 0) {
+        char *attributes = ak_slice(&live, root_attributes);
+        if (!attributes) {
+            code = APKG_NOMEM;
+            goto done;
+        }
+        ak_buf_add(&b, "\"amiga\":%s,", attributes);
+        free(attributes);
+    }
+    ak_buf_add(&b, "\"files\":[");
     for (i = 0; i < k; i++) {
         int t = rows[i].token;
         const ak_json *j = t < 0 ? &live : nw;
@@ -212,9 +243,19 @@ static apkg_status desired(const char *observed, const ak_json *old,
         if (ak_member(j, t, "mode") >= 0)
             ak_u64(j, ak_member(j, t, "mode"), &entrymode);
         char *attributes = NULL;
-        code = ak_attributes_merge(
-            old, find_file(old, rows[i].path), nw, find_file(nw, rows[i].path),
-            &live, find_file(&live, rows[i].path), entrymode, &attributes);
+        if (guard_record && ak_adoption_protected(&guards, rows[i].path) &&
+            t >= 0 && j == &live) {
+            int at = ak_member(j, t, "amiga");
+            if (at >= 0) {
+                attributes = ak_slice(j, at);
+                if (!attributes)
+                    code = APKG_NOMEM;
+            }
+        } else
+            code = ak_attributes_merge(old, find_file(old, rows[i].path), nw,
+                                       find_file(nw, rows[i].path), &live,
+                                       find_file(&live, rows[i].path),
+                                       entrymode, &attributes);
         if (code)
             goto done;
         ak_buf_add(&b, "%s{", i ? "," : "");
@@ -270,6 +311,7 @@ done:
     free(rows);
     free(b.data);
     ak_json_free(&live);
+    ak_json_free(&guards);
     return code;
 }
 apkg_status ak_verified_entry(apkg_ctx *c, const char *entry,
@@ -287,6 +329,20 @@ apkg_status ak_verified_entry(apkg_ctx *c, const char *entry,
         apkg_bytes db = {(unsigned char *)d, strlen(d)},
                    sb = {(unsigned char *)s, strlen(s)};
         code = apkg_package_read(c, db, sb, out, NULL);
+        int a = ak_member(&j, 0, "adoption");
+        if (!code && a >= 0) {
+            if (!ak_adoption_valid(&j, a, NULL))
+                code = errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
+            else {
+                (*out)->adoption = ak_slice(&j, a);
+                if (!(*out)->adoption)
+                    code = APKG_NOMEM;
+            }
+            if (code) {
+                apkg_package_free(*out);
+                *out = NULL;
+            }
+        }
     }
     free(d);
     free(s);
@@ -489,16 +545,23 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
             apkg_package_free(old);
             goto done;
         }
-        if (!old && strcmp(live, "null")) {
+        if (!old && strcmp(live, "null") && kind != APKG_PLAN_ADOPT) {
             free(live);
             apkg_package_free(old);
             code = APKG_CONFLICT;
             goto done;
         }
-        {
+        if (kind == APKG_PLAN_ADOPT && !old && nw && nw->adoption &&
+            strcmp(live, "null")) {
+            ak_json empty = {0};
+            code = desired(live, &empty, &empty, NULL, APKG_PLAN_ADOPT,
+                           state.max, &next);
+            if (!code && strcmp(live, next))
+                code = APKG_UNSUPPORTED;
+        } else {
             ak_json empty = {0};
             code = desired(live, old ? &old->json : &empty,
-                           nw ? &nw->json : &empty,
+                           nw ? &nw->json : &empty, old ? old->adoption : NULL,
                            nw ? kind : APKG_PLAN_REMOVE, state.max, &next);
         }
         if (!code)
@@ -645,20 +708,20 @@ static apkg_status one(apkg_ctx *c, const apkg_snapshot *s, apkg_text name,
                 int cmp = ak_version_compare(old->version, nw->version);
                 int newer =
                     cmp == -1 || (cmp == 0 && nw->revision > old->revision);
-                apkg_package_free(old);
                 if (!newer) {
+                    apkg_package_free(old);
                     free(entries.data);
                     return APKG_POLICY;
                 }
-                ak_buf_add(
-                    &entries,
-                    "%s{\"descriptor\":%s,\"reason\":\"%s\",\"signature\":%s}",
-                    entries.size > 1 ? "," : "", nw->raw,
+                ak_entry_write(
+                    &entries, nw,
                     s->rows[i].reason == APKG_REASON_DEPENDENCY ? "dependency"
                     : s->rows[i].reason == APKG_REASON_RECOMMENDATION
                         ? "recommendation"
-                        : "explicit",
-                    nw->signature);
+                    : s->rows[i].reason == APKG_REASON_UNKNOWN ? "unrecorded"
+                                                               : "explicit",
+                    old);
+                apkg_package_free(old);
             } else if (kind == APKG_PLAN_REPAIR)
                 ak_buf_add(&entries, "%s%s", entries.size > 1 ? "," : "",
                            s->records[i]);
@@ -925,7 +988,7 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
                           ak_json_parse(next, strlen(next), &nextj)))
                 code = errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
             if (!code)
-                code = desired(live, &nextj, &wasj,
+                code = desired(live, &nextj, &wasj, NULL,
                                !strcmp(was, "null") ? APKG_PLAN_REMOVE
                                                     : APKG_PLAN_ROLLBACK,
                                max, &desired_tree);

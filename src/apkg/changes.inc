@@ -83,7 +83,8 @@ static int inventory_stage(apkg_ctx *c, const char *tree, const char *raw,
         }
     }
     if (ak_u64(&j, ak_member(&j, 0, "mode"), &mode) || mode > 0777 ||
-        chmod(tree, (mode_t)mode) || sync_tree(tree))
+        chmod(tree, (mode_t)mode) || stage_attributes(tree, &j, 0, mode) ||
+        sync_tree(tree))
         bad = 1;
 done:
     ak_json_free(&j);

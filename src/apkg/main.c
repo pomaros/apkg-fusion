@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
             "POLICY "
             "[--yes] | install ROOT "
             "PACKAGE-DIRECTORY [--confirm "
-            "DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
+            "DIGEST]\nadopt ROOT ARTIFACT --evidence FILE [--confirm DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
             "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
@@ -376,7 +376,7 @@ int main(int argc, char **argv) {
     }
     if (!strcmp(argv[1], "remove") || !strcmp(argv[1], "repair") ||
         !strcmp(argv[1], "upgrade") || !strcmp(argv[1], "rollback") ||
-        !strcmp(argv[1], "resolve")) {
+        !strcmp(argv[1], "resolve") || !strcmp(argv[1], "adopt")) {
         if (argc < 4)
             goto done;
         const char *pool = NULL;
@@ -385,8 +385,9 @@ int main(int argc, char **argv) {
                 goto done;
             if (!strcmp(argv[i], "--confirm") && !confirmation)
                 confirmation = argv[i + 1];
-            else if (!strcmp(argv[i], "--pool") && !pool &&
-                     !strcmp(argv[1], "resolve"))
+            else if (!pool &&
+                     ((!strcmp(argv[i], "--pool") && !strcmp(argv[1], "resolve")) ||
+                      (!strcmp(argv[i], "--evidence") && !strcmp(argv[1], "adopt"))))
                 pool = argv[i + 1];
             else
                 goto done;
@@ -396,7 +397,7 @@ int main(int argc, char **argv) {
             : !strcmp(argv[1], "repair")   ? APKG_CLIENT_REPAIR
             : !strcmp(argv[1], "upgrade")  ? APKG_CLIENT_UPGRADE
             : !strcmp(argv[1], "rollback") ? APKG_CLIENT_ROLLBACK
-                                           : APKG_CLIENT_RESOLVE;
+                                           : !strcmp(argv[1], "adopt") ? APKG_CLIENT_ADOPT : APKG_CLIENT_RESOLVE;
         code = apkg_client_apply(action, argv[2], argv[3], pool, confirm,
                                  (void *)confirmation, NULL, &r, &e);
         goto done;

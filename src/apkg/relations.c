@@ -320,11 +320,11 @@ apkg_status ak_resolve_metadata(apkg_ctx *c, const apkg_snapshot *snapshot,
                         satisfies(s.pool[k], "depends", s.pool[i]))
                         reason = "dependency";
             }
-            ak_buf_add(
-                &entries,
-                "%s{\"descriptor\":%s,\"reason\":\"%s\",\"signature\":%s}",
-                entries.size > 1 ? "," : "", s.pool[i]->raw, reason,
-                s.pool[i]->signature);
+            const apkg_package *old = NULL;
+            for (k = 0; k < s.installed; k++)
+                if (!strcmp(s.pool[k]->name, s.pool[i]->name))
+                    old = s.pool[k];
+            ak_entry_write(&entries, s.pool[i], reason, old);
         }
     ak_buf_add(&entries, "]");
     code = entries.bad;

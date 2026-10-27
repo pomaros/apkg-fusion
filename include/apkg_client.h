@@ -27,8 +27,10 @@ typedef enum {
     APKG_CLIENT_RESOLVE,
     APKG_CLIENT_RECOVER,
     APKG_CLIENT_CHANNEL,
-    APKG_CLIENT_CHANNEL_ACCEPT
+    APKG_CLIENT_CHANNEL_ACCEPT,
+    APKG_CLIENT_ADOPT
 } apkg_client_action;
+/* ADOPT uses argument=artifact and pool=evidence file, with exact confirmation. */
 apkg_status apkg_client_apply(apkg_client_action, const char *root,
                               const char *argument, const char *pool,
                               apkg_confirm_fn, void *, const apkg_observer *,

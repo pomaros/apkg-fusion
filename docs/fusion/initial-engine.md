@@ -65,7 +65,7 @@ unknown execution metadata is refused. It does not discard unsupported fields.
 | Root | `generation`, `installed`, `policy`, `root_id`, `target`; optional `channel_heads` and `package_generation` from the [replay profile](channels.md#journaled-replay-floors) |
 | Policy | `authorities`, each with `id` and sorted Ed25519 `keys` |
 | Descriptor | `authority`, `files`, `kind`, `name`, `revision`, `target`, `version` |
-| Installed entry | `descriptor` and `signature` objects, retained byte-for-byte in canonical form |
+| Installed entry | `descriptor` and `signature` objects, retained byte-for-byte in canonical form; local optional `reason` and [adoption evidence](adoption.md) remain separate from signed content |
 | Plan | `action`, `anchor_dev`, `anchor_ino`, `before`, `generation`, `new_state`, `root_path`, `target_path` |
 
 Root state is `.apkg/state`. Generation starts at 1. Installed entries preserve
@@ -92,7 +92,9 @@ This deliberately bounded initial transport keeps payload bytes in the signed
 descriptor and retained records. It is not a replacement for large-package
 container/archive authoring. Package kinds accepted here are data, tool and
 application; dependency/recommendation/provider changes, system placement,
-image semantics, richer attributes, upgrades and adoption are unsupported.
+image semantics and richer attributes were outside this initial tranche.
+Later operation and ownership work, including [existing-bundle adoption](adoption.md),
+is tracked in the implementation status.
 The old bridge restrictions are not removed by this implementation.
 
 The parser enforces canonical encoding, Unicode scalar validity, sorted unique
