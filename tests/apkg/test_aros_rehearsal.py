@@ -20,6 +20,7 @@ class RehearsalEvidence(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             out = Path(temporary) / 'prepared'
             command = [sys.executable, str(script), '--output', str(out)]
+            command.extend(['--namespace', 'Isolated2', '--runtime-dir', 'RAM:Isolated2'])
             # Host executables are inert stand-ins for explicit target inputs;
             # preparation copies these files and must never execute the helpers.
             for option in ('--cli', '--gui', '--launch', '--norequesters'):
@@ -41,7 +42,11 @@ class RehearsalEvidence(unittest.TestCase):
             script_text = (payload / 'APKGTrial/Trial').read_text()
             self.assertIn('BEGIN refuse-tamper', script_text)
             self.assertIn('If NOT $APKGRC EQ 10 VAL', script_text)
-            self.assertIn('>RAM:APKGTrialRoot/trial/Drawer/.hidden', script_text)
+            self.assertIn('>RAM:Isolated2TrialRoot/trial/Drawer/.hidden', script_text)
+            self.assertNotIn('SYS:APKGTrial', script_text)
+            self.assertEqual(prepared['report'], 'RAM:Isolated2TrialReport.txt')
+            state = json.loads((payload / 'APKGTrial/root-state').read_text())
+            self.assertEqual(state['body']['sources'][0]['endpoint'], 'RAM:Isolated2TrialChannel')
             before = dict(observed)
             refused = subprocess.run(command, capture_output=True, text=True, timeout=120)
             self.assertNotEqual(refused.returncode, 0)

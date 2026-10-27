@@ -1,0 +1,8 @@
+no demo storefront: no storefront file at PROGDIR:Demo/storefront.json
+start PkgManager 0.6.0 sha256 de3f8bb8db4b5843a627694436b1c3482f24260d09d62255cebe4e6fd2c87614 root RAM:APKG3GUIRoot: ARexx port PKGMANAGER
+job 1 verify trial from window
+job 1 verify trial done
+job 2 signed-inst trial from window
+job 2 signed-inst trial done
+worker task gone 0 ms after done
+quit

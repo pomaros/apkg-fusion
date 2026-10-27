@@ -1,0 +1,40 @@
+{
+  "result": "PASS",
+  "observed_date": "2026-10-27",
+  "scope": "Physical M1, supervised RAM file-channel component profile; not full native release qualification",
+  "target": "aarch64-aros-v1-native",
+  "runtime": "Retained RAM OS and SDK with local C-runtime changes; not coherent OS promotion",
+  "common_source_revision": "01a72b16da59e1a9b71bb4a256ad45a99f8f521f",
+  "gui_source_revision": "caf2cbfd6a87e2a84760b91427f242a05d1062fd",
+  "cli_steps": 25,
+  "cli_sha256": "b94fd707cd5d525dab1647387b77c437de5bf8d075e729f94874cf0e646134a9",
+  "gui_verify_sha256": "de3f8bb8db4b5843a627694436b1c3482f24260d09d62255cebe4e6fd2c87614",
+  "gui_final_sha256": "1cd6f8ec191c5ee1db2e88b3b6ee16b7431955de642e4a48e324f81480b0793c",
+  "gui_checks": [
+    "installed rows",
+    "verification succeeds",
+    "explicit held-plan removal",
+    "requested operation preserved in final job record",
+    "independent CLI confirms removal",
+    "worker exits",
+    "GUI process absent after quit"
+  ],
+  "final_gui_generation": "6",
+  "final_gui_installed_count": 0,
+  "installed_updater": "unchanged",
+  "not_qualified": [
+    "bare-metal OS",
+    "extended Amiga metadata",
+    "native HTTP/TLS",
+    "interrupted recovery",
+    "power-loss durability",
+    "live distribution migration"
+  ],
+  "artifacts": {
+    "cli.txt": "0eb3381bebf3fefe57d1a2252d748476c73bf925120032a7c594a9bdc2a97744",
+    "prepared.json": "f67e46b08df81ba39b0c9c183158609e31b741e13e9b2aa0d6533ad36cd34678",
+    "gui-final-state.json": "3990b6d3e1f96e9d35ae562fd451baef8f74f14d131c05760638328e88a3036e",
+    "gui-final.txt": "729cc0570bc0f6f596d2d9f1eefcea1f6b7e828f28d70fd275a8895c03c566b3",
+    "gui-verify.txt": "00fb0239d741fc7fd126cedad40212e3f5641dc323f83fc2c14aeb89f66c434d"
+  }
+}

@@ -1,0 +1,158 @@
+APKG-REHEARSAL 44a258fd75f0431f9f93760937e7021f
+BEGIN no-requesters rc=0
+
+BEGIN version rc=0
+apkg-fusion 0.1.0-alpha (common engine, contract 1)
+BEGIN initialize rc=0
+Initialize package root
+Root folder: RAM Disk:APKG3FreshRoot
+Root identity: 4525fa164bb1153bd9e75b2c6856034b
+Target: aarch64-aros-v1-native
+Approved plan: 67c1c076382d6be28a23cbff3f463f38ba1db6e5489067abf8ea30d79357a878
+
+Authorize publisher abababababababababababababababab with key 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+Authorize channel cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd with key 712651f450ba05b63898b99ef5f7ba45632e8e2527f7f715cd671ec4024cc51e
+All planned effects:
+Trust grants .apkg/state#policy
+Commit database .apkg/state
+
+status=0 outcome=1
+record=RAM Disk:APKG3FreshRoot.apkg-history.fae5d22981c867a1404b414b39d817d9
+BEGIN make-fixture rc=0
+
+BEGIN copy-state rc=0
+
+BEGIN copy-channel rc=0
+
+BEGIN select-v1 rc=0
+
+BEGIN install rc=0
+Resolve/install
+Root folder: RAM Disk:APKG3TrialRoot
+Approved plan: 225bafb44137f15d8baa1441092615831ad045f979aa713c89d5c436e9f062a2
+
+Channel: cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
+Channel signing key: 712651f450ba05b63898b99ef5f7ba45632e8e2527f7f715cd671ec4024cc51e
+Snapshot SHA-256: de429fb8132e38c7db5d4662732e89a13f4532b9c38f46e314ab28ba7348bb20
+Record replay floor at commit: 1
+
+Selected: trial 1.2 revision 1
+Publisher: abababababababababababababababab
+Target: aarch64-aros-v1-native
+Signature: verified, authorized key 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+
+Review/runtime qualification: no independent qualification asserted
+
+Package folder: trial
+Create trial/Drawer (directory, mode 493)
+Create trial/Drawer/.hidden; 6 bytes, mode 420, SHA-256 e564b4081d7a9ea4b00dada53bdae70c99b87b6fce869f0c3dd4d2bfa1e53e1c
+Create trial/Drawer/Empty (directory, mode 493)
+Create trial/Drawer/Package.arospkg.toml; 217 bytes, mode 420, SHA-256 c18230b3465a09af2039f748ed46f1938af5867a0e385daa1da29555fd3cab30
+Create trial/Drawer/program; 12 bytes, mode 420, SHA-256 00f0bf285ad3a93cd39c163ecd9ac64eb879833cc0621dc79200f2244c06febb
+
+Commit .apkg/state at generation 3
+BEGIN info-v1 rc=0
+{"id":"trial","schema":1,"name":"trial","dir":"trial","version":"1.2","revision":1,"arch":"aarch64","abi":"v1","kind":"data","summary":null,"category":null,"size":-1,"ours":true,"installed":true,"authority":"abababababababababababababababab","signature":"verified","signature_scope":"descriptor","authortrust":"accepted","unrecorded":["summary","category","size"]}
+BEGIN edit-config rc=0
+personal-configuration
+BEGIN select-v2 rc=0
+
+BEGIN tamper rc=0
+
+BEGIN refuse-tamper rc=10
+
+BEGIN still-v1 rc=0
+{"id":"trial","schema":1,"name":"trial","dir":"trial","version":"1.2","revision":1,"arch":"aarch64","abi":"v1","kind":"data","summary":null,"category":null,"size":-1,"ours":true,"installed":true,"authority":"abababababababababababababababab","signature":"verified","signature_scope":"descriptor","authortrust":"accepted","unrecorded":["summary","category","size"]}
+BEGIN restore-archive rc=0
+
+BEGIN upgrade rc=0
+Resolve/install
+Root folder: RAM Disk:APKG3TrialRoot
+Approved plan: 71165070359186e4cdfb152740de311f5578b1eb927eebf4acc436214fdf2262
+
+Channel: cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
+Channel signing key: 712651f450ba05b63898b99ef5f7ba45632e8e2527f7f715cd671ec4024cc51e
+Snapshot SHA-256: ae4fc6b2eeb65036a111fce4740f9ad51d4cc10dd140f0fbcad1887478fd8612
+Record replay floor at commit: 2
+
+Selected: trial 2.0 revision 1
+Publisher: abababababababababababababababab
+Target: aarch64-aros-v1-native
+Signature: verified, authorized key 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+
+Review/runtime qualification: no independent qualification asserted
+
+Package folder: trial
+Preserve trial/Drawer (directory, mode 493)
+Preserve trial/Drawer/.hidden; 23 bytes, mode 448, SHA-256 c704d5302aa326edc2df241d10cba966406017f81e5aca9679a1102fcdb260d1
+Preserve trial/Drawer/Empty (directory, mode 493)
+Replace trial/Drawer/Package.arospkg.toml; 217 bytes, mode 420, SHA-256 6ddcd1fa9f1ac0a1e1118f21aca51c1d9bffb1d7acc415b99cb144a8129cc816
+Replace trial/Drawer/program; 12 bytes, mode 420, SHA-256 3f897f3583d3f4b2b48ecbdc85059dc062e92d0ef05bbf91232be6c4a415f915
+
+Commit .apkg/state at generation 4
+BEGIN info-v2 rc=0
+{"id":"trial","schema":1,"name":"trial","dir":"trial","version":"2.0","revision":1,"arch":"aarch64","abi":"v1","kind":"data","summary":null,"category":null,"size":-1,"ours":true,"installed":true,"authority":"abababababababababababababababab","signature":"verified","signature_scope":"descriptor","authortrust":"accepted","unrecorded":["summary","category","size"]}
+BEGIN verify rc=0
+Verification of abababababababababababababababab/trial 2.0 (revision 1)
+Signature: verified
+Author trust: accepted
+ok 4
+changed 1
+missing 0
+unknown 0
+ok Drawer
+changed Drawer/.hidden [configuration]
+ok Drawer/Empty
+ok Drawer/Package.arospkg.toml
+ok Drawer/program
+BEGIN config rc=0
+personal-configuration
+BEGIN remove rc=0
+Remove
+Root folder: RAM Disk:APKG3TrialRoot
+Approved plan: 31593dccb2598e2d90bcf218e7306f41004bcbf967a7b97f93bf7b0a9013c618
+
+Review/runtime qualification: no independent qualification asserted
+
+Package folder: trial
+Preserve trial/Drawer (directory, mode 493)
+Preserve trial/Drawer/.hidden; 23 bytes, mode 448, SHA-256 c704d5302aa326edc2df241d10cba966406017f81e5aca9679a1102fcdb260d1
+Remove trial/Drawer/Empty (directory, mode 493)
+Remove trial/Drawer/Package.arospkg.toml; 217 bytes, mode 420, SHA-256 6ddcd1fa9f1ac0a1e1118f21aca51c1d9bffb1d7acc415b99cb144a8129cc816
+Remove trial/Drawer/program; 12 bytes, mode 420, SHA-256 3f897f3583d3f4b2b48ecbdc85059dc062e92d0ef05bbf91232be6c4a415f915
+
+Commit .apkg/state at generation 5
+BEGIN list-final rc=0
+nothing installed
+BEGIN kept-config rc=0
+personal-configuration
+BEGIN make-gui-root rc=0
+
+BEGIN gui-state rc=0
+
+BEGIN gui-install rc=0
+Resolve/install
+Root folder: RAM Disk:APKG3GUIRoot
+Approved plan: 5a7871def1bced1c1b698a0204f34f0dbfa0c9c32bfbf991de4d89829783f50c
+
+Channel: cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
+Channel signing key: 712651f450ba05b63898b99ef5f7ba45632e8e2527f7f715cd671ec4024cc51e
+Snapshot SHA-256: ae4fc6b2eeb65036a111fce4740f9ad51d4cc10dd140f0fbcad1887478fd8612
+Record replay floor at commit: 2
+
+Selected: trial 2.0 revision 1
+Publisher: abababababababababababababababab
+Target: aarch64-aros-v1-native
+Signature: verified, authorized key 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8
+
+Review/runtime qualification: no independent qualification asserted
+
+Package folder: trial
+Create trial/Drawer (directory, mode 493)
+Create trial/Drawer/.hidden; 6 bytes, mode 420, SHA-256 e564b4081d7a9ea4b00dada53bdae70c99b87b6fce869f0c3dd4d2bfa1e53e1c
+Create trial/Drawer/Empty (directory, mode 493)
+Create trial/Drawer/Package.arospkg.toml; 217 bytes, mode 420, SHA-256 6ddcd1fa9f1ac0a1e1118f21aca51c1d9bffb1d7acc415b99cb144a8129cc816
+Create trial/Drawer/program; 12 bytes, mode 420, SHA-256 3f897f3583d3f4b2b48ecbdc85059dc062e92d0ef05bbf91232be6c4a415f915
+
+Commit .apkg/state at generation 3
+PASS 44a258fd75f0431f9f93760937e7021f

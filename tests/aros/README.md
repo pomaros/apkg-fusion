@@ -19,6 +19,12 @@ starts its single command argument asynchronously; NoRequesters suppresses
 requesters on the calling Shell. They are explicit external inputs, not part
 of the common engine. No production key enters the payload.
 
+For a separate attempt in an existing RAM runtime, use a fresh output directory,
+`--namespace APKG2 --runtime-dir RAM:APKG2`, and stage the contents of
+`payload/APKGTrial` at that explicit target directory. The namespace gives the
+attempt separate roots, channel and report (`RAM:APKG2TrialReport.txt`). Retain
+each attempt's preparation and exported evidence.
+
 Stage `payload/APKGTrial` as `SYS:APKGTrial` in an isolated RAM runtime using
 the target owner's established supervisor and recovery procedure. Check the
 payload hashes in `prepared.json` after staging, retain the exact executable
@@ -27,7 +33,9 @@ independent debugger interruption before running the application workload.
 Do not replace an installed package manager or invoke its updater.
 
 For keyboard-driven control, verify letters, digits and path punctuation against
-the active Shell keymap before sending commands. Set the Shell's command stack
+the active Shell keymap before sending commands. Open a fresh Shell after
+changing the default keymap; an existing console can retain its former layout.
+Set the Shell's command stack
 to 8 MiB (`Stack 8388608`). Execute `SYS:APKGTrial/Trial` from that Shell. It uses separate `RAM:APKG…`
 namespaces and must run once in a fresh runtime. Its 25 steps cover fresh root
 initialization, signed source installation, archive tampering refusal, upgrade,
@@ -53,3 +61,10 @@ Its rejection tests run with the common host suite.
 independent interaction, operation and shutdown evidence. These basic fixtures
 omit Amiga metadata; metadata, system placement, installed migration, power-loss
 durability and bare-metal acceptance require their own qualification.
+
+`fs_probe.c` is a separate native observation program. Run it with a fresh
+explicit `RAM:APKGProbe…` drawer; it refuses existing drawers and other volumes.
+Its report records POSIX modes, DOS object keys/enumeration cursors/protection
+words, creation, write/read flushes and permission changes. A zero exit means
+observations completed: inspect every recorded result and retain the report.
+It is test tooling, not the proposed product diagnostics command.

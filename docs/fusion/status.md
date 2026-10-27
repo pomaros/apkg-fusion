@@ -23,9 +23,9 @@ implemented below; remaining service/operation integration is listed separately.
 
 These are implementation positions, not six completed gates. The final clean
 workspace scenario and exact-source Linux/macOS CI must qualify the resulting
-product. Native qualification is not established. The operator has now requested
-an isolated M1 runtime rehearsal after the other fusion work and before portal
-adaptation; deployment and live portal cutover remain outside this run.
+product. The isolated M1 RAM component profile below passes; broader native qualification
+remains open. Portal adaptation follows this rehearsal; deployment and live
+portal cutover remain outside this run.
 
 ## BASE qualification
 
@@ -1832,31 +1832,48 @@ The integration checks comprise 118 target, 315 application-description,
 checks synchronous and threaded responses with reverse DNS unavailable. No operational consumers were
 modified and no portal or AROS deployment was performed.
 
-## Isolated M1 runtime findings
+## Isolated M1 RAM component rehearsal
 
-The operator-authorized rehearsal runs candidate applications in a retained
-AArch64 RAM runtime on a physical M1 under an independent hypervisor/debugger.
-The SDK includes local C-runtime changes; this is application-component evidence,
-not coherent OS promotion, bare-metal acceptance or power-loss qualification.
-The installed package manager, library and updater are untouched.
+The [retained application evidence](evidence/m1-ram/README.md) qualifies a
+file-channel component profile on a physical M1 under an independently checked
+hypervisor/debugger. A retained RAM OS and an SDK with local C-runtime changes
+were used. The installed library, updater and startup process were unchanged.
+Bare-metal OS, extended Amiga metadata, native HTTP/TLS, interrupted recovery,
+power-loss durability and live-distribution migration need separate qualification.
 
-An exported first report identifies the common CLI and an initialization failure
-before managed publication. The prepared journal reached its ready marker.
-The native identity adapter used `fib_DiskKey`, which RAM: changes as children
-are added, instead of the locked object's key. POSIX `ino_t` also truncates a
-64-bit AROS lock key. Internal bindings now retain 64-bit device/object identities
-separately from POSIX metadata. An actual native-branch mock under ASan/UBSan
-checks child/enumeration changes, rename spelling, equal low bits with different
-high bits, volume replacement, missing keys/locks and links.
+The exported command report passes its independent verifier for all 25 ordered
+steps: fresh root initialization, signed installation, edited configuration,
+corrupt-upgrade refusal with the installed version preserved, upgrade,
+verification, removal, retained configuration and a separate GUI root. PkgManager
+loads typed installed rows, completes window-driven verification and executes
+an explicitly confirmed removal. An independent CLI query and exported database
+confirm removal; worker shutdown and process absence after quit were checked.
+The final GUI run records the requested `remove` operation without truncation.
 
-Host integration passes 347 common tests, and the AArch64 CLI/GUI SDK build and
-worker-object audit pass. On the M1, independent readback verifies the corrected
-CLI bytes before execution; fresh root initialization commits successfully.
-The command rehearsal then stops at first-use archive-cache preparation. A
-subsequent explicit fetch prepares the signed archive without managed commit.
-That cache first-use defect and the remaining command/UI steps require further
-work; no complete native rehearsal pass is claimed. Full sanitizer/CI results
-for this correction are pending.
+The runtime work found and corrected three common-engine defects:
+
+- DOS `fib_DiskKey` is an enumeration cursor on RAM:, so child creation invalidated
+  directory bindings. Full-width lock keys now identify objects independently of
+  the target's 32-bit POSIX `ino_t`.
+- First-use archive-cache creation found parents only through `/`. Context,
+  journal, object-cache and archive-cache paths share a parent utility supporting
+  volume children such as `RAM:root`.
+- Native observation counted ordinary DOS permission bits as additional metadata,
+  rejecting its own staged files. Ordinary permissions are represented by mode;
+  additional flags and comments retain their raw meaning.
+
+Host integration passes 349 common tests. The full instrumented scenario suite
+passes 243 tests under ASan/UBSan. Native-branch identity and attribute tests and
+the parent-path test also run under ASan/UBSan. The subsequent GUI job-label
+adjustment passes the updated ARexx corpus normally and under sanitizers, SDK
+object/link audits and an additional M1 confirmed-removal/shutdown run.
+Exact-source Linux/macOS CI for the published result remains pending.
+
+The [public rehearsal tools](../../tests/aros/README.md) support distinct RAM
+namespaces and explicit runtime directories, preserving failed-attempt evidence.
+Their target payload excludes the producer's empty publication lock. A separate
+filesystem observation probe records native permissions, object keys and flush
+results without claiming power-loss durability.
 
 ## Follow-up verification register
 
@@ -1868,7 +1885,7 @@ These checks remain scheduled work; they do not block BASE or contract design.
 | DOS and handlers | MAP / PLATFORMS: measure dos.library version/revision and handler capabilities on each distribution; exercise replacement and recovery rather than inferring compatibility from ABI. |
 | Self-update state | MAP / JOURNAL / SELF-UPDATE: map both existing journals, including `ENVARC:arospkg/self-update.json`, into one recovery model and test interrupted self-update recovery. |
 | Maintainer feedback | ALIGN: collect comments on the selected skeleton, trust administration and release scope when contact is authorized; development continues meanwhile. |
-| M1 rehearsal | Operator-authorized after the other fusion workstreams and before portal work. Test candidate binaries/roots separately; identify the exact runtime/build and exercise UI, operations and recovery. No native result is recorded yet. |
+| M1 rehearsal | Operator-authorized after the other fusion workstreams and before portal work. The isolated RAM file-channel CLI/UI profile passes with retained application evidence below. Broader platform, metadata, native network, interrupted recovery and durability gates remain open. |
 | M1 updater | Existing update integration uses `libpkg`. Another owner will migrate it. Preserve the installed library and update/startup process; fusion runtime tests must not replace them. |
 | Existing portal | PORTAL-MIGRATE: migration of https://aros-pkg.azurewebsites.net/ is requested after fusion. Inventory real data/configuration, rehearse backup/restore and cutover, verify publishing/consumption and URLs, and retain rollback. No live migration has been attempted. |
 

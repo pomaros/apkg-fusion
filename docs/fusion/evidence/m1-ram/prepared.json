@@ -1,0 +1,161 @@
+{
+  "format": "apkg-aros-rehearsal-1",
+  "nonce": "44a258fd75f0431f9f93760937e7021f",
+  "target": "aarch64-aros-v1-native",
+  "steps": [
+    {
+      "label": "no-requesters",
+      "command": "RAM:APKG3/NoRequesters",
+      "expected": 0
+    },
+    {
+      "label": "version",
+      "command": "RAM:APKG3/apkg-core --version",
+      "expected": 0
+    },
+    {
+      "label": "initialize",
+      "command": "RAM:APKG3/apkg-core init RAM:APKG3FreshRoot aarch64-aros-v1-native RAM:APKG3/policy.json --yes",
+      "expected": 0
+    },
+    {
+      "label": "make-fixture",
+      "command": "MakeDir RAM:APKG3TrialRoot RAM:APKG3TrialRoot/.apkg RAM:APKG3TrialChannel",
+      "expected": 0
+    },
+    {
+      "label": "copy-state",
+      "command": "Copy RAM:APKG3/root-state RAM:APKG3TrialRoot/.apkg/state QUIET",
+      "expected": 0
+    },
+    {
+      "label": "copy-channel",
+      "command": "Copy RAM:APKG3/channel/#? RAM:APKG3TrialChannel/ ALL QUIET",
+      "expected": 0
+    },
+    {
+      "label": "select-v1",
+      "command": "Copy RAM:APKG3/current-1.2 RAM:APKG3TrialChannel/current QUIET",
+      "expected": 0
+    },
+    {
+      "label": "install",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot install trial --yes",
+      "expected": 0
+    },
+    {
+      "label": "info-v1",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot info trial",
+      "expected": 0
+    },
+    {
+      "label": "edit-config",
+      "command": "Echo \"personal-configuration\"",
+      "expected": 0
+    },
+    {
+      "label": "select-v2",
+      "command": "Copy RAM:APKG3/current-2.0 RAM:APKG3TrialChannel/current QUIET",
+      "expected": 0
+    },
+    {
+      "label": "tamper",
+      "command": "Copy RAM:APKG3/bad.pkg RAM:APKG3TrialChannel/archives/0aa2fe0f408c50f9d306d3d6904f4a367c8895587aa151913c69e2a633eb90e8.pkg QUIET",
+      "expected": 0
+    },
+    {
+      "label": "refuse-tamper",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot upgrade trial --yes",
+      "expected": 10
+    },
+    {
+      "label": "still-v1",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot info trial",
+      "expected": 0
+    },
+    {
+      "label": "restore-archive",
+      "command": "Copy RAM:APKG3/channel/archives/0aa2fe0f408c50f9d306d3d6904f4a367c8895587aa151913c69e2a633eb90e8.pkg RAM:APKG3TrialChannel/archives/0aa2fe0f408c50f9d306d3d6904f4a367c8895587aa151913c69e2a633eb90e8.pkg QUIET",
+      "expected": 0
+    },
+    {
+      "label": "upgrade",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot upgrade trial --yes",
+      "expected": 0
+    },
+    {
+      "label": "info-v2",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot info trial",
+      "expected": 0
+    },
+    {
+      "label": "verify",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot verify trial",
+      "expected": 0
+    },
+    {
+      "label": "config",
+      "command": "Type RAM:APKG3TrialRoot/trial/Drawer/.hidden",
+      "expected": 0
+    },
+    {
+      "label": "remove",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot remove trial --yes",
+      "expected": 0
+    },
+    {
+      "label": "list-final",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3TrialRoot list",
+      "expected": 0
+    },
+    {
+      "label": "kept-config",
+      "command": "Type RAM:APKG3TrialRoot/trial/Drawer/.hidden",
+      "expected": 0
+    },
+    {
+      "label": "make-gui-root",
+      "command": "MakeDir RAM:APKG3GUIRoot RAM:APKG3GUIRoot/.apkg",
+      "expected": 0
+    },
+    {
+      "label": "gui-state",
+      "command": "Copy RAM:APKG3/root-state RAM:APKG3GUIRoot/.apkg/state QUIET",
+      "expected": 0
+    },
+    {
+      "label": "gui-install",
+      "command": "RAM:APKG3/apkg-core legacy --root RAM:APKG3GUIRoot install trial --yes",
+      "expected": 0
+    }
+  ],
+  "files": {
+    "APKGTrial/policy.json": "b655b12a032bb86c29be2078b5cc503a8e753069caa776b08bf4e65846501419",
+    "APKGTrial/current-2.0": "eb7800106a9f7e0146100b8f9eac38322f9cce43296d7e25f5dd79f4f58eecf5",
+    "APKGTrial/apkg-core": "b94fd707cd5d525dab1647387b77c437de5bf8d075e729f94874cf0e646134a9",
+    "APKGTrial/root-state": "ea65acae689e6404fd30058e9bed19bbffc153f3592763fdd5e9203f466ce87d",
+    "APKGTrial/NoRequesters": "eed8d15a2affb42376fdfccff14116b759054a584d1d7fbe9d8404205d92e7d4",
+    "APKGTrial/Trial": "575538e2dab8c6f1989b4dd5be00e837e71688184b0f1d77aea48ccb3bd02717",
+    "APKGTrial/Launch": "379e1dc5fe585df1ddd318152557f71c9466eb6cb5fe995a12629f27fabc5187",
+    "APKGTrial/bad.pkg": "deb8bc27b66e802ecd79762d24d30a56fdc928f68a972e98687a0e8c0a2e1bee",
+    "APKGTrial/StartGUI": "966c7e03427fbc2d94138156c1c4ff170e6c6e86f49d8434e96d011bdcd22732",
+    "APKGTrial/PkgManager": "de3f8bb8db4b5843a627694436b1c3482f24260d09d62255cebe4e6fd2c87614",
+    "APKGTrial/current-1.2": "fb329749406e07f8340fd2d40e25bb203cb58d7aea6ca5af856a01fa7fde26fe",
+    "APKGTrial/channel/current": "eb7800106a9f7e0146100b8f9eac38322f9cce43296d7e25f5dd79f4f58eecf5",
+    "APKGTrial/channel/archives/0b388e3a36bbef6cee97094a8df5402a661c132a5c4d06e55c13fe397d17f59c.pkg": "0b388e3a36bbef6cee97094a8df5402a661c132a5c4d06e55c13fe397d17f59c",
+    "APKGTrial/channel/archives/0aa2fe0f408c50f9d306d3d6904f4a367c8895587aa151913c69e2a633eb90e8.pkg": "0aa2fe0f408c50f9d306d3d6904f4a367c8895587aa151913c69e2a633eb90e8",
+    "APKGTrial/channel/snapshots/ae4fc6b2eeb65036a111fce4740f9ad51d4cc10dd140f0fbcad1887478fd8612/channel.json": "ae4fc6b2eeb65036a111fce4740f9ad51d4cc10dd140f0fbcad1887478fd8612",
+    "APKGTrial/channel/snapshots/ae4fc6b2eeb65036a111fce4740f9ad51d4cc10dd140f0fbcad1887478fd8612/channel.signature.json": "5c434d792e783475c866068d4696acdaf08d55278350b4efd1ba6f57b2c2bb0b",
+    "APKGTrial/channel/snapshots/de429fb8132e38c7db5d4662732e89a13f4532b9c38f46e314ab28ba7348bb20/channel.json": "de429fb8132e38c7db5d4662732e89a13f4532b9c38f46e314ab28ba7348bb20",
+    "APKGTrial/channel/snapshots/de429fb8132e38c7db5d4662732e89a13f4532b9c38f46e314ab28ba7348bb20/channel.signature.json": "ffa16184ff847659976b5a3763825ecc0d6b8200b117c6b13d2cdfae43150e04"
+  },
+  "native_execution": "not-performed",
+  "roots": [
+    "RAM:APKG3FreshRoot",
+    "RAM:APKG3TrialRoot",
+    "RAM:APKG3GUIRoot"
+  ],
+  "runtime_dir": "RAM:APKG3",
+  "namespace": "APKG3",
+  "report": "RAM:APKG3TrialReport.txt"
+}

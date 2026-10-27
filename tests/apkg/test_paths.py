@@ -11,8 +11,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 HARNESS = r'''
-#include <assert.h>
 #include "context.c"
+#include <assert.h>
 int main(void) {
     const char *cases[][2] = {
         {"/tmp/root.apkg-archives", "/tmp"}, {"/root", "/"},

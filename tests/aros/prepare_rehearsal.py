@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -40,6 +41,18 @@ def confirmed(*args):
 
 
 def prepare(args):
+    namespace = args.namespace
+    bundle = args.runtime_dir
+    if not re.fullmatch(r'[A-Za-z][A-Za-z0-9]{0,23}', namespace):
+        raise ValueError('namespace must contain 1 to 24 ASCII letters/digits, starting with a letter')
+    if (not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*:[A-Za-z0-9_./-]+', bundle)
+            or any(p in ('.', '..', '') for p in bundle.split(':', 1)[1].split('/'))):
+        raise ValueError('runtime directory must be an explicit DOS test path without traversal')
+    report = 'RAM:' + namespace + 'TrialReport.txt'
+    step_output = 'RAM:' + namespace + 'Step.txt'
+    fresh = 'RAM:' + namespace + 'FreshRoot'
+    gui_root = 'RAM:' + namespace + 'GUIRoot'
+    channel_path = 'RAM:' + namespace + 'TrialChannel'
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     payload = out / 'payload/APKGTrial'; payload.mkdir(parents=True)
@@ -47,7 +60,7 @@ def prepare(args):
     original_cwd = Path.cwd()
     os.chdir(workspace)
     try:
-        channel = Path('RAM:APKGTrialChannel')
+        channel = Path(channel_path)
         key_fixture(Path('author-key')); channel_key(Path('channel-key'))
         for version in ('1.2', '2.0'):
             source = Path('drawer-' + version); source.mkdir()
@@ -65,10 +78,11 @@ def prepare(args):
         policy = workspace / 'policy.json'; policy.write_bytes(seed())
         root = workspace / 'unused-root'
         run('init', root, 'aarch64-aros-v1-native', policy, '--yes')
-        confirmed('source-add', root, 'trial-source', 'RAM:APKGTrialChannel', CHANNEL)
+        confirmed('source-add', root, 'trial-source', channel_path, CHANNEL)
         shutil.copy2(root / '.apkg/state', payload / 'root-state')
         shutil.copy2(policy, payload / 'policy.json')
-        shutil.copytree(channel, payload / 'channel')
+        shutil.copytree(channel, payload / 'channel',
+                        ignore=shutil.ignore_patterns('.publish.lock'))
         newer = next(row for row in snapshot_document(channel)['body']['entries'] if row['descriptor']['body']['version'] == '2.0')
         bad_hash = newer['archive']['sha256']
     finally:
@@ -77,35 +91,35 @@ def prepare(args):
         shutil.copy2(source, payload / name)
     (payload / 'bad.pkg').write_bytes(b'invalid package\n')
     nonce = uuid.uuid4().hex
-    root = 'RAM:APKGTrialRoot'
+    root = 'RAM:' + namespace + 'TrialRoot'
     app = root + '/trial/Drawer'
-    exe = 'SYS:APKGTrial/apkg-core'
+    exe = bundle + '/apkg-core'
     lines = ['; Isolated RAM-only fusion rehearsal', 'FailAt 21',
-             'Echo "APKG-REHEARSAL ' + nonce + '" >RAM:APKGTrialReport.txt']
+             'Echo "APKG-REHEARSAL ' + nonce + '" >' + report]
     steps = []
     def step(label, command, expected=0, destination=None):
         steps.append(dict(label=label, command=command, expected=expected))
-        destination = destination or 'RAM:APKGStep.txt'
+        destination = destination or step_output
         lines.extend([command + ' >' + destination, 'Set APKGRC $RC',
-                      'Echo "BEGIN ' + label + ' rc=$APKGRC" >>RAM:APKGTrialReport.txt',
-                      'Type ' + destination + ' >>RAM:APKGTrialReport.txt',
+                      'Echo "BEGIN ' + label + ' rc=$APKGRC" >>' + report,
+                      'Type ' + destination + ' >>' + report,
                       'If NOT $APKGRC EQ ' + str(expected) + ' VAL',
-                      '  Echo "FAIL ' + label + ' rc=$APKGRC" >>RAM:APKGTrialReport.txt', '  Quit 20', 'EndIf'])
-    step('no-requesters', 'SYS:APKGTrial/NoRequesters')
+                      '  Echo "FAIL ' + label + ' rc=$APKGRC" >>' + report, '  Quit 20', 'EndIf'])
+    step('no-requesters', bundle + '/NoRequesters')
     step('version', exe + ' --version')
-    step('initialize', exe + ' init RAM:APKGFreshRoot aarch64-aros-v1-native SYS:APKGTrial/policy.json --yes')
-    step('make-fixture', 'MakeDir ' + root + ' ' + root + '/.apkg RAM:APKGTrialChannel')
-    step('copy-state', 'Copy SYS:APKGTrial/root-state ' + root + '/.apkg/state QUIET')
-    step('copy-channel', 'Copy SYS:APKGTrial/channel/#? RAM:APKGTrialChannel/ ALL QUIET')
-    step('select-v1', 'Copy SYS:APKGTrial/current-1.2 RAM:APKGTrialChannel/current QUIET')
+    step('initialize', exe + ' init ' + fresh + ' aarch64-aros-v1-native ' + bundle + '/policy.json --yes')
+    step('make-fixture', 'MakeDir ' + root + ' ' + root + '/.apkg ' + channel_path)
+    step('copy-state', 'Copy ' + bundle + '/root-state ' + root + '/.apkg/state QUIET')
+    step('copy-channel', 'Copy ' + bundle + '/channel/#? ' + channel_path + '/ ALL QUIET')
+    step('select-v1', 'Copy ' + bundle + '/current-1.2 ' + channel_path + '/current QUIET')
     step('install', exe + ' legacy --root ' + root + ' install trial --yes')
     step('info-v1', exe + ' legacy --root ' + root + ' info trial')
     step('edit-config', 'Echo "personal-configuration"', destination=app + '/.hidden')
-    step('select-v2', 'Copy SYS:APKGTrial/current-2.0 RAM:APKGTrialChannel/current QUIET')
-    step('tamper', 'Copy SYS:APKGTrial/bad.pkg RAM:APKGTrialChannel/archives/' + bad_hash + '.pkg QUIET')
+    step('select-v2', 'Copy ' + bundle + '/current-2.0 ' + channel_path + '/current QUIET')
+    step('tamper', 'Copy ' + bundle + '/bad.pkg ' + channel_path + '/archives/' + bad_hash + '.pkg QUIET')
     step('refuse-tamper', exe + ' legacy --root ' + root + ' upgrade trial --yes', 10)
     step('still-v1', exe + ' legacy --root ' + root + ' info trial')
-    step('restore-archive', 'Copy SYS:APKGTrial/channel/archives/' + bad_hash + '.pkg RAM:APKGTrialChannel/archives/' + bad_hash + '.pkg QUIET')
+    step('restore-archive', 'Copy ' + bundle + '/channel/archives/' + bad_hash + '.pkg ' + channel_path + '/archives/' + bad_hash + '.pkg QUIET')
     step('upgrade', exe + ' legacy --root ' + root + ' upgrade trial --yes')
     step('info-v2', exe + ' legacy --root ' + root + ' info trial')
     step('verify', exe + ' legacy --root ' + root + ' verify trial')
@@ -113,21 +127,23 @@ def prepare(args):
     step('remove', exe + ' legacy --root ' + root + ' remove trial --yes')
     step('list-final', exe + ' legacy --root ' + root + ' list')
     step('kept-config', 'Type ' + app + '/.hidden')
-    step('make-gui-root', 'MakeDir RAM:APKGGUIRoot RAM:APKGGUIRoot/.apkg')
-    step('gui-state', 'Copy SYS:APKGTrial/root-state RAM:APKGGUIRoot/.apkg/state QUIET')
-    step('gui-install', exe + ' legacy --root RAM:APKGGUIRoot install trial --yes')
-    lines.extend(['Echo "PASS ' + nonce + '" >>RAM:APKGTrialReport.txt', 'Quit 0'])
+    step('make-gui-root', 'MakeDir ' + gui_root + ' ' + gui_root + '/.apkg')
+    step('gui-state', 'Copy ' + bundle + '/root-state ' + gui_root + '/.apkg/state QUIET')
+    step('gui-install', exe + ' legacy --root ' + gui_root + ' install trial --yes')
+    lines.extend(['Echo "PASS ' + nonce + '" >>' + report, 'Quit 0'])
     (payload / 'Trial').write_text('\n'.join(lines) + '\n')
-    (payload / 'StartGUI').write_text('SYS:APKGTrial/Launch "SYS:APKGTrial/PkgManager --root RAM:APKGGUIRoot --source-profile RAM:APKGTrial.source --log RAM:APKGManager.log"\n')
+    (payload / 'StartGUI').write_text(bundle + '/Launch "' + bundle + '/PkgManager --root ' + gui_root + ' --source-profile RAM:' + namespace + 'Trial.source --log RAM:' + namespace + 'Manager.log"\n')
     inventory = {str(p.relative_to(out / 'payload')): hashlib.sha256(p.read_bytes()).hexdigest()
                  for p in (out / 'payload').rglob('*') if p.is_file()}
     receipt = dict(format='apkg-aros-rehearsal-1', nonce=nonce, target='aarch64-aros-v1-native',
-                   steps=steps, files=inventory, native_execution='not-performed', roots=['RAM:APKGFreshRoot',root,'RAM:APKGGUIRoot'])
+                   steps=steps, files=inventory, native_execution='not-performed', roots=[fresh, root, gui_root], runtime_dir=bundle, namespace=namespace, report=report)
     (out / 'prepared.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(dict(result='PREPARED', steps=len(steps), files=len(inventory), output=str(out))))
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--namespace', default='APKG', help='unique RAM fixture prefix for an isolated attempt')
+    p.add_argument('--runtime-dir', default='SYS:APKGTrial', help='explicit target test directory containing the payload')
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--cli', type=Path, required=True)
     p.add_argument('--gui', type=Path, required=True)
