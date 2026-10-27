@@ -93,6 +93,24 @@ static apkg_status catalogue_open(const char *root,
         code = apkg_snapshot_read(*ctx, snapshot, NULL);
     return code;
 }
+apkg_status pm_common_rexx_requirements(const char *root,
+                                        const pm_common_catalogue *model,
+                                        const char *name, char **out) {
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    apkg_ctx *ctx = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    apkg_status code = catalogue_open(root, model, &ctx, &snapshot, &channel);
+    if (!code) code = apkg_channel_requirements(ctx, channel, name, out, NULL);
+    if (!code && strlen(*out) > RX_MAXRESULT) {
+        apkg_client_text_free(*out); *out = NULL; code = APKG_LIMIT;
+    }
+    apkg_channel_free(channel);
+    apkg_snapshot_free(snapshot);
+    apkg_close(ctx);
+    return code;
+}
 static int contains(apkg_text text, const char *term);
 apkg_status pm_common_rexx_list(const char *root,
                                 const pm_common_catalogue *model,

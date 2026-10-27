@@ -346,3 +346,57 @@ apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,
     apkg_close(ctx);
     return code;
 }
+
+apkg_status apkg_channel_requirements(apkg_ctx *ctx, const apkg_channel *channel,
+                                      const char *name, char **out,
+                                      apkg_error **error) {
+    if (error) *error = NULL;
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    if (!ctx || !channel || !name || !ak_valid_name(name)) return APKG_INVALID;
+    apkg_package *best = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_status code = apkg_snapshot_read(ctx, &snapshot, error);
+    if (!code) code = ak_channel_snapshot_check(snapshot, channel);
+    apkg_snapshot_free(snapshot);
+    apkg_status absent = APKG_NOT_FOUND;
+    for (uint64_t i = 0; !code && i < apkg_channel_get(channel)->entry_count; i++) {
+        const apkg_channel_entry_view *row = NULL;
+        code = apkg_channel_entry_at(channel, i, &row, error);
+        if (code) break;
+        if (row->name.size != strlen(name) || memcmp(row->name.data, name, row->name.size)) continue;
+        if (!row->target_matches) { if (absent == APKG_NOT_FOUND) absent = APKG_TARGET; continue; }
+        if (row->author_trust != APKG_TRUST_ACCEPTED) { absent = APKG_TRUST; continue; }
+        apkg_package *candidate = NULL;
+        code = ak_channel_metadata(ctx, channel, i, &candidate, error);
+        if (code) break;
+        int order = 1;
+        if (best) {
+            order = !strcmp(candidate->version, best->version) ? 0 : ak_version_compare(candidate->version, best->version);
+            if (!order) order = candidate->revision > best->revision ? 1 : candidate->revision < best->revision ? -1 : 0;
+            if (strcmp(candidate->authority, best->authority) || order == 2 ||
+                (!order && memcmp(candidate->digest.bytes, best->digest.bytes, 32)))
+                code = ak_fail(error, APKG_CONFLICT, "requirements selection is ambiguous", name);
+        }
+        if (!code && order > 0) { apkg_package_free(best); best = candidate; candidate = NULL; }
+        apkg_package_free(candidate);
+    }
+    if (!code) code = best ? apkg_package_requirements(best, out, error) : absent;
+    apkg_package_free(best);
+    return code;
+}
+apkg_status apkg_client_requirements(const char *root, const char *endpoint,
+                                     const char *identity, const char *name,
+                                     char **out, apkg_error **error) {
+    if (error) *error = NULL;
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    apkg_ctx *ctx = NULL;
+    apkg_channel *channel = NULL;
+    apkg_status code = open_source(root, endpoint, identity, 0, APKG_READ,
+                                   NULL, &ctx, &channel, error);
+    if (!code) code = apkg_channel_requirements(ctx, channel, name, out, error);
+    apkg_channel_free(channel);
+    apkg_close(ctx);
+    return code;
+}

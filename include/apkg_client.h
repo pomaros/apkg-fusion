@@ -70,6 +70,17 @@ apkg_status apkg_client_channel_refresh(const char *root, const char *endpoint,
 apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
     const char *identity, uint64_t minimum_sequence, const apkg_observer *,
     char **, apkg_error **);
+/* Read-only live system observations using the install probes. Missing
+ * requirements are report facts, not a query error. No plan/archive/root writes.
+ * The package form uses its already validated immutable handle. The channel
+ * form selects the newest trusted current-target build by exact name; authors,
+ * incomparable versions and differing equal builds refuse as ambiguous.
+ * Returned text is owned by the caller (apkg_client_text_free). */
+apkg_status apkg_package_requirements(const apkg_package *, char **, apkg_error **);
+apkg_status apkg_channel_requirements(apkg_ctx *, const apkg_channel *,
+    const char *name, char **, apkg_error **);
+apkg_status apkg_client_requirements(const char *root, const char *endpoint,
+    const char *identity, const char *name, char **, apkg_error **);
 /* Explicit per-source profile, separate from root trust/installed state.
  * Views borrow their config owner. Reading settings validates framing only;
  * open revalidates the copied signed observation against the current root.

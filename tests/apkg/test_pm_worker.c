@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
     assert(argc >= 4 && argc <= 7);
     assert(!job_uses_common_engine(JOB_NONE) && !job_uses_common_engine(JOB_INSTALL));
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
-    if (atoi(argv[3]) == 45) {
+    if (atoi(argv[3]) == 45 || atoi(argv[3]) == 46) {
         /* ROOT ENDPOINT 45 WAIT CHANNEL-ID MATCH: retain, then query offline. */
         assert(argc == 7);
         assert(strlen(argv[1]) < sizeof j.root && strlen(argv[2]) < sizeof j.common_package && strlen(argv[5]) < sizeof j.common_pool);
@@ -113,7 +113,9 @@ int main(int argc, char **argv) {
         }
         char *text = NULL;
         assert(pm_common_rexx_list(j.root, NULL, NULL, &text) == APKG_NOT_FOUND && !text);
-        apkg_status code = pm_common_rexx_list(j.root, final.common_catalogue, argv[6], &text);
+        apkg_status code = atoi(argv[3]) == 46
+            ? pm_common_rexx_requirements(j.root, final.common_catalogue, argv[6], &text)
+            : pm_common_rexx_list(j.root, final.common_catalogue, argv[6], &text);
         FreeVec(final.common_catalogue);
         printf("status %d\n", code);
         if (!code) { assert(text && strlen(text) <= RX_MAXRESULT); puts(text); }

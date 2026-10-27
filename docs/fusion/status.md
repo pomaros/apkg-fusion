@@ -1629,8 +1629,8 @@ full host integration passes 325 common methods, 78 default-product checks,
 110 provisional CLI checks, 78 publication checks and the existing contract,
 ARexx, target and application gates. Exact-source CI is pending for this
 checkpoint. Live ARexx/native UI interaction remains
-unqualified. The job-counter adapter is recorded below; live system requirements and
-remaining command adapters are still outstanding.
+unqualified. The job-counter adapter is recorded below; the live system requirements query is recorded below, while other command
+adapters remain outstanding.
 
 ## Common ARexx job progress
 
@@ -1649,6 +1649,31 @@ passes 325 common methods, the expanded ARexx corpus, 78 default-product checks,
 110 provisional CLI checks, 78 publication checks and the existing contract,
 target and application gates. Exact-source CI is pending for this checkpoint.
 Native message port/UI runtime behavior remains a separate rehearsal.
+
+## Common live requirements query
+
+CLI `requirements` and fusion ARexx REQUIREMENTS now select a trusted
+current-target build from common signed metadata and use the install probes.
+ARexx reopens retained observations offline; the CLI discovers file/HTTP
+metadata. Both return the same bounded report naming author/version/revision,
+including missing/unknown requirements and explicit empty declarations. Neither
+path fetches archives, prepares a plan or changes the root. Ambiguous authors,
+incomparable versions and differing equal builds refuse; identical opaque
+versions retain revision ordering. Stale root/channel binding refuses even if
+the requested name is absent.
+
+Six query methods cover shared presentation, newest-build selection, offline
+metadata, current trust, author/version ambiguity, target refusal, stale bindings,
+live probe changes, empty requirements, owned lifetime and allocation failures.
+Full host integration passes 330 common methods plus the existing CLI,
+publication, contract, ARexx, target and application gates. One further
+author/target refusal method was then added and all six query methods passed
+with the actual CLI/worker under ASan/UBSan; the earlier combined 17-method
+query/system/catalogue run also passed with those clients instrumented. Direct
+ctypes probe/fault tests use the ordinary test library. AArch64 SDK type checks,
+public symbols and links across 74 documentation files pass. Exact-source CI
+is pending; native probe execution remains unqualified outside the mocked
+resource regression.
 
 ## Implemented integration pieces
 

@@ -67,7 +67,7 @@ static int apkg_main(int argc, char **argv) {
             "PACKAGE-DIRECTORY [--confirm "
             "DIGEST]\nadopt-set ROOT MANIFEST [--json | --confirm DIGEST]\nadopt ROOT ARTIFACT --evidence FILE [--confirm DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
             "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
-            "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | "
+            "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | requirements ROOT ENDPOINT CHANNEL-ID NAME | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
             "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
@@ -442,6 +442,12 @@ static int apkg_main(int argc, char **argv) {
                 puts(text);
         } else
             code = apkg_client_run(argv[2], argv[3], &e);
+        goto done;
+    }
+    if (!strcmp(argv[1], "requirements")) {
+        if (argc != 6) goto done;
+        code = apkg_client_requirements(argv[2], argv[3], argv[4], argv[5], &text, &e);
+        if (!code) puts(text);
         goto done;
     }
     if (!strcmp(argv[1], "info")) {

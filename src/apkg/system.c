@@ -21,6 +21,7 @@
  * Installation-time observations are history, not a current qualification:
  * a launch may need a fresh probe. */
 #include "internal.h"
+#include "apkg_client.h"
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -256,6 +257,33 @@ static void probe(ak_probe *r) {
     r->state = 2;
     snprintf(r->detail, sizeof r->detail,
              "requirement type %s is not one this client can check", r->type);
+}
+
+apkg_status apkg_package_requirements(const apkg_package *package, char **out,
+                                      apkg_error **error) {
+    if (error) *error = NULL;
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    if (!package) return APKG_INVALID;
+    const ak_json *j = &package->json;
+    int array = ak_member(j, ak_member(j, 0, "body"), "requires_system");
+    ak_buf b = {0}; b.max = 65535;
+    ak_buf_add(&b, "System requirements observed now for %s/%s %s (revision %" PRIu64 ")\n",
+               package->authority, package->name, package->version, package->revision);
+    if (array < 0) ak_buf_add(&b, "No system requirements declared.");
+    else for (size_t i = (size_t)array + 1; i < j->tokens[array].next; i = j->tokens[i].next) {
+        ak_probe r = {0};
+        if (entry(j, (int)i, r.type, r.id, &r.min_version)) {
+            free(b.data); return APKG_INVALID;
+        }
+        probe(&r);
+        ak_buf_add(&b, "%s%s %s (minimum %" PRIu64 "): %s (%s)",
+                   i == (size_t)array + 1 ? "" : "\n", r.type, r.id,
+                   r.min_version, state_names[r.state], r.detail);
+    }
+    if (b.bad) { free(b.data); return ak_fail(error, (apkg_status)b.bad, "requirements report unavailable", ""); }
+    *out = b.data;
+    return APKG_OK;
 }
 
 /* ------------------------------------------------------- plan observations */

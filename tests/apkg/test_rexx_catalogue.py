@@ -28,8 +28,8 @@ def publish(endpoint, entries):
     (endpoint / 'current').write_text(digest + '\n')
 
 
-def query(root, endpoint, match='', change=None):
-    process = subprocess.Popen([str(WORKER), str(root), str(endpoint), '45',
+def query(root, endpoint, match='', change=None, mode=45):
+    process = subprocess.Popen([str(WORKER), str(root), str(endpoint), str(mode),
                                 '1' if change else '0', CHANNEL, match],
                                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, text=True)

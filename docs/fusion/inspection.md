@@ -66,8 +66,32 @@ UPGRADE requires an installed name and keeps its `upgrade` job label. Source
 setup uses the [root source controls](sources.md#root-source-list-controls);
 loading a catalogue with UPDATE alone does not add it as an installation source.
 Job numbers, WAIT and cancellation keep their existing asynchronous protocol.
-Rollback/verification command adapters and live REQUIREMENTS queries remain
-separate outstanding work, as do catalogue-only INFO and dated news.
+Rollback/verification command adapters remain outstanding, as do catalogue-only
+INFO and dated news.
+
+Fusion `REQUIREMENTS name` reads the retained signed catalogue offline and
+revalidates current channel/author trust, target and accepted replay floors.
+Among trusted builds for the exact name and current target, it selects the
+newest version/revision; different authors, incomparable versions or differing
+equal builds refuse. Identical opaque versions can still be ordered by revision.
+The report names the selected author, version and revision and probes its signed
+system requirements with the same implementation used by install planning.
+Missing requirements are reported facts, not a failed query. No declared
+requirements produces an explicit empty-declaration message; a host that cannot
+probe AROS reports undetermined. This is a current machine observation, not an
+installation plan or a runtime qualification. No archives or root writes occur.
+
+The CLI equivalent discovers a file/HTTP channel before querying:
+
+```
+apkg requirements ROOT ENDPOINT CHANNEL-ID NAME
+```
+
+`apkg_channel_requirements` shares selection/reporting across the two clients.
+`apkg_package_requirements` queries an already validated immutable package
+handle; it does not independently revalidate root policy. Owned reports use
+`apkg_client_text_free`. Installed INFO retains its snapshot-only
+`requirements not-checked` meaning rather than silently probing the OS.
 
 Fusion JOB/WAIT now project the common progress events: `phase` is check,
 fetch, stage, apply, commit or recover; `done`/`total` retain 64-bit counters.

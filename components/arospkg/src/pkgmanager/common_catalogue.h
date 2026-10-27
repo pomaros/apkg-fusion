@@ -74,6 +74,8 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
  * Duplicate builds collapse, but different authorities sharing a name refuse. */
 apkg_status pm_common_rexx_list(const char *root, const pm_common_catalogue *,
                                 const char *match, char **);
+apkg_status pm_common_rexx_requirements(const char *root, const pm_common_catalogue *,
+                                        const char *name, char **);
 apkg_status pm_common_rexx_info(const char *, const char *, const char *,
                                 char **);
 apkg_status pm_common_rexx_outdated(const char *root,

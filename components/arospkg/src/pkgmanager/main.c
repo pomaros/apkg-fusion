@@ -2550,6 +2550,17 @@ static void rx_info(rexx_msg *m, const rx_req *r)
 
 static void rx_requirements(rexx_msg *m, const rx_req *r)
 {
+#ifdef APKG_FUSION
+    char *text = NULL;
+    apkg_status code = pm_common_rexx_requirements(root, common_catalogue, r->package, &text);
+    if (code == APKG_NOT_FOUND) rx_fail(m, RX_RC_ERROR, "NOTFOUND load a catalogue containing this package with UPDATE");
+    else if (code == APKG_CONFLICT) rx_fail(m, RX_RC_ERROR, "CONFLICT package requirements need an unambiguous build");
+    else if (code) rx_fail(m, RX_RC_ERROR, "COMMON requirements query refused (code %d)", (int)code);
+    else rx_ok(m, text);
+    apkg_client_text_free(text);
+    return;
+#endif
+
     pkg_ctx *c = rx_open(m); pkg_entry e; pkg_err err; pkg_status st; int in_index; size_t n;
     if (!c) return;
     if (!lookup(c, r->package, &e, &in_index, NULL, NULL, 0) || !in_index) {
