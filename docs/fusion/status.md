@@ -42,6 +42,35 @@ remains open. After final candidate qualification, stop with the merge report;
 portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
 
+## HOST-FINAL passed on the frozen candidate
+
+Candidate `698b3e1ded7f0cc0e54a0c1ab781817c59d5075e` passes
+[exact-source Linux/macOS CI](https://github.com/pomaros/apkg-fusion/actions/runs/40545850144):
+both fusion jobs and both existing portal regression jobs are successful.
+The fusion jobs include integration, memory checks, both inherited suites,
+public symbols and documentation checks. Portal success preserves its existing
+baseline; it does not complete or resume the deferred portal migration.
+
+The final local run passes 407 common tests, 110 provisional CLI checks,
+78 default CLI checks and 78 publication checks. The full ASan/UBSan run passes
+its C checks and 303 selected tests, including the strengthened lifecycle and
+post-removal assertions below. Both inherited suites and symbol checks pass;
+documentation checks cover 85 files with zero broken links. These final runs
+include the catalogue installed-state wording clarification and its tests.
+
+CLI and PkgManager cross-link for AArch64 AROS v1; native objects retain no
+references to imported mutation writers. Binary and SDK/runtime input identities
+are retained for the M1 trial. SDK diagnostics include its existing `vfork`
+declaration warning and an imported `STRPTR` signedness warning; linkage and
+program-root checks pass. Cross-linking is not target execution.
+
+The operator has made the M1 available for this trial. A read-only proxy check
+confirms a fresh proxy with no initialized hypervisor. M1 candidate application,
+GUI/ARexx, lifecycle and cleanup results remain pending. The installed `libpkg`
+updater and its migration stay separate. No OS source, installed updater or
+portal change is included in this checkpoint. The detailed merge report remains
+the deliverable after M1 testing, followed by the requested stop before portal.
+
 ## Frozen-candidate lifecycle qualification: removal inspection
 
 The clean-workspace alpha scenario now checks live files through both the CLI

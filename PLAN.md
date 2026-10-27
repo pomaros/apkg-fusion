@@ -258,14 +258,14 @@ needs its own evaluation; a passing earlier checkpoint does not close it.
 
 | Batch | Deliverable / exit evidence | Remaining size |
 |---|---|---|
-| HOST-FINAL | Freeze the candidate and run clean-workspace lifecycle/recovery, both inherited suites and exact-source Linux/macOS CI; inspect post-removal state. | M, excluding defects found |
 | M1-FINAL | Test that candidate's CLI/window, real application launch and full package lifecycle on the M1; retain independent results and cleanup checks. | M–L, depending on native defects |
 | REPORT | Deliver the detailed APKG comparison, evidence and limits; stop before the portal. | S |
 
-NEWS-LAST and the named DESKTOP-CLOSE implementation/audit have evaluated host
-checkpoints in [status](docs/fusion/status.md). Their final-source CI and native
-interaction checks are included in HOST-FINAL and M1-FINAL respectively, not
-claimed complete by those component results.
+NEWS-LAST, the named DESKTOP-CLOSE implementation/audit and HOST-FINAL have
+evaluated host checkpoints in [status](docs/fusion/status.md). HOST-FINAL passes
+on the frozen candidate, including exact-source Linux/macOS CI and post-removal
+inspection. Native interactions remain M1-FINAL work; they are not claimed
+complete by those host results.
 
 CLI-CONTINUITY, IMPORT-PROFILES and PRIOR-VERSIONS (previous lots 3–5) are
 deferred, not completed, and do not block this sequence. Their support choices,
