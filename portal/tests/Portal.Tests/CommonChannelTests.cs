@@ -14,7 +14,7 @@ namespace Portal.Tests;
 
 public sealed class CommonChannelTests
 {
-    sealed class Fixture : WebApplicationFactory<Program>
+    internal sealed class Fixture : WebApplicationFactory<Program>
     {
         public readonly string Data = Directory.CreateTempSubdirectory("portal-common-").FullName;
         public readonly string Repository;
@@ -170,9 +170,9 @@ public sealed class CommonChannelTests
     [InlineData("snapshots/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/channel.signature.json", ChannelPaths.Kind.Snapshot)]
     [InlineData("snapshots/../channel.json", ChannelPaths.Kind.None)]
     [InlineData("snapshots/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/other.json", ChannelPaths.Kind.None)]
-    public void Common_members_are_served_but_cannot_bypass_the_legacy_commit(string path, ChannelPaths.Kind kind)
+    public void Common_members_have_explicit_path_and_upload_roles(string path, ChannelPaths.Kind kind)
     {
         Assert.Equal(kind, ChannelPaths.Classify(path));
-        Assert.False(ChannelPaths.Pushable(path));
+        Assert.Equal(kind == ChannelPaths.Kind.Snapshot, ChannelPaths.Pushable(path));
     }
 }

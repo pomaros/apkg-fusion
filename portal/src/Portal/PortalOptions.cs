@@ -16,6 +16,9 @@ public sealed class PortalOptions
     /// Common engine executable; common channels never fall back to PkgPath.
     public string ApkgPath { get; set; } = "apkg";
 
+    /// Python 3.11+ runs the POSIX common-channel commit helper shipped with the portal.
+    public string PythonPath { get; set; } = "python3";
+
     /// Publisher keys as "name:sha256-of-key:channel,channel;name2:...".
     /// Only the hash is configured; the key itself is given to the publisher once.
     public string Keys { get; set; } = "";

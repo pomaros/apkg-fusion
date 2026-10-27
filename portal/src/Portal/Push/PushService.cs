@@ -16,8 +16,9 @@ namespace Portal.Push;
 /// is visible until the commit, and the commit publishes only what Pkg's own
 /// check accepts. Published files never change and a push never deletes.
 /// </summary>
-public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, Catalogue catalogue,
-                                ArchiveChecker archives, Publishers publishers, ILogger<PushService> log)
+public sealed partial class PushService(IOptions<PortalOptions> options, PkgRunner pkg, Catalogue catalogue,
+                                ArchiveChecker archives, Publishers publishers, ILogger<PushService> log,
+                                CommonEngine common)
 {
     readonly PortalOptions o = options.Value;
     static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
@@ -29,7 +30,7 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
     sealed record PlanLine(string Path, string Sha, long Size);
 
     string Live(string channel) => Path.Combine(o.ChannelsDir, channel);
-    string Staging(Publisher who, string channel) => Path.Combine(o.StagingDir, who.Name, channel);
+    string Staging(Publisher who, string channel) => Path.Combine(o.StagingDir, "accounts", who.StagingId, channel);
     static string PlanFile(string staging) => Path.Combine(staging, ".plan");
     static string StatsFile(string staging) => Path.Combine(staging, ".stats");
 
@@ -38,7 +39,7 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
     public async Task<Record> Plan(Publisher who, string channel, string body)
     {
         RemoveExpiredStaging();
-        var keyGate = KeyLocks.GetOrAdd(who.Name, _ => new SemaphoreSlim(1, 1));
+        var keyGate = KeyLocks.GetOrAdd(who.StagingId, _ => new SemaphoreSlim(1, 1));
         await keyGate.WaitAsync();
         try { return await PlanLocked(who, channel, body); }
         finally { keyGate.Release(); }
@@ -69,6 +70,9 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
             var p = new PlanLine(text[..a], text[(a + 1)..b].ToLowerInvariant(), size);
             var why = Refusal(p.Path) ?? LinkOnly(who, p.Path, o.Policy) ?? ChannelFilesRefusal(who, channel, p.Path);
             if (why is not null) { r.Add("refused", $"{p.Path} 20 {why}"); refused++; continue; }
+            if (ChannelPaths.Classify(p.Path) == ChannelPaths.Kind.Snapshot &&
+                p.Size > (p.Path.EndsWith(".signature.json", StringComparison.Ordinal) ? 16384 : 2 * 1024 * 1024))
+            { r.Add("refused", $"{p.Path} 20 common metadata exceeds its contract bound"); refused++; continue; }
             if (ChannelPaths.PromisedDigest(p.Path) is { } promised && promised != p.Sha)
             {
                 r.Add("refused", $"{p.Path} 12 its name promises {promised} but the plan gives {p.Sha}");
@@ -117,7 +121,7 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
                                                            CancellationToken ct)
     {
         // Planning, uploading and committing share the publisher's staging and quota.
-        var keyGate = KeyLocks.GetOrAdd(who.Name, _ => new SemaphoreSlim(1, 1));
+        var keyGate = KeyLocks.GetOrAdd(who.StagingId, _ => new SemaphoreSlim(1, 1));
         await keyGate.WaitAsync(ct);
         try { return await PutFileLocked(who, channel, path, contentRange, contentLength, body, ct); }
         finally { keyGate.Release(); }
@@ -162,7 +166,7 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
         var final = Path.Combine(staging, path);
         var part = final + ".part";
         var cap = who.Files ? o.MaxStagingBytes : o.MaxLinkOnlyStagingBytes;
-        var keyRoot = Path.Combine(o.StagingDir, who.Name);
+        var keyRoot = Path.Combine(o.StagingDir, "accounts", who.StagingId);
         var held = Directory.Exists(keyRoot)
             ? new DirectoryInfo(keyRoot).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length) : 0;
         if (held + (end - start + 1) > cap)
@@ -215,7 +219,7 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
     {
         var clock = Stopwatch.StartNew();
         var gate = Locks.GetOrAdd(channel, _ => new SemaphoreSlim(1, 1));
-        var keyGate = KeyLocks.GetOrAdd(who.Name, _ => new SemaphoreSlim(1, 1));
+        var keyGate = KeyLocks.GetOrAdd(who.StagingId, _ => new SemaphoreSlim(1, 1));
         await keyGate.WaitAsync(ct);
         try
         {
@@ -549,6 +553,7 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
     /// manifests, signatures and withdrawals. The reason names which rule applies.
     static string? LinkOnly(Publisher who, string path, PortalPolicy policy)
     {
+        if (ChannelPaths.Classify(path) == ChannelPaths.Kind.Snapshot) return null;
         if (path.EndsWith(".manifest", StringComparison.Ordinal) || path.EndsWith(".sig", StringComparison.Ordinal)
             || path.EndsWith(".withdrawn", StringComparison.Ordinal))
             return null;
@@ -586,6 +591,7 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
     static string? Refusal(string path) => ChannelPaths.Classify(path) switch
     {
         ChannelPaths.Kind.Index => "the index is sent with the commit, not as a file",
+        ChannelPaths.Kind.Current => "current changes only through an authenticated common commit",
         ChannelPaths.Kind.ArchiveDigest => "the portal writes an archive's .sha256 itself",
         ChannelPaths.Kind.None => "not a file a channel holds (objects/, archives/, Bootstrap/<cpu>/Pkg, Install-Pkg, ReadMe)",
         _ => null,
@@ -683,8 +689,10 @@ public sealed class PushService(IOptions<PortalOptions> options, PkgRunner pkg, 
 
     void RemoveExpiredStaging()
     {
-        if (!Directory.Exists(o.StagingDir)) return;
-        foreach (var who in Directory.EnumerateDirectories(o.StagingDir))
+        var accounts = Path.Combine(o.StagingDir, "accounts");
+        if (!Directory.Exists(accounts)) return;
+        // Old name-based staging is retained for explicit migration, never guessed or swept.
+        foreach (var who in Directory.EnumerateDirectories(accounts).Where(p => IsHex64(Path.GetFileName(p))))
         {
             var keyGate = KeyLocks.GetOrAdd(Path.GetFileName(who), _ => new SemaphoreSlim(1, 1));
             if (!keyGate.Wait(0)) continue;

@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using System.Net;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
@@ -458,6 +459,37 @@ push.MapPost("/commit", async (HttpContext http, string channel, PushService s, 
 {
     usage.Note(http.Request.Headers.UserAgent, Portal.Channels.Usage.Pushes);
     return Results2.Text(await s.Commit((Publisher)http.Items["publisher"]!, channel, await ReadBody(http), http.RequestAborted));
+});
+
+push.MapPost("/common-commit", async (HttpContext http, string channel, PushService service, Portal.Channels.Usage usage) =>
+{
+    var bytes = new byte[1025];
+    var length = 0;
+    while (length < bytes.Length)
+    {
+        var n = await http.Request.Body.ReadAsync(bytes.AsMemory(length), http.RequestAborted);
+        if (n == 0) break;
+        length += n;
+    }
+    if (length == bytes.Length)
+        return Results2.Text(Record.Refused(20, "common commit body exceeds 1024 bytes", "send only snapshot and expectedCurrent"), 400);
+    CommonCommitRequest? request;
+    try
+    {
+        using var parsed = JsonDocument.Parse(bytes.AsMemory(0, length));
+        if (parsed.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException();
+        var fields = parsed.RootElement.EnumerateObject().Select(p => p.Name).ToArray();
+        if (fields.Length != 2 || !fields.ToHashSet(StringComparer.Ordinal).SetEquals(["snapshot", "expectedCurrent"]))
+            throw new JsonException();
+        request = parsed.RootElement.Deserialize<CommonCommitRequest>(JsonSerializerOptions.Web);
+    }
+    catch (JsonException)
+    { return Results2.Text(Record.Refused(20, "invalid common commit object", "send snapshot and expectedCurrent"), 400); }
+    if (request is null)
+        return Results2.Text(Record.Refused(20, "missing common commit object", "send snapshot and expectedCurrent"), 400);
+    usage.Note(http.Request.Headers.UserAgent, Portal.Channels.Usage.Pushes);
+    var (answer, status) = await service.CommitCommon((Publisher)http.Items["publisher"]!, channel, request, http.RequestAborted);
+    return Results2.Text(answer, status);
 });
 
 // ---- for tools, agents and feed readers --------------------------------------

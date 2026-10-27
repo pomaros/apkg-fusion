@@ -77,7 +77,7 @@ public static partial class ChannelPaths
     /// Paths a push may send. The index arrives with the commit, and an
     /// archive's .sha256 is written by the server.
     public static bool Pushable(string path) =>
-        Classify(path) is Kind.Object or Kind.Archive or Kind.Mutable;
+        Classify(path) is Kind.Object or Kind.Archive or Kind.Mutable or Kind.Snapshot;
 
     /// Immutable once published: content-addressed objects and archives.
     public static bool Immutable(string path) =>
@@ -87,6 +87,7 @@ public static partial class ChannelPaths
     /// promises none (.sig and withdrawals are named after their manifest).
     public static string? PromisedDigest(string path)
     {
+        if (Classify(path) == Kind.Snapshot && path.EndsWith("/channel.json", StringComparison.Ordinal)) return path[10..74];
         if (Classify(path) != Kind.Object) return null;
         var file = path["objects/".Length..];
         return file.EndsWith(".manifest", StringComparison.Ordinal) || file.EndsWith(".pkg", StringComparison.Ordinal)

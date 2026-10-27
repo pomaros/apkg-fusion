@@ -11,14 +11,18 @@ namespace Portal.Push;
 /// Cryptography and contract validation belong to the common engine. No legacy fallback.
 public sealed class CommonEngine(IOptions<PortalOptions> options)
 {
-    public async Task<JsonElement> Verify(string domain, string document, string signature,
-                                         CancellationToken ct = default)
+    public Task<JsonElement> Verify(string domain, string document, string signature,
+                                   CancellationToken ct = default) =>
+        Run(options.Value.ApkgPath, ["verify-object", domain, document, signature], ct);
+
+    public async Task<JsonElement> Run(string executable, IEnumerable<string> arguments,
+                                      CancellationToken ct = default)
     {
-        var start = new ProcessStartInfo(options.Value.ApkgPath)
+        var start = new ProcessStartInfo(executable)
         {
             UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
         };
-        foreach (var arg in new[] { "verify-object", domain, document, signature }) start.ArgumentList.Add(arg);
+        foreach (var arg in arguments) start.ArgumentList.Add(arg);
         using var process = Process.Start(start) ?? throw new IOException("common verifier did not start");
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         stop.CancelAfter(options.Value.CheckTimeout);

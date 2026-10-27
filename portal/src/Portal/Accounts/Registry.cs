@@ -45,7 +45,9 @@ public sealed partial class Registry
 
     /// The publisher a signed push with this key comes from; null when unknown or suspended.
     public Publisher? PublisherFor(string key) =>
-        ByKey(key) is { Suspended: false } r ? new Publisher(r.Name, r.Channels.ToHashSet(), r.Files) : null;
+        ByKey(key) is { Suspended: false } r
+            ? new Publisher(r.Name, r.Channels.ToHashSet(), r.Files, "github:" + r.GitHubId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            : null;
 
     /// Names nobody takes by registering: the project's own, and what reads like it.
     public static bool ReservedName(string channel) =>

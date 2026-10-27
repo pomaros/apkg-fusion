@@ -19,7 +19,7 @@ implemented below; remaining service/operation integration is listed separately.
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification |
-| Portal | Common channel HTTP members and verified metadata API use the common executable; existing service and regression baseline retained | Common authenticated publication, catalogue/qualification integration and migration/backup/restore/rollback rehearsal; no live cutover |
+| Portal | Common channel HTTP members, verified metadata API and authenticated signed-snapshot commits use the common executable; existing service and regression baseline retained | Common self-service link-only publication, publishing client, catalogue/qualification integration and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
 workspace scenario and exact-source Linux/macOS CI must qualify the resulting
@@ -45,10 +45,45 @@ schemas remain covered by the common-engine suite, not a new portal claim.
 Documentation links pass for 77 files. CI now builds both verifiers and runs
 the portal suite on Linux and macOS; exact-commit results remain pending.
 
-This is a read/transport checkpoint, not ALPHA-PORTAL completion. Authenticated
-common commits, the common catalogue UI and qualifications, end-to-end HTTP
-client consumption, and the complete migration/backup/restore/rollback rehearsal
-remain required. No live data, deployment or portal cutover was performed.
+This is a read/transport checkpoint, not ALPHA-PORTAL completion. Its subsequent
+authenticated publication checkpoint follows below. No live data, deployment
+or portal cutover was performed.
+
+## Portal authenticated common publication checkpoint
+
+The [common commit](portal.md#authenticated-publication) retains account/channel
+authorization, upload policies, quotas and resumable transfer while accepting a
+client-signed common snapshot. The server owns no signing key. It checks the
+snapshot and every newly introduced archive with the common executable, binds
+the channel owner and signing identity, preserves published builds and evidence,
+and uses the file producer's POSIX writer lock, immutable publication, flushes
+and atomic reference change. Stale or rewritten histories refuse; identical
+retry is idempotent. Post-visibility failures report uncertainty instead of
+claiming that nothing changed.
+
+Evaluation: **141 portal tests** pass locally on macOS with zero failures or
+skips. The new cases exercise authenticated real TOML/archive/signed-snapshot
+publication, chunked transfer, withheld activation, stale and idempotent commits,
+publisher rights, protected channel identity/key, validly signed history rewrites,
+corrupt/missing content, a correctly hashed different signed package, and strict
+commit requests. Stable account identities separate same-name publishers and
+preserve staging identity across display-name/login changes. Three additional common-suite tests pass normally and against
+the ASan/UBSan common executable: real process death on both sides of first
+visibility, injected archive-write/final-flush failures and retry, explicit
+uncertain reporting, and refusal to adopt an unregistered existing common
+channel. `make test-fusion` passes, including **352 common tests**, host worker/
+dispatcher checks and both fusion publishing/default-product scenarios. Exact-source
+CI remains pending for this checkpoint.
+
+Remaining ALPHA-PORTAL work includes common self-service publication by external
+archive link (no operator-granted binary storage required), the publishing client,
+common catalogue UI and independent qualifications, end-to-end HTTP client
+consumption, and complete migration/backup/restore/rollback rehearsals. Backups
+must include the common owner bindings and explicit old/new staging-account
+mapping as well as accounts, trust identities,
+objects, legacy URLs, review provenance, configuration and statistics. These are
+required adaptations, not permanent legacy-engine fallbacks. No production data
+or deployment was used.
 
 ## BASE qualification
 

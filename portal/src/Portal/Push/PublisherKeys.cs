@@ -10,9 +10,12 @@ namespace Portal.Push;
 /// A push key's rights. Files: may upload binaries (payloads, archives, the
 /// bootstrap programs). Without it a key publishes by link only: signed
 /// manifests whose files stay in an archive on an https server (Archive:).
-public sealed record Publisher(string Name, IReadOnlySet<string> Channels, bool Files = false)
+public sealed record Publisher(string Name, IReadOnlySet<string> Channels, bool Files = false, string? AccountId = null)
 {
     public bool MayPush(string channel) => Channels.Contains("*") || Channels.Contains(channel);
+    // Display names may change or be shared. Configured names remain operator-owned identities.
+    public string Identity => AccountId ?? "configured:" + Name;
+    public string StagingId => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Identity)));
 }
 
 /// <summary>

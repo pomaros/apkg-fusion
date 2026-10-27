@@ -7,8 +7,10 @@ The common-engine adapter is described in [Common portal contracts](../docs/fusi
 Set `Portal:ApkgPath` to the common `apkg` executable. Common signed channel
 members are served directly, and `/api/common/channels/<channel>` verifies a
 metadata observation without granting client trust. The legacy push and UI
-below remain a regression baseline; common publication and catalogue integration
-are tracked in [fusion status](../docs/fusion/status.md).
+below remain a regression baseline. Common publication uses the same plan/files
+uploads and an explicit `common-commit` with a client-signed snapshot; Python
+3.11+ and the common executable are required on the POSIX host. Catalogue and
+migration integration are tracked in [fusion status](../docs/fusion/status.md).
 
 A small package site in the manner of nuget.org, for Pkg channels. It does two things:
 

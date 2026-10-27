@@ -10,6 +10,23 @@ namespace Portal.Tests;
 /// What a publisher may register for themselves, and what stays the maintainers'.
 public class RegistryTests
 {
+    [Fact]
+    public void Publisher_identity_and_staging_survive_rename_and_separate_shared_display_names()
+    {
+        var (registry, _, _) = New();
+        Assert.Null(registry.Register(7, "jane", "Shared Name", K1, "janes-tools"));
+        var before = registry.PublisherFor(K1)!;
+        Assert.Null(registry.Register(8, "alex", "Shared Name", K2, "alex-tools"));
+        var other = registry.PublisherFor(K2)!;
+        Assert.NotEqual(before.Identity, other.Identity);
+        Assert.NotEqual(before.StagingId, other.StagingId);
+        Assert.Null(registry.Register(7, "jane-renamed", "../../changed name", K1, "janes-tools"));
+        var renamed = registry.PublisherFor(K1)!;
+        Assert.Equal(before.Identity, renamed.Identity);
+        Assert.Equal(before.StagingId, renamed.StagingId);
+        Assert.Matches("^[0-9a-f]{64}$", renamed.StagingId);
+    }
+
     static (Registry, Catalogue, string) New(string signedKeys = "")
     {
         var data = Directory.CreateTempSubdirectory("portal-registry-").FullName;

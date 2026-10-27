@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Commit a publisher-signed common snapshot; never creates signatures or client trust.
+
+Called by the authenticated portal while its publisher staging lock is held.
+Uses the file producer's checked POSIX publication primitives and the common engine.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import runpy
+import subprocess
+import tempfile
+
+producer = runpy.run_path(str(Path(__file__).with_name('apkg-channel')))
+encode = producer['encode']
+read_small = producer['read_small']
+directory = producer['directory']
+engine_run = producer['engine_run']
+
+
+class Refusal(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+def refuse(code, message):
+    raise Refusal(code, message)
+
+
+def checked_directory(path):
+    if path.is_symlink() or not path.is_dir():
+        refuse('invalid', 'channel members require ordinary directories')
+
+
+def find(endpoint, staging, relative):
+    for base in (staging, endpoint):
+        path = base / relative
+        if path.exists() or path.is_symlink():
+            for parent in path.parents:
+                checked_directory(parent)
+                if parent == base:
+                    break
+            return path
+    refuse('invalid', 'a referenced immutable member was not uploaded')
+
+
+def snapshot(engine, endpoint, staging, digest):
+    folder = 'snapshots/' + digest + '/'
+    document = read_small(find(endpoint, staging, folder + 'channel.json'), producer['META_MAX'])
+    signature = read_small(find(endpoint, staging, folder + 'channel.signature.json'), 16384)
+    if hashlib.sha256(document).hexdigest() != digest:
+        refuse('invalid', 'snapshot digest does not match its name')
+    # Verify the captured bytes, not paths which can subsequently change.
+    with tempfile.TemporaryDirectory(prefix='apkg-portal-metadata-') as temporary:
+        doc, sig = Path(temporary) / 'channel.json', Path(temporary) / 'signature.json'
+        doc.write_bytes(document)
+        sig.write_bytes(signature)
+        verified = json.loads(engine_run(engine, 'verify-object', 'channel', doc, sig))
+    if verified['sha256'] != digest or verified['domain'] != 'channel':
+        refuse('invalid', 'verifier returned a different snapshot identity')
+    return json.loads(document), verified['public_key'], document, signature
+
+
+def identity(entry):
+    return hashlib.sha256(encode(entry['descriptor'])).hexdigest()
+
+
+def base(entry):
+    return {key: entry[key] for key in ('archive', 'descriptor', 'signature')}
+
+
+def monotonic(previous, proposed):
+    old = {identity(entry): entry for entry in previous}
+    new = {identity(entry): entry for entry in proposed}
+    for digest, entry in old.items():
+        if digest not in new or base(entry) != base(new[digest]):
+            refuse('conflict', 'published builds cannot be removed or replaced')
+        claims = {encode(claim) for claim in entry.get('attestations', [])}
+        if not claims.issubset({encode(claim) for claim in new[digest].get('attestations', [])}):
+            refuse('conflict', 'published qualification evidence cannot be removed')
+    keys = {}
+    for entry in previous + proposed:
+        body = entry['descriptor']['body']
+        author = (body['authority'], body['name'])
+        key = entry['signature']['public_key']
+        if keys.setdefault(author, key) != key:
+            refuse('conflict', 'author key changes require explicit operator migration')
+    return [entry for digest, entry in new.items() if digest not in old]
+
+
+def validate_archive(engine, endpoint, staging, entry):
+    archive = entry['archive']
+    source = find(endpoint, staging, 'archives/' + archive['sha256'] + '.pkg')
+    expected = archive['sha256'], int(archive['size'])
+    if producer['hash_file'](source) != expected:
+        refuse('invalid', 'archive bytes differ from the signed reference')
+    body = entry['descriptor']['body']
+    policy = dict(body=dict(authorities=[dict(id=body['authority'], keys=[dict(
+        algorithm='ed25519', public_key=entry['signature']['public_key'])])]),
+        format='apkg-json-1', requires=[], schema='1', type='policy')
+    with tempfile.TemporaryDirectory(prefix='apkg-portal-archive-') as temporary:
+        temporary = Path(temporary)
+        seed, root = temporary / 'policy.json', temporary / 'root'
+        seed.write_bytes(encode(policy))
+        engine_run(engine, 'init', root, body['target'], seed, '--yes')
+        checked = json.loads(engine_run(engine, 'archive-check', root, source))
+        if checked != {key: entry[key] for key in ('descriptor', 'signature')}:
+            refuse('invalid', 'archive contains a different signed package')
+    return source, expected
+
+
+def commit(args):
+    if not re.fullmatch('[0-9a-f]{64}', args.snapshot):
+        refuse('invalid', 'snapshot must be a lowercase SHA-256')
+    if args.expected != '-' and not re.fullmatch('[0-9a-f]{64}', args.expected):
+        refuse('invalid', 'expected current must be null or a lowercase SHA-256')
+    if not args.publisher or len(args.publisher) > 256 or any(ord(c) < 32 for c in args.publisher):
+        refuse('invalid', 'invalid publisher identity')
+    endpoint, staging = Path(args.endpoint).absolute(), Path(args.staging).absolute()
+    checked_directory(staging)
+    endpoint.parent.mkdir(parents=True, exist_ok=True)
+    directory(endpoint)
+    with producer['writer_lock'](endpoint):
+        before = producer['current'](endpoint)
+        digest = before[:-1].decode() if before else None
+        expected = None if args.expected == '-' else args.expected
+        if digest != args.snapshot and digest != expected:
+            refuse('conflict', 'current changed; rebuild the signed snapshot before retrying')
+        proposed, key, document, signature = snapshot(args.engine, endpoint, staging, args.snapshot)
+        owner = dict(format='apkg-portal-owner-1', publisher=args.publisher,
+                     channel_id=proposed['body']['id'], public_key=key)
+        owner_file = endpoint / '.portal-owner.json'
+        if owner_file.exists() or owner_file.is_symlink():
+            if json.loads(read_small(owner_file, 4096)) != owner:
+                refuse('owner', 'publisher or channel identity differs from its registered owner')
+        elif before is not None:
+            refuse('conflict', 'existing common channels require explicit migration registration')
+        previous = []
+        if before is not None:
+            current, old_key, _, _ = snapshot(args.engine, endpoint, endpoint, digest)
+            if old_key != key or current['body']['id'] != proposed['body']['id']:
+                refuse('conflict', 'channel identity or signing key changed')
+            previous = current['body']['entries']
+            if digest != args.snapshot and int(proposed['body']['sequence']) != int(current['body']['sequence']) + 1:
+                refuse('conflict', 'channel sequence must advance exactly once')
+        elif proposed['body']['sequence'] != '1':
+            refuse('conflict', 'a new channel must begin at sequence one')
+        added = monotonic(previous, proposed['body']['entries'])
+        # Retained entries were already archive-verified at the common commit that admitted them.
+        # Only newly introduced descriptors need another full content import.
+        archives = [validate_archive(args.engine, endpoint, staging, entry) for entry in added]
+        for name in ('archives', 'snapshots'):
+            directory(endpoint / name)
+        for source, expected_archive in archives:
+            producer['retain_archive'](endpoint / 'archives' / (expected_archive[0] + '.pkg'), source, expected_archive)
+        destination = endpoint / 'snapshots' / args.snapshot
+        directory(destination)
+        producer['immutable_bytes'](destination / 'channel.json', document)
+        producer['immutable_bytes'](destination / 'channel.signature.json', signature)
+        # A verified first owner may remain after interruption, and is safe to retry.
+        # The reference is the sole visibility commit; orphan immutable files are harmless.
+        producer['immutable_bytes'](owner_file, encode(owner))
+        producer['replace_current'](endpoint, before, args.snapshot)
+        return dict(result='unchanged' if digest == args.snapshot else 'published',
+                    snapshot=args.snapshot, sequence=proposed['body']['sequence'], added=len(added),
+                    trust='not-granted', review='not-granted')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('engine', 'endpoint', 'staging', 'publisher', 'snapshot', 'expected'):
+        parser.add_argument('--' + name, required=True)
+    args = parser.parse_args()
+    try:
+        result = commit(args)
+    except Refusal as error:
+        result = dict(result='refused', code=error.code, reason=str(error))
+    except (producer['Refusal'], OSError, ValueError, KeyError, subprocess.SubprocessError):
+        # A failed final flush or lost completion must not claim the reference stayed old.
+        try:
+            visible = producer['current'](Path(args.endpoint)) == (args.snapshot + '\n').encode()
+        except (producer['Refusal'], OSError):
+            visible = True  # Unable to inspect the outcome: report uncertainty, never rollback blindly.
+        result = dict(result='uncertain' if visible else 'refused', code='io' if visible else 'invalid',
+                      reason='inspect current and retry the same signed snapshot' if visible
+                      else 'common publication verification failed')
+    print(json.dumps(result, sort_keys=True, separators=(',', ':')))
+
+
+if __name__ == '__main__':
+    main()
