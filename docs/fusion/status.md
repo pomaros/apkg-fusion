@@ -1566,8 +1566,10 @@ checks pass. The published pre-audit checkpoint failed Linux compilation in
 [CI](https://github.com/pomaros/apkg-fusion/actions/runs/40476560458) because the
 identity module omitted its POSIX feature-test macro; that declaration fix is
 included, with identical generated host object bytes and a final focused rebuild.
-Exact-source Linux/macOS CI still must qualify the cleaned checkpoint. Native
-system probing and UI/runtime behavior require target tests.
+The cleaned checkpoint `e116ba9` passes [exact-source CI](https://github.com/pomaros/apkg-fusion/actions/runs/40483024692)
+on Linux and macOS: common integration, sanitizers, both inherited suites,
+symbols and documentation links, plus the portal job. Native system probing
+and UI/runtime behavior still require target tests.
 The broader release roadmap is not expanded into new alpha blockers. The
 SDK builder is explicitly restricted to its AArch64 profile and separates ABI
 output directories; shell syntax and unsupported-target refusal are checked.
@@ -1627,8 +1629,26 @@ full host integration passes 325 common methods, 78 default-product checks,
 110 provisional CLI checks, 78 publication checks and the existing contract,
 ARexx, target and application gates. Exact-source CI is pending for this
 checkpoint. Live ARexx/native UI interaction remains
-unqualified. Common event propagation into script job counters is the next
-ARexx adapter task.
+unqualified. The job-counter adapter is recorded below; live system requirements and
+remaining command adapters are still outstanding.
+
+## Common ARexx job progress
+
+The native common-message handler now updates the script job's phase, 64-bit
+counters and cancellability, and distinguishes unknown totals from known zero.
+Plan preview enters the confirm state; approve/decline resumes the existing
+worker-held plan and cancellation remains governed by engine events. Decline,
+cancellation and recovery-required results have distinct script states.
+
+The host parser/formatter corpus exercises the same projection functions as the
+native window, including maximum counters, unknown/zero totals, confirmation,
+late events and result classification. The fusion corpus passes under
+ASan/UBSan, the inherited non-fusion corpus still passes, and the AArch64 SDK
+header/type check includes the formatter and passes. Full host integration
+passes 325 common methods, the expanded ARexx corpus, 78 default-product checks,
+110 provisional CLI checks, 78 publication checks and the existing contract,
+target and application gates. Exact-source CI is pending for this checkpoint.
+Native message port/UI runtime behavior remains a separate rehearsal.
 
 ## Implemented integration pieces
 

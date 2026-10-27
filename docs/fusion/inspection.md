@@ -69,6 +69,16 @@ Job numbers, WAIT and cancellation keep their existing asynchronous protocol.
 Rollback/verification command adapters and live REQUIREMENTS queries remain
 separate outstanding work, as do catalogue-only INFO and dated news.
 
+Fusion JOB/WAIT now project the common progress events: `phase` is check,
+fetch, stage, apply, commit or recover; `done`/`total` retain 64-bit counters.
+An unmeasured total is `unknown`, including before the first event; known zero
+is `0`. Counters describe the current phase, not an accumulated percentage.
+`cancancel` follows the last engine boundary. During plan approval the job is
+`confirm`, and CANCEL declines it; approval resumes the same worker-held plan.
+A declined plan ends as `declined`, a cancellation as `cancelled`, and recovery
+required as `failed`. A late event cannot revive a completed job. These changes
+belong to fusion's interface 2; the imported interface 1 format stays unchanged.
+
 ARexx refuses answers over 65,535 bytes with LIMIT/TOOLONG and frees them.
 Callers can request smaller fields. CLI/library formatting uses the bounded
 common metadata limit. Neither path truncates identities or relations.

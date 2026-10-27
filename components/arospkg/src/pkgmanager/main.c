@@ -1546,7 +1546,7 @@ static void proceed(const char *how)
 {
     rx_job *j = active;
 #ifdef APKG_FUSION
-    if (common_waiting) { common_waiting = 0; cur.common_decision = 1; confirm_close(); return; }
+    if (common_waiting) { rx_common_confirmation(j, 1); last_can_cancel = 0; SetAttrs(btn_cancel, MUIA_Disabled, TRUE, TAG_DONE); common_waiting = 0; cur.common_decision = 1; confirm_close(); return; }
 #endif
     if (su_confirming) { su_proceed(); return; }
     if (!confirming || !j) return;
@@ -1564,7 +1564,7 @@ static void decline(const char *how)
 {
     rx_job *j = active;
 #ifdef APKG_FUSION
-    if (common_waiting) { common_waiting = 0; cur.common_decision = -1; confirm_close(); return; }
+    if (common_waiting) { rx_common_confirmation(j, -1); last_can_cancel = 0; SetAttrs(btn_cancel, MUIA_Disabled, TRUE, TAG_DONE); common_waiting = 0; cur.common_decision = -1; confirm_close(); return; }
 #endif
     if (su_confirming) { su_decline(how); return; }
     if (!confirming || !j) return;
@@ -1955,7 +1955,7 @@ static int on_message(pm_msg *m)
         in_flight = 0;
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         if (active) finish(active,
-            m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
+            rx_common_result(m->common_status, m->common_outcome, cur.cancel ? 0 : cur.common_decision),
             m->common_status == APKG_OK ? "" : "DISCOVERY", m->err.summary);
         if (m->common_status == APKG_OK && !quit_pending && !cur.cancel) {
             DoMethod(lst_channel, MUIM_List_Clear);
@@ -1984,12 +1984,19 @@ static int on_message(pm_msg *m)
         if (common_preview_text) FreeVec(common_preview_text);
         common_preview_text = m->common_preview; m->common_preview = NULL;
         common_waiting = confirming = 1;
+        rx_common_confirmation(active, 0);
+        snprintf(last_phase, sizeof last_phase, "confirm"); last_can_cancel = 1;
+        SetAttrs(btn_cancel, MUIA_Disabled, FALSE, TAG_DONE);
         SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)common_preview_text, TAG_DONE);
         SetAttrs(win_confirm, MUIA_Window_Open, TRUE, TAG_DONE);
         status("Review every signed package effect, then confirm or decline");
         return 0;
     }
     if (m->kind == PM_COMMON_PROGRESS) {
+        rx_common_progress(active, m->common_phase, m->common_done,
+                           m->common_total, m->common_total_known, m->can_cancel);
+        if (active) snprintf(last_phase, sizeof last_phase, "%s", active->phase);
+        last_can_cancel = m->can_cancel;
         unsigned long pct = m->common_total_known && m->common_total
             ? (m->common_done >= m->common_total ? 100 : (unsigned long)((double)m->common_done * 100.0 / (double)m->common_total)) : 0;
         SetAttrs(gauge, MUIA_Gauge_Current, pct, MUIA_Gauge_InfoText,
@@ -2015,7 +2022,7 @@ static int on_message(pm_msg *m)
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         in_flight = 0; common_waiting = 0; confirm_close();
         FreeVec(common_preview_text); common_preview_text = NULL;
-        if (active) finish(active, m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
+        if (active) finish(active, rx_common_result(m->common_status, m->common_outcome, cur.cancel ? 0 : cur.common_decision),
                            m->common_status == APKG_OK ? "" : "SOURCES", m->err.summary);
         busy(0);
         if (!quit_pending && !cur.cancel && m->common_status == APKG_OK && cur.kind == JOB_COMMON_SOURCE_LIST)
@@ -2032,7 +2039,7 @@ static int on_message(pm_msg *m)
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         in_flight = 0; common_waiting = 0; confirm_close();
         if (common_preview_text) { FreeVec(common_preview_text); common_preview_text = NULL; }
-        if (active) finish(active, m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
+        if (active) finish(active, rx_common_result(m->common_status, m->common_outcome, cur.cancel ? 0 : cur.common_decision),
                            m->common_status == APKG_OK ? "" : "SELFUPDATE", m->err.summary);
         busy(0);
         if (m->common_record) su_say(m->common_record, NULL);
@@ -2050,7 +2057,7 @@ static int on_message(pm_msg *m)
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         in_flight = 0; common_waiting = 0; confirm_close();
         if (common_preview_text) { FreeVec(common_preview_text); common_preview_text = NULL; }
-        if (active) finish(active, m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
+        if (active) finish(active, rx_common_result(m->common_status, m->common_outcome, cur.cancel ? 0 : cur.common_decision),
                            m->common_status == APKG_OK ? "" : "COMMONINSTALL", m->err.summary);
         busy(0);
         if (m->common_outcome == APKG_NEEDS_RECOVERY) {
@@ -2074,6 +2081,9 @@ static int on_message(pm_msg *m)
         if (active) {
             snprintf(active->phase, sizeof active->phase, "%s", m->phase);
             active->done = m->done; active->total = m->total; active->can_cancel = m->can_cancel;
+#ifdef APKG_FUSION
+            active->total_known = m->total != 0;
+#endif
         }
         logline("event %s %s %lu/%lu can_cancel=%d cancel_button=%s", m->id, m->phase,
                 m->done, m->total, m->can_cancel, m->can_cancel && !quit_pending ? "enabled" : "disabled");

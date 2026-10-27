@@ -12,6 +12,7 @@
 #define RX_PORTNAME  "PKGMANAGER"
 #define RX_MAXRESULT 65535      /* an argstring's length is 16 bits */
 #ifdef APKG_FUSION
+#include <stdint.h>
 #define RX_INTERFACE 2 /* common target/fact meanings; unknown is explicit */
 #define RX_PACKAGE_MAX 256
 #else
@@ -67,13 +68,25 @@ typedef struct {
     char          origin[8];    /* window arexx */
     rx_jobstate   state;
     char          phase[16];
+#ifdef APKG_FUSION
+    uint64_t      done, total;
+    int           total_known;
+#else
     unsigned long done, total;
+#endif
     int           can_cancel;
     int           cancel_asked;
     char          error[16];    /* a status word, NOTALLOWED or CONFLICT; "" */
     char          message[480]; /* libpkg's words, or the plan when confirming */
 } rx_job;
 
+#ifdef APKG_FUSION
+/* Pure projections used by the native message handler and host corpus. */
+void rx_common_progress(rx_job *, int phase, uint64_t done, uint64_t total,
+                        int total_known, int cancellable);
+void rx_common_confirmation(rx_job *, int decision);
+rx_jobstate rx_common_result(int status, int outcome, int decision);
+#endif
 const char *rx_statename(rx_jobstate);
 int rx_final(rx_jobstate);
 

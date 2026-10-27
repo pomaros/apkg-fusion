@@ -3,6 +3,10 @@
  * Zune's own ARexx dispatcher calls the command even when ReadArgs has
  * refused the arguments. */
 #include "rexxcmd.h"
+#ifdef APKG_FUSION
+#include "apkg.h"
+#include <inttypes.h>
+#endif
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -392,6 +396,38 @@ int rx_format_entry(const pkg_entry *e, int can_upgrade, int can_rollback,
     return format(&v, entry_get, entry_fields, field, out, n);
 }
 
+#ifdef APKG_FUSION
+void rx_common_progress(rx_job *j, int phase, uint64_t done, uint64_t total,
+                        int total_known, int cancellable)
+{
+    static const char *names[] = {"check", "fetch", "stage", "apply", "commit", "recover"};
+    if (!j || rx_final(j->state) || j->state == RXJ_CONFIRM) return;
+    j->state = RXJ_RUNNING;
+    snprintf(j->phase, sizeof j->phase, "%s",
+             phase >= APKG_PHASE_CHECK && phase <= APKG_PHASE_RECOVER ? names[phase] : "unknown");
+    j->done = done;
+    j->total_known = !!total_known;
+    j->total = total_known ? total : 0;
+    j->can_cancel = !!cancellable;
+}
+void rx_common_confirmation(rx_job *j, int decision)
+{
+    if (!j || rx_final(j->state)) return;
+    j->state = decision ? RXJ_RUNNING : RXJ_CONFIRM;
+    snprintf(j->phase, sizeof j->phase, "%s", decision > 0 ? "check" : decision < 0 ? "declining" : "confirm");
+    j->done = j->total = 0;
+    j->total_known = 0;
+    j->can_cancel = decision == 0;
+}
+rx_jobstate rx_common_result(int status, int outcome, int decision)
+{
+    if (outcome == APKG_NEEDS_RECOVERY) return RXJ_FAILED;
+    if (status == APKG_OK) return RXJ_DONE;
+    if (status == APKG_CANCELLED) return decision < 0 ? RXJ_DECLINED : RXJ_CANCELLED;
+    return RXJ_FAILED;
+}
+#endif
+
 static const char *job_get(const void *obj, const char *f, char *tmp, size_t n)
 {
     const rx_job *j = (const rx_job *)obj;
@@ -401,8 +437,16 @@ static const char *job_get(const void *obj, const char *f, char *tmp, size_t n)
     if (!strcmp(f, "origin")) return j->origin;
     if (!strcmp(f, "state")) return rx_statename(j->state);
     if (!strcmp(f, "phase")) return j->phase;
+#ifdef APKG_FUSION
+    if (!strcmp(f, "done")) { snprintf(tmp, n, "%" PRIu64, j->done); return tmp; }
+    if (!strcmp(f, "total")) {
+        if (!j->total_known) return "unknown";
+        snprintf(tmp, n, "%" PRIu64, j->total); return tmp;
+    }
+#else
     if (!strcmp(f, "done")) { snprintf(tmp, n, "%lu", j->done); return tmp; }
     if (!strcmp(f, "total")) { snprintf(tmp, n, "%lu", j->total); return tmp; }
+#endif
     if (!strcmp(f, "cancancel")) return j->can_cancel && !rx_final(j->state) ? "1" : "0";
     if (!strcmp(f, "error")) return j->error;
     if (!strcmp(f, "message")) return j->message;

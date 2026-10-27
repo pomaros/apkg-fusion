@@ -2,6 +2,9 @@
  * AROS is checked there; this covers the part that is plain C. */
 #include "../src/pkgmanager/rexxcmd.h"
 #include <stdio.h>
+#ifdef APKG_FUSION
+#include "apkg.h"
+#endif
 #include <string.h>
 
 static int fails;
@@ -160,6 +163,9 @@ int main(void)
         memset(&j, 0, sizeof j);
         j.id = 3; strcpy(j.op, "install"); strcpy(j.package, "soliton"); strcpy(j.origin, "arexx");
         j.state = RXJ_RUNNING; strcpy(j.phase, "download"); j.done = 16384; j.total = 223945; j.can_cancel = 1;
+#ifdef APKG_FUSION
+        j.total_known = 1;
+#endif
         CHECK(rx_format_job(&j, NULL, out, sizeof out) == 0);
         CHECK(!strcmp(out, "id 3\nop install\npackage soliton\norigin arexx\nstate running\nphase download\n"
                            "done 16384\ntotal 223945\ncancancel 1\nerror \nmessage "));
@@ -171,6 +177,39 @@ int main(void)
         CHECK(!strcmp(rx_statename(RXJ_CONFIRM), "confirm") && !strcmp(rx_statename(RXJ_DECLINED), "declined"));
         CHECK(rx_final(RXJ_DONE) && rx_final(RXJ_DECLINED) && !rx_final(RXJ_CONFIRM) && !rx_final(RXJ_PREVIEW));
     }
+#ifdef APKG_FUSION
+    {
+        rx_job j = {0}; j.state = RXJ_RUNNING;
+        rx_common_progress(&j, APKG_PHASE_FETCH, UINT64_MAX - 1, UINT64_MAX, 1, 1);
+        CHECK(rx_format_job(&j, "done", out, sizeof out) == 0 && !strcmp(out, "18446744073709551614"));
+        CHECK(rx_format_job(&j, "total", out, sizeof out) == 0 && !strcmp(out, "18446744073709551615"));
+        CHECK(!strcmp(j.phase, "fetch") && j.can_cancel);
+        rx_common_progress(&j, APKG_PHASE_APPLY, 7, 999, 0, 0);
+        CHECK(j.done == 7 && !j.can_cancel && !strcmp(j.phase, "apply"));
+        CHECK(rx_format_job(&j, "total", out, sizeof out) == 0 && !strcmp(out, "unknown"));
+        rx_common_progress(&j, APKG_PHASE_COMMIT, 0, 0, 1, 0);
+        CHECK(rx_format_job(&j, "total", out, sizeof out) == 0 && !strcmp(out, "0"));
+        rx_common_confirmation(&j, 0);
+        CHECK(j.state == RXJ_CONFIRM && j.can_cancel && !strcmp(j.phase, "confirm"));
+        rx_common_progress(&j, APKG_PHASE_FETCH, 10, 20, 1, 0);
+        CHECK(j.state == RXJ_CONFIRM && j.done == 0 && j.can_cancel);
+        rx_common_confirmation(&j, 1);
+        CHECK(j.state == RXJ_RUNNING && !j.can_cancel);
+        rx_common_progress(&j, APKG_PHASE_STAGE, 1, 2, 1, 1);
+        CHECK(j.done == 1 && j.can_cancel && !strcmp(j.phase, "stage"));
+        rx_common_confirmation(&j, -1);
+        CHECK(j.state == RXJ_RUNNING && !j.can_cancel && !strcmp(j.phase, "declining"));
+        CHECK(rx_common_result(APKG_CANCELLED, APKG_UNCHANGED, -1) == RXJ_DECLINED);
+        CHECK(rx_common_result(APKG_CANCELLED, APKG_RESTORED, 1) == RXJ_CANCELLED);
+        CHECK(rx_common_result(APKG_OK, APKG_COMMITTED, 1) == RXJ_DONE);
+        CHECK(rx_common_result(APKG_OK, APKG_NEEDS_RECOVERY, 1) == RXJ_FAILED);
+        CHECK(rx_common_result(APKG_IO, APKG_UNCHANGED, 0) == RXJ_FAILED);
+        j.state = RXJ_DONE; j.can_cancel = 0;
+        rx_common_progress(&j, APKG_PHASE_RECOVER, 40, 50, 1, 1);
+        rx_common_confirmation(&j, 0);
+        CHECK(j.state == RXJ_DONE && !j.can_cancel && j.done == 0);
+    }
+#endif
     CHECK(!strcmp(rx_statusword(PKG_E_LOCKED), "LOCKED"));
     CHECK(!strcmp(rx_statusword(PKG_E_CANCELLED), "CANCELLED"));
     CHECK(!strcmp(rx_statusword(PKG_E_REQUIRES), "REQUIRES"));
