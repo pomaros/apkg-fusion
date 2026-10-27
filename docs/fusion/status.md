@@ -16,7 +16,7 @@ implemented below; remaining service/operation integration is listed separately.
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP discovery, exact selection, root trust roles and replay floors work | Independent qualifications, online revocation/freshness and multi-channel configuration |
-| Clients/default product | Shared CLI/actual worker path works; native catalogue is wired; default CLI/library/tools use the common engine | Installed-list/settings/news integration and complete native/consumer/compatibility qualification |
+| Clients/default product | Shared CLI/worker, native catalogue and full typed installed rows are wired; default CLI/library/tools use the common engine | Settings/news/filter and remaining ARexx integration; native/consumer/compatibility qualification |
 | Legacy migration | Read-only legacy observation/baselines exist | Validated import, original-preserving commit/recovery and compatibility rehearsals |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
@@ -873,6 +873,44 @@ direct ctypes cases use the ordinary test library. The expanded
 AROS SDK (its `vfork` declaration warnings remain). Documentation links pass
 for 67 files with zero broken links. These are host/type checks, not a native
 UI execution result; exact-source Linux/macOS CI remains the next gate.
+
+## FUSION-ALPHA progress: full typed installed rows
+
+PkgManager's fusion installed list no longer projects through `pkg_entry`.
+Its bounded, owned `AllocVec` model copies every text fact and evidence field,
+record bytes, instance identity, reason and signature/trust state from the
+common snapshot before closing the context. Names and versions retain 255
+characters, revisions retain all unsigned 64 bits, and search covers complete
+names, authorities and targets. Unknown revision/version facts remain labelled
+unknown. Non-ready roots are refused without initialization or legacy writes.
+
+The fusion list hook/details, selection preservation and Remove/Open/Run
+actions use those typed rows. Worker and ARexx job names now retain the common
+name bound; the fusion ARexx tokenizer accepts the complete name and refuses
+overlong input. The inherited parser retains its original limits when built
+without fusion. Installed LIST/SHOW and RUN/REMOVE source wiring use common
+reads/actions; remaining legacy ARexx queries explicitly refuse while their
+adapters are pending, preventing `pkg_open` from creating a second database in
+the common root. This is not complete ARexx/client compatibility qualification.
+
+Five host cases exercise the actual native adapter with distinct 255-character
+names/versions, maximum revisions, all copied evidence pointers owned by the
+returned allocation, empty/absent/legacy/pending roots, allocation failure and
+retry, full-name search, repair/removal of the selected package and Run reaching
+the host's explicit unsupported-runtime boundary. No AROS executable is run.
+The existing ARexx corpus now also runs with fusion fields, including longest
+accepted/rejected name boundaries and untruncated job formatting.
+
+Batch evaluation: `make test-fusion` passed 199 common methods, the fusion
+ARexx corpus, 78 default-product checks, 110 provisional CLI checks, 78
+publishing checks and the existing contract/target/application/initialization
+gates. The sanitizer run passed 119 selected methods plus the instrumented
+fusion ARexx corpus; native workers/runners are instrumented, while direct
+ctypes cases use the ordinary test library. The expanded SDK check passed on
+the existing aarch64 AROS headers, with the previously noted SDK `vfork`
+warnings. All 67 documentation files pass link checks. ARexx/UI dispatch has
+source/type evidence, not native runtime evidence. Exact-source Linux/macOS
+CI remains required, alongside both unchanged inherited regression suites.
 
 ## Implemented integration pieces
 

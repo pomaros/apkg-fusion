@@ -43,13 +43,13 @@ enum { ID_SEARCH = 1, ID_INSTALL, ID_REMOVE, ID_UPDATE, ID_CANCEL, ID_SELECT, ID
 #ifdef APKG_FUSION
 static Object *str_common_package, *btn_common_install, *cyc_common_action, *str_common_pool;
 static const char *common_actions[]={"Install signed package","Remove package","Repair package","Upgrade from signed folder","Rollback from retained history","Resolve with local package pool","Recover pending transaction","Install/update from signed channel",NULL};
-static char *common_detail_text;
 static int common_waiting;
 static char *common_preview_text;
 static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
               *str_channel_search, *lst_channel, *txt_channel_detail,
               *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary;
 static pm_common_catalogue *common_catalogue;
+static pm_common_installed *common_installed;
 #define ID_COMMON_INSTALL 1001
 #define ID_CHANNEL_BROWSE 1002
 #define ID_CHANNEL_LOAD 1003
@@ -152,6 +152,25 @@ static const pkg_news_row *news_row(const pkg_entry *e)
 /* ------------------------------------------------------------ list display */
 
 #ifdef APKG_FUSION
+static pm_common_installed_row *installed_selected(void)
+{
+    pm_common_installed_row *row = NULL;
+    DoMethod(lst, MUIM_List_GetEntry, MUIV_List_GetEntry_Active, (IPTR)&row);
+    return row;
+}
+AROS_UFH3S(void, installed_display_func,
+    AROS_UFHA(struct Hook *, hook, A0),
+    AROS_UFHA(char **, array, A2),
+    AROS_UFHA(pm_common_installed_row *, row, A1))
+{
+    AROS_USERFUNC_INIT
+    (void)hook;
+    array[0] = row ? (char *)row->view.name.value.data : "Package";
+    array[1] = row ? row->version_label : "Version / revision";
+    array[2] = row ? "installed" : "State";
+    array[3] = row ? (char *)row->view.target.value.data : "Target";
+    AROS_USERFUNC_EXIT
+}
 AROS_UFH3S(void, common_display_func,
     AROS_UFHA(struct Hook *, hook, A0),
     AROS_UFHA(char **, array, A2),
@@ -490,13 +509,20 @@ static void refill(const char *term, const char *keep_id, const char *why)
 
     memset(&e,0,sizeof e);
 #ifdef APKG_FUSION
-    memset(&fresh,0,sizeof fresh);
-    st=pm_common_query(root,term,&fresh,&e);
-    if(st!=PKG_OK){show_err("Cannot read common root",st,&e);return;}
-    SetAttrs(lst,MUIA_List_Quiet,TRUE,TAG_DONE);DoMethod(lst,MUIM_List_Clear);pkg_entries_free(&rows);rows=fresh;
-    for(i=0;i<rows.n;i++) {DoMethod(lst,MUIM_List_InsertSingle,(IPTR)&rows.v[i],MUIV_List_Insert_Bottom);if(keep_id&&!strcmp(keep_id,rows.v[i].id))again=i;}
+    pm_common_installed *installed = NULL;
+    apkg_status code = pm_common_installed_read(root, term, &installed, NULL);
+    if (code) { snprintf(msg, sizeof msg, "Common root query refused (code %d)", (int)code); status(msg); return; }
+    SetAttrs(lst,MUIA_List_Quiet,TRUE,TAG_DONE);DoMethod(lst,MUIM_List_Clear);
+    SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+    SetAttrs(txt_head, MUIA_Text_Contents, (IPTR)"", TAG_DONE);
+    FreeVec(common_installed); common_installed = installed;
+    for(size_t row=0;row<installed->count;row++) {
+        pm_common_installed_row *r = &installed->rows[row];
+        DoMethod(lst,MUIM_List_InsertSingle,(IPTR)r,MUIV_List_Insert_Bottom);
+        if(keep_id&&!strcmp(keep_id,r->view.name.value.data))again=(int)row;
+    }
     SetAttrs(lst,MUIA_List_Quiet,FALSE,TAG_DONE);if(again>=0)SetAttrs(lst,MUIA_List_Active,again,TAG_DONE);
-    snprintf(msg,sizeof msg,"%d installed packages; local common root",rows.n);status(msg);show_detail();return;
+    snprintf(msg,sizeof msg,"%lu installed packages; local common root",(unsigned long)installed->count);status(msg);show_detail();return;
 #endif
     st = pkg_open(root, PKG_OPEN_READ, &c, &e);
     if (st != PKG_OK) { show_err("cannot open the package root", st, &e); return; }
@@ -618,20 +644,34 @@ static void refill(const char *term, const char *keep_id, const char *why)
 
 static pkg_entry *selected(void)
 {
+#ifdef APKG_FUSION
+    /* Fusion rows have a different type. Legacy-only presentation must never
+     * reinterpret them as fixed-size pkg_entry or select a shortened name. */
+    return NULL;
+#else
     IPTR act = (IPTR)MUIV_List_Active_Off; pkg_entry *e = NULL;
     GetAttr(MUIA_List_Active, lst, &act);
     if ((LONG)act == MUIV_List_Active_Off) return NULL;
     DoMethod(lst, MUIM_List_GetEntry, act, (IPTR)&e);
     return e;
+#endif
 }
 
 /* Refill with the current search term, keeping the current selection. */
 static void refill_keep(const char *why)
 {
+#ifdef APKG_FUSION
+    IPTR t = 0; char keep[256] = "";
+    pm_common_installed_row *row = installed_selected();
+    if (row) snprintf(keep, sizeof keep, "%s", row->view.name.value.data);
+    GetAttr(MUIA_String_Contents, str_search, &t);
+    refill((const char *)t, keep[0] ? keep : NULL, why);
+#else
     IPTR t = 0; pkg_entry *e = selected(); char keep[PKG_MAXID] = "";
     if (e) snprintf(keep, sizeof keep, "%s", e->id);
     GetAttr(MUIA_String_Contents, str_search, &t);
     refill((const char *)t, keep[0] ? keep : NULL, why);
+#endif
 }
 
 /* The string gadget acknowledges on Return and, in Zune, when it loses
@@ -883,14 +923,13 @@ static void show_detail(void)
     char reqs[1024] = "";
     pkg_entry *e = selected();
 #ifdef APKG_FUSION
-    char *detail=NULL;
-    if(common_detail_text){apkg_client_text_free(common_detail_text);common_detail_text=NULL;}
-    if(e&&apkg_client_query(root,e->id,&detail,NULL)==APKG_OK)common_detail_text=detail;
-    SetAttrs(txt_head,MUIA_Text_Contents,(IPTR)(e?e->id:""),TAG_DONE);
-    SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(common_detail_text?common_detail_text:"Select an installed package"),TAG_DONE);
-    SetAttrs(btn_remove,MUIA_Disabled,busy_now()||!e,TAG_DONE);
-    SetAttrs(btn_open,MUIA_Disabled,busy_now()||!e,TAG_DONE);
-    SetAttrs(btn_run,MUIA_Disabled,busy_now()||!e,TAG_DONE);
+    pm_common_installed_row *row = installed_selected();
+    SetAttrs(txt_head,MUIA_Text_Contents,(IPTR)(row?row->view.name.value.data:""),TAG_DONE);
+    SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(row?(const char *)row->view.record.data:"Select an installed package"),TAG_DONE);
+    SetAttrs(btn_install,MUIA_Disabled,TRUE,TAG_DONE);
+    SetAttrs(btn_remove,MUIA_Disabled,busy_now()||!row,TAG_DONE);
+    SetAttrs(btn_open,MUIA_Disabled,busy_now()||!row,TAG_DONE);
+    SetAttrs(btn_run,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_verify,MUIA_Disabled,TRUE,TAG_DONE);
     SetAttrs(btn_upgrade,MUIA_Disabled,TRUE,TAG_DONE);
     SetAttrs(btn_rollback,MUIA_Disabled,TRUE,TAG_DONE);
@@ -1252,6 +1291,9 @@ static int start(job_kind kind, const char *id)
     if (cur.confirmed) snprintf(cur.plan_sig, sizeof cur.plan_sig, "%s", install_sig);
     install_confirmed = 0;
     cur.seq = active ? active->id : 0;
+#ifdef APKG_FUSION
+    if (id && strlen(id) >= sizeof cur.id) return -1;
+#endif
     snprintf(cur.id, sizeof cur.id, "%s", id ? id : "");
     snprintf(cur.root, sizeof cur.root, "%s", root);
     snprintf(cur.index, sizeof cur.index, "%s", index_path);
@@ -2209,6 +2251,10 @@ static void reply_job(rexx_msg *m, const rx_job *j, const char *field)
 
 static pkg_ctx *rx_open(rexx_msg *m)
 {
+#ifdef APKG_FUSION
+    rx_fail(m, RX_RC_ERROR, "UNSUPPORTED this legacy ARexx query needs a common-engine adapter");
+    return NULL;
+#else
     pkg_ctx *c = NULL; pkg_err e; pkg_status st;
     memset(&e, 0, sizeof e);
     st = pkg_open(root, PKG_OPEN_READ, &c, &e);
@@ -2218,6 +2264,7 @@ static pkg_ctx *rx_open(rexx_msg *m)
         return NULL;
     }
     return c;
+#endif
 }
 
 /* The row for `id`, as `apkg show` finds it: the catalogue's entry for this
@@ -2239,6 +2286,24 @@ static int lookup(pkg_ctx *c, const char *id, pkg_entry *out, int *in_index, pkg
 
 static void rx_list(rexx_msg *m, const rx_req *r)
 {
+#ifdef APKG_FUSION
+    if (!r->installed) { rx_fail(m, RX_RC_ERROR, "UNSUPPORTED catalogue LIST needs a common-channel adapter; LIST INSTALLED is available"); return; }
+    pm_common_installed *items = NULL;
+    apkg_status code = pm_common_installed_read(root, r->match, &items, NULL);
+    if (code) { rx_fail(m, RX_RC_ERROR, "COMMON root query refused (code %d)", (int)code); return; }
+    size_t used = 0; int overflow = 0;
+    rxout[0] = 0;
+    for (size_t i = 0; i < items->count; i++) {
+        apkg_text name = items->rows[i].view.name.value;
+        if (name.size + (used ? 1 : 0) + 1 > sizeof rxout - used) { overflow = 1; break; }
+        if (used) rxout[used++] = ' ';
+        memcpy(rxout + used, name.data, name.size); used += name.size; rxout[used] = 0;
+    }
+    FreeVec(items);
+    if (overflow) rx_fail(m, RX_RC_ERROR, "TOOLONG the list does not fit in one ARexx result; narrow it with MATCH");
+    else rx_ok(m, rxout);
+    return;
+#endif
     pkg_ctx *c = rx_open(m); pkg_entries rows = { 0 }; pkg_err e; pkg_status st;
     size_t k = 0; int i, over = 0;
     if (!c) return;
@@ -2310,11 +2375,22 @@ static void rx_requirements(rexx_msg *m, const rx_req *r)
 
 static void rx_show(rexx_msg *m, const rx_req *r)
 {
+#ifdef APKG_FUSION
+    pm_common_installed *items = NULL;
+    apkg_status code = pm_common_installed_read(root, r->package, &items, NULL);
+    int found = 0;
+    if (items) for (size_t i = 0; i < items->count; i++)
+        if (!strcmp(items->rows[i].view.name.value.data, r->package)) found = 1;
+    FreeVec(items);
+    if (code) { rx_fail(m, RX_RC_ERROR, "COMMON root query refused (code %d)", (int)code); return; }
+    if (!found) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not installed", r->package); return; }
+#else
     pkg_ctx *c = rx_open(m); pkg_entry e; pkg_entry *sel; int in_index, known;
     if (!c) return;
     known = lookup(c, r->package, &e, &in_index, NULL, NULL, 0) && in_index;
     pkg_close(c);
     if (!known) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not in the catalogue", r->package); return; }
+#endif
     /* Clear the search and the filters, or the row could be filtered out of
        the very list it is to be shown in. */
     SetAttrs(str_search, MUIA_NoNotify, TRUE, MUIA_String_Contents, (IPTR)"", TAG_DONE);
@@ -2322,8 +2398,13 @@ static void rx_show(rexx_msg *m, const rx_req *r)
     SetAttrs(cyc_cat,   MUIA_NoNotify, TRUE, MUIA_Cycle_Active, 0, TAG_DONE);
     SetAttrs(cyc_state, MUIA_NoNotify, TRUE, MUIA_Cycle_Active, 0, TAG_DONE);
     refill("", r->package, "arexx show");
+#ifdef APKG_FUSION
+    pm_common_installed_row *selected_row = installed_selected();
+    if (!selected_row || strcmp(selected_row->view.name.value.data, r->package)) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s could not be selected in the list", r->package); return; }
+#else
     sel = selected();
     if (!sel || strcmp(sel->id, r->package)) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s could not be selected in the list", r->package); return; }
+#endif
     DoMethod(lst, MUIM_List_Jump, MUIV_List_Jump_Active);
     SetAttrs(app, MUIA_Application_Iconified, FALSE, TAG_DONE);
     SetAttrs(win, MUIA_Window_Open, TRUE, TAG_DONE);
@@ -2347,6 +2428,19 @@ static void rx_start(rexx_msg *m, const rx_req *r)
         else rx_fail(m, RX_RC_WARN, "BUSY another operation is running");
         return;
     }
+#ifdef APKG_FUSION
+    if (kind != JOB_REMOVE && kind != JOB_RUN) {
+        rx_fail(m, RX_RC_ERROR, "UNSUPPORTED use a common signed-plan operation for this command"); return;
+    }
+    pm_common_installed *items = NULL;
+    apkg_status code = pm_common_installed_read(root, r->package, &items, NULL);
+    int found = 0;
+    if (items) for (size_t i = 0; i < items->count; i++)
+        if (!strcmp(items->rows[i].view.name.value.data, r->package)) found = 1;
+    FreeVec(items);
+    if (code) { rx_fail(m, RX_RC_ERROR, "COMMON root query refused (code %d)", (int)code); return; }
+    if (!found) { rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not installed", r->package); return; }
+#else
     if (kind != JOB_UPDATE) {
         pkg_ctx *c = rx_open(m); pkg_entry e; int in_index, known;
         if (!c) return;
@@ -2358,6 +2452,7 @@ static void rx_start(rexx_msg *m, const rx_req *r)
             return;
         }
     }
+#endif
     /* The answer is the job's number, and it is allocated before the job
        exists: if that fails the script hears NOMEM and nothing was started. */
     snprintf(rxout, sizeof rxout, "%ld", next_job);
@@ -2556,9 +2651,11 @@ static int real_main(int argc, char **argv)
         if (demo_load(demo_path, why, sizeof why) == 0) state_entries[ST_DEMO] = (STRPTR)"Demo store";
         else logline("no demo storefront: %s", why);
     }
-    display_hook.h_Entry = (HOOKFUNC)AROS_ASMSYMNAME(display_func);
 #ifdef APKG_FUSION
+    display_hook.h_Entry = (HOOKFUNC)AROS_ASMSYMNAME(installed_display_func);
     common_display_hook.h_Entry = (HOOKFUNC)AROS_ASMSYMNAME(common_display_func);
+#else
+    display_hook.h_Entry = (HOOKFUNC)AROS_ASMSYMNAME(display_func);
 #endif
     cat_entries[0] = (STRPTR)"All categories"; cat_entries[1] = NULL;
 
@@ -2904,6 +3001,13 @@ static int real_main(int argc, char **argv)
             }
             break;
 #endif
+#ifdef APKG_FUSION
+        case ID_REMOVE: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_REMOVE, row->view.name.value.data, "window"); } break;
+        case ID_OPEN: { pm_common_installed_row *row = installed_selected(); if (row) open_folder(row->view.name.value.data); } break;
+        case ID_RUN: { pm_common_installed_row *row = installed_selected(); if (row) begin(JOB_RUN, row->view.name.value.data, "window"); } break;
+        case ID_INSTALL: case ID_VERIFY: case ID_UPGRADE: case ID_ROLLBACK:
+            status("Use the common signed-plan operation panel or signed catalogue"); break;
+#else
         case ID_INSTALL: { pkg_entry *e = selected(); if (e) { logline("install pressed for %s", e->id); begin(JOB_INSTALL, e->id, "window"); } } break;
         case ID_REMOVE:  { pkg_entry *e = selected(); if (e) { logline("remove pressed for %s", e->id); begin(JOB_REMOVE, e->id, "window"); } } break;
         case ID_OPEN:    { pkg_entry *e = selected(); if (e) open_folder(e->id); } break;
@@ -2911,6 +3015,7 @@ static int real_main(int argc, char **argv)
         case ID_VERIFY:  { pkg_entry *e = selected(); if (e) { logline("verify pressed for %s", e->id); begin(JOB_VERIFY, e->id, "window"); } } break;
         case ID_UPGRADE: { pkg_entry *e = selected(); if (e) { logline("upgrade pressed for %s", e->id); begin(JOB_PREVIEW_UPGRADE, e->id, "window"); } } break;
         case ID_ROLLBACK:{ pkg_entry *e = selected(); if (e) { logline("rollback pressed for %s", e->id); begin(JOB_PREVIEW_ROLLBACK, e->id, "window"); } } break;
+#endif
         case ID_CHECK:   logline("check for a newer version pressed"); begin(JOB_CHECK_RELEASE, NULL, "window"); break;
         case ID_SELFUPDATE: logline("update arospkg pressed"); su_begin(); break;
         case ID_CANCEL:  if (in_flight) { cur.cancel = 1;
@@ -2962,12 +3067,12 @@ static int real_main(int argc, char **argv)
     rexx_close("CLOSING PkgManager has quit");
 #ifdef APKG_FUSION
     if (common_preview_text) FreeVec(common_preview_text);
-    if(common_detail_text)apkg_client_text_free(common_detail_text);
     apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
 #endif
     MUI_DisposeObject(app);
 #ifdef APKG_FUSION
     FreeVec(common_catalogue);
+    FreeVec(common_installed);
 #endif
     pkg_entries_free(&rows);
     pkg_updates_free(&upd);

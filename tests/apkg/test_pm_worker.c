@@ -11,13 +11,22 @@
 static job *running;
 static int choice, previews, progress_count, allocations, allocation_calls,
     fail_at;
+static size_t last_public_size;
 void *AllocVec(size_t n, unsigned flags) {
     if (++allocation_calls == fail_at)
         return NULL;
     void *p = (flags & MEMF_CLEAR) ? calloc(1, n) : malloc(n);
-    if (p)
+    if (p) {
         allocations++;
+        last_public_size = n;
+    }
     return p;
+}
+static void owned_text(const void *model, apkg_text text) {
+    uintptr_t base = (uintptr_t)model, address = (uintptr_t)text.data;
+    assert(address >= base && address - base < last_public_size);
+    assert(text.size < last_public_size - (address - base));
+    assert(text.data[text.size] == 0);
 }
 void FreeVec(void *p) {
     if (p) {
@@ -79,12 +88,49 @@ int main(int argc, char **argv) {
         apkg_client_text_free(json);
         return 0;
     }
-    if (atoi(argv[3]) == 7) {
-        pkg_entries entries = {0};
-        assert(pm_common_query(argv[1], NULL, &entries, &error) == PKG_OK);
-        for (int i = 0; i < entries.n; i++)
-            printf("%s %s\n", entries.v[i].id, entries.v[i].version);
-        free(entries.v);
+    if (atoi(argv[3]) == 7 || atoi(argv[3]) == 13) {
+        int extended = atoi(argv[3]) == 13;
+        pm_common_installed *entries = NULL;
+        fail_at = extended && argc >= 5 ? atoi(argv[4]) : 0;
+        apkg_status status = pm_common_installed_read(
+            argv[1], extended ? argv[2] : NULL, &entries, NULL);
+        if (extended)
+            printf("status %d\n", (int)status);
+        else
+            assert(status == APKG_OK);
+        if (status)
+            assert(!entries);
+        if (entries)
+            for (size_t i = 0; i < entries->count; i++) {
+                const apkg_installed_view *v = &entries->rows[i].view;
+                apkg_text fields[] = {
+                    v->authority.value,
+                    v->authority.evidence,
+                    v->name.value,
+                    v->name.evidence,
+                    v->version.value,
+                    v->version.evidence,
+                    v->target.value,
+                    v->target.evidence,
+                    v->revision.evidence,
+                    {(const char *)v->record.data, v->record.size}};
+                for (size_t k = 0; k < sizeof fields / sizeof fields[0]; k++)
+                    owned_text(entries, fields[k]);
+                owned_text(entries,
+                           (apkg_text){entries->rows[i].version_label,
+                                       strlen(entries->rows[i].version_label)});
+                if (extended)
+                    printf("%s\t%s\t%llu\t%s\t%.*s\n", v->name.value.data,
+                           v->version.value.data,
+                           (unsigned long long)v->revision.value,
+                           entries->rows[i].version_label, (int)v->record.size,
+                           v->record.data);
+                else
+                    printf("%s %s\n", v->name.value.data,
+                           v->version.value.data);
+            }
+        FreeVec(entries);
+        assert(allocations == 0);
         return 0;
     }
     running = &j;
@@ -96,6 +142,18 @@ int main(int argc, char **argv) {
            strlen(argv[2]) < sizeof j.common_package);
     strcpy(j.root, argv[1]);
     strcpy(j.common_package, argv[2]);
+    if (choice == 12) {
+        j.kind = JOB_RUN;
+        assert(strlen(argv[2]) < sizeof j.id);
+        strcpy(j.id, argv[2]);
+        result = pm_common_install(&j, &error);
+        /* A valid AROS bundle reaches the host's explicit runtime boundary;
+         * truncating the name would instead yield NOT_FOUND before this. */
+        assert(result == PKG_E_IO && final.common_status == APKG_UNSUPPORTED);
+        assert(!previews && final.common_outcome == APKG_UNCHANGED);
+        assert(allocations == 0);
+        return 0;
+    }
     if (choice >= 9 && choice <= 11) {
         assert(argc == 6);
         j.kind = JOB_COMMON_DISCOVER;

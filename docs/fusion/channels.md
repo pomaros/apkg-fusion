@@ -392,5 +392,9 @@ during an HTTP wait without depending on another progress event. Closing the
 catalogue window cancels an outstanding discovery. Failed/cancelled refreshes
 retain the previous catalogue. Host tests exercise the actual discovery and
 installation workers and allocation ownership; SDK header/type checks cover
-the UI wiring. Native interaction, settings/news/update views and the inherited
-installed-list projection still require further integration/qualification.
+the UI wiring. The main installed list now owns full common snapshot rows and
+evidence, with complete name/version/revision display, search and action
+identities. Installed LIST/SHOW and RUN/REMOVE have common ARexx source wiring;
+legacy queries without an adapter refuse explicitly. Native interaction,
+settings/news/filter/update views and the remaining ARexx/compatibility cases
+still require integration/qualification.

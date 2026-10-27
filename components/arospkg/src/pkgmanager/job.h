@@ -39,7 +39,11 @@ struct pm_msg_s;
 typedef struct {
     job_kind        kind;
     long            seq;        /* the job's number; every message carries it */
+#ifdef APKG_FUSION
+    char            id[256]; /* complete common name, including terminator */
+#else
     char            id[PKG_MAXID];
+#endif
     char            root[PKG_MAXPATH];
     char            index[PKG_MAXPATH];
     char            index_url[512];
@@ -102,7 +106,6 @@ int job_start(job *j);
 #ifdef APKG_FUSION
 pkg_status pm_common_install(job *, pkg_err *);
 pkg_status pm_common_channel_query(const char *, const char *, const char *, char **, pkg_err *);
-pkg_status pm_common_query(const char *, const char *, pkg_entries *, pkg_err *);
 #endif
 
 /* The steps of an install plan as one string, so the worker can tell the

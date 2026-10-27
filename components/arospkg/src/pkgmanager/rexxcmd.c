@@ -75,7 +75,12 @@ const char *rx_help(void)
 /* ------------------------------------------------------------- tokens */
 
 #define MAXTOK 8
-typedef struct { char text[160]; int quoted; char key[16]; } token;   /* key: "FIELD" of FIELD=x */
+#ifdef APKG_FUSION
+typedef struct { char text[RX_PACKAGE_MAX + 16]; int quoted; char key[16]; } token;
+#else
+typedef struct { char text[160]; int quoted; char key[16]; } token;
+#endif
+/* key: "FIELD" of FIELD=x */
 
 static int ieq(const char *a, const char *b)
 {

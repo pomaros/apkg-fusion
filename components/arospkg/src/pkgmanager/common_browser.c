@@ -3,8 +3,6 @@
 #ifdef APKG_FUSION
 #include "apkg_client.h"
 #include "job.h"
-#include "pkg_target.h"
-#include <limits.h>
 #include <proto/exec.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -158,84 +156,144 @@ pkg_status pm_common_channel_query(const char *root, const char *endpoint,
     }
     return code ? PKG_E_IO : PKG_OK;
 }
-/* UI rows are a display projection. Refuse an unrepresentable field rather
- * than truncate an identity and use that truncated name in an operation. */
-pkg_status pm_common_query(const char *root, const char *term, pkg_entries *out,
-                           pkg_err *error) {
-    apkg_open_options o = {0};
-    apkg_ctx *c = NULL;
-    apkg_snapshot *s = NULL;
-    apkg_status code;
-    size_t i;
-    pkg_entries fresh = {0};
-    memset(out, 0, sizeof *out);
-    o.contract_version = 1;
-    o.struct_size = sizeof o;
-    o.root.data = root;
-    o.root.size = strlen(root);
-    code = apkg_open(&o, &c, NULL);
+static int contains(apkg_text text, const char *term) {
+    size_t n = term ? strlen(term) : 0;
+    if (!n)
+        return 1;
+    for (size_t i = 0; n <= text.size && i <= text.size - n; i++)
+        if (!memcmp(text.data + i, term, n))
+            return 1;
+    return 0;
+}
+static int installed_matches(const apkg_installed_view *v, const char *term) {
+    return contains(v->name.value, term) ||
+           contains(v->authority.value, term) ||
+           contains(v->target.value, term);
+}
+static int installed_version(char *out, size_t size,
+                             const apkg_installed_view *v) {
+    const char *version =
+        v->version.state == APKG_KNOWN ? v->version.value.data : "unknown";
+    int n = v->version.state == APKG_KNOWN ? (int)v->version.value.size : 7;
+    if (v->revision.state == APKG_KNOWN)
+        return snprintf(out, size, "%.*s (revision %llu)", n, version,
+                        (unsigned long long)v->revision.value);
+    return snprintf(out, size, "%.*s (revision unknown)", n, version);
+}
+static size_t installed_texts(const apkg_installed_view *v,
+                              apkg_text parts[10]) {
+    parts[0] = v->authority.value;
+    parts[1] = v->authority.evidence;
+    parts[2] = v->name.value;
+    parts[3] = v->name.evidence;
+    parts[4] = v->version.value;
+    parts[5] = v->version.evidence;
+    parts[6] = v->target.value;
+    parts[7] = v->target.evidence;
+    parts[8] = v->revision.evidence;
+    parts[9] = (apkg_text){(const char *)v->record.data, v->record.size};
+    size_t size = 0;
+    for (size_t i = 0; i < 10; i++)
+        size += parts[i].size + 1;
+    return size;
+}
+apkg_status pm_common_installed_read(const char *root, const char *term,
+                                     pm_common_installed **out,
+                                     apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!root)
+        return APKG_INVALID;
+    apkg_open_options options = {0};
+    options.contract_version = APKG_CONTRACT_VERSION;
+    options.struct_size = sizeof options;
+    options.root = (apkg_text){root, strlen(root)};
+    apkg_ctx *ctx = NULL;
+    apkg_snapshot *snapshot = NULL;
+    pm_common_installed *model = NULL;
+    apkg_status code = apkg_open(&options, &ctx, error);
     if (code)
         goto done;
-    code = apkg_snapshot_read(c, &s, NULL);
+    code = apkg_snapshot_read(ctx, &snapshot, error);
     if (code)
         goto done;
-    if (apkg_snapshot_root(s)->state != APKG_ROOT_READY) {
-        code = APKG_POLICY;
+    apkg_root_state state = apkg_snapshot_root(snapshot)->state;
+    if (state != APKG_ROOT_READY) {
+        code =
+            state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED : APKG_POLICY;
         goto done;
     }
-    uint64_t count = apkg_snapshot_installed_count(s);
-    if (count > INT_MAX) {
+    uint64_t count = apkg_snapshot_installed_count(snapshot);
+    if (count > 4096) {
         code = APKG_LIMIT;
         goto done;
     }
-    fresh.v = calloc(count ? count : 1, sizeof *fresh.v);
-    if (!fresh.v) {
-        code = APKG_NOMEM;
-        goto done;
-    }
-    fresh.cap = (int)count;
-    for (i = 0; i < count; i++) {
-        const apkg_installed_view *v;
-        struct pkg_target target;
-        pkg_entry *r = &fresh.v[fresh.n];
-        code = apkg_snapshot_installed_at(s, i, &v, NULL);
+    size_t total = sizeof *model + (size_t)count * sizeof *model->rows;
+    for (uint64_t i = 0; i < count; i++) {
+        const apkg_installed_view *v = NULL;
+        code = apkg_snapshot_installed_at(snapshot, i, &v, error);
         if (code)
             goto done;
-        if (term && *term && !strstr(v->name.value.data, term))
+        if (!installed_matches(v, term))
             continue;
-        if (v->name.value.size >= sizeof r->id ||
-            v->version.value.size >= sizeof r->version ||
-            v->revision.value > LONG_MAX ||
-            pkg_target_parse(v->target.value.data, &target, NULL, 0)) {
+        apkg_text parts[10];
+        int n = installed_version(NULL, 0, v);
+        if (n < 0) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        size_t extra = installed_texts(v, parts) + (size_t)n + 1;
+        if (extra > PM_CATALOGUE_MAX || total > PM_CATALOGUE_MAX - extra) {
             code = APKG_LIMIT;
             goto done;
         }
-        memcpy(r->id, v->name.value.data, v->name.value.size + 1);
-        memcpy(r->version, v->version.value.data, v->version.value.size + 1);
-        memcpy(r->installed_version, r->version, strlen(r->version) + 1);
-        r->revision = r->installed_revision = (long)v->revision.value;
-        snprintf(r->arch, sizeof r->arch, "%s", target.cpu);
-        snprintf(r->abi, sizeof r->abi, "%s", target.abi);
-        snprintf(r->kind, sizeof r->kind, "package");
-        snprintf(r->summary, sizeof r->summary,
-                 "Installed; qualification not asserted");
-        r->installed = 1;
-        r->size = -1;
-        fresh.n++;
+        total += extra;
     }
-    *out = fresh;
-    memset(&fresh, 0, sizeof fresh);
-done:
-    free(fresh.v);
-    apkg_snapshot_free(s);
-    apkg_close(c);
-    if (error) {
-        memset(error, 0, sizeof *error);
-        error->status = code ? PKG_E_IO : PKG_OK;
+    model = AllocVec(total, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!model) {
+        code = APKG_NOMEM;
+        goto done;
+    }
+    char *cursor = (char *)(model->rows + count);
+    for (uint64_t i = 0; i < count; i++) {
+        const apkg_installed_view *v = NULL;
+        code = apkg_snapshot_installed_at(snapshot, i, &v, error);
         if (code)
-            snprintf(error->summary, sizeof error->summary,
-                     "common root query refused (code %d)", (int)code);
+            goto done;
+        if (!installed_matches(v, term))
+            continue;
+        pm_common_installed_row *row = &model->rows[model->count++];
+        row->view = *v;
+        apkg_text parts[10];
+        installed_texts(v, parts);
+        apkg_text *targets[9] = {
+            &row->view.authority.value,  &row->view.authority.evidence,
+            &row->view.name.value,       &row->view.name.evidence,
+            &row->view.version.value,    &row->view.version.evidence,
+            &row->view.target.value,     &row->view.target.evidence,
+            &row->view.revision.evidence};
+        for (size_t k = 0; k < 9; k++)
+            targets[k]->data = copy_text(&cursor, parts[k]);
+        row->view.record.data =
+            (const unsigned char *)copy_text(&cursor, parts[9]);
+        row->version_label = cursor;
+        int n = installed_version(cursor,
+                                  total - (size_t)(cursor - (char *)model), v);
+        if (n < 0) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        cursor += (size_t)n + 1;
     }
-    return code ? PKG_E_IO : PKG_OK;
+    *out = model;
+    model = NULL;
+done:
+    FreeVec(model);
+    apkg_snapshot_free(snapshot);
+    apkg_close(ctx);
+    return code;
 }
 #endif

@@ -12,6 +12,11 @@
 #define RX_INTERFACE 1          /* bumped when a reply changes meaning */
 #define RX_PORTNAME  "PKGMANAGER"
 #define RX_MAXRESULT 65535      /* an argstring's length is 16 bits */
+#ifdef APKG_FUSION
+#define RX_PACKAGE_MAX 256
+#else
+#define RX_PACKAGE_MAX PKG_MAXID
+#endif
 
 /* ARexx severities: RC as the script sees it. */
 enum { RX_RC_OK = 0, RX_RC_WARN = 5, RX_RC_ERROR = 10, RX_RC_FAIL = 20 };
@@ -25,7 +30,7 @@ typedef enum {
 
 typedef struct {
     rx_cmd cmd;
-    char   package[PKG_MAXID];
+    char   package[RX_PACKAGE_MAX];
     char   field[24];           /* INFO, JOB, WAIT: one field instead of all */
     char   match[128];          /* LIST MATCH */
     int    installed;           /* LIST INSTALLED */
@@ -57,7 +62,7 @@ typedef enum {
 typedef struct {
     long          id;
     char          op[12];       /* update install remove upgrade rollback */
-    char          package[PKG_MAXID];
+    char          package[RX_PACKAGE_MAX];
     char          origin[8];    /* window arexx */
     rx_jobstate   state;
     char          phase[16];

@@ -78,7 +78,22 @@ int main(void)
     bad("INSTALL soliton FIELD version", "BADARGS INSTALL: unexpected argument \"FIELD\"");
     bad("INSTALL FOO=bar", "BADARGS INSTALL does not take FOO");
     bad("INSTALL PACKAGE=a PACKAGE=b", "BADARGS PACKAGE given twice");
+#ifdef APKG_FUSION
+    {
+        char name[257], line[300], out[512]; rx_job j;
+        memset(name, 'a', 255); name[255] = 0;
+        snprintf(line, sizeof line, "INSTALL PACKAGE=%s", name);
+        ok(line, RXC_INSTALL, name);
+        memset(&j, 0, sizeof j); strcpy(j.package, name);
+        CHECK(rx_format_job(&j, "package", out, sizeof out) == 0);
+        CHECK(!strcmp(out, name));
+        name[255] = 'b'; name[256] = 0;
+        snprintf(line, sizeof line, "INSTALL PACKAGE=%s", name);
+        bad(line, "BADARGS PACKAGE is longer than 255");
+    }
+#else
     bad("INSTALL 0123456789012345678901234567890123456789012345678901234567890123", "BADARGS PACKAGE is longer than 63");
+#endif
     ok("INSTALL 012345678901234567890123456789012345678901234567890123456789012", RXC_INSTALL,
        "012345678901234567890123456789012345678901234567890123456789012");
     bad("VERSION now", "BADARGS VERSION: unexpected argument");

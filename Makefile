@@ -395,8 +395,17 @@ build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_TESTING -fPIC -shared -Iinclude -Isrc/apkg $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
 .PHONY: test-apkg
-test-apkg: build/test_preparation_memory build/test_channel_memory build/libapkg-test.dylib build/apkg build/apkg-core build/test_pm_common build/libapkg.a check-common-symbols
+test-apkg: build/test_preparation_memory build/test_channel_memory build/libapkg-test.dylib build/apkg build/apkg-core build/test_pm_common build/test_pm_rexx build/libapkg.a check-common-symbols
+	./build/test_pm_rexx
 	python3 -m unittest discover -s tests/apkg -v
+
+PM_REXX_SOURCES = components/arospkg/tests/test_rexxcmd.c components/arospkg/src/pkgmanager/rexxcmd.c $(addprefix components/arospkg/src/libpkg/,updates.c entries.c app.c json.c listing.c req.c upgrade.c err.c)
+build/test_pm_rexx: $(PM_REXX_SOURCES) components/arospkg/src/pkgmanager/rexxcmd.h $(wildcard components/arospkg/src/libpkg/*.h)
+	@mkdir -p build
+	$(CC) -O1 -Wall -Wextra -std=gnu99 -DAPKG_FUSION $(PM_REXX_SOURCES) -o $@
+.PHONY: print-pm-rexx-sources
+print-pm-rexx-sources:
+	@echo $(PM_REXX_SOURCES)
 
 build/apkg-core: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h include/pkg_ameta.h src/apkg/internal.h src/apkg/changes.inc
 	@mkdir -p build

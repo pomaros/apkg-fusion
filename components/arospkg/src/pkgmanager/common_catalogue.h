@@ -21,4 +21,16 @@ typedef struct {
 } pm_common_catalogue;
 apkg_status pm_common_catalogue_copy(const apkg_channel *, const char *,
                                      pm_common_catalogue **);
+/* The installed list retains the complete typed view, including evidence and
+ * opaque record bytes. Every borrowed field is copied into this AllocVec. */
+typedef struct {
+    apkg_installed_view view;
+    char *version_label;
+} pm_common_installed_row;
+typedef struct {
+    size_t count;
+    pm_common_installed_row rows[];
+} pm_common_installed;
+apkg_status pm_common_installed_read(const char *root, const char *term,
+                                     pm_common_installed **, apkg_error **);
 #endif
