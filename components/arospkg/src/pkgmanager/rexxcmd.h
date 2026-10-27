@@ -63,7 +63,7 @@ typedef enum {
 
 typedef struct {
     long          id;
-    char          op[12];       /* update install remove upgrade rollback */
+    char          op[32];       /* full operation name, before worker routing */
     char          package[RX_PACKAGE_MAX];
     char          origin[8];    /* window arexx */
     rx_jobstate   state;

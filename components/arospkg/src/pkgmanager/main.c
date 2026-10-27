@@ -1444,6 +1444,7 @@ static void proceed(const char *how);
 
 static rx_job *begin(job_kind kind, const char *pkg, const char *origin)
 {
+    const char *requested_operation = opname(kind);
 #ifdef APKG_FUSION
     if (kind == JOB_UPDATE) kind = JOB_COMMON_DISCOVER;
     if(kind==JOB_REMOVE) {
@@ -1464,7 +1465,7 @@ static rx_job *begin(job_kind kind, const char *pkg, const char *origin)
     j = &jobs[(next_job - 1) % MAXJOBS];
     memset(j, 0, sizeof *j);
     j->id = next_job++;
-    snprintf(j->op, sizeof j->op, "%s", opname(kind));
+    snprintf(j->op, sizeof j->op, "%s", requested_operation);
     snprintf(j->package, sizeof j->package, "%s", pkg ? pkg : "");
     snprintf(j->origin, sizeof j->origin, "%s", origin);
     j->state = (kind == JOB_PREVIEW_UPGRADE || kind == JOB_PREVIEW_ROLLBACK) ? RXJ_PREVIEW : RXJ_RUNNING;

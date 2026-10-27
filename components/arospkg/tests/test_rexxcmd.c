@@ -174,6 +174,10 @@ int main(void)
         CHECK(rx_format_job(&j, "cancancel", out, sizeof out) == 0 && !strcmp(out, "0"));  /* never on a final job */
         CHECK(rx_format_job(&j, "error", out, sizeof out) == 0 && !strcmp(out, "LOCKED"));
         CHECK(rx_format_job(&j, "nope", out, sizeof out) == -1);
+        snprintf(j.op, sizeof j.op, "%s", "source-remove");
+        CHECK(rx_format_job(&j, "op", out, sizeof out) == 0 && !strcmp(out, "source-remove"));
+        snprintf(j.op, sizeof j.op, "%s", "signed-install");
+        CHECK(rx_format_job(&j, "op", out, sizeof out) == 0 && !strcmp(out, "signed-install"));
         CHECK(!strcmp(rx_statename(RXJ_CONFIRM), "confirm") && !strcmp(rx_statename(RXJ_DECLINED), "declined"));
         CHECK(rx_final(RXJ_DONE) && rx_final(RXJ_DECLINED) && !rx_final(RXJ_CONFIRM) && !rx_final(RXJ_PREVIEW));
     }
