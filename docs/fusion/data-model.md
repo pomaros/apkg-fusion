@@ -218,7 +218,9 @@ exactly what was observed. The three states are arospkg's:
 
 On AROS a library is satisfied when it is resident at the version or opens
 with `OpenLibrary()`; one that does not open is told apart from one absent
-from `LIBS:`. Resident resources and devices answer from their lists; a
+from `LIBS:`. A resident resource satisfies a presence-only requirement;
+a versioned resource requirement is undetermined because resource nodes do
+not guarantee a library version field. Resident devices expose their version; a
 device present in `DEVS:` but not loaded is undetermined, since its version
 needs an open unit. Other types, and every probe in a host build, are
 undetermined. Execution probes again and refuses a plan whose observations

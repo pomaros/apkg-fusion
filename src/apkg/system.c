@@ -183,21 +183,27 @@ static void probe_library(ak_probe *r) {
     else
         snprintf(r->detail, sizeof r->detail, "not on this machine");
 }
-/* A resident resource or device answers from its list; a device that is not
- * loaded but present in DEVS: cannot be versioned without opening a unit. */
+/* Resources guarantee a Node, not a Library (FileSysResource is one example).
+ * Only devices expose lib_Version. A device that is not loaded but present
+ * in DEVS: cannot be versioned without opening a unit. */
 static void probe_list(ak_probe *r, struct List *list, const char *dir) {
     struct Library *l;
     char path[80];
     BPTR lock;
     Forbid();
     l = (struct Library *)FindName(list, (STRPTR)r->id);
-    if (l)
+    if (l && dir)
         r->version = l->lib_Version;
     Permit();
     if (l) {
+        if (!dir) {
+            r->state = r->min_version ? 2 : 0;
+            snprintf(r->detail, sizeof r->detail,
+                     "resident resource; no generic version information");
+            return;
+        }
         r->state = (uint64_t)r->version >= r->min_version ? 0 : 1;
-        snprintf(r->detail, sizeof r->detail,
-                 r->state ? "resident, version %ld" : "resident, version %ld",
+        snprintf(r->detail, sizeof r->detail, "resident, version %ld",
                  r->version);
         return;
     }

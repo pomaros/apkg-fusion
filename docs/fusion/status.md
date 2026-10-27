@@ -1573,6 +1573,23 @@ SDK builder is explicitly restricted to its AArch64 profile and separates ABI
 output directories; shell syntax and unsupported-target refusal are checked.
 This is not native build/runtime qualification.
 
+## Native resource probe correction
+
+The SDK's `resources/filesysres.h` declares `FileSysResource` with a Node
+prefix, not a Library prefix. Reading `lib_Version` from every resource was
+therefore invalid. The resource probe now checks presence only: a resident
+resource satisfies minimum zero, while a nonzero minimum stays undetermined.
+Absent resources refuse; resident device version checks remain unchanged.
+
+`test_system_native.py` compiles the actual native probe branch against mocked
+Exec/DOS services under ASan/UBSan. Its Node-only allocation reproduces a heap
+buffer overread with the preceding source and passes with the correction,
+including versioned and absent resource/device cases. The AArch64 AROS SDK
+header/type check also passes. These checks do not establish native runtime
+behavior. Full host integration passes with 320 common methods and the
+existing CLI, publication, target/application and contract gates. Exact-source
+CI remains pending for this follow-up.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
