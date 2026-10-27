@@ -222,8 +222,11 @@ The remaining non-portal work, in order:
    sources, and PkgManager controls for the root source list. Self-update
    copies on other volumes wait for the multi-participant protocol.
 3. PkgManager: settings, news and the ARexx surface over the common client API.
-4. ALPHA-IMPORT completion: relations, placements, settings and launch
-   conversion, prior-version history and the command-compatibility adapter.
+4. ALPHA-IMPORT completion: recorded relations import; system requirements,
+   placements, settings and launch conversion and prior-version history
+   remain. The command-compatibility adapter maps legacy `apkg` verbs onto the
+   root source list, so it needs the arospkg catalogue published as signed
+   channels first.
 5. The clean-workspace alpha scenario has a host test; run it with both
    inherited suites and the portal tests in exact-source Linux/macOS CI.
 6. The isolated M1 runtime rehearsal, then PORTAL-MIGRATE.
