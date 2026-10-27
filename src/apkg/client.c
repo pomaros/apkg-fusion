@@ -93,8 +93,9 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
             goto limit;
     } else {
         int policy = ak_member(&j, b, "policy");
-        const char *roles[] = {"authorities", "channels"};
-        for (size_t role = 0; role < 2; role++) {
+        const char *roles[] = {"authorities", "channels", "reviewers", "testers"};
+        const char *labels[] = {"publisher", "channel", "reviewer", "tester"};
+        for (size_t role = 0; role < 4; role++) {
             int authorities =
                 ak_member(&j, ak_member(&j, policy, "body"), roles[role]);
             if (authorities < 0)
@@ -114,7 +115,7 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
                                   sizeof key) ||
                         append(text, cap, &used,
                                "Authorize %s %s with key %s\n",
-                               role ? "channel" : "publisher", authority, key))
+                               labels[role], authority, key))
                         goto limit;
                 }
             }

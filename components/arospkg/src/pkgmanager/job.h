@@ -16,7 +16,7 @@ typedef enum { JOB_NONE, JOB_INSTALL, JOB_REMOVE, JOB_UPDATE,
                JOB_PREVIEW_UPGRADE, JOB_UPGRADE, JOB_PREVIEW_ROLLBACK, JOB_ROLLBACK,
                JOB_CHECK_RELEASE, JOB_VERIFY, JOB_RUN,
                JOB_SU_LOCATE, JOB_SU_STAGE, JOB_COMMON_INSTALL,
-               JOB_COMMON_DISCOVER, JOB_COMMON_RECOMPARE, JOB_COMMON_SOURCE_LOAD } job_kind;
+               JOB_COMMON_DISCOVER, JOB_COMMON_RECOMPARE, JOB_COMMON_SOURCE_LOAD, JOB_COMMON_ATTESTATION } job_kind;
 
 /* Updating arospkg (libpkg/selfup.h): what the worker finds and stages for
    the window, which shows it and decides. Too big for a message, and only

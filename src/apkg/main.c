@@ -64,10 +64,10 @@ int main(int argc, char **argv) {
             "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
             "[MIN-SEQUENCE]\nsource-save PROFILE ENDPOINT CHANNEL-ID\n"
             "source-cache ROOT PROFILE ENDPOINT CHANNEL-ID\nsource-show PROFILE\n"
-            "source-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
+            "attestation-check ROOT FOLDER\nsource-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
-            "descriptor|channel "
-            "JSONFILE\nverify-object descriptor|channel JSONFILE SIGNATURE\n"
+            "descriptor|channel|attestation "
+            "JSONFILE\nverify-object descriptor|channel|attestation JSONFILE SIGNATURE\n"
             "archive-check ROOT ARCHIVE\nchannel-fetch ROOT ENDPOINT "
             "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-install ROOT ENDPOINT "
             "CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256 [--recommends] "
@@ -226,6 +226,12 @@ int main(int argc, char **argv) {
         apkg_error_free(e);
         apkg_close(c);
         return (int)code;
+    }
+    if (!strcmp(argv[1], "attestation-check")) {
+        if (argc != 4) return APKG_INVALID;
+        code=apkg_client_attestation(argv[2],argv[3],&text,&e);
+        if (!code) puts(text); else report(code,NULL,e);
+        apkg_client_text_free(text); apkg_error_free(e); return code;
     }
     if (!strcmp(argv[1], "source-save") || !strcmp(argv[1], "source-cache")) {
         int cached=!strcmp(argv[1],"source-cache");

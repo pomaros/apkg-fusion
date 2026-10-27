@@ -46,6 +46,8 @@ array with the same sorted `id`/`keys` shape. Keys are nonempty Ed25519 grants;
 duplicate ids/keys and unknown fields refuse. Both role arrays are shown during
 root-initialization confirmation and persisted in the exact approved policy.
 Existing authority-only policies remain valid and grant no channel trust.
+The [attestation profile](attestations.md) adds optional `reviewers`/`testers`
+arrays with the same grant shape; every supplied role is displayed for approval.
 
 A channel key authorizes discovery for its named channel id. It does not
 approve package authors, targets, system writes, review or runtime testing.

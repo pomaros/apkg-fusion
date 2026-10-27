@@ -78,7 +78,27 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     observer.cancel = cancel;
     if (j->cancel)
         apkg_cancel_request(cancel);
-    if (j->kind == JOB_COMMON_RECOMPARE || j->kind == JOB_COMMON_SOURCE_LOAD) {
+    if (j->kind == JOB_COMMON_ATTESTATION) {
+        char *text = NULL;
+        status = j->cancel ? APKG_CANCELLED
+                           : apkg_client_attestation(j->root, j->common_package,
+                                                     &text, &detail);
+        if (!status && !j->cancel) {
+            size_t size = strlen(text) + 1;
+            j->done->common_record = AllocVec(size, MEMF_PUBLIC);
+            if (!j->done->common_record)
+                status = APKG_NOMEM;
+            else
+                memcpy(j->done->common_record, text, size);
+        }
+        apkg_client_text_free(text);
+        if (j->cancel) {
+            FreeVec(j->done->common_record);
+            j->done->common_record = NULL;
+            status = APKG_CANCELLED;
+        }
+    } else if (j->kind == JOB_COMMON_RECOMPARE ||
+               j->kind == JOB_COMMON_SOURCE_LOAD) {
         status =
             j->cancel ? APKG_CANCELLED
             : j->kind == JOB_COMMON_SOURCE_LOAD

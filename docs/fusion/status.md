@@ -1182,6 +1182,56 @@ recorded `vfork` warnings. All 70 documentation files pass link checks. The
 native startup/control wiring has not been executed on AROS; this checkpoint
 still requires exact-source Linux/macOS CI, including the inherited suites.
 
+## Portable signed review/runtime observations
+
+The common engine now verifies [attestations](attestations.md) against exact
+signed descriptors and captured root policy. Optional reviewer/tester grants
+remain separate from author/channel roles and are displayed during approved
+initialization. Reports retain passed/failed/revoked claims, explicit issuer
+trust/independence, target/environment, evidence, complete 64-bit values and
+snapshot provenance. An author's key alias or another key of its authority
+cannot satisfy independence. Review privileges cannot substitute for testing.
+
+Record histories can link an explicit contiguous predecessor prefix by digest,
+issuer/kind/content, sequence and claimed timestamp; runtime links preserve
+hardware/OS-build/test-suite scope while allowing new log bytes. Missing history remains
+unchecked and freshness always unknown: a prefix or future-dated signature is
+not a current approval. Object owners survive their inputs, snapshot/context
+and predecessor owners. No payload/environment test or evidence fetch occurs.
+
+The default CLI signs/verifies this domain and inspects a claim folder through
+a shared formatter. PkgManager's explicit read-only inspection job uses the same
+client helper, returns an owned native message text and displays the claim; no
+malloc-owned handle crosses worker exit. Seven host cases cover CLI/actual-worker
+equivalence, signing/domain confusion, exact content/identity, runtime environment,
+author/channel/role separation, key aliases, withdrawal/target facts, history
+links/revocation/missing prefix, maximum fields, ownership and allocation failure.
+Host-harness cancellation/AllocVec failures and pending roots refuse without writes.
+
+This implements portable observation verification, not the entire qualification
+gate. Channel carriage/publication, native row/filter projection, retained
+revocation-head observation and portal adaptation remain required. No policy
+requiring current independent approval is silently accepted; no native runtime
+or independent test execution is asserted by this checkpoint.
+
+Batch evaluation: `make test-fusion` passed 234 common methods, the fusion
+ARexx corpus, 78 default-product checks, 110 provisional CLI checks, 78
+publishing checks and the existing contract/target/application/initialization
+gates after the runtime-history scope correction. The sanitizer suite passed
+154 selected methods plus the instrumented fusion ARexx corpus; host C
+CLI/worker/claim-history harnesses are instrumented, including predecessor/input
+release and runtime-scope links, while direct ctypes fault-injection cases use
+the ordinary test library. Public library symbol checks passed. Final native sources passed SDK header/type checks on the existing
+aarch64 AROS headers with the previously recorded `vfork` warnings. All 71
+documentation files pass link checks. Native controls/dialogs and late UI
+cancellation have source/type evidence, not AROS execution evidence. This
+checkpoint still needs exact-source Linux/macOS CI and inherited-suite gates.
+
+The preceding row-refresh checkpoint
+`1da8aa5cd2b9f30b5723602a1e85a7e01705ee03` has passed its complete
+[CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40440800308),
+including both inherited suites on Linux/macOS and all 107 portal tests.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

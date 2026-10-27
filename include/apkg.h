@@ -172,6 +172,32 @@ apkg_status apkg_snapshot_inspect(const apkg_snapshot *, uint64_t,
     apkg_inspection **, apkg_error **);
 const apkg_inspection_view *apkg_inspection_get(const apkg_inspection *);
 void apkg_inspection_free(apkg_inspection *);
+/* Signed review/runtime claims, independently of author/channel signatures.
+ * Exact descriptor binding; captured-policy facts only. No payload execution,
+ * evidence retrieval, current revocation/freshness or install authorization.
+ * Views own their bytes; previous may link an observed prefix, never a latest
+ * head. Missing previous keeps history unchecked rather than inventing it. */
+typedef struct apkg_attestation apkg_attestation;
+typedef enum { APKG_ATTEST_REVIEW = 1, APKG_ATTEST_RUNTIME } apkg_attestation_kind;
+typedef enum { APKG_ATTEST_PASSED = 1, APKG_ATTEST_FAILED, APKG_ATTEST_REVOKED } apkg_attestation_result;
+typedef struct {
+    apkg_attestation_kind kind;
+    apkg_attestation_result result;
+    apkg_id issuer;
+    apkg_digest record_digest, descriptor_digest, snapshot_digest, supersedes;
+    uint64_t generation, revision, sequence, issued_at;
+    apkg_text authority, name, version, target, summary, evidence;
+    apkg_bytes environment, record, signature_envelope;
+    apkg_signature_state signature, descriptor_signature;
+    apkg_trust_state issuer_trust, author_trust;
+    int independent, target_matches, has_previous, prefix_complete;
+    apkg_fact_state freshness;
+} apkg_attestation_view;
+apkg_status apkg_attestation_read(const apkg_snapshot *, apkg_bytes descriptor,
+    apkg_bytes descriptor_signature, apkg_bytes record, apkg_bytes signature,
+    const apkg_attestation *previous, apkg_attestation **, apkg_error **);
+const apkg_attestation_view *apkg_attestation_get(const apkg_attestation *);
+void apkg_attestation_free(apkg_attestation *);
 /* Source bytes/signatures are copied; no implicit fetching or trust changes. */
 apkg_status apkg_package_read(apkg_ctx *, apkg_bytes descriptor,
                               apkg_bytes signature_envelope, apkg_package **,

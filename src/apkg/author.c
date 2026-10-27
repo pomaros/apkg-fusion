@@ -66,7 +66,8 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
         goto output;
     }
     int channel = !strcmp(argv[3], "channel");
-    if (strcmp(argv[3], "descriptor") && !channel) {
+    int attestation = !strcmp(argv[3], "attestation");
+    if (strcmp(argv[3], "descriptor") && !channel && !attestation) {
         code = APKG_UNSUPPORTED;
         goto done;
     }
@@ -81,6 +82,10 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
     }
     if (channel) {
         code = ak_channel_validate(&j);
+        if (code)
+            goto done;
+    } else if (attestation) {
+        code = ak_attestation_validate(&j);
         if (code)
             goto done;
     } else {
@@ -100,7 +105,7 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
     ak_hash(bytes, size, &digest);
     ak_tohex(digest.bytes, 32, hashhex);
     memcpy(message, "APKG-SIG\0\1", 10);
-    message[10] = channel ? 2 : 1;
+    message[10] = channel ? 2 : attestation ? 3 : 1;
     for (size_t i = 0; i < 8; i++)
         message[11 + i] = (unsigned char)((uint64_t)size >> (56 - 8 * i));
     memcpy(message + 19, digest.bytes, 32);
@@ -111,8 +116,11 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
                "{\"bytes\":\"%zu\",\"domain\":\"%s\",\"format\":\"apkg-"
                "signature-1\",\"public_key\":\"%s\",\"sha256\":\"%s\","
                "\"signature\":\"%s\"}",
-               size, channel ? "channel" : "descriptor", publichex, hashhex,
-               sighex);
+               size,
+               channel       ? "channel"
+               : attestation ? "attestation"
+                             : "descriptor",
+               publichex, hashhex, sighex);
 output:
     code = (apkg_status)b.bad;
     if (!code) {
@@ -147,7 +155,8 @@ apkg_status ak_verify_command(int argc, char **argv, char **out) {
     result.max = 16384;
     if (argc != 5)
         return APKG_INVALID;
-    if (strcmp(argv[2], "descriptor") && strcmp(argv[2], "channel"))
+    if (strcmp(argv[2], "descriptor") && strcmp(argv[2], "channel") &&
+        strcmp(argv[2], "attestation"))
         return APKG_UNSUPPORTED;
     if (ak_read(argv[3], &document, &dn, AK_MAX / 8) ||
         ak_read(argv[4], &envelope, &sn, 16384)) {
@@ -165,6 +174,8 @@ apkg_status ak_verify_command(int argc, char **argv, char **out) {
         goto done;
     if (!strcmp(argv[2], "channel"))
         code = ak_channel_validate(&object);
+    else if (!strcmp(argv[2], "attestation"))
+        code = ak_attestation_validate(&object);
     else {
         errno = 0;
         if (!ak_descriptor(&object))

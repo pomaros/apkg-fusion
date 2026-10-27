@@ -156,6 +156,8 @@ struct apkg_error {
 void ak_hash(const void *, size_t, apkg_digest *);
 apkg_status ak_snapshot(apkg_ctx *, apkg_snapshot **, apkg_error **);
 int ak_policy(const ak_json *, int, const char *, const char *);
+apkg_status ak_attestation_validate(const ak_json *);
+int ak_attestation_policy(const ak_json *, const char *, const char *, const char *);
 int ak_policy_valid(const ak_json *);
 struct apkg_package {
     char *raw, *signature, *name, *version, *authority, *target, *origin;

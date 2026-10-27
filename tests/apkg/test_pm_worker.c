@@ -68,6 +68,22 @@ void Delay(unsigned long ticks) {
     (void)ticks;
     assert(0 && "confirmation should be returned by host message adapter");
 }
+static apkg_bytes claim_file(const char *folder, const char *name) {
+    char path[4096];
+    assert(snprintf(path, sizeof path, "%s/%s", folder, name) <
+           (int)sizeof path);
+    FILE *f = fopen(path, "rb");
+    assert(f);
+    assert(fseek(f, 0, SEEK_END) == 0);
+    long n = ftell(f);
+    assert(n >= 0 && n <= 524288);
+    rewind(f);
+    unsigned char *bytes = malloc((size_t)n + 1);
+    assert(bytes);
+    assert(fread(bytes, 1, (size_t)n, f) == (size_t)n);
+    assert(!fclose(f));
+    return (apkg_bytes){bytes, (size_t)n};
+}
 int main(int argc, char **argv) {
     job j = {0};
     pm_msg final = {0};
@@ -75,6 +91,72 @@ int main(int argc, char **argv) {
     pkg_status result;
     assert(argc >= 4 && argc <= 7);
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 29) {
+        const char *names[] = {
+            "descriptor.json",  "signature.json",
+            "first.json",       "first.signature.json",
+            "attestation.json", "attestation.signature.json"};
+        apkg_bytes files[6];
+        for (size_t i = 0; i < 6; i++)
+            files[i] = claim_file(argv[2], names[i]);
+        apkg_open_options options = {0};
+        options.contract_version = APKG_CONTRACT_VERSION;
+        options.struct_size = sizeof options;
+        options.root = (apkg_text){argv[1], strlen(argv[1])};
+        apkg_ctx *ctx = NULL;
+        apkg_snapshot *snapshot = NULL;
+        apkg_attestation *first = NULL, *last = NULL;
+        char *text = NULL;
+        assert(apkg_open(&options, &ctx, NULL) == APKG_OK);
+        assert(apkg_snapshot_read(ctx, &snapshot, NULL) == APKG_OK);
+        apkg_status code =
+            apkg_attestation_read(snapshot, files[0], files[1], files[2],
+                                  files[3], NULL, &first, NULL);
+        if (!code)
+            code = apkg_attestation_read(snapshot, files[0], files[1], files[4],
+                                         files[5], first, &last, NULL);
+        apkg_attestation_free(first);
+        apkg_snapshot_free(snapshot);
+        apkg_close(ctx);
+        for (size_t i = 0; i < 6; i++)
+            free((void *)files[i].data);
+        if (!code)
+            assert(apkg_attestation_format(last, &text, NULL) == APKG_OK);
+        else
+            assert(!last && !text);
+        printf("status %d\n", (int)code);
+        if (text)
+            puts(text);
+        apkg_client_text_free(text);
+        apkg_attestation_free(last);
+        return 0;
+    }
+    if (atoi(argv[3]) == 28) {
+        assert(strlen(argv[1]) < sizeof j.root &&
+               strlen(argv[2]) < sizeof j.common_package);
+        strcpy(j.root, argv[1]);
+        strcpy(j.common_package, argv[2]);
+        j.kind = JOB_COMMON_ATTESTATION;
+        j.done = &final;
+        running = &j;
+        if (argc >= 5) {
+            int fault = atoi(argv[4]);
+            if (fault < 0)
+                j.cancel = 1;
+            else
+                fail_at = fault;
+        }
+        pm_common_install(&j, &error);
+        printf("status %d\n", final.common_status);
+        if (!final.common_status) {
+            assert(final.common_record);
+            puts(final.common_record);
+        } else
+            assert(!final.common_record);
+        FreeVec(final.common_record);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 24) {
         assert(strlen(argv[1]) < sizeof j.root &&
                strlen(argv[2]) < sizeof j.common_package);

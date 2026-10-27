@@ -130,3 +130,7 @@ noncanonical bytes, duplicates, numeric tokens, invalid Unicode and integer
 bounds. The checker verifies framing/domain separation only. SIGNED-READ must
 add valid/invalid Ed25519 signatures, full descriptor schema, trust/target and
 legacy-format cases before any installation claim.
+
+Independent review/runtime claim bodies and reviewer/tester role grants are
+defined by the [attestation profile](attestations.md). Their signatures use
+domain tag 3; a signed result is separate from current approval or freshness.

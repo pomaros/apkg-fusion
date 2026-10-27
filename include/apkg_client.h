@@ -105,6 +105,11 @@ apkg_status apkg_inspection_format(const apkg_inspection *, const char *field,
     char **, apkg_error **);
 apkg_status apkg_client_info(const char *root, const char *name,
     const char *field, char **, apkg_error **);
+apkg_status apkg_attestation_format(const apkg_attestation *, char **, apkg_error **);
+/* Read-only folder: descriptor.json, signature.json, attestation.json and
+ * attestation.signature.json. No network/evidence fetch or implicit policy. */
+apkg_status apkg_client_attestation(const char *root, const char *folder,
+    char **, apkg_error **);
 /* Bundle inspection/launch requires no registration and mutates no root. */
 apkg_status apkg_bundle_check(const char *folder, const char *target, char **,
                               apkg_error **);

@@ -78,11 +78,18 @@ static int grants_valid(const ak_json *j, int arr) {
 int ak_policy_valid(const ak_json *j) {
     if (!ak_object(j, "policy"))
         return 0;
-    int b = ak_member(j, 0, "body"), channels = ak_member(j, b, "channels");
-    return ak_fields_optional(j, b, (const char *const[]){"authorities"}, 1,
-                              (const char *const[]){"channels"}, 1) &&
-           grants_valid(j, ak_member(j, b, "authorities")) &&
-           (channels < 0 || grants_valid(j, channels));
+    int b = ak_member(j, 0, "body");
+    const char *roles[] = {"channels", "reviewers", "testers"};
+    if (!ak_fields_optional(j, b, (const char *const[]){"authorities"}, 1,
+                            roles, 3) ||
+        !grants_valid(j, ak_member(j, b, "authorities")))
+        return 0;
+    for (size_t i = 0; i < 3; i++) {
+        int role = ak_member(j, b, roles[i]);
+        if (role >= 0 && !grants_valid(j, role))
+            return 0;
+    }
+    return 1;
 }
 static int role_key(const ak_json *j, const char *role, const char *authority,
                     const char *key) {
@@ -111,6 +118,10 @@ int ak_policy(const ak_json *j, int unused, const char *authority,
 }
 int ak_channel_policy(const ak_json *j, const char *id, const char *key) {
     return role_key(j, "channels", id, key);
+}
+int ak_attestation_policy(const ak_json *j, const char *role, const char *id,
+                          const char *key) {
+    return role_key(j, role, id, key);
 }
 static int compare_paths(const void *a, const void *b) {
     return strcmp(*(const char *const *)a, *(const char *const *)b);
