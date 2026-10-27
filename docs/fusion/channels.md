@@ -12,17 +12,24 @@ default-client integration remain ALPHA-CHANNEL work.
 ## Immutable discovery objects
 
 A channel uses the common `apkg-json-1` envelope, type `channel`. Its body has
-exactly `entries`, `id` and `sequence`. The id is a persistent 128-bit lowercase
+required `entries`, `id` and `sequence`, with optional `published_on`. The id is a persistent 128-bit lowercase
 hex identity. Sequence is a positive uint64 decimal string. An empty entries
 array is valid. Entries sort uniquely by exact descriptor SHA-256; this neutral
 wire order is not version preference or channel priority.
 
-Each entry has exactly:
+Each entry requires:
 
 - `archive`: `sha256` (64 lowercase hex characters) and `size` (uint64 decimal
   string, from 8 through 2,147,483,647 bytes).
 - `descriptor`: the complete canonical signed descriptor object.
 - `signature`: its complete detached descriptor-signature envelope.
+
+The optional `publication` object carries publisher-reported application/build
+first days. The [publication news contract](publication-news.md) specifies its
+validation, preservation and shared recent-query semantics. These dates are
+covered by the channel signature and do not establish online freshness, author
+trust, review or runtime qualification. Optional `attestations` remain separate
+signed observations as described below.
 
 Descriptor schema, embedded payload facts and package signatures are verified
 before an entry is exposed. A repeated descriptor or two different descriptors

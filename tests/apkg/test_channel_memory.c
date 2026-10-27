@@ -103,6 +103,13 @@ int main(int argc, char **argv) {
     apkg_digest expected = row->descriptor_digest;
     assert(apkg_channel_package(ctx, channel, 0, &package, NULL) == APKG_OK);
     apkg_close(ctx);
+    apkg_recent *recent = NULL;
+    char *recent_text = NULL;
+    assert(apkg_channel_recent(channel, NULL, &recent, NULL) == APKG_OK);
+    assert(apkg_recent_format(recent, 1, &recent_text, NULL) == APKG_OK);
+    assert(strstr(recent_text, "\"date_source\":\"channel-publisher\""));
+    apkg_client_text_free(recent_text);
+    apkg_recent_free(recent);
     assert(row->name.size == 4 && !memcmp(row->name.data, "demo", 4));
     assert(row->descriptor.size > 0);
     const apkg_channel_entry_view *missing = row;

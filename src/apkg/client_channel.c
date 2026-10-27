@@ -207,6 +207,11 @@ apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
         ak_buf_add(&b, ",\"presentation\":%.*s",
                    row->presentation.size ? (int)row->presentation.size : 4,
                    row->presentation.size ? (const char *)row->presentation.data : "null");
+        ak_buf_add(&b, ",\"first_added\":%s%.*s%s,\"app_first_added\":%s%.*s%s",
+            row->first_added.size ? "\"" : "", row->first_added.size ? 10 : 4,
+            row->first_added.size ? row->first_added.data : "null", row->first_added.size ? "\"" : "",
+            row->app_first_added.size ? "\"" : "", row->app_first_added.size ? 10 : 4,
+            row->app_first_added.size ? row->app_first_added.data : "null", row->app_first_added.size ? "\"" : "");
         ak_buf_add(&b, "}");
         apkg_client_text_free(selection);
     }

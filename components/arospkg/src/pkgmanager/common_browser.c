@@ -397,9 +397,10 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
     if ((size_t)summary_size >= PM_CATALOGUE_MAX - total)
         return APKG_LIMIT;
     total += (size_t)summary_size + 1;
-    if (view->accepted_sequence.evidence.size >= PM_CATALOGUE_MAX - total)
+    size_t view_text = view->accepted_sequence.evidence.size + view->published_on.size + 2;
+    if (view_text > PM_CATALOGUE_MAX - total)
         return APKG_LIMIT;
-    total += view->accepted_sequence.evidence.size + 1;
+    total += view_text;
     for (uint64_t i = 0; i < view->entry_count; i++) {
         const apkg_channel_entry_view *v = NULL;
         apkg_status code = apkg_channel_entry_at(channel, i, &v, NULL);
@@ -465,6 +466,7 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         (const unsigned char *)copy_text(
             &cursor, (apkg_text){(const char *)signature.data, signature.size}),
         signature.size};
+    model->channel.published_on.data = copy_text(&cursor, view->published_on);
     model->updates = *summary;
     model->updates.entries = entries;
     for (uint64_t i = 0; i < summary->entry_count; i++) {
@@ -523,6 +525,8 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
             else r->category_recorded = text != NULL;
             apkg_client_text_free(text);
         }
+        if (v->first_added.size) memcpy(r->first_added,v->first_added.data,10);
+        if (v->app_first_added.size) memcpy(r->app_first_added,v->app_first_added.data,10);
         r->revision = v->revision;
         r->archive_bytes = v->archive_bytes;
         r->signature = v->signature;
@@ -561,6 +565,17 @@ apkg_status pm_common_catalogue_copy(const apkg_channel *channel,
         }
         cursor += (size_t)n + 1;
     }
+    apkg_recent *recent = NULL;
+    apkg_status recent_code = apkg_channel_recent(channel, NULL, &recent, NULL);
+    if (recent_code) { FreeVec(model); return recent_code; }
+    const apkg_recent_view *news = apkg_recent_get(recent);
+    model->recent_unknown_dates = news->unknown_dates;
+    model->recent_indeterminate = news->indeterminate;
+    for (uint64_t i = 0; i < news->count; i++) {
+        pm_common_row *row = &model->rows[news->entries[i].index];
+        row->recent_rank = i + 1; row->recent_kind = news->entries[i].kind;
+    }
+    apkg_recent_free(recent);
     *out = model;
     return APKG_OK;
 }
@@ -781,8 +796,9 @@ static int category_order(const void *a, const void *b) {
 }
 int pm_common_library_matches(const pm_common_library_row *row,
     pm_library_filter filter, const char *term, const char *category) {
-    if (!row || (unsigned)filter > PM_LIBRARY_UPDATES) return 0;
+    if (!row || (unsigned)filter > PM_LIBRARY_RECENT) return 0;
     if (filter == PM_LIBRARY_INSTALLED && !row->installed) return 0;
+    if (filter == PM_LIBRARY_RECENT && (!row->news || !row->news->recent_rank)) return 0;
     if (filter == PM_LIBRARY_NOT_INSTALLED && (!row->candidate || row->installed ||
         row->candidate->comparison != APKG_CANDIDATE_NOT_INSTALLED)) return 0;
     if (filter == PM_LIBRARY_UPDATES && (!row->candidate || row->installed ||
@@ -796,6 +812,15 @@ int pm_common_library_matches(const pm_common_library_row *row,
         if (!value || strcmp(value, category)) return 0;
     }
     return 1;
+}
+const pm_common_library_row *pm_common_library_at(const pm_common_library *model,
+    pm_library_filter filter, size_t index) {
+    if (!model || (unsigned)filter > PM_LIBRARY_RECENT || index >= model->count) return NULL;
+    if (filter != PM_LIBRARY_RECENT) return &model->rows[index];
+    for (size_t i = 0; i < model->count; i++)
+        if (model->rows[i].news && model->rows[i].news->recent_rank == index + 1)
+            return &model->rows[i];
+    return NULL;
 }
 apkg_status pm_common_library_build(const pm_common_installed *installed,
     const pm_common_catalogue *catalogue, pm_common_library **out) {
@@ -835,10 +860,10 @@ apkg_status pm_common_library_build(const pm_common_installed *installed,
             for (size_t k = 0; k < installed->count; k++)
                 if (!strcmp(r->name, model->rows[k].name) &&
                     !strcmp(r->authority, model->rows[k].authority) &&
-                    !strcmp(r->target, model->rows[k].target)) { current = 1; break; }
+                    !strcmp(r->target, model->rows[k].target)) { model->rows[k].news = r; current = 1; break; }
         if (current) continue;
         pm_common_library_row *row = &model->rows[model->count++];
-        row->candidate = r;
+        row->candidate = r; row->news = r;
         row->name = r->name; row->authority = r->authority;
         row->target = r->target; row->version = r->version;
         row->summary = r->summary_recorded ? r->summary : NULL;

@@ -10,6 +10,8 @@ extern "C" {
  * Caller owns *text and releases it with apkg_client_text_free. */
 apkg_status apkg_plan_format(const apkg_plan *, char **text);
 void apkg_client_text_free(char *);
+apkg_status apkg_recent_format(const apkg_recent *, int json, char **,
+    apkg_error **);
 typedef int (*apkg_confirm_fn)(void *, const apkg_plan *,
                                const char *presentation);
 /* Local signed folder (descriptor.json/signature.json) or PKG/1 archive.

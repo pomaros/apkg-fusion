@@ -77,6 +77,7 @@ static int apkg_main(int argc, char **argv) {
             "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
             "[MIN-SEQUENCE]\nsource-save PROFILE ENDPOINT CHANNEL-ID\n"
             "source-cache ROOT PROFILE ENDPOINT CHANNEL-ID\nsource-show PROFILE\n"
+            "recent ROOT ENDPOINT CHANNEL-ID [--builds] [--since YYYY-MM-DD] [--limit N] [--json]\nsource-recent ROOT PROFILE [same options]\n"
             "channel-validate JSONFILE\nattestation-check ROOT FOLDER\nsource-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel|attestation "
@@ -374,6 +375,40 @@ static int apkg_main(int argc, char **argv) {
         }
         if (code) report(code,NULL,e);
         apkg_error_free(e); apkg_source_config_free(config); return code;
+    }
+    if (!strcmp(argv[1], "recent") || !strcmp(argv[1], "source-recent")) {
+        int saved = !strcmp(argv[1], "source-recent"), json = 0, seen_limit = 0, seen_since = 0;
+        int base = saved ? 4 : 5;
+        if (argc < base) return APKG_INVALID;
+        apkg_recent_options options = {0}; options.limit = 25;
+        for (int i = base; i < argc; i++) {
+            if (!strcmp(argv[i], "--json") && !json) json = 1;
+            else if (!strcmp(argv[i], "--builds") && !options.builds) options.builds = 1;
+            else if (!strcmp(argv[i], "--since") && !seen_since && i+1 < argc) {
+                seen_since = 1; i++; options.since = (apkg_text){argv[i],strlen(argv[i])};
+                if (!ak_day_valid(options.since)) return APKG_INVALID;
+            } else if (!strcmp(argv[i], "--limit") && !seen_limit && i+1 < argc) {
+                seen_limit = 1; i++;
+                if (!*argv[i]) return APKG_INVALID;
+                for (const char *p=argv[i];*p;p++) if (*p<'0'||*p>'9') return APKG_INVALID;
+                errno=0; char *end=NULL; unsigned long long n=strtoull(argv[i],&end,10);
+                if (errno || n>4096) return APKG_LIMIT;
+                if (*end) return APKG_INVALID;
+                options.limit=n;
+            } else return APKG_INVALID;
+        }
+        apkg_snapshot *snapshot=NULL; apkg_channel *channel=NULL; apkg_recent *recent=NULL;
+        apkg_source_config *config=NULL;
+        if (saved) {
+            code=apkg_source_config_read(argv[3],&config,&e);
+            if (!code) code=apkg_source_config_open(config,argv[2],&snapshot,&channel,&e);
+        } else code=apkg_client_channel_refresh(argv[2],argv[3],argv[4],0,NULL,&snapshot,&channel,&e);
+        if (!code) code=apkg_channel_recent(channel,&options,&recent,&e);
+        if (!code) code=apkg_recent_format(recent,json,&text,&e);
+        if (!code) fputs(text,stdout); else report(code,NULL,e);
+        apkg_client_text_free(text); apkg_recent_free(recent);
+        apkg_snapshot_free(snapshot); apkg_channel_free(channel); apkg_source_config_free(config);
+        apkg_error_free(e); return code;
     }
     if (!strcmp(argv[1], "outdated")) {
         if (argc != 5 && argc != 6) return APKG_INVALID;

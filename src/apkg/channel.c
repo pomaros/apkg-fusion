@@ -34,6 +34,25 @@ static apkg_text node_text(const ak_json *j, int token) {
 static int names(const void *a, const void *b) {
     return strcmp(*(char *const *)a, *(char *const *)b);
 }
+static int publication_valid(const ak_json *j, int entry, int body) {
+    int publication = ak_member(j, entry, "publication");
+    if (publication < 0) return 1;
+    if (!ak_fields_optional(j, publication, NULL, 0,
+        (const char *const[]){"first_added", "app_first_added"}, 2)) return 0;
+    int first = ak_member(j, publication, "first_added"),
+        app = ak_member(j, publication, "app_first_added"),
+        published = ak_member(j, body, "published_on");
+    int dates[] = {first, app};
+    for (size_t i = 0; i < 2; i++)
+        if (dates[i] >= 0 && (j->tokens[dates[i]].type != '"' ||
+            !ak_day_valid(node_text(j, dates[i])))) return 0;
+    if (first >= 0 && app >= 0 &&
+        memcmp(node_text(j, app).data, node_text(j, first).data, 10) > 0) return 0;
+    if (published >= 0) for (size_t i = 0; i < 2; i++)
+        if (dates[i] >= 0 && memcmp(node_text(j, dates[i]).data,
+            node_text(j, published).data, 10) > 0) return 0;
+    return 1;
+}
 apkg_status ak_channel_validate(const ak_json *j) {
     int body, entries;
     uint64_t number;
@@ -46,8 +65,11 @@ apkg_status ak_channel_validate(const ak_json *j) {
         return APKG_UNSUPPORTED;
     body = ak_member(j, 0, "body");
     entries = ak_member(j, body, "entries");
-    if (!ak_fields(j, body, (const char *const[]){"entries", "id", "sequence"},
-                   3) ||
+    int published = ak_member(j, body, "published_on");
+    if (!ak_fields_optional(j, body, (const char *const[]){"entries", "id", "sequence"},
+                   3, (const char *const[]){"published_on"}, 1) ||
+        (published >= 0 && (j->tokens[published].type != '"' ||
+            !ak_day_valid(node_text(j, published)))) ||
         ak_string(j, ak_member(j, body, "id"), id, sizeof id) ||
         ak_hex(id, digest, 16) ||
         ak_u64(j, ak_member(j, body, "sequence"), &number) || !number ||
@@ -68,7 +90,8 @@ apkg_status ak_channel_validate(const ak_json *j) {
         if (!ak_fields_optional(
                 j, (int)i,
                 (const char *const[]){"archive", "descriptor", "signature"}, 3,
-                (const char *const[]){"attestations"}, 1) ||
+                (const char *const[]){"attestations", "publication"}, 2) ||
+            !publication_valid(j, (int)i, body) ||
             !ak_fields(j, archive, (const char *const[]){"sha256", "size"},
                        2)) {
             code = APKG_UNSUPPORTED;
@@ -245,6 +268,8 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         &channel->view.snapshot_digest, &channel->view.accepted_sequence);
     if (code)
         goto done;
+    int published = ak_member(&channel->json, body, "published_on");
+    if (published >= 0) channel->view.published_on = node_text(&channel->json, published);
     entries = ak_member(&channel->json, body, "entries");
     for (size_t i = (size_t)entries + 1; i < channel->json.tokens[entries].next;
          i = channel->json.tokens[i].next)
@@ -281,6 +306,11 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         int presentation = ak_member(j, b, "presentation");
         if (presentation >= 0)
             row->presentation = node_bytes(j, presentation);
+        int publication = ak_member(j, (int)i, "publication");
+        int first = ak_member(j, publication, "first_added"),
+            app = ak_member(j, publication, "app_first_added");
+        if (first >= 0) row->first_added = node_text(j, first);
+        if (app >= 0) row->app_first_added = node_text(j, app);
         row->signature_envelope = node_bytes(j, sig);
         ak_hash(row->descriptor.data, row->descriptor.size,
                 &row->descriptor_digest);
@@ -1159,13 +1189,22 @@ apkg_status ak_channel_format(const apkg_channel *channel, char **out) {
         ak_buf_add(&b, ",\"presentation\":%.*s",
                    r->presentation.size ? (int)r->presentation.size : 4,
                    r->presentation.size ? (const char *)r->presentation.data : "null");
+        ak_buf_add(&b, ",\"first_added\":%s%.*s%s,\"app_first_added\":%s%.*s%s",
+            r->first_added.size ? "\"" : "", r->first_added.size ? 10 : 4,
+            r->first_added.size ? r->first_added.data : "null", r->first_added.size ? "\"" : "",
+            r->app_first_added.size ? "\"" : "", r->app_first_added.size ? 10 : 4,
+            r->app_first_added.size ? r->app_first_added.data : "null", r->app_first_added.size ? "\"" : "");
         ak_buf_add(&b, "}");
     }
     ak_buf_add(&b,
                "],\"freshness\":\"unknown\",\"payload_availability\":\"not-"
                "checked\",\"sequence\":\"%" PRIu64
-               "\",\"snapshot_sha256\":\"%s\"}",
-               channel->view.sequence, digest);
+               "\",\"snapshot_sha256\":\"%s\",\"published_on\":%s%.*s%s}",
+               channel->view.sequence, digest,
+               channel->view.published_on.size ? "\"" : "",
+               channel->view.published_on.size ? 10 : 4,
+               channel->view.published_on.size ? channel->view.published_on.data : "null",
+               channel->view.published_on.size ? "\"" : "");
     code = (apkg_status)b.bad;
     if (!code) {
         *out = b.data;

@@ -231,6 +231,7 @@ typedef struct {
     apkg_fact_state
         freshness; /* UNKNOWN: signature/floor is not online freshness */
     apkg_u64_fact accepted_sequence; /* root's durable floor; UNKNOWN before acceptance */
+    apkg_text published_on; /* optional channel-publisher UTC day; not freshness */
 } apkg_channel_view;
 typedef struct {
     apkg_text authority, name, version, target;
@@ -243,7 +244,33 @@ typedef struct {
     uint64_t attestation_count; /* supplied plus retained observations */
     uint64_t source_attestation_count;
     apkg_bytes presentation; /* borrowed canonical object, or zero size if absent */
+    apkg_text first_added, app_first_added; /* optional publisher-reported days */
 } apkg_channel_entry_view;
+typedef struct apkg_recent apkg_recent;
+typedef enum { APKG_RECENT_APPLICATION, APKG_RECENT_BUILD } apkg_recent_kind;
+typedef struct {
+    int builds; /* include target builds introduced after the application */
+    uint64_t limit; /* zero means all, maximum 4096 */
+    apkg_text since; /* empty or YYYY-MM-DD inclusive */
+} apkg_recent_options;
+typedef struct {
+    uint64_t index; /* exact entry in the parent channel */
+    apkg_recent_kind kind;
+    apkg_text date;
+    const apkg_channel_entry_view *package; /* borrowed from parent */
+} apkg_recent_entry;
+typedef struct {
+    uint64_t count, unknown_dates, indeterminate;
+    const apkg_recent_entry *entries;
+} apkg_recent_view;
+/* Pure target-aware recent additions. The channel must outlive the result;
+ * dates and entry indices borrow its immutable metadata. No wall-clock,
+ * filesystem or network inference. Ambiguous latest builds are counted and
+ * excluded. Results are ordered by publisher-reported day, newest first. */
+apkg_status apkg_channel_recent(const apkg_channel *, const apkg_recent_options *,
+    apkg_recent **, apkg_error **);
+const apkg_recent_view *apkg_recent_get(const apkg_recent *);
+void apkg_recent_free(apkg_recent *);
 apkg_status apkg_channel_read(apkg_ctx *, const apkg_id *expected_id,
                               uint64_t minimum_sequence, apkg_bytes object,
                               apkg_bytes signature, apkg_channel **,

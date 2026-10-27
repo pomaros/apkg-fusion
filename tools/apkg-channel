@@ -9,6 +9,7 @@ managed root's private recovery/object store.
 """
 import argparse
 import contextlib
+import datetime
 try:
     import fcntl
 except ImportError:
@@ -216,6 +217,9 @@ def merge_observations(records):
     return [unique[k] for k in sorted(unique)]
 
 def publish(args):
+    reported_day = getattr(args, 'published_on', None) or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+    if datetime.date.fromisoformat(reported_day).isoformat() != reported_day:
+        raise Refusal('publication day must be YYYY-MM-DD')
     claim_folders = getattr(args, 'attestation', [])
     if len(claim_folders) > 64:
         raise Refusal('at most 64 attestation folders may be supplied')
@@ -298,12 +302,12 @@ def publish(args):
             for position, old in enumerate(entries):
                 if hashlib.sha256(encode(old['descriptor'])).hexdigest() == descriptor_digest:
                     found = True
-                    old_base = {k: v for k, v in old.items() if k != 'attestations'}
+                    old_base = {k: v for k, v in old.items() if k not in ('attestations', 'publication')}
                     new_base = {k: v for k, v in incoming.items() if k != 'attestations'}
                     if old_base != new_base:
                         raise Refusal('descriptor already has a different archive or signature')
                     observations = merge_observations(old.get('attestations', []) + incoming.get('attestations', []))
-                    merged = dict(old_base)
+                    merged = {k: v for k, v in old.items() if k != 'attestations'}
                     if observations or 'attestations' in old:
                         merged['attestations'] = observations
                     if merged == old:
@@ -314,10 +318,22 @@ def publish(args):
                     break
             if sequence == 2**64 - 1:
                 raise Refusal('channel sequence exhausted')
+            if before is not None and snapshot['body'].get('published_on', '') > reported_day:
+                raise Refusal('publication day precedes the previous channel publication')
             if not found:
+                body = incoming['descriptor']['body']
+                related = [old for old in entries if all(old['descriptor']['body'][field] == body[field]
+                    for field in ('authority', 'name'))]
+                builds = [old for old in related if old['descriptor']['body']['target'] == body['target']]
+                publication = {}
+                for field, previous_entries in (('app_first_added', related), ('first_added', builds)):
+                    days = [old.get('publication', {}).get(field) for old in previous_entries]
+                    if not days: publication[field] = reported_day
+                    elif all(days): publication[field] = min(days)
+                if publication: incoming['publication'] = publication
                 entries.append(incoming)
             entries.sort(key=lambda item: hashlib.sha256(encode(item['descriptor'])).digest())
-            candidate = dict(body=dict(entries=entries, id=args.id, sequence=str(sequence + 1)), format='apkg-json-1', requires=[], schema='1', type='channel')
+            candidate = dict(body=dict(entries=entries, id=args.id, sequence=str(sequence + 1), published_on=reported_day), format='apkg-json-1', requires=[], schema='1', type='channel')
             document = encode(candidate)
             if len(document) > META_MAX:
                 raise Refusal('channel metadata exceeds 2 MiB')
@@ -344,6 +360,7 @@ def main():
     parser.add_argument('--sign', required=True)
     parser.add_argument('--attestation', action='append', default=[], metavar='CLAIM-FOLDER',
                         help='append signed qualification observations without requiring review for publication')
+    parser.add_argument('--published-on', help='publisher-reported UTC day YYYY-MM-DD; defaults to today')
     parser.add_argument('--engine', default=str(HERE / 'build/apkg'))
     args = parser.parse_args()
     try:

@@ -18,6 +18,9 @@ typedef struct {
     uint64_t review_observations, runtime_observations, revocations;
     char *summary, *category;
     int summary_recorded, category_recorded;
+    char first_added[11], app_first_added[11];
+    uint64_t recent_rank;
+    apkg_recent_kind recent_kind;
 } pm_common_row;
 typedef struct {
     size_t count;
@@ -28,6 +31,7 @@ typedef struct {
     apkg_digest root_snapshot;
     apkg_update_summary_view
         updates; /* entries/text deep-copied into AllocVec */
+    uint64_t recent_unknown_dates, recent_indeterminate;
     pm_common_row rows[];
 } pm_common_catalogue;
 typedef enum {
@@ -79,6 +83,7 @@ apkg_status pm_common_installed_read(const char *root, const char *term,
 typedef struct {
     const pm_common_installed_row *installed;
     const pm_common_row *candidate;
+    const pm_common_row *news;
     const char *name, *authority, *version, *target, *summary, *category, *state;
 } pm_common_library_row;
 typedef struct {
@@ -88,12 +93,14 @@ typedef struct {
 } pm_common_library;
 typedef enum {
     PM_LIBRARY_ALL, PM_LIBRARY_INSTALLED, PM_LIBRARY_NOT_INSTALLED,
-    PM_LIBRARY_UPDATES
+    PM_LIBRARY_UPDATES, PM_LIBRARY_RECENT
 } pm_library_filter;
 apkg_status pm_common_library_build(const pm_common_installed *,
     const pm_common_catalogue *, pm_common_library **);
 int pm_common_library_matches(const pm_common_library_row *, pm_library_filter,
     const char *term, const char *category);
+const pm_common_library_row *pm_common_library_at(const pm_common_library *,
+    pm_library_filter, size_t index);
 /* ARexx's 16-bit result boundary: refuse overflow, never truncate facts.
  * Successful text is owned by the client library; free with its text free. */
 /* Current-target names from a revalidated retained catalogue; no network.

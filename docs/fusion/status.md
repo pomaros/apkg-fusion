@@ -22,7 +22,7 @@ to bypass unfinished non-portal integration or to resume the portal automaticall
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format |
-| Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
+| Clients/default product | Shared CLI/worker, source profiles, catalogue observations, combined typed rows and common recent publications; default CLI/library/tools use the common engine | Last-refresh comparison, remaining desktop settings/ARexx integration and native/consumer/compatibility qualification |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification |
 | Portal | Common channel HTTP members, verified metadata API and authenticated signed-snapshot commits use the common executable; existing service and regression baseline retained | Common self-service link-only publication, publishing client, catalogue/qualification integration and migration/backup/restore/rollback rehearsal; no live cutover |
@@ -33,6 +33,44 @@ product. The isolated M1 RAM component profile below passes; broader native qual
 remains open. After final candidate qualification, stop with the merge report;
 portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
+
+## Publisher chronology and Recently added
+
+Signed channels accept optional publisher-reported head/application/target-build
+days, validated as calendar dates with explicit missing values. The local
+publisher records a first day for new identities, preserves it across versions
+and revisions, distinguishes a later target build, leaves old missing history
+unknown, and retains idempotence when an archive is retried another day. The
+author's descriptor/signature is unchanged. Dates never grant review or runtime
+qualification, and do not become an online freshness clock.
+
+The shared target-aware recent selector, `recent` CLI, offline `source-recent`
+and PkgManager Recently added use the same ordering, since/limit rules and
+unknown/indeterminate counters. Latest versions/revisions are selected within
+complete authority/name/target groups; indeterminate comparisons are counted
+and excluded. PkgManager copies ranks and date bytes before releasing source
+library objects, includes installed-current rows correctly and applies search
+and category filters to the ordered recent list.
+
+Evaluation: eight new tests pass, covering dates/targets/latest builds,
+inclusive since and limits, unknown dates, ambiguous versions, malformed days
+and role-field rejection, changed-date signature refusal, allocation failures,
+CLI/actual-worker equivalence, offline profiles, desktop order/date copies and
+real TOML/archive publication. Publication tests include first-day preservation,
+later target introduction and unknown legacy date propagation. The publication
+memory helper also exercises the recent result after context closure while its parent
+channel remains alive. Native SDK syntax/type checking passes for the changed
+engine, CLI, window and adapter modules. `make test-fusion` passes with 386 common
+tests, 78 default-product CLI checks and 78 publication checks. The full
+ASan/UBSan runner passes its C checks and 282 selected tests. Both inherited host
+suites pass (`make test` and `components/arospkg/tests/run-host-tests.sh`);
+documentation checks cover 82 files with no broken links.
+
+See [contract](publication-news.md) and
+[tests](../../tests/apkg/test_recent.py). Last refresh still needs two
+authenticated observations and retained comparison evidence. Remaining settings,
+ARexx/legacy continuity and the final M1 candidate test are not closed. No target
+access, OS changes, portal adaptation or live publication is included.
 
 ## Combined desktop library and primary filters
 
@@ -69,9 +107,10 @@ runner includes the new module for exact-source CI. Documentation checks cover
 
 [Desktop contract](desktop-library.md) and
 [tests](../../tests/apkg/test_library_browser.py) define this checkpoint.
-Recent/last-refresh news and remaining settings/ARexx work are not closed;
-unimplemented views report unavailable instead of displaying unrelated installed
-rows or inferred dates. GUI interaction/lifetime qualification remains for the
+The publisher-chronology checkpoint adds Recently added. Last-refresh news and
+remaining settings/ARexx work are not closed; unimplemented views report
+unavailable instead of displaying unrelated installed rows or inferred dates.
+GUI interaction/lifetime qualification remains for the
 final M1 candidate. No portal or target changes are included.
 
 ## Latest-transaction Rollback
@@ -125,7 +164,7 @@ change does not change the engine qualified in the preceding checkpoint. The
 button click and complete GUI lifecycle still require the final M1 candidate
 test; SDK compilation and host worker execution do not prove that interaction.
 The combined desktop checkpoint above covers primary category/state filters;
-recent views and remaining settings/automation integration remain open.
+last-refresh news and remaining settings/automation integration remain open.
 No M1 execution, OS changes or portal implementation were performed.
 
 ## Signed descriptive metadata checkpoint

@@ -57,6 +57,8 @@ only discovery signatures for the configured channel id. Authority and channel
 roles are checked separately, including when the operator explicitly grants
 both roles to one identity. The channel body and metadata limits are specified
 in that profile; the framing envelope alone is insufficient to accept entries.
+Optional signed publication days follow the
+[publication news profile](publication-news.md); missing dates stay unknown.
 
 Unknown optional descriptive extension bytes survive unchanged. Unknown
 required features refuse execution. Distinct byte spellings of an equivalent

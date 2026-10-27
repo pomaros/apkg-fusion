@@ -100,6 +100,25 @@ int main(int argc, char **argv) {
     assert(argc >= 4 && argc <= 9);
     assert(!job_uses_common_engine(JOB_NONE) && !job_uses_common_engine(JOB_INSTALL));
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 51) {
+        assert(argc == 9);
+        apkg_snapshot *snapshot = NULL;
+        apkg_channel *channel = NULL;
+        apkg_recent *recent = NULL;
+        apkg_recent_options options = {0};
+        options.builds = atoi(argv[4]); options.limit = strtoull(argv[6],NULL,10);
+        options.since = (apkg_text){argv[7],strlen(argv[7])};
+        apkg_status code = apkg_client_channel_refresh(argv[1],argv[2],argv[5],0,NULL,&snapshot,&channel,NULL);
+        if (!code) code = apkg_channel_recent(channel,&options,&recent,NULL);
+        char *text = NULL;
+        if (!code) code = apkg_recent_format(recent,atoi(argv[8]),&text,NULL);
+        printf("status %d\n",(int)code);
+        if (!code) fputs(text,stdout); else assert(!text);
+        apkg_client_text_free(text); apkg_recent_free(recent);
+        apkg_snapshot_free(snapshot); apkg_channel_free(channel);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 50) {
         assert(argc == 9);
         apkg_snapshot *snapshot = NULL;
@@ -124,6 +143,9 @@ int main(int argc, char **argv) {
         printf("status %d\n", (int)code);
         if (code) assert(!model);
         else {
+            if (catalogue)
+                printf("reported-on\t%.*s\n",(int)catalogue->channel.published_on.size,
+                    catalogue->channel.published_on.data);
             for (size_t i = 1; i <= model->category_count; i++) {
                 owned_text(model, (apkg_text){model->categories[i],strlen(model->categories[i])});
                 if (i > 1) assert(strcmp(model->categories[i-1],model->categories[i]) < 0);
@@ -131,9 +153,13 @@ int main(int argc, char **argv) {
             }
             assert(!model->categories[model->category_count+1]);
             for (size_t i = 0; i < model->count; i++) {
-                const pm_common_library_row *r = &model->rows[i];
+                const pm_common_library_row *r = pm_common_library_at(model,(pm_library_filter)atoi(argv[4]),i);
+                if (!r) continue;
                 assert(!!r->installed != !!r->candidate);
                 if (r->candidate) assert(strstr(r->candidate->selection,"/"));
+                if (r->news && r->news->recent_rank)
+                    printf("news\t%s\t%s\t%llu\n",r->name,r->news->app_first_added,
+                        (unsigned long long)r->news->recent_rank);
                 if (pm_common_library_matches(r,(pm_library_filter)atoi(argv[4]),argv[6],argv[7]))
                     printf("row\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
                         r->installed ? "installed" : "candidate",r->name,r->authority,

@@ -206,6 +206,12 @@ AROS_UFH3S(void, installed_display_func,
         array[1] = candidate_version;
     }
     array[2] = row ? (char *)row->state : "State";
+    IPTR filter = 0; GetAttr(MUIA_Cycle_Active,cyc_state,&filter);
+    if (row && filter == ST_RECENT && row->news) {
+        static char recent_label[48];
+        snprintf(recent_label,sizeof recent_label,"recently added %s",row->news->app_first_added);
+        array[2] = recent_label;
+    }
     array[3] = row ? (char *)(row->summary && *row->summary ? row->summary : row->target) : "Summary / target";
     AROS_USERFUNC_EXIT
 }
@@ -581,7 +587,7 @@ static void common_main_refill(const char *term, const char *keep_name,
     if (!selected_category) common_category[0] = 0;
     /* Resolve selection before releasing the old borrowed rows. */
     for (size_t i=0; i<model->count; i++) {
-        pm_common_library_row *row=&model->rows[i];
+        const pm_common_library_row *row=pm_common_library_at(model,(pm_library_filter)filter,i);
         if (!pm_common_library_matches(row,(pm_library_filter)filter,term,common_category)) continue;
         if (same_library_row(row,keep) || (keep_name && !strcmp(row->name,keep_name) && row->installed)) active_row=shown;
         shown++;
@@ -600,15 +606,22 @@ static void common_main_refill(const char *term, const char *keep_name,
         MUIA_Cycle_Active,filter,TAG_DONE);
     SetAttrs(cyc_cat,MUIA_NoNotify,TRUE,MUIA_Cycle_Entries,(IPTR)model->categories,
         MUIA_Cycle_Active,selected_category,TAG_DONE);
-    for(size_t i=0;i<model->count;i++)
-        if(pm_common_library_matches(&model->rows[i],(pm_library_filter)filter,term,common_category))
-            DoMethod(lst,MUIM_List_InsertSingle,(IPTR)&model->rows[i],MUIV_List_Insert_Bottom);
+    for(size_t i=0;i<model->count;i++) {
+        const pm_common_library_row *row=pm_common_library_at(model,(pm_library_filter)filter,i);
+        if(pm_common_library_matches(row,(pm_library_filter)filter,term,common_category))
+            DoMethod(lst,MUIM_List_InsertSingle,(IPTR)row,MUIV_List_Insert_Bottom);
+    }
     SetAttrs(lst,MUIA_List_Quiet,FALSE,TAG_DONE);
     if(active_row>=0)SetAttrs(lst,MUIA_List_Active,active_row,TAG_DONE);
     if(catalogue)SetAttrs(txt_channel_summary,MUIA_Floattext_Text,(IPTR)catalogue->summary,TAG_DONE);
     common_refill();
     static char message[256];
-    snprintf(message,sizeof message,filter>PM_LIBRARY_UPDATES ?
+    if (filter == PM_LIBRARY_RECENT && catalogue)
+        snprintf(message,sizeof message,"%d recent rows; %llu dates unknown; %llu ambiguous build groups. Dates reported by channel publisher; freshness unknown",shown,
+            (unsigned long long)catalogue->recent_unknown_dates,(unsigned long long)catalogue->recent_indeterminate);
+    else if (filter == PM_LIBRARY_RECENT)
+        snprintf(message,sizeof message,"Recent publication dates unknown: no signed catalogue loaded");
+    else snprintf(message,sizeof message,filter>PM_LIBRARY_RECENT ?
         "This view is unavailable in this development build" :
         "%d rows shown; %lu installed packages; %s",shown,(unsigned long)installed->count,
         catalogue ? "captured signed catalogue revalidated offline" : "no signed catalogue loaded; availability and updates unknown");
