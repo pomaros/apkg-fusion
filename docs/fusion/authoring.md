@@ -9,8 +9,8 @@ implementation checkpoint, separate from the provisional publishing bridge in
 `tools/apkg-publish`. It creates no managed root, trust policy or channel.
 
 ```sh
-make build/apkg-core
-./build/apkg-core keygen author.key
+make build/apkg
+./build/apkg keygen author.key
 ./tools/apkg-build Drawer --output package.pkg --sign author.key \
   --authority 0123456789abcdef0123456789abcdef --runtime native
 ```
@@ -22,7 +22,7 @@ public key. `key-public` reports the public identity of an existing key.
 
 ## Source and metadata
 
-`apkg-core source-inventory FOLDER` emits one canonical JSON observation on
+`apkg source-inventory FOLDER` emits one canonical JSON observation on
 success, without a status footer. Its `controls` array binds each interpreted
 `.ameta` path to exact SHA-256 and size; these are source observations, not
 additional payload entries. It hashes regular files in chunks, records
@@ -57,7 +57,7 @@ being replaced. Temporary owner-write permission allows generated files inside
 a private copy of a read-only drawer; its original mode is restored before
 signing. Source bytes and modes remain untouched.
 
-`apkg-core source-entry PATH` observes only one named file/drawer and selects its
+`apkg source-entry PATH` observes only one named file/drawer and selects its
 entry from the parent `.ameta`. It validates the parent control's syntax but
 never inventories sibling file content. Unselected records, including names
 absent outside the selected payload, are not imported or published. Selected
@@ -114,8 +114,12 @@ No automatic stale-file deletion is implied.
 
 This command emits an **unpublished** artifact. The [local signed-channel
 producer](channels.md#atomic-local-publication) publishes it, and
-`tools/apkg-publish --common` connects both steps. HTTP transfer and independent
-qualifications remain ALPHA-CHANNEL work. Replacing the default client backend, complete
+`tools/apkg-publish` connects both steps by default. The helpers use the common
+`build/apkg`; `--common` remains an explicit alias and `--legacy` selects the
+old bridge only for regressions/rehearsals. Installed helpers include their
+parser resources and resolve the installed common engine without a checkout.
+File/HTTP selection and dependency-aware installation are implemented; native
+interactive integration, independent qualifications, complete broader
 metadata/timestamp coverage, legacy import and portal migration remain open.
 The final FUSION-ALPHA scenario and exact-source Linux/macOS checks are still
 required. No native program is executed by the host authoring fixtures.

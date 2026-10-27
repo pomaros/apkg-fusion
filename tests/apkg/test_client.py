@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from support import *
-CLI=Path(os.environ.get('APKG_CLI',ROOT/'build/apkg-core'))
+CLI=Path(os.environ.get('APKG_CLI',ROOT/'build/apkg'))
 WORKER=Path(os.environ.get('APKG_PM_WORKER',ROOT/'build/test_pm_common'))
 def cli(*args):return subprocess.run([str(CLI),*map(str,args)],capture_output=True,text=True)
 class Clients(unittest.TestCase):

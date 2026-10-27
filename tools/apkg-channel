@@ -298,7 +298,7 @@ def main():
     parser.add_argument('--directory', required=True)
     parser.add_argument('--id', required=True)
     parser.add_argument('--sign', required=True)
-    parser.add_argument('--engine', default=str(HERE / 'build/apkg-core'))
+    parser.add_argument('--engine', default=str(HERE / 'build/apkg'))
     args = parser.parse_args()
     try:
         print(json.dumps(publish(args), sort_keys=True))

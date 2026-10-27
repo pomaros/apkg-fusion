@@ -188,13 +188,19 @@ validation, atomic local publication, host HTTP transfer and source-bound
 approved plans, explicit journaled replay floors and shared dependency-aware
 CLI/worker selection/install are implemented checkpoints.
 Online revocation/freshness policy, independent qualifications, native adapters
-and client integration still prevent that gate from passing.
+and native interactive/consumer integration still prevent that gate from passing.
 
 The preparation-prefix journal checkpoint now stages privately and publishes a
 complete ready coordinator exclusively. Prefix death/retry and foreign-state
 refusals are tested on hosts. Qualify its exact-source CI before the default
 client switch; native/power-loss qualification and private-orphan collection
 remain separate work. Evidence belongs in [status](docs/fusion/status.md).
+
+The default CLI/library/installed authoring tools now select the common engine;
+the provisional client remains an explicit regression target. The clean-root
+host CLI/worker publishing/operation scenario is implemented, with exact-source
+qualification tracked in [status](docs/fusion/status.md). Interactive native
+catalogue/settings, qualifications, import and portal gates remain open.
 
 Final acceptance is one automated clean-workspace scenario: author a bundle and
 its dependency, package/sign/publish through a real channel, discover through

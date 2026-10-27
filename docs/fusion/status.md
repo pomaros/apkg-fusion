@@ -9,6 +9,21 @@ installations. The checkout starts from pkg with an arospkg import. The
 context-based core as the skeleton. The initial common installation path is
 implemented below; remaining service/operation integration is listed separately.
 
+## Alpha progress at a glance
+
+| Workstream | Current position | Work still required |
+|---|---|---|
+| Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
+| Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
+| Channels/trust | File/HTTP discovery, exact selection, root trust roles and replay floors work | Independent qualifications, online revocation/freshness and multi-channel configuration |
+| Clients/default product | Shared CLI/actual worker path works; default CLI/library/tools now use the common engine | Interactive native catalogue/settings and complete consumer/compatibility qualification |
+| Legacy migration | Read-only legacy observation/baselines exist | Validated import, original-preserving commit/recovery and compatibility rehearsals |
+| Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
+
+These are implementation positions, not six completed gates. The final clean
+workspace scenario and exact-source Linux/macOS CI must qualify the resulting
+product. AROS execution and deployment remain outside this host-alpha run.
+
 ## BASE qualification
 
 The complete [Host integration run](https://github.com/pomaros/apkg-fusion/actions/runs/40221131858)
@@ -736,6 +751,58 @@ This is one-channel host workflow integration. Default `build/apkg` replacement,
 interactive native catalogue/settings, independent qualifications, multi-channel
 configuration, legacy import, portal adaptation/rehearsal and target/runtime
 qualification remain open. No live portal, OS or AROS execution occurred.
+
+## FUSION-ALPHA progress: common engine becomes the default CLI product
+
+The shared channel checkpoint on
+[036705e](https://github.com/pomaros/apkg-fusion/commit/036705ea495bbbca1eccb8177a239c2392e66a4a)
+is qualified by its full
+[Linux/macOS/portal run](https://github.com/pomaros/apkg-fusion/actions/runs/40427067233).
+
+`make` now selects common `build/apkg` and `build/libapkg.a`; `apkg-core` remains
+byte-identical as a development alias. Default/install products exclude the
+provisional request backend. The symbol gate checks the actual default binary
+as well as the common library/alias. `build/apkg-provisional`, its platform
+variants, `build/pkg` and the old library remain explicit regression targets.
+Common macOS/static-Linux recipes use common sources; Windows product builds
+explicitly refuse until common adapters exist. Those cross recipes have no new
+runtime qualification from this checkpoint.
+
+Author/build/channel helpers default to the product engine. `apkg-publish`
+defaults to common publication; `--legacy` explicitly selects the preserved
+old bridge, whose checks remain enabled. `make install` stages common tools,
+minimal authoring resources, public headers/library and original licences,
+with relative engine links and quoted PREFIX/DESTDIR paths. Installed authoring
+works outside the source checkout. No operator installation was modified.
+
+The default CLI now has common-engine identity/help. Testing also exposed the
+prototype bootstrap's unusable cross-process digest confirmation (a fresh root
+identity changed the plan). Initialization now retains its plan for exact-digest
+confirmation in one terminal process. Nonterminal invocation previews only;
+explicit `--yes` authorizes supplied bootstrap target/policy for automation.
+Other operation confirmation tokens keep their existing exact-plan behavior.
+
+The new default-product scenario generates keys, explicitly initializes clean
+roots, publishes real TOML/.ameta bundles/dependencies without engine/mode
+overrides, discovers through HTTP, compares CLI/actual worker results, updates
+with personal configuration, then removes the channel and exercises rollback,
+repair and removal. It checks source immutability, empty/hidden paths, generated
+launch metadata, legacy-environment isolation, installed SDK linkage and all
+installed authoring helpers under a prefix containing spaces. A real terminal
+fixture tests approval/decline of the retained bootstrap plan. The provisional
+CLI and old publishing regression scenarios remain separate, not replaced.
+Local `make test-fusion` passes 186 common methods, 78 default-product checks,
+110 retained provisional-CLI checks, 78 inherited publishing checks and the
+existing contract/target/application/context checks. The sanitizer harness passes
+106 methods through its instrumented native clients/runners; direct ctypes
+cases use the ordinary test library. Documentation links pass for 67 files with
+zero broken links. Exact-source Linux/macOS CI must qualify this checkpoint
+separately.
+
+This advances the default CLI, not the entire ALPHA-CLIENTS/release gate.
+Interactive native catalogue/settings, independent qualifications, validated
+legacy import and portal adaptation/rehearsal remain open. No live portal or
+AROS/OS operation occurred.
 
 ## Implemented integration pieces
 

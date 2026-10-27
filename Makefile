@@ -21,22 +21,27 @@ UNITS = test_args test_activity test_container test_sha256 test_manifest test_ed
 
 .PHONY: all print-sources check-symbols check-cross test test-run test-ubsan check-portability check-m68k check-image check check-aros clean install aros-channel
 
-all: build/apkg build/libpkg.a
+all: build/apkg build/libapkg.a
 
-build/apkg: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
+build/apkg-provisional: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
 	@mkdir -p build
 	$(CC) $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST)
+
+# The product name and the development alias are byte-identical common clients.
+build/apkg: build/apkg-core
+	cp build/apkg-core $@
 
 .PHONY: test-fusion test-contract
 test-contract:
 	python3 tests/contracts/check.py
 
-test-fusion: test-contract test-apkg build/apkg build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
+test-fusion: test-contract test-apkg build/apkg build/apkg-provisional build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
 	python3 tests/test_http_fixture.py
 	./build/test_target
 	./build/test_application
 	./build/test_first_install ./build/pkg
 	./build/test_arospkg_read
+	python3 tests/provisional-cli.py
 	python3 tests/fusion-cli.py
 	python3 tests/fusion-publish.py
 
@@ -60,13 +65,16 @@ print-sources:
 # Every check this tree knows how to run.
 check: check-portability check-symbols check-cross test test-ubsan check-m68k check-image
 
+.PHONY: check-legacy-symbols
+check-symbols: check-common-symbols check-legacy-symbols
+
 # A program links libpkg.a next to its own code and libc, so a global of the
 # library named warn or hint would take the program's calls: libc has warn.
 # Every global the library defines is named pkg_, pkgi_ (shared between its
 # own modules, see src/pkg_internal.h), PKG_ or BZ2_, and bz_internal_error,
 # which bzip2 asks the program to define. Verified to be able to fail: a
 # function made global without its prefix is named here and exits 1.
-check-symbols: build/libpkg.a
+check-legacy-symbols: build/libpkg.a
 	@want=$$(for o in $(LIBOBJ); do basename $$o; done | sort); \
 	have=$$(ar t build/libpkg.a | grep '\.o$$' | sort); \
 	if [ "$$want" != "$$have" ]; then \
@@ -117,14 +125,23 @@ build/libpkg.a: $(LIB) $(CORE) $(HOST) $(HDR)
 # describes the old interface and is not installed as guidance for apkg.
 PREFIX ?= $(HOME)/.local
 
-install: build/apkg build/libpkg.a build/apkg-core build/libapkg.a
-	@mkdir -p $(PREFIX)/bin $(PREFIX)/include $(PREFIX)/lib
-	cp build/apkg $(PREFIX)/bin/apkg
-	cp build/apkg-core $(PREFIX)/bin/apkg-core
-	cp include/pkg.h include/pkg_environment.h include/pkg_target.h include/pkg_application.h include/apkg.h include/apkg_client.h $(PREFIX)/include/
-	cp build/libpkg.a $(PREFIX)/lib/libpkg.a
-	cp build/libapkg.a $(PREFIX)/lib/libapkg.a
-	@echo "installed development apkg into $(PREFIX)/bin"
+install: build/apkg build/libapkg.a
+	@mkdir -p "$(DESTDIR)$(PREFIX)/bin" "$(DESTDIR)$(PREFIX)/include" "$(DESTDIR)$(PREFIX)/lib"
+	cp build/apkg "$(DESTDIR)$(PREFIX)/bin/apkg"
+	cp build/apkg-core "$(DESTDIR)$(PREFIX)/bin/apkg-core"
+	cp include/apkg.h include/apkg_client.h "$(DESTDIR)$(PREFIX)/include/"
+	cp build/libapkg.a "$(DESTDIR)$(PREFIX)/lib/libapkg.a"
+	@mkdir -p "$(DESTDIR)$(PREFIX)/libexec/apkg/tools" "$(DESTDIR)$(PREFIX)/libexec/apkg/build" "$(DESTDIR)$(PREFIX)/libexec/apkg/components/arospkg/tools" "$(DESTDIR)$(PREFIX)/share/doc/apkg-fusion"
+	cp tools/apkg-build tools/apkg-channel tools/apkg-publish "$(DESTDIR)$(PREFIX)/libexec/apkg/tools/"
+	chmod 755 "$(DESTDIR)$(PREFIX)/libexec/apkg/tools/apkg-build" "$(DESTDIR)$(PREFIX)/libexec/apkg/tools/apkg-channel" "$(DESTDIR)$(PREFIX)/libexec/apkg/tools/apkg-publish"
+	cp components/arospkg/tools/apkg-pack components/arospkg/tools/mkindex.py components/arospkg/tools/catalogue.py components/arospkg/tools/publish_github.py "$(DESTDIR)$(PREFIX)/libexec/apkg/components/arospkg/tools/"
+	cp components/arospkg/LICENSE "$(DESTDIR)$(PREFIX)/libexec/apkg/components/arospkg/LICENSE"
+	cp LICENSE "$(DESTDIR)$(PREFIX)/share/doc/apkg-fusion/LICENSE"
+	ln -sf ../../../bin/apkg "$(DESTDIR)$(PREFIX)/libexec/apkg/build/apkg"
+	ln -sf ../libexec/apkg/tools/apkg-build "$(DESTDIR)$(PREFIX)/bin/apkg-build"
+	ln -sf ../libexec/apkg/tools/apkg-channel "$(DESTDIR)$(PREFIX)/bin/apkg-channel"
+	ln -sf ../libexec/apkg/tools/apkg-publish "$(DESTDIR)$(PREFIX)/bin/apkg-publish"
+	@echo "installed common-engine apkg into $(DESTDIR)$(PREFIX)/bin"
 
 # A channel that puts Pkg itself on AROS machines: `make aros-channel
 # CHANNEL=<dir>`. See tools/make-aros-channel.sh.
@@ -149,7 +166,7 @@ build/pkg.exe: src/pkg_main.c $(CLI) $(LIB) $(CORE) $(WINHOST) $(HDR)
 	$(WINCC) $(CFLAGS) $(CPPFLAGS) -o $@ src/pkg_main.c $(CLI) $(LIB) $(CORE) $(WINHOST) \
 		-lbcrypt -ladvapi32 -lshell32
 
-build/apkg.exe: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(WINHOST) $(HDR)
+build/apkg-provisional.exe: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(WINHOST) $(HDR)
 	@mkdir -p build
 	$(WINCC) $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(WINHOST) \
 		-lbcrypt -ladvapi32 -lshell32
@@ -159,7 +176,7 @@ build/pkg-macos: src/pkg_main.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
 	@mkdir -p build
 	cc $(CFLAGS) $(CPPFLAGS) -arch arm64 -arch x86_64 -o $@ src/pkg_main.c $(CLI) $(LIB) $(CORE) $(HOST)
 
-build/apkg-macos: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
+build/apkg-provisional-macos: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
 	@mkdir -p build
 	cc $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -arch arm64 -arch x86_64 -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST)
 
@@ -169,7 +186,7 @@ build/pkg-linux-%: src/pkg_main.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
 	@mkdir -p build
 	zig cc -target $*-linux-musl $(CFLAGS) $(CPPFLAGS) -static -o $@ src/pkg_main.c $(CLI) $(LIB) $(CORE) $(HOST)
 
-build/apkg-linux-%: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
+build/apkg-provisional-linux-%: src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST) $(HDR)
 	@mkdir -p build
 	zig cc -target $*-linux-musl $(CFLAGS) $(CPPFLAGS) -DPKG_FUSION_CLI -static -o $@ src/pkg_main.c src/pkg_cli_fusion.c $(CLI) $(LIB) $(CORE) $(HOST)
 
@@ -378,7 +395,7 @@ build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_TESTING -fPIC -shared -Iinclude -Isrc/apkg $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
 .PHONY: test-apkg
-test-apkg: build/test_preparation_memory build/test_channel_memory build/libapkg-test.dylib build/apkg-core build/test_pm_common build/libapkg.a check-common-symbols
+test-apkg: build/test_preparation_memory build/test_channel_memory build/libapkg-test.dylib build/apkg build/apkg-core build/test_pm_common build/libapkg.a check-common-symbols
 	python3 -m unittest discover -s tests/apkg -v
 
 build/apkg-core: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h include/pkg_ameta.h src/apkg/internal.h src/apkg/changes.inc
@@ -394,7 +411,6 @@ build/test_channel_memory: tests/apkg/test_channel_memory.c $(APKG_ENGINE) $(APK
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg tests/apkg/test_channel_memory.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
 APKG_OBJECTS = $(patsubst %.c,build/common/%.o,$(APKG_ENGINE) $(APKG_SERVICES))
-all: build/apkg-core build/libapkg.a
 build/libapkg.a: $(APKG_OBJECTS)
 	rm -f $@
 	ar rcs $@ $(APKG_OBJECTS)
@@ -408,10 +424,26 @@ print-apkg-sources:
 	@echo $(APKG_ENGINE) $(APKG_SERVICES)
 
 .PHONY: check-common-symbols
-check-common-symbols: build/libapkg.a build/apkg-core
+check-common-symbols: build/libapkg.a build/apkg-core build/apkg
 	@bad=$$(nm -g build/libapkg.a | awk 'NF==3 && $$2 != "U" {print $$3}' | sed 's/^_//' | grep -vE '^(apkg_|ak_|pkg_)' | sort -u); 	if [ -n "$$bad" ]; then echo "unexpected common-library globals: $$bad"; exit 1; fi
-	@if nm -g build/libapkg.a build/apkg-core | grep -E 'apkg_test_|pkgi_' >/dev/null; then echo "test hooks or provisional request backend in common product"; exit 1; fi
+	@if nm -g build/libapkg.a build/apkg-core build/apkg | grep -E 'apkg_test_|pkgi_' >/dev/null; then echo "test hooks or provisional request backend in common product"; exit 1; fi
 
 build/test_preparation_memory: tests/apkg/test_preparation_memory.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h src/apkg/internal.h src/apkg/changes.inc
 	@mkdir -p build
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_TESTING -Iinclude -Isrc/apkg tests/apkg/test_preparation_memory.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
+
+# Product platform targets always select the common engine. Inherited variants
+# retain explicit provisional names above; they are never a product fallback.
+build/apkg-macos: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h src/apkg/internal.h src/apkg/changes.inc
+	@mkdir -p build
+	cc $(CFLAGS) -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg -arch arm64 -arch x86_64 src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
+
+build/apkg-linux-%: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h src/apkg/internal.h src/apkg/changes.inc
+	@mkdir -p build
+	zig cc -target $*-linux-musl $(CFLAGS) -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg -static src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@
+
+.PHONY: unsupported-common-windows
+build/apkg.exe: unsupported-common-windows
+unsupported-common-windows:
+	@echo "Common Windows filesystem/process adapters are not implemented; build/pkg.exe is the explicit inherited baseline." >&2
+	@exit 2

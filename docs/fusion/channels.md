@@ -148,14 +148,14 @@ producer. Both signing keys must be outside the source and public channel;
 source and channel trees must be disjoint. Original source bytes/modes remain
 untouched. Output identifies the exact descriptor/archive/snapshot and asserts
 open publication, with no independent review or runtime qualification.
-The inherited default publishing bridge remains a regression path until the
-separate default-client/consumer switch.
+The inherited publishing bridge is now an explicit `--legacy` regression path;
+common publication is the default, including in the installed helpers.
 
 ## Native opening and inspection
 
 ```sh
-./build/apkg-core channel-open ROOT CHANNEL CHANNEL-ID MIN-SEQUENCE
-./build/apkg-core channel-inspect ROOT SNAPSHOT-DIRECTORY CHANNEL-ID MIN-SEQUENCE
+./build/apkg channel-open ROOT CHANNEL CHANNEL-ID MIN-SEQUENCE
+./build/apkg channel-inspect ROOT SNAPSHOT-DIRECTORY CHANNEL-ID MIN-SEQUENCE
 ./build/apkg-core verify-object channel channel.json channel.signature.json
 ```
 
@@ -184,8 +184,7 @@ trust expansion is performed by the importer.
 
 1. Independent signed review/runtime facts, issuer policy and stale/revoked
    evidence handling; online freshness/revocation policy remains explicit work.
-2. Default-client switch, interactive native catalogue/settings integration and
-   consumer migration. The shared planner, discovery adapter and worker channel
+2. Interactive native catalogue/settings integration and consumer migration. The shared planner, discovery adapter and worker channel
    operation below are implemented host checkpoints.
 3. Native transport/filesystem runtime qualification and retention/cleanup policy.
 
@@ -229,7 +228,7 @@ A failure after cache publication can leave a verified archive for safe retry.
 Imported payload objects may also remain as preparation. Fetch does not commit
 installed state or advance database generation.
 
-The explicit CLI is `apkg-core channel-fetch ROOT ENDPOINT CHANNEL-ID INDEX
+The explicit CLI is `apkg channel-fetch ROOT ENDPOINT CHANNEL-ID INDEX
 [MIN-SEQUENCE]`; `channel-open` accepts either a local directory or an HTTP(S)
 URL. Observer phases distinguish checking from transfer. Selected packages
 retain the source facts described below. The default production client switch
@@ -269,10 +268,11 @@ recovery. Replay floors use the same journal through the following profile.
 verified channel. It grants no author/channel keys or independent qualification.
 Approval and execution use the common root lock, journal, generation, recovery
 and history. Reading, opening, selecting and fetching never advance a floor.
-The current experimental CLI is `apkg-core channel-accept ROOT ENDPOINT
+The current experimental CLI is `apkg channel-accept ROOT ENDPOINT
 CHANNEL-ID [--confirm DIGEST]`: first invocation previews, the confirmed digest
 executes. `channel-open` reports `accepted_sequence` or null separately from
-unknown online freshness. Default-client refresh integration remains open.
+unknown online freshness. Interactive native refresh integration remains open; approved channel install
+also records the selected floor in its single common transaction.
 
 Root bodies optionally contain `channel_heads`, sorted unique records with
 exactly `id`, positive uint64 decimal `sequence` and `snapshot_sha256`. At most
@@ -350,15 +350,16 @@ Shared convenience entry points live in `apkg_client.h`:
 The explicit common CLI uses:
 
 ```sh
-./build/apkg-core channel-open ROOT ENDPOINT CHANNEL-ID
-./build/apkg-core channel-install ROOT ENDPOINT CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256
+./build/apkg channel-open ROOT ENDPOINT CHANNEL-ID
+./build/apkg channel-install ROOT ENDPOINT CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256
 # Repeat the same selection with --confirm PLAN-DIGEST after reviewing the plan.
 ```
 
 `--recommends` opts into optional recommendations. Plan presentation includes
 channel id/key/snapshot/floor plus package signer, content, ownership and
 configuration effects. Author/channel trust does not assert review/runtime
-qualification. The default `build/apkg` switch is still a separate gate.
+qualification. The default `build/apkg` now uses the same common client; the complete native
+interactive/client qualification gate remains open.
 
 The actual PkgManager worker dispatches `APKG_CLIENT_CHANNEL` through the same
 client function. Its advanced operation panel accepts the endpoint and complete

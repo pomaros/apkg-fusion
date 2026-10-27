@@ -9,10 +9,12 @@ Publishing requires no catalogue review. depends_checked is the author's
 declaration, and confers no reviewer status. The private staging area receives
 all generated files; the author's source drawer and manifest are unchanged.
 
-This bridge supports app/tool/data drawers with numeric versions, revision 1,
-and package dependencies. Unsupported requirements, relations, installation
-constraints and system layouts are refused before publication. Runtime must
-be explicit. Parsing a target does not qualify that platform for release.
+The default workflow preserves the common authoring profile, including declared
+metadata, versions/revisions and supported package relations. --legacy selects
+the inherited numeric-version/revision-1 bridge explicitly for regression and
+migration rehearsals. Unsupported semantics refuse; no missing option or error
+falls back to another engine. Runtime must be explicit. Target parsing does not
+qualify a platform for release.
 """
 
 import argparse
@@ -228,7 +230,7 @@ def publish(args):
 
 def publish_common(args):
     if not args.authority or not args.channel_id or not args.channel_sign:
-        refuse("--common requires --authority, --channel-id and --channel-sign")
+        refuse("common publication requires --authority, --channel-id and --channel-sign")
     source = Path(args.drawer).expanduser().resolve()
     channel = Path(args.channel).expanduser().resolve()
     if channel == source or channel.is_relative_to(source) or source.is_relative_to(channel):
@@ -237,7 +239,7 @@ def publish_common(args):
         key = Path(candidate).expanduser().resolve()
         if key.is_relative_to(source) or key.is_relative_to(channel):
             refuse(f"{label} signing key must be outside the source drawer and public channel")
-    engine = args.engine or HERE / "build/apkg-core"
+    engine = args.engine or HERE / "build/apkg"
     # The artifact is private preparation until the publisher commits its
     # immutable snapshot/current reference. Neither helper uses legacy pkg.
     with tempfile.TemporaryDirectory(prefix="apkg-publish-common-") as temporary:
@@ -262,19 +264,21 @@ def main():
     parser.add_argument("--channel", required=True, help="local directory or mounted share")
     parser.add_argument("--sign", required=True, help="author signing key outside the payload and channel")
     parser.add_argument("--runtime", choices=("native", "hosted", "raspi"), required=True)
-    parser.add_argument("--engine", help="native executable (pkg bridge, or apkg-core with --common)")
-    parser.add_argument("--common", action="store_true", help="use the common TOML/PKG and atomic file-channel workflow")
+    parser.add_argument("--engine", help="common apkg executable; with --legacy, the inherited pkg executable")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--common", action="store_true", help="explicitly select the default common workflow")
+    mode.add_argument("--legacy", action="store_true", help="explicit inherited pkg bridge for baseline/migration rehearsals")
     parser.add_argument("--authority", help="persistent common publisher identity")
     parser.add_argument("--channel-id", help="persistent common channel identity")
     parser.add_argument("--channel-sign", help="channel signing key outside the public channel")
     args = parser.parse_args()
     try:
-        if args.common:
-            publish_common(args)
-        else:
+        if args.legacy:
             if args.authority or args.channel_id or args.channel_sign:
-                refuse("common identity/key options require --common")
+                refuse("common identity/key options cannot be used with --legacy")
             publish(args)
+        else:
+            publish_common(args)
     except (Refusal, OSError, ValueError, zipfile.BadZipFile) as exc:
         print(f"apkg-publish: {exc}", file=sys.stderr)
         return 1

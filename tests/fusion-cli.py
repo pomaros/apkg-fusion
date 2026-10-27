@@ -1,223 +1,96 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
-"""Exercise the native development client with offline, disposable fixtures.
+"""Public default workflow in empty roots, using real TOML/.ameta publication.
 
-The ELF header establishes CPU selection, not an executable AROS program.
-Bundle validation does not prove launch or runtime dependencies work.
+The ELF header checks target/launch metadata; it is not an AROS runtime test.
+No default user root, signing key or installed tool is used or changed.
 """
-
+from contextlib import contextmanager
 import hashlib
+import http.server
 import json
 import os
+import pty
 from pathlib import Path
+import re
+import shutil
 import subprocess
+import sys
 import tempfile
+import threading
 
+HERE=Path(__file__).resolve().parents[1]
+APKG=HERE/'build/apkg'
+WORKER=HERE/'build/test_pm_common'
+AUTH='ab'*16
+CHANNEL='cd'*16
+TARGET='x86_64-aros-v11-native'
+checks=0
 
-HERE = Path(__file__).resolve().parents[1]
-APKG = Path(os.environ.get("APKG", str(HERE / "build/apkg"))).resolve()
-TARGET = "x86_64-aros-v11-native"
-checks = 0
-failures = []
+def check(value,message):
+ global checks
+ checks+=1
+ if not value:raise AssertionError(message)
 
+def invoke(command,env,expect=0):
+ result=subprocess.run(list(map(str,command)),env=env,capture_output=True,text=True)
+ check(result.returncode==expect,f'{command}: status {result.returncode}: {result.stdout}{result.stderr}')
+ return result.stdout
 
-def check(condition, message):
-    global checks
-    checks += 1
-    if not condition:
-        raise AssertionError(message)
+def commit(command,env):
+ preview=invoke(command,env,16);match=re.search(r'Approved plan: ([a-f0-9]{64})',preview);check(bool(match),'concrete approved digest in preview');return invoke([*command,'--confirm',match.group(1)],env)
 
+def source(base,name,depends=(),launch=False):
+ folder=base/(name+' Drawer');folder.mkdir();program=b'helper bytes\n'
+ if launch:
+  program=bytearray(64);program[:7]=b'\x7fELF\x02\x01\x01';program[18:20]=(62).to_bytes(2,'little');program=bytes(program)
+ (folder/'program').write_bytes(program);(folder/'program').chmod(0o755 if launch else 0o644);(folder/'.hidden').write_bytes(b'default config');(folder/'Empty').mkdir();(folder/'.ameta').write_text('ameta 1\nfile program\ncomment caf%C3%A9\nprot 0x40\nuid 42\ngid 123\ncolour red\n')
+ manifest=folder.with_name(folder.name+'.arospkg.toml');manifest.write_text(f'id = "{name}"\nversion = "1.0"\nrevision = 1\nsummary = "Default workflow fixture"\ncategory = "util"\nlicense = "MIT"\nkind = "'+('app' if launch else 'data')+'"\narch = "x86_64"\nabi = "v11"\nsubdir = '+json.dumps(folder.name)+'\ndepends = '+json.dumps(list(depends))+'\ndepends_checked = true\nconfig = [".hidden"]\n'+ ('\n[launch]\nexecutable = "program"\nmode = "shell"\nworking_directory = "."\n' if launch else ''))
+ return folder,manifest,program
 
-def elf():
-    head = bytearray(64)
-    head[:4] = b"\x7fELF"
-    head[4:7] = bytes([2, 1, 1])
-    head[18:20] = (62).to_bytes(2, "little")
-    return bytes(head) + b"fixture only, not executable\n"
+def inventory(folder):return {str(p.relative_to(folder)):(p.stat().st_mode&0o777,hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None) for p in folder.rglob('*')}
 
-
-def descriptor():
-    return {
-        "schema": 1, "id": "demo", "version": "1.0", "revision": 1,
-        "targets": [{"os": "aros", "arch": "x86_64", "abi": "v11"}],
-        "requires_system": [],
-        "launch": {"executable": "Demo", "mode": "shell"},
-    }
-
-
-def records(output):
-    return dict(line.split(": ", 1) for line in output.splitlines() if ": " in line)
-
-
-def scenario(name, test):
-    with tempfile.TemporaryDirectory(prefix="fusion-cli-") as temp:
-        temp = Path(temp)
-        env = {k: v for k, v in os.environ.items() if not k.startswith("PKG_")}
-        env["XDG_CONFIG_HOME"] = str(temp / "config")
-
-        def run(*args, expect=0):
-            command = [str(APKG), *map(str, args)]
-            result = subprocess.run(command, cwd=temp, env=env, capture_output=True, text=True, timeout=30)
-            output = result.stdout + result.stderr
-            check(result.returncode == expect,
-                  f"{args}: expected exit {expect}, got {result.returncode}\n{output}")
-            return output
-
-        try:
-            test(temp, run)
-            print(f"PASS {name}")
-        except (AssertionError, OSError, subprocess.TimeoutExpired) as error:
-            failures.append(f"{name}: {error}")
-            print(f"FAIL {name}: {error}")
-
-
-def signed_fixture(temp, run, short="--literal description"):
-    key = temp / "--author.key"
-    run("keygen", "--file", "--author.key", "--machine")
-    source = temp / "source with spaces"
-    (source / "Demo").mkdir(parents=True)
-    (source / "Demo/Demo").write_bytes(elf())
-    (source / "Demo/ReadMe").write_text("signed fixture data\n")
-    channel = temp / "local channel"
-    out = run("publish", source, "--channel", channel, "--name", "demo", "--version", "1.0",
-              "--target", TARGET, "--kind", "application", "--sign", "--author.key",
-              "--short", short, "--machine")
-    answer = records(out)
-    check(answer.get("result") == "published", "publish reports its actual result")
-    line = (channel / "index").read_text().strip().split()
-    check(line[:3] == ["demo", "1.0", TARGET], "signed channel carries the complete target")
-    digest = line[3]
-    manifest = (channel / "objects" / (digest + ".manifest")).read_bytes()
-    check(hashlib.sha256(manifest).hexdigest() == digest, "independent manifest address check")
-    check(b"Short: " + short.encode() + b"\n" in manifest, "option value preserved in signed metadata")
-    check((channel / "objects" / (digest + ".sig")).is_file(), "author signature published")
-    check(answer.get("signer") == records(run("keyinfo", "--file", key, "--machine")).get("public"),
-          "published signer is the chosen author key")
-    return source, channel, key
-
-
-def signed_round_trip(temp, run):
-    source, channel, _ = signed_fixture(temp, run)
-    root = temp / "root with spaces"
-    dry = run("install", "demo", "--root", root, "--channel", channel,
-              "--target", TARGET, "--dry-run", "--machine")
-    check("result:" in dry and not (root / "Demo/Demo").exists(), "dry run reports a result without placing files")
-    answer = run("install", "demo", "--root", root, "--channel", channel, "--target", TARGET, "--machine")
-    check(records(answer).get("result") == "installed", "native install dispatches to the engine")
-    check((root / "Demo/Demo").read_bytes() == elf(), "installed bytes match the signed source")
-    check(records(run("verify", "demo", "--root", root, "--machine")).get("result") == "intact",
-          "verify checks the installed package")
-    check(records(run("verify", "--all", "--root", root, "--machine")).get("result") == "intact",
-          "long switch followed by a value option is parsed correctly")
-    (root / "Demo/ReadMe").write_text("local edit\n")
-    out = run("verify", "demo", "--root", root, "--machine", expect=12)
-    check("ReadMe" in out, "verification identifies changed content")
-    check((source / "Demo/ReadMe").read_text() == "signed fixture data\n", "source files remain untouched")
-
-
-def abi_isolation(temp, run):
-    _, channel, _ = signed_fixture(temp, run)
-    for target in ("x86_64-aros-v1-native", "x86_64-aros-v11-hosted", "aarch64-aros-v11-native"):
-        root = temp / target
-        out = run("install", "demo", "--root", root, "--channel", channel, "--target", target, "--machine", expect=11)
-        check("result: refused" in out, "incompatible target is refused by selection")
-        check(not (root / "Demo/Demo").exists(), "incompatible ABI/runtime/CPU never places package files")
-
-
-def option_values(temp, run):
-    # Values that resemble options and keyword names are literal values.
-    out = run("keygen", "--file", "--machine", "--machine")
-    check((temp / "--machine").is_file(), "an option-looking key path is used verbatim")
-    check(records(out).get("file") == "--machine", "machine output identifies that exact file")
-    out = run("keygen", "--file", "MACHINE", "--machine")
-    check((temp / "MACHINE").is_file(), "uppercase keyword-looking value is used verbatim")
-    check(records(out).get("file") == "MACHINE", "uppercase filename is not consumed as a switch")
-    out = run("keygen", "--file", "ROOT=value", "--machine")
-    check((temp / "ROOT=value").is_file() and records(out).get("file") == "ROOT=value",
-          "equals signs inside option values remain literal")
-    signed_fixture(temp, run, short="MACHINE")
-
-
-def target_refusals(temp, run):
-    for target in ("x86_64", "generic", "x86_64-aros-v99-native", "x86_64-aros-v11-raspi", "aarch64-linux-v1-hosted"):
-        out = run("install", "demo", "--root", temp / "root", "--channel", temp / "channel",
-                  "--target", target, expect=20)
-        check("target" in out.lower(), "invalid target refusal is explicit")
-    run("install", "demo", "--root", temp / "root", "--channel", temp / "channel", expect=20)
-    run("install", "demo", "--target", expect=20)
-    run("install", "demo", "--arch", "x86_64", expect=20)
-    run("keygen", "--file", expect=20)
-    run("keygen", "--file", "one", "--file", "two", expect=20)
-    run("keygen", "--file", temp / "must-not-exist", "--bogus", "value", expect=20)
-    check(not (temp / "must-not-exist").exists(), "unknown options are rejected before key creation")
-    check(not (temp / "root").exists(), "invalid request never creates the installation root")
-
-
-def target_case_bypass(temp, run):
-    # Dispatch accepts AmigaDOS-style casing; it must not bypass target policy.
-    run("keygen", "--file", temp / "key", "--machine")
-    source = temp / "data"
-    source.mkdir()
-    (source / "file").write_text("data\n")
-    for command in ("PUBLISH", "Publish", "publish"):
-        channel = temp / (command + "-channel")
-        run(command, source, "CHANNEL", channel, "NAME", "demo", "VERSION", "1.0",
-            "ARCH", "generic", "KIND", "data", "SIGN", temp / "key", "MACHINE", expect=20)
-        check(not channel.exists(), "command spelling cannot bypass explicit full target")
-    for command in ("INSTALL", "Upgrade", "ROLLBACK", "Repair"):
-        out = run(command, "demo", "--root", temp / "root", expect=20)
-        check("target" in out.lower(), "every writing operation enforces its target across command casing")
-
-
-def command_arity(temp, run):
-    check("apkg-fusion development build" in run("VERSION"), "command casing retains fusion version identity")
-    check("apkg-fusion development build" in run("-v"), "short version alias retains fusion identity")
-    run("--version", "ignored", expect=20)
-    run("VERSION", "ignored", expect=20)
-    run("--help", "ignored", expect=20)
-    run("SELF-UPDATE", expect=18)
-
-
-def bundles(temp, run):
-    drawer = temp / "unregistered drawer"
-    drawer.mkdir()
-    desc = drawer / "application.json"
-    desc.write_text(json.dumps(descriptor()))
-    before = desc.read_bytes()
-    out = records(run("bundle-check", drawer))
-    check(out.get("description") == "valid" and out.get("id") == "demo", "valid unregistered descriptor accepted")
-    check(out.get("cpu") == "x86_64" and out.get("abi") == "v11", "descriptor target preserved")
-    check(out.get("runtime") == "unchecked", "descriptor validation does not claim launch success")
-    check(desc.read_bytes() == before and sorted(p.name for p in drawer.iterdir()) == ["application.json"],
-          "bundle check neither requires nor writes a registry or executable")
-    bad = descriptor()
-    bad["launch"]["executable"] = "../escape"
-    desc.write_text(json.dumps(bad))
-    check("invalid application description" in run("bundle-check", drawer, expect=12), "unsafe executable path refused")
-    desc.write_bytes(b" " * (64 * 1024 + 1))
-    check("invalid application description" in run("bundle-check", drawer, expect=12), "oversized descriptor refused")
-    desc.write_text('{"schema":1,"schema":1}')
-    run("bundle-check", drawer, expect=12)
-    run("bundle-check", temp / "absent", expect=17)
-    run("bundle-check", expect=20)
-
+@contextmanager
+def serve(folder):
+ class Handler(http.server.SimpleHTTPRequestHandler):
+  def __init__(self,*args,**kwargs):super().__init__(*args,directory=str(folder),**kwargs)
+  def log_message(self,*args):pass
+ server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler);thread=threading.Thread(target=server.serve_forever,kwargs={'poll_interval':0.02},daemon=True);thread.start()
+ try:yield f'http://127.0.0.1:{server.server_port}'
+ finally:server.shutdown();server.server_close();thread.join(timeout=3)
 
 def main():
-    check(APKG.is_file(), "build/apkg is required; run make build/apkg")
-    for name, test in (
-        ("signed publish/install/verify", signed_round_trip),
-        ("CPU ABI runtime isolation", abi_isolation),
-        ("literal long-option values", option_values),
-        ("invalid target and options", target_refusals),
-        ("target casing bypass", target_case_bypass),
-        ("command identity and arity", command_arity),
-        ("unregistered application descriptions", bundles),
-    ):
-        scenario(name, test)
-    print(f"fusion-cli: {checks} checks; {len(failures)} failed scenarios")
-    return 1 if failures else 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+ with tempfile.TemporaryDirectory(prefix='fusion-default-') as temporary:
+  temp=Path(temporary);env=os.environ.copy();env['XDG_CONFIG_HOME']=str(temp/'unused config');env['PKG_ROOT']=str(temp/'unused legacy root');env['PKG_CHANNEL']=str(temp/'unused legacy channel')
+  check('common engine' in invoke([APKG,'--version'],env),'default executable identifies common backend');check('channel-install' in invoke([APKG,'--help'],env),'default help exposes common channel workflow');check(APKG.read_bytes()==(HERE/'build/apkg-core').read_bytes(),'development alias is identical to default product')
+  author=temp/'author.key';channel_key=temp/'channel.key';author_public=json.loads(invoke([APKG,'keygen',author],env))['public_key'];channel_public=json.loads(invoke([APKG,'keygen',channel_key],env))['public_key'];check(author.stat().st_mode&0o777==0o600,'private author key permissions')
+  policy={'body':{'authorities':[{'id':AUTH,'keys':[{'algorithm':'ed25519','public_key':author_public}]}],'channels':[{'id':CHANNEL,'keys':[{'algorithm':'ed25519','public_key':channel_public}]}]},'format':'apkg-json-1','requires':[],'schema':'1','type':'policy'};policy_file=temp/'policy.json';policy_file.write_text(json.dumps(policy,sort_keys=True,separators=(',',':')))
+  # Initialization's random identity is held with its plan in one process.
+  preview_root=temp/'Preview Root';preview=subprocess.run([str(APKG),'init',str(preview_root),TARGET,str(policy_file)],env=env,stdin=subprocess.DEVNULL,capture_output=True,text=True);check(preview.returncode==16 and not preview_root.exists(),'noninteractive initialization preview grants nothing');check('Initialization preview only' in preview.stderr,'bootstrap preview has an explicit automation path')
+  for correct in (False,True):
+   terminal_root=temp/('Confirmed Root' if correct else 'Declined Root');master,slave=pty.openpty();child=subprocess.Popen([str(APKG),'init',str(terminal_root),TARGET,str(policy_file)],env=env,stdin=slave,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True);os.close(slave);prefix=[]
+   try:
+    while True:
+     line=child.stdout.readline();prefix.append(line)
+     if not line:raise AssertionError('missing terminal plan preview')
+     match=re.search(r'Approved plan: ([a-f0-9]{64})',line)
+     if match:break
+    os.write(master,((match.group(1) if correct else 'wrong approval')+'\n').encode());tail,error=child.communicate(timeout=20);check(child.returncode==(0 if correct else 16),'terminal approves the retained exact plan or declines');check(terminal_root.exists()==correct,'terminal approval controls initialization')
+   finally:
+    os.close(master)
+    if child.poll() is None:child.kill();child.wait()
+  left=temp/'CLI root';right=temp/'Worker root'
+  for root in (left,right):invoke([APKG,'init',root,TARGET,policy_file,'--yes'],env)
+  authors=temp/'Authors';authors.mkdir();helper,_,_=source(authors,'helper');app,manifest,original_program=source(authors,'app',['helper >= 1.0'],True);channel=temp/'Public Channel'
+  def publish(drawer):
+   before=inventory(authors);answer=json.loads(invoke([sys.executable,HERE/'tools/apkg-publish',drawer,'--channel',channel,'--sign',author,'--authority',AUTH,'--channel-id',CHANNEL,'--channel-sign',channel_key,'--runtime','native'],env));check(answer['publication_mode']=='open' and answer['review']=='not-asserted','default publisher does not require or award review');check(inventory(authors)==before,'authoring sources and metadata stay unchanged');return answer
+  publish(helper);publish(app);check(not (app/'application.json').exists(),'generated application description stays out of source')
+  with serve(channel) as endpoint:
+   discovery=json.loads(invoke([APKG,'channel-open',left,endpoint,CHANNEL],env));selected=next(r for r in discovery['entries'] if r['name']=='app');check(selected['review']=='not-asserted' and selected['target_matches'],'discovery exposes independent review and target facts');selection=CHANNEL+'/'+discovery['snapshot_sha256']+'/'+selected['descriptor_sha256'];command=[APKG,'channel-install',left,endpoint,*selection.split('/')];commit(command,env);invoke([WORKER,right,endpoint,'1','7',selection],env)
+  left_state=json.loads((left/'.apkg/state').read_bytes())['body'];right_state=json.loads((right/'.apkg/state').read_bytes())['body'];check(left_state['installed']==right_state['installed'],'default CLI and actual worker retain identical installed records');check(left_state['channel_heads']==right_state['channel_heads'],'default CLI and actual worker retain identical replay floors');check(inventory(left/'app')==inventory(right/'app'),'installed payload and modes match across clients');check((left/'app'/'app Drawer'/'Empty').is_dir(),'empty directory retained');check((left/'app'/'app Drawer'/'program').read_bytes()==original_program,'published program bytes retained');check((left/'app'/'app Drawer'/'application.json').is_file(),'launch description generated and installed');check((left/'helper'/'helper Drawer'/'program').read_bytes()==b'helper bytes\n','dependency installed');check(any(e.get('reason')=='dependency' for e in left_state['installed']),'dependency reason retained')
+  installed=left/'app'/'app Drawer';(installed/'.hidden').write_bytes(b'personal config');manifest.write_text(manifest.read_text().replace('version = "1.0"','version = "2.0"'));updated=original_program+b'updated';(app/'program').write_bytes(updated);(app/'.hidden').write_bytes(b'new default');publish(app);discovery=json.loads(invoke([APKG,'channel-open',left,channel,CHANNEL],env));selected=next(r for r in discovery['entries'] if r['name']=='app' and r['version']=='2.0');commit([APKG,'channel-install',left,channel,CHANNEL,discovery['snapshot_sha256'],selected['descriptor_sha256']],env);check((installed/'.hidden').read_bytes()==b'personal config','update preserves personal configuration');check((installed/'program').read_bytes()==updated,'update publishes selected new content');after=(left/'.apkg/state').read_bytes();upgrade_history=next(p for p in temp.glob(left.name+'.apkg-history.*') if (p/'decision').exists() and (p/'new-state').read_bytes()==after);floor=json.loads(after)['body']['channel_heads'];shutil.rmtree(channel);commit([APKG,'rollback',left,upgrade_history],env);check((installed/'program').read_bytes()==original_program,'retained rollback works after channel removal');check((installed/'.hidden').read_bytes()==b'personal config','rollback preserves personal configuration');check(json.loads((left/'.apkg/state').read_bytes())['body']['channel_heads']==floor,'package rollback keeps newer catalogue floor');(installed/'program').write_bytes(b'damage');commit([APKG,'repair',left,'app'],env);check((installed/'program').read_bytes()==original_program,'repair works offline');commit([APKG,'remove',left,'app'],env);check((installed/'.hidden').read_bytes()==b'personal config','removal preserves personal file');check(not (installed/'program').exists(),'removal discards pristine program');check(not (temp/'unused config').exists() and not (temp/'unused legacy root').exists() and not (temp/'unused legacy channel').exists(),'default workflow ignores legacy global request configuration')
+  stage=temp/'Install Stage';invoke(['make','install','PREFIX=/opt/apkg alpha','DESTDIR='+str(stage)],env);prefix=stage/'opt/apkg alpha';installed_cli=prefix/'bin/apkg';check('common engine' in invoke([installed_cli,'--version'],env),'installed product uses common backend');check((prefix/'lib/libapkg.a').is_file() and not (prefix/'lib/libpkg.a').exists(),'installation provides common library only');consumer=temp/'consumer.c';consumer.write_text('#include "apkg.h"\n#include "apkg_client.h"\nint main(void) { apkg_ctx *ctx=0; apkg_open_options o={0}; o.contract_version=1; o.struct_size=sizeof o; o.root.data="/nonexistent-apkg-consumer-root"; o.root.size=31; if(apkg_open(&o,&ctx,0)) return 1; apkg_close(ctx); return 0; }\n');compiled=temp/'consumer';invoke([os.environ.get('CC','cc'),'-std=c99','-I'+str(prefix/'include'),consumer,prefix/'lib/libapkg.a','-o',compiled],env);invoke([compiled],env);check(not (prefix/'include/pkg.h').exists(),'installed public headers select common contract');installed_channel=temp/'Installed Publisher Channel';answer=json.loads(invoke([prefix/'bin/apkg-publish',app,'--channel',installed_channel,'--sign',author,'--authority',AUTH,'--channel-id',CHANNEL,'--channel-sign',channel_key,'--runtime','native'],env));check(answer['publication_mode']=='open','installed publisher uses common defaults and installed resources');check((prefix/'libexec/apkg/build/apkg').resolve()==installed_cli.resolve(),'installed authoring tools resolve the common product');built=temp/'installed-build.pkg';invoke([prefix/'bin/apkg-build',helper,'--output',built,'--sign',author,'--authority',AUTH,'--runtime','native'],env);check(built.is_file(),'installed builder works without a repository engine override');second_channel=temp/'Installed Channel Producer';invoke([prefix/'bin/apkg-channel',built,'--directory',second_channel,'--id',CHANNEL,'--sign',channel_key],env);check((second_channel/'current').is_file(),'installed channel producer uses the same common backend');missing=temp/'Missing Identity Channel';invoke([sys.executable,HERE/'tools/apkg-publish',helper,'--channel',missing,'--sign',author,'--runtime','native'],env,1);check(not missing.exists(),'missing common identities never fall back to legacy publication')
+ print(f'fusion-cli: {checks} default-product checks passed; no AROS execution or live deployment')
+ return 0
+if __name__=='__main__':raise SystemExit(main())

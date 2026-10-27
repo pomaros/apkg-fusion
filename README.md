@@ -3,133 +3,126 @@
 
 # apkg-fusion
 
-An integration workspace for a common AROS package manager: PkgManager's native
-desktop experience, portable package operations, autonomous application bundles,
-signed publishing, an open portal and a reviewed catalogue.
+A common AROS package manager combining PkgManager's native desktop experience
+with portable package operations, autonomous bundles, signed publishing, open
+author channels and an independently reviewed catalogue.
 
-**This is a development build.** The common engine has an experimental CLI and
-PkgManager worker path with signed plans, operations and transaction recovery.
-The default client still uses the provisional backend; channels, existing-user
-migration and consumer adaptations remain implementation work. See
-[implementation status](docs/fusion/status.md) for tested behavior and release
-requirements.
+**This is a development alpha.** The default `apkg` executable and `libapkg.a`
+use the common context engine. CLI and the PkgManager worker share signed
+selection, dependency plans and transaction recovery. Interactive native
+catalogue integration, independent qualifications, existing-user migration and
+portal adaptation remain work. The [status overview](docs/fusion/status.md#alpha-progress-at-a-glance)
+separates implemented host behavior from the remaining alpha/release gates.
 
-The source layout is provisional. Designs are selected by behavior, evidence
-and maintainability, regardless of their original author. APKG's context-based core is the selected skeleton; pkg contributes portable
-services, signing, ownership, system operations and publishing. Both clients
-will use one engine. The [architecture](docs/fusion/architecture.md) and
+APKG's context model is the selected skeleton; pkg contributes portable
+services, cryptography, ownership and publishing. The
+[architecture](docs/fusion/architecture.md) and
 [acceptance matrix](docs/fusion/acceptance.md) define the intended result.
 
-## Build and test on a host
+## Build and test
 
-A C99 compiler and make build the native development client and library.
-The integration tests also need Python 3.11 or later.
+Host builds need a C99 compiler and make. Authoring/integration needs Python
+3.11 or later; host HTTP transport uses `curl` with normal TLS verification.
 
 ```sh
 make
-make test-fusion
+./build/apkg --version
 ./build/apkg --help
+make test-fusion
+sh tests/apkg/sanitize.sh
 ```
 
-The default build produces `build/apkg` and `build/libpkg.a`. The separate
-`build/pkg` target retains the imported command interface for baseline tests,
-the portal and the authoring bridge during integration. It carries no promise
-of compatibility for the finished product.
+`make` produces `build/apkg` and `build/libapkg.a`. `build/apkg-core` is a
+byte-identical development alias. `make install PREFIX=/chosen/prefix` installs
+the common binary/library/headers and `apkg-build`, `apkg-channel` and
+`apkg-publish`, including their authoring resources. `DESTDIR` supports staged
+installation; the installed tools do not require the source checkout.
 
-The portal uses .NET; its [guide](portal/README.md) covers local configuration
-and its test suite:
+Imported `build/pkg`, `build/libpkg.a` and `build/apkg-provisional` are explicit
+regression/migration baselines, excluded from the default product/install.
+`make test-fusion` retains the provisional CLI and inherited publishing checks
+in addition to the common default-product scenario. The full inherited engine
+and client suites remain enabled in CI. The common Windows adapters are not
+implemented; `build/apkg.exe` refuses rather than selecting a legacy writer.
+Cross-build recipes and host tests do not qualify AROS/native runtime behavior.
+
+## Author and publish
+
+Use an application drawer and sibling `NAME.arospkg.toml` in the
+[authoring format](components/arospkg/docs/guide/authoring.md). The common builder
+preserves supported versions/revisions/relations, hidden files, empty drawers,
+icons, configuration and declared Amiga metadata. Unsupported semantics refuse
+explicitly. See the [common authoring profile](docs/fusion/authoring.md).
 
 ```sh
-dotnet test portal/tests/Portal.Tests
+./build/apkg keygen /path/to/author.key
+./build/apkg keygen /path/to/channel.key
+python3 tools/apkg-publish /path/to/MyApp \
+  --channel /path/to/channel --sign /path/to/author.key \
+  --authority AUTHOR-ID --channel-id CHANNEL-ID \
+  --channel-sign /path/to/channel.key --runtime native
 ```
 
-Host tests do not establish AROS runtime support. The release matrix includes
-x86_64 ABIv11, i386 ABIv0, mainline x86_64 ABIv1, native Pi aarch64 and hosted
-aarch64, plus macOS, Linux and Windows host tools. Each needs its own evidence.
+Replace each identity with its persistent 32-character lowercase hex id. Keys
+stay outside both the source drawer and public channel. CPU/ABI come from TOML;
+the runtime is explicit. Publication builds/signs a PKG/1 archive and atomically
+advances the immutable file channel. Authoring inputs stay unchanged. Declared
+launch metadata produces `application.json` inside the packaged drawer.
 
-## Author once, publish openly
+Common publication is the default; `--common` is an optional explicit alias.
+`--legacy --engine /path/to/pkg` selects the inherited bridge only for baseline
+or migration work. Missing common identities never cause a legacy fallback.
 
-The [signed-channel profile](docs/fusion/channels.md) adds common read-only
-discovery, separate channel/author trust and atomic local publication through
-`apkg-publish --common`. Context-owned file/HTTP fetching, replay floors and a
-shared dependency-aware CLI/worker workflow are implemented checkpoints. The
-explicit command is `apkg-core channel-install`; default-client and interactive
-native catalogue integration remain in progress.
+Publication requires no curator approval. Author declarations and trusted
+signatures do not assert independent review or runtime testing. The
+[signed-channel profile](docs/fusion/channels.md) describes separate trust roles,
+replay floors, exact selection and currently unasserted qualifications. Portal
+and catalogue qualification integration remains a separate alpha gate.
 
-The [common authoring checkpoint](docs/fusion/authoring.md) builds a signed
-PKG/1 artifact directly from TOML and `.ameta` using `tools/apkg-build` and
-`build/apkg-core`. Its common publishing mode uses the atomic file-channel
-producer; the bridge below still uses the inherited development backend.
+## Initialize, discover and operate
 
-An application drawer and its sibling `NAME.arospkg.toml` use
-[apkg-pack's authoring format](components/arospkg/docs/guide/authoring.md).
-The bridge runs its technical validation, generates the bundle description and
-asks the native engine to sign and publish the files. Source inputs stay intact.
+Initialize a separate common root with an explicit target and canonical trust
+policy containing the chosen author/channel grants. Initialization displays its
+plan and confirms the exact displayed digest in the same terminal process.
+Without a terminal it previews only; `--yes` explicitly authorizes the supplied
+bootstrap target/policy for automation. Other mutations use the printed
+`--confirm PLAN-DIGEST` token and refuse changed inputs.
 
 ```sh
-make build/pkg
-./build/apkg keygen --file /path/to/author.key
-python3 tools/apkg-publish /path/to/MyApp --channel /path/to/channel --sign /path/to/author.key --runtime native
+./build/apkg init ROOT x86_64-aros-v11-native POLICY.json
+./build/apkg channel-open ROOT ENDPOINT CHANNEL-ID
+./build/apkg channel-install ROOT ENDPOINT CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256
+# Review, then repeat that selection with --confirm PLAN-DIGEST.
+./build/apkg list ROOT
+./build/apkg repair ROOT PACKAGE-NAME
+./build/apkg rollback ROOT RETAINED-HISTORY-DIRECTORY
+./build/apkg remove ROOT PACKAGE-NAME
 ```
 
-The key belongs outside the drawer and channel. The author declares CPU and
-ABI in TOML; the command requires the runtime. The signed target is explicit,
-for example `x86_64-aros-v11-native`. The untouched TOML is installed as
-`MyApp/Package.arospkg.toml`; declared launch metadata produces
-`MyApp/application.json` through apkg-pack.
+`ENDPOINT` is a local directory or HTTP(S) URL. Discovery reports complete
+package/snapshot identities, trust/target facts and unknown qualifications.
+Installation resolves metadata before fetching selected archives. One approved
+common transaction commits package changes and the replay floor. Verified
+private preparation can remain after decline; installed state stays unchanged.
+Retained rollback and repair work offline and preserve personal configuration.
 
-Publication requires no catalogue approval. `depends_checked` records the
-author's declaration. Independent review and runtime-test attestations have
-separate authorities and apply to exact package content. The portal supports
-these qualifications independently of publishing rights. A directory or share
-is a usable channel; the portal is an optional publishing and discovery service.
-
-The bridge supports application, tool and data drawers, numeric versions,
-revision 1 and package dependencies. It refuses unsupported system requirements,
-richer relations, distribution constraints, later revisions, prereleases,
-shared system layouts, hidden payload files and empty directories. These are
-explicit integration gaps, recorded in the acceptance matrix, so publication
-cannot silently discard package semantics.
-
-## Exercise the development client
-
-```sh
-./build/apkg install myapp --root /path/to/test-root --channel /path/to/channel --target x86_64-aros-v11-native
-./build/apkg verify myapp --root /path/to/test-root
-./build/apkg bundle-check /path/to/test-root/MyApp
-```
-
-`bundle-check` validates the description without registering the application.
-It does not execute the application or establish runtime-library availability.
-Native launching remains an integration requirement.
-
-Existing APKG distributions require a tested migration path. The original pkg
-API, commands and storage formats may change freely; their consumers will be
-adapted to the common design.
+`bundle-check FOLDER TARGET` validates an unregistered bundle without running it;
+`run-bundle` has its own platform/runtime requirements. Existing APKG installs
+require the still-pending validated migration/rehearsal before replacement.
 
 ## Documentation and sources
 
-- [Implementation plan](PLAN.md): ordered work, dependencies and acceptance gates.
-- [Architecture](docs/fusion/architecture.md): common responsibilities and contracts.
-- [Acceptance matrix](docs/fusion/acceptance.md): preserved capabilities and evidence.
-- [Implementation status](docs/fusion/status.md): tested work and remaining integration.
-- [Source provenance](docs/fusion/provenance.md): pinned public inputs and attribution.
-- [Imported pkg guide](components/pkg-guide.md): baseline engine and publishing workflows.
-- [Imported arospkg guide](components/arospkg/README.md): baseline clients, bundles and catalogue.
-- [Portal guide](portal/README.md): publication and independent qualifications.
+- [Implementation plan](PLAN.md): sequence, dependencies and gates.
+- [Architecture](docs/fusion/architecture.md): common responsibilities/contracts.
+- [Acceptance](docs/fusion/acceptance.md): preserved capabilities and evidence.
+- [Status](docs/fusion/status.md): tested checkpoints and remaining work.
+- [Provenance](docs/fusion/provenance.md): pinned inputs and attribution.
+- [Common engine/API](docs/fusion/initial-engine.md) and [operations](docs/fusion/operations.md).
+- [Imported pkg guide](components/pkg-guide.md) and [arospkg guide](components/arospkg/README.md): inherited baselines.
+- [Portal guide](portal/README.md): current portal service and tests.
 
-The projects' own code is MIT licensed. Original notices are preserved;
-bundled dependencies retain their respective licences. See [LICENSE](LICENSE)
-and [provenance](docs/fusion/provenance.md).
-
-The first [common context engine](docs/fusion/initial-engine.md) is available as
-`build/libapkg.a` and the experimental `build/apkg-core`. It supports explicit
-initialization, signed local-package preview/install and journal recovery, with
-a PkgManager worker path enabled in fusion GUI builds. Its supported schema,
-resource limits and platform qualification are documented separately from the
-existing regression baseline. Run `make test-apkg` for its implementation tests.
-
-The [common operations profile](docs/fusion/operations.md) documents removal,
-repair, upgrades, offline rollback, local package dependency resolution, shared
-client operations and unregistered bundle inspection/launch. Native execution
-and legacy migration are qualified separately.
+The portal regression command is `dotnet test portal/tests/Portal.Tests`.
+No live portal cutover, OS modification or AROS execution is part of the current
+host qualification. The projects' own code is MIT licensed; original and
+third-party notices are preserved. See [LICENSE](LICENSE) and
+[provenance](docs/fusion/provenance.md).

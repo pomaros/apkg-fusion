@@ -198,7 +198,7 @@ def build(args):
  return dict(archive=str(output),descriptor_sha256=signature['sha256'],public_key=signature['public_key'],target=target,publication_mode='unpublished',review='not-asserted')
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('drawer');p.add_argument('--output',required=True);p.add_argument('--sign',required=True);p.add_argument('--authority',required=True);p.add_argument('--runtime',required=True,choices=('native','hosted','raspi'));p.add_argument('--engine',default=str(HERE/'build/apkg-core'));args=p.parse_args()
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('drawer');p.add_argument('--output',required=True);p.add_argument('--sign',required=True);p.add_argument('--authority',required=True);p.add_argument('--runtime',required=True,choices=('native','hosted','raspi'));p.add_argument('--engine',default=str(HERE/'build/apkg'));args=p.parse_args()
  try:print(json.dumps(build(args),sort_keys=True));return 0
  except (Refusal,OSError,ValueError,KeyError,TypeError) as exc:print(f'apkg-build: {exc}',file=sys.stderr);return 1
 if __name__=='__main__':sys.exit(main())

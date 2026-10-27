@@ -87,7 +87,7 @@ mode = "shell"
         channel = temp / "channel"
 
         def bridge(*extra, expect=0, selected=channel):
-            return invoke([sys.executable, BRIDGE, drawer, "--channel", selected,
+            return invoke([sys.executable, BRIDGE, drawer, "--legacy", "--channel", selected,
                            "--sign", key, "--runtime", "native", "--engine", ENGINE, *extra], expect)
 
         output = bridge()
@@ -179,7 +179,7 @@ mode = "shell"
         helper_author = sources / "Helper.arospkg.toml"
         helper_author.write_text(original.split("[launch]")[0].replace('"demo"', '"helper"')
                                  .replace('"Demo"', '"Helper"').replace('kind = "app"', 'kind = "data"'))
-        invoke([sys.executable, BRIDGE, helper, "--channel", channel, "--sign", key,
+        invoke([sys.executable, BRIDGE, helper, "--legacy", "--channel", channel, "--sign", key,
                 "--runtime", "native", "--engine", ENGINE])
         author.write_text(original.replace('version = "1.0"', 'version = "1.1"')
                           .replace('depends = []', 'depends = ["helper >= 1.0"]'))

@@ -47,7 +47,7 @@ preconditions or performing recovery.
 The API draws on arospkg's explicit contexts, typed client results and recovery
 model. Portable filesystems, signatures, ownership, shared system destinations,
 diagnostics and publishing draw on pkg. Those services operate through the
-context; global request state is replaced during integration. Wrapping two
+context; the default CLI/library now exclude the provisional global request backend. Wrapping two
 independent mutation engines does not satisfy this contract.
 
 PkgManager retains its native UI and DOS worker process. The library returns

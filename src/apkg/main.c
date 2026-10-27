@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 static int confirm(void *user, const apkg_plan *plan, const char *text) {
     const char *expected = user;
     char digest[65];
@@ -44,12 +45,17 @@ int main(int argc, char **argv) {
     char *text = NULL;
     const char *confirmation = NULL;
     int initialize_yes = 0;
+    if (argc == 2 && !strcmp(argv[1], "--version")) {
+        puts("apkg-fusion 0.1.0-alpha (common engine, contract 1)");
+        return APKG_OK;
+    }
     if (argc < 3) {
         fprintf(
-            stderr,
-            "Usage: apkg-core inspect ROOT | recover ROOT | init ROOT TARGET "
+            argc == 2 && !strcmp(argv[1], "--help") ? stdout : stderr,
+            "Usage: apkg inspect ROOT | recover ROOT | init ROOT TARGET "
             "POLICY "
-            "[--confirm DIGEST] | install ROOT PACKAGE-DIRECTORY [--confirm "
+            "[--yes] | install ROOT "
+            "PACKAGE-DIRECTORY [--confirm "
             "DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
             "| rollback ROOT HISTORY\nresolve ROOT PACKAGE-DIRECTORY [--pool "
             "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | "
@@ -65,7 +71,7 @@ int main(int argc, char **argv) {
             "CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256 [--recommends] "
             "[--confirm DIGEST]\nchannel-accept ROOT ENDPOINT "
             "CHANNEL-ID [--confirm DIGEST]\n");
-        return APKG_INVALID;
+        return argc == 2 && !strcmp(argv[1], "--help") ? APKG_OK : APKG_INVALID;
     }
     if (!strcmp(argv[1], "channel-install")) {
         if (argc < 7 || argc > 10 || strlen(argv[4]) != 32 ||
@@ -401,17 +407,33 @@ int main(int argc, char **argv) {
         initialize_yes = 1;
     }
     if (argc == 7) {
-        if (strcmp(argv[5], "--confirm")) {
-            code = APKG_INVALID;
+        fprintf(stderr, "Initialization confirmation stays in one process; use "
+                        "terminal review or explicit --yes.\n");
+        code = APKG_UNSUPPORTED;
+        goto done;
+    }
+    puts(text);
+    if (!initialize_yes) {
+        if (!isatty(STDIN_FILENO)) {
+            fprintf(stderr,
+                    "Initialization preview only. Review in a terminal, or use "
+                    "--yes for this explicit target and trust policy.\n");
+            code = APKG_CANCELLED;
             goto done;
         }
-        confirmation = argv[6];
-    }
-    if (initialize_yes)
-        puts(text);
-    if (!initialize_yes && !confirm((void *)confirmation, p, text)) {
-        code = APKG_CANCELLED;
-        goto done;
+        char expected[65], input[130];
+        ak_tohex(apkg_plan_get(p)->plan_digest.bytes, 32, expected);
+        fflush(stdout);
+        fprintf(stderr, "Type the displayed plan digest to initialize: ");
+        if (!fgets(input, sizeof input, stdin)) {
+            code = APKG_CANCELLED;
+            goto done;
+        }
+        input[strcspn(input, "\r\n")] = 0;
+        if (strcmp(input, expected)) {
+            code = APKG_CANCELLED;
+            goto done;
+        }
     }
     code = apkg_plan_approve(c, p, &apkg_plan_get(p)->plan_digest, &a, &e);
     if (!code)
