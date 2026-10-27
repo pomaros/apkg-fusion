@@ -22,14 +22,8 @@ static apkg_status cache_dir(apkg_ctx *ctx, char out[AK_PATH]) {
             return APKG_IO;
         if (lstat(out, &st))
             return APKG_IO;
-        strcpy(parent, out);
-        char *slash = strrchr(parent, '/');
-        if (!slash)
+        if (ak_parent(out, parent))
             return APKG_INVALID;
-        if (slash == parent)
-            slash[1] = 0;
-        else
-            *slash = 0;
         if (ak_sync_dir(parent))
             return APKG_IO;
     }

@@ -124,6 +124,7 @@ int ak_read(const char *, unsigned char **, size_t *, size_t);
 int ak_write(const char *, const void *, size_t, int);
 int ak_sync_dir(const char *);
 int ak_remove_tree(const char *);
+int ak_parent(const char *, char *);
 int ak_exists(const char *); /* -1 error, 0 absent, 1 present */
 int ak_resolve(const char *, char *, ak_identity *);
 int ak_physical(const char *, const ak_identity *);

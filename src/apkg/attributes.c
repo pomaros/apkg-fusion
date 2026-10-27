@@ -10,6 +10,23 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef __AROS__
+#include <dos/dos.h>
+/* DOS stores owner permissions as prohibitions, group/other as grants.
+ * These facts are already represented by mode, not additional Amiga metadata. */
+static uint64_t native_mode_protection(uint64_t mode) {
+    static const uint32_t bits[] = {
+        FIBF_OTR_EXECUTE, FIBF_OTR_WRITE, FIBF_OTR_READ,
+        FIBF_GRP_EXECUTE, FIBF_GRP_WRITE, FIBF_GRP_READ,
+        FIBF_EXECUTE, FIBF_WRITE, FIBF_READ
+    };
+    uint64_t word = 0;
+    for (unsigned bit = 0; bit < 9; bit++)
+        if (((mode >> bit) & 1) == (bit < 6))
+            word |= bits[bit];
+    return word;
+}
+#endif
 #if defined(__APPLE__) || defined(__linux__)
 #include <sys/xattr.h>
 #endif
@@ -198,7 +215,11 @@ apkg_status ak_attributes_read(const char *path, uint64_t mode, char **out) {
         return APKG_IO;
     if (!native)
         return APKG_OK;
-    if (word == (mode & 0100 ? 0 : 2) && !*comment)
+    uint64_t ordinary = mode & 0100 ? 0 : 2;
+#ifdef __AROS__
+    ordinary = native_mode_protection(mode);
+#endif
+    if (word == ordinary && !*comment)
         return APKG_OK;
     unsigned char utf8[sizeof comment * 2];
     size_t count = 0;

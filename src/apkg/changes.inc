@@ -254,7 +254,7 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
         char archived[AK_PATH], parent[AK_PATH];
         if (snprintf(archived, sizeof archived, "%s.apkg-history.%s", c->root,
                      id) >= (int)sizeof archived ||
-            ak_publish(txn, archived) || parent_path(c->root, parent) ||
+            ak_publish(txn, archived) || ak_parent(c->root, parent) ||
             ak_sync_dir(parent))
             goto done;
         strcpy(r->record, archived);
@@ -438,7 +438,7 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         preparation_publish(txn, active, &preparation, r))
         goto prepare_fail;
     ready = 1;
-    if (parent_path(c->root, parent) || ak_fault(1205) || ak_sync_dir(parent))
+    if (ak_parent(c->root, parent) || ak_fault(1205) || ak_sync_dir(parent))
         goto fail;
     if (ak_fault(2))
         goto fail;
@@ -511,7 +511,7 @@ prepare_fail:
     if (errno == EEXIST || errno == ESTALE)
         code = APKG_STALE;
     char cleanup_parent[AK_PATH];
-    if (parent_path(c->root, cleanup_parent) ||
+    if (ak_parent(c->root, cleanup_parent) ||
         preparation_discard(txn, &preparation, cleanup_parent))
         code = APKG_IO;
     result_set(r, code, APKG_UNCHANGED);

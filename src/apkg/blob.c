@@ -122,20 +122,9 @@ static apkg_status store_dir(apkg_ctx *c, char *out, int create) {
     if (!S_ISDIR(st.st_mode) || pkg_fs_path_is_link(out) != 0)
         return APKG_UNSUPPORTED;
     if (create) {
-        char parent[AK_PATH], *slash;
-        strcpy(parent, c->root);
-        slash = strrchr(parent, '/');
-        if (slash) {
-            if (slash == parent)
-                slash[1] = 0;
-            else
-                *slash = 0;
-        } else {
-            slash = strchr(parent, ':');
-            if (!slash)
-                return APKG_INVALID;
-            slash[1] = 0;
-        }
+        char parent[AK_PATH];
+        if (ak_parent(out, parent))
+            return APKG_INVALID;
         if (ak_sync_dir(parent))
             return APKG_IO;
     }

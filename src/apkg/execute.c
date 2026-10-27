@@ -45,24 +45,6 @@ int ak_fault(int point) {
     return 0;
 }
 #endif
-static int parent_path(const char *root, char *out) {
-    char *p;
-    strcpy(out, root);
-    p = strrchr(out, '/');
-    if (p) {
-        if (p == out)
-            p[1] = 0;
-        else
-            *p = 0;
-        return 0;
-    }
-    p = strchr(out, ':');
-    if (p) {
-        p[1] = 0;
-        return 0;
-    }
-    return -1;
-}
 int ak_publish(const char *from, const char *to) {
 #ifdef __APPLE__
     return renamex_np(from, to, RENAME_EXCL);
@@ -88,7 +70,7 @@ typedef struct {
 static int lock_take(apkg_ctx *c, mutation_lock *l) {
     memset(l, 0, sizeof *l);
     l->fd = -1;
-    if (parent_path(c->root, l->parent))
+    if (ak_parent(c->root, l->parent))
         return -1;
 #ifdef __AROS__
     {
@@ -597,7 +579,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             goto done;
         if (ak_stat(c->root, &st) || (uint64_t)st.st_dev != dev ||
             (uint64_t)st.st_ino != ino) {
-            if (parent_path(c->root, parent) || ak_stat(parent, &st) ||
+            if (ak_parent(c->root, parent) || ak_stat(parent, &st) ||
                 (uint64_t)st.st_dev != dev || (uint64_t)st.st_ino != ino)
                 goto done;
             root_was_absent = 1; /* the plan was anchored at the parent */
@@ -759,7 +741,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             goto done;
         }
         free(id);
-        if (ak_publish(txn, archived) || parent_path(c->root, parent) ||
+        if (ak_publish(txn, archived) || ak_parent(c->root, parent) ||
             ak_sync_dir(parent))
             goto done;
         strcpy(result->record, archived);

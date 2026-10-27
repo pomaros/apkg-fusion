@@ -66,6 +66,29 @@ int ak_path(char *o, const char *a, const char *b) {
                      (*a && a[strlen(a) - 1] == ':') ? "" : "/", b);
     return n < 0 || n >= AK_PATH ? -1 : 0;
 }
+int ak_parent(const char *root, char *out) {
+    char *p;
+    if (!root || !out || strlen(root) >= AK_PATH) {
+        errno = EINVAL;
+        return -1;
+    }
+    strcpy(out, root);
+    p = strrchr(out, '/');
+    if (p) {
+        if (p == out)
+            p[1] = 0;
+        else
+            *p = 0;
+        return 0;
+    }
+    p = strchr(out, ':');
+    if (p) {
+        p[1] = 0;
+        return 0;
+    }
+    errno = EINVAL;
+    return -1;
+}
 int ak_exists(const char *p) {
     struct stat s;
     if (lstat(p, &s) == 0)
@@ -275,7 +298,7 @@ apkg_status apkg_open(const apkg_open_options *o, apkg_ctx **out,
         }
         slash = strrchr(p, '/');
 #ifdef __AROS__
-        /* "Work:Packages": the parent is the volume, as parent_path has it. */
+        /* "Work:Packages": the parent is the volume, as ak_parent has it. */
         if (!slash && strchr(p, ':')) {
             char *colon = strrchr(p, ':');
             if (!colon[1]) {
