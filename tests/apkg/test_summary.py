@@ -174,6 +174,52 @@ class Summary(unittest.TestCase):
                     finally:
                         if process.poll() is None: process.kill(); process.communicate()
 
+    def test_offline_worker_and_show_replace_all_rows_or_preserve_original_on_refusal(self):
+        for mode,change,expected in [('20','remove',0),('21','remove',0),
+                ('20','author',0),('21','target',0),('20','floor',8),
+                ('21','channel',12),('21','badfield',1),('22','none',16),('23','none',4)]:
+            with self.subTest(mode=mode,change=change),tempfile.TemporaryDirectory() as tmp:
+                root,endpoint=fixture(Path(tmp))
+                digest=(endpoint/'current').read_text().strip()
+                field='wrong-field' if change=='badfield' else 'newer'
+                with serve(endpoint) as (url,server):
+                    process=subprocess.Popen([str(WORKER),str(root),url,mode,'7',CHANNEL,field],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                    try:
+                        self.assertEqual(process.stdout.readline(),'loaded\n')
+                        requests=len(server.requests)
+                        if change in ('remove','floor'):
+                            code,ctx=open_ctx(root,1); self.assertEqual(code,0)
+                            try:
+                                if change=='remove':
+                                    code,plan=op(ctx,'remove','blocked'); self.assertEqual(code,0)
+                                    self.assertEqual(run_plan(ctx,plan),(0,1)); lib.apkg_plan_free(plan)
+                                else: self.assertEqual(accept(ctx,catalog(entries=[],sequence=2)),(0,1))
+                            finally: lib.apkg_close(ctx)
+                        elif change in ('author','target','channel'):
+                            body=json.loads((root/'.apkg/state').read_bytes())['body']; body['generation']=str(int(body['generation'])+1)
+                            if change=='author': body['policy']['body']['authorities']=[]
+                            if change=='channel': body['policy']['body']['channels']=[]
+                            if change=='target': body['target']='arm-aros-v11-native'
+                            (root/'.apkg/state').write_bytes(wire('root',body))
+                        before=(root/'.apkg/state').read_bytes()
+                        stdout,stderr=process.communicate('\n',timeout=30)
+                        self.assertEqual(process.returncode,0,stdout+stderr)
+                        lines=stdout.splitlines(); self.assertEqual(lines[0],'status %d'%expected)
+                        if expected: self.assertEqual(len(lines),1)
+                        else:
+                            self.assertEqual(lines[1],'2' if change=='remove' else '3')
+                            generation=json.loads(before)['body']['generation']
+                            self.assertEqual(lines[2],'generation '+generation)
+                            rows=[line.split('\t') for line in lines[3:]]; self.assertEqual(len(rows),10)
+                            self.assertTrue(all(row[0].startswith(CHANNEL+'/'+digest+'/') for row in rows))
+                            if change=='remove': self.assertEqual([r[2] for r in rows if r[1]=='blocked'],['not-installed'])
+                            if change=='author': self.assertTrue(all(r[3]=='2' for r in rows))
+                            if change=='target': self.assertEqual(sum(r[4]=='1' for r in rows),1)
+                        self.assertEqual(len(server.requests),requests)
+                        self.assertEqual((root/'.apkg/state').read_bytes(),before)
+                    finally:
+                        if process.poll() is None: process.kill(); process.communicate()
+
     def test_signed_observation_export_is_exact_owned_and_reverified(self):
         from test_channel import read_channel
         lib.apkg_channel_observation.argtypes=[C.c_void_p,C.POINTER(Text),C.POINTER(Text)]

@@ -47,7 +47,7 @@ static int common_waiting;
 static char *common_preview_text;
 static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
               *str_channel_search, *lst_channel, *txt_channel_detail,
-              *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary, *cyc_channel_filter, *txt_channel_counts;
+              *btn_channel_recompare, *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary, *cyc_channel_filter, *txt_channel_counts;
 static char channel_counts_text[320];
 static const char *channel_filters[] = {"All candidates", "Updates / blocked candidates",
     "Not installed", "Other targets", "Untrusted authors", "Changed same release", "Indeterminate versions", NULL};
@@ -61,6 +61,7 @@ static char *common_info_text;
 #define ID_CHANNEL_REVIEW 1005
 #define ID_CHANNEL_SEARCH 1006
 #define ID_CHANNEL_CLOSE 1007
+#define ID_CHANNEL_RECOMPARE 1008
 #endif
 static Object *app, *win, *str_search, *cyc_cat, *cyc_state, *lst, *txt_detail,
               *txt_status, *gauge, *btn_install, *btn_remove, *btn_update, *btn_cancel,
@@ -1214,6 +1215,7 @@ static void busy(int on)
 {
 #ifdef APKG_FUSION
     SetAttrs(btn_channel_load, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(btn_channel_recompare, MUIA_Disabled, on || !common_catalogue, TAG_DONE);
     SetAttrs(str_channel_endpoint, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(str_channel_id, MUIA_Disabled, on, TAG_DONE);
     common_select();
@@ -1245,6 +1247,7 @@ static const char *opname(job_kind k)
     case JOB_INSTALL: return "install";
     case JOB_COMMON_INSTALL: return "signed-install";
     case JOB_COMMON_DISCOVER: return "update";
+    case JOB_COMMON_RECOMPARE: return "recompare";
     case JOB_REMOVE:  return "remove";
     case JOB_UPDATE:  return "update";
     case JOB_PREVIEW_UPGRADE: case JOB_UPGRADE: return "upgrade";
@@ -1329,7 +1332,11 @@ static int start(job_kind kind, const char *id)
         if (!folder || (cur.common_action!=APKG_CLIENT_RECOVER && !*(const char *)folder) || strlen((const char *)folder) >= sizeof cur.common_package) return -1;
         memcpy(cur.common_package, (const char *)folder, strlen((const char *)folder) + 1);
     }
-    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_RUN) {
+    if (kind == JOB_COMMON_RECOMPARE) {
+        if (!common_catalogue) return -1;
+        cur.common_observation = common_catalogue;
+    }
+    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_RUN) {
         if (apkg_cancel_create(&cur.common_cancel) != APKG_OK) return -1;
     }
 #endif
@@ -1354,9 +1361,9 @@ static int start(job_kind kind, const char *id)
     in_flight = 1;
 #ifdef APKG_FUSION
     common_select();
-    if (kind == JOB_COMMON_DISCOVER) {
+    if (kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE) {
         SetAttrs(btn_cancel, MUIA_Disabled, FALSE, TAG_DONE);
-        status("Reading signed catalogue; managed files remain unchanged");
+        status(kind == JOB_COMMON_RECOMPARE ? "Rechecking signed catalogue offline" : "Reading signed catalogue; managed files remain unchanged");
         if (active) active->can_cancel = 1;
         last_can_cancel = 1;
         snprintf(last_phase, sizeof last_phase, "discovery");
@@ -1863,7 +1870,7 @@ static int on_message(pm_msg *m)
         return 0;
     }
 #ifdef APKG_FUSION
-    if (m->kind == PM_DONE && cur.kind == JOB_COMMON_DISCOVER) {
+    if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_DISCOVER || cur.kind == JOB_COMMON_RECOMPARE)) {
         in_flight = 0;
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         if (active) finish(active,
@@ -1873,12 +1880,14 @@ static int on_message(pm_msg *m)
             DoMethod(lst_channel, MUIM_List_Clear);
             SetAttrs(txt_channel_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
             SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+            cur.common_observation = NULL;
             FreeVec(common_catalogue);
             common_catalogue = m->common_catalogue; m->common_catalogue = NULL;
             SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)common_catalogue->summary, TAG_DONE);
             common_refill();
             status("Signed catalogue loaded; review and runtime testing are not asserted");
         } else status(m->common_status == APKG_CANCELLED || cur.cancel ? "Discovery cancelled" : m->err.summary);
+        cur.common_observation = NULL;
         FreeVec(m->common_catalogue); m->common_catalogue = NULL;
         busy(0);
         return quit_pending;
@@ -2551,15 +2560,22 @@ static void rx_outdated(rexx_msg *m, const rx_req *r)
 {
 #ifdef APKG_FUSION
     char *text = NULL;
-    apkg_status code = pm_common_rexx_outdated(root, common_catalogue, r->field, &text);
+    pm_common_catalogue *replacement = NULL;
+    if (r->show && busy_now()) { rx_fail(m, RX_RC_ERROR, "BUSY wait for the current operation before SHOW"); return; }
+    apkg_status code = pm_common_rexx_outdated(root, common_catalogue, r->field, &text, r->show ? &replacement : NULL);
     if (code == APKG_NOT_FOUND) rx_fail(m, RX_RC_ERROR, "NOINDEX load a signed catalogue with UPDATE first");
-    else if (code == APKG_STALE) rx_fail(m, RX_RC_ERROR, "STALE the installed state changed; UPDATE the captured catalogue");
-    else if (code == APKG_CONFLICT) rx_fail(m, RX_RC_ERROR, "CONFLICT ambiguous names; request FIELD qualifiedpackages or a scalar field");
+    else if (code == APKG_STALE) rx_fail(m, RX_RC_ERROR, "STALE captured source is below the accepted replay floor; UPDATE it");
+    else if (code == APKG_CONFLICT) rx_fail(m, RX_RC_ERROR, "CONFLICT source snapshot or installed names conflict; refresh the source or request FIELD qualifiedpackages");
     else if (code == APKG_LIMIT) rx_fail(m, RX_RC_ERROR, "TOOLONG request an individual FIELD");
     else if (code == APKG_INVALID) rx_fail(m, RX_RC_FAIL, "BADARGS fields: %s", apkg_outdated_fields());
     else if (code) rx_fail(m, RX_RC_ERROR, "COMMON update summary refused (code %d)", (int)code);
     else {
         if (r->show) {
+            DoMethod(lst_channel, MUIM_List_Clear);
+            SetAttrs(txt_channel_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+            SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+            FreeVec(common_catalogue); common_catalogue = replacement; replacement = NULL;
+            SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)common_catalogue->summary, TAG_DONE);
             SetAttrs(str_channel_search, MUIA_NoNotify, TRUE, MUIA_String_Contents, (IPTR)"", TAG_DONE);
             SetAttrs(cyc_channel_filter, MUIA_NoNotify, TRUE, MUIA_Cycle_Active, PM_CATALOGUE_UPDATES, TAG_DONE);
             common_refill();
@@ -2569,6 +2585,7 @@ static void rx_outdated(rexx_msg *m, const rx_req *r)
         }
         rx_ok(m, text);
     }
+    FreeVec(replacement);
     apkg_client_text_free(text);
     return;
 #endif
@@ -2890,6 +2907,7 @@ static int real_main(int argc, char **argv)
                         MUIA_String_MaxLen, 33,
                         MUIA_ShortHelp, (IPTR)"32 lowercase hexadecimal characters; must be granted by root policy", End),
                     Child, (btn_channel_load = SimpleButton("Load catalogue")),
+                    Child, (btn_channel_recompare = SimpleButton("Recompare offline")),
                 End),
                 Child, (str_channel_search = StringObject,
                     MUIA_String_MaxLen, 256,
@@ -2971,6 +2989,7 @@ static int real_main(int argc, char **argv)
 #ifdef APKG_FUSION
     DoMethod(btn_common_install, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_COMMON_INSTALL);
     DoMethod(btn_channel_browse, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_BROWSE);
+    DoMethod(btn_channel_recompare, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_RECOMPARE);
     DoMethod(btn_channel_load, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_LOAD);
     DoMethod(btn_channel_review, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_REVIEW);
     DoMethod(lst_channel, MUIM_Notify, MUIA_List_Active, MUIV_EveryTime, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_SELECT);
@@ -3043,6 +3062,7 @@ static int real_main(int argc, char **argv)
         case ID_COMMON_INSTALL: if (!busy_now()) begin(JOB_COMMON_INSTALL, NULL, "window"); break;
         case ID_CHANNEL_BROWSE:
             SetAttrs(win_common_catalogue, MUIA_Window_Open, TRUE, MUIA_Window_Activate, TRUE, TAG_DONE); break;
+        case ID_CHANNEL_RECOMPARE: if (!busy_now() && common_catalogue) begin(JOB_COMMON_RECOMPARE, NULL, "window"); break;
         case ID_CHANNEL_LOAD: if (!busy_now()) begin(JOB_COMMON_DISCOVER, NULL, "window"); break;
         case ID_CHANNEL_SELECT: common_select(); break;
         case ID_CHANNEL_SEARCH: common_refill(); break;
@@ -3057,7 +3077,7 @@ static int real_main(int argc, char **argv)
         } break;
         case ID_CHANNEL_CLOSE:
             SetAttrs(win_common_catalogue, MUIA_Window_Open, FALSE, TAG_DONE);
-            if (in_flight && cur.kind == JOB_COMMON_DISCOVER) {
+            if (in_flight && (cur.kind == JOB_COMMON_DISCOVER || cur.kind == JOB_COMMON_RECOMPARE)) {
                 cur.cancel = 1; apkg_cancel_request(cur.common_cancel);
             }
             break;

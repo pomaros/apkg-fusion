@@ -78,7 +78,18 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     observer.cancel = cancel;
     if (j->cancel)
         apkg_cancel_request(cancel);
-    if (j->kind == JOB_COMMON_DISCOVER) {
+    if (j->kind == JOB_COMMON_RECOMPARE) {
+        status =
+            j->cancel
+                ? APKG_CANCELLED
+                : pm_common_catalogue_refresh(j->root, j->common_observation,
+                                              &j->done->common_catalogue);
+        if (j->cancel) {
+            FreeVec(j->done->common_catalogue);
+            j->done->common_catalogue = NULL;
+            status = APKG_CANCELLED;
+        }
+    } else if (j->kind == JOB_COMMON_DISCOVER) {
         apkg_channel *channel = NULL;
         apkg_snapshot *snapshot = NULL;
         status = apkg_client_channel_refresh(j->root, j->common_package,

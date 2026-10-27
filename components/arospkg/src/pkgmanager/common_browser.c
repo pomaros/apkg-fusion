@@ -58,12 +58,15 @@ apkg_status pm_common_rexx_info(const char *root, const char *name,
     }
     return code;
 }
-apkg_status pm_common_rexx_outdated(const char *root,
-                                    const pm_common_catalogue *model,
-                                    const char *field, char **out) {
-    if (!out)
-        return APKG_INVALID;
-    *out = NULL;
+/* A copied signed observation is revalidated in the current read context.
+ * The UI keeps its old AllocVec alive until the replacement is complete. */
+static apkg_status catalogue_open(const char *root,
+                                  const pm_common_catalogue *model,
+                                  apkg_ctx **ctx, apkg_snapshot **snapshot,
+                                  apkg_channel **channel) {
+    *ctx = NULL;
+    *snapshot = NULL;
+    *channel = NULL;
     if (!root)
         return APKG_INVALID;
     if (!model)
@@ -72,29 +75,74 @@ apkg_status pm_common_rexx_outdated(const char *root,
     options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
     options.root = (apkg_text){root, strlen(root)};
+    apkg_status code = apkg_open(&options, ctx, NULL);
+    if (!code)
+        code =
+            apkg_channel_read(*ctx, &model->channel.id, 0, model->observation,
+                              model->observation_signature, channel, NULL);
+    if (!code && memcmp(apkg_channel_get(*channel)->snapshot_digest.bytes,
+                        model->channel.snapshot_digest.bytes, 32))
+        code = APKG_CONFLICT;
+    if (!code)
+        code = apkg_snapshot_read(*ctx, snapshot, NULL);
+    return code;
+}
+apkg_status pm_common_catalogue_refresh(const char *root,
+                                        const pm_common_catalogue *model,
+                                        pm_common_catalogue **out) {
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    apkg_ctx *ctx = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    apkg_status code = catalogue_open(root, model, &ctx, &snapshot, &channel);
+    if (!code)
+        code =
+            pm_common_catalogue_copy(channel, snapshot, model->endpoint, out);
+    apkg_channel_free(channel);
+    apkg_snapshot_free(snapshot);
+    apkg_close(ctx);
+    return code;
+}
+apkg_status pm_common_rexx_outdated(const char *root,
+                                    const pm_common_catalogue *model,
+                                    const char *field, char **out,
+                                    pm_common_catalogue **refreshed) {
+    if (refreshed)
+        *refreshed = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
     apkg_ctx *ctx = NULL;
     apkg_snapshot *snapshot = NULL;
     apkg_channel *channel = NULL;
     apkg_update_summary *updates = NULL;
-    apkg_status code = apkg_open(&options, &ctx, NULL);
-    if (!code)
-        code = apkg_channel_read(ctx, &model->channel.id, 0, model->observation,
-                                 model->observation_signature, &channel, NULL);
-    if (!code && memcmp(apkg_channel_get(channel)->snapshot_digest.bytes,
-                        model->channel.snapshot_digest.bytes, 32))
-        code = APKG_CONFLICT;
-    if (!code)
-        code = apkg_snapshot_read(ctx, &snapshot, NULL);
-    if (!code)
-        code = apkg_channel_summarize(snapshot, channel, &updates, NULL);
-    if (!code)
-        code = apkg_update_summary_format(apkg_update_summary_get(updates),
-                                          field, out, NULL);
+    pm_common_catalogue *replacement = NULL;
+    apkg_status code;
+    if (refreshed) {
+        code = pm_common_catalogue_refresh(root, model, &replacement);
+        if (!code)
+            code = apkg_update_summary_format(&replacement->updates, field, out,
+                                              NULL);
+    } else {
+        code = catalogue_open(root, model, &ctx, &snapshot, &channel);
+        if (!code)
+            code = apkg_channel_summarize(snapshot, channel, &updates, NULL);
+        if (!code)
+            code = apkg_update_summary_format(apkg_update_summary_get(updates),
+                                              field, out, NULL);
+    }
     if (!code && strlen(*out) > RX_MAXRESULT) {
         apkg_client_text_free(*out);
         *out = NULL;
         code = APKG_LIMIT;
     }
+    if (!code && refreshed) {
+        *refreshed = replacement;
+        replacement = NULL;
+    }
+    FreeVec(replacement);
     apkg_update_summary_free(updates);
     apkg_channel_free(channel);
     apkg_snapshot_free(snapshot);

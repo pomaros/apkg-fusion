@@ -231,8 +231,10 @@ int main(int argc, char **argv) {
         return 0;
     }
     if ((choice >= 9 && choice <= 11) || choice == 16 || choice == 17 ||
-        choice == 18) {
-        assert(argc == 6 || ((choice == 17 || choice == 18) && argc == 7));
+        choice == 18 || (choice >= 20 && choice <= 23)) {
+        assert(argc == 6 || ((choice == 17 || choice == 18 ||
+                              (choice >= 20 && choice <= 23)) &&
+                             argc == 7));
         j.kind = JOB_COMMON_DISCOVER;
         fail_at = choice == 10 ? 1 : 0;
         assert(apkg_cancel_create(&j.common_cancel) == APKG_OK);
@@ -240,10 +242,12 @@ int main(int argc, char **argv) {
             apkg_cancel_request(j.common_cancel);
         result = pm_common_install(&j, &error);
         apkg_cancel_free(j.common_cancel);
+        j.common_cancel = NULL;
         assert(previews == 0);
         if (choice == 11)
             assert(progress_count == 0);
-        if (choice == 9 || choice == 16 || choice == 17 || choice == 18) {
+        if (choice == 9 || choice == 16 || choice == 17 || choice == 18 ||
+            (choice >= 20 && choice <= 23)) {
             assert(result == PKG_OK && final.common_status == APKG_OK);
             assert(final.common_catalogue);
             assert(!strcmp(final.common_catalogue->endpoint, argv[2]));
@@ -271,6 +275,72 @@ int main(int argc, char **argv) {
                 owned_text(final.common_catalogue, r->target);
                 owned_text(final.common_catalogue, r->installed_version);
             }
+            if (choice >= 20 && choice <= 23) {
+                pm_common_catalogue *old = final.common_catalogue,
+                                    *replacement = NULL;
+                size_t old_size = last_public_size;
+                void *before = malloc(old_size);
+                assert(before);
+                memcpy(before, old, old_size);
+                char input[2], *text = NULL;
+                puts("loaded");
+                fflush(stdout);
+                assert(fgets(input, sizeof input, stdin));
+                apkg_status code;
+                if (choice == 21) {
+                    code = pm_common_rexx_outdated(
+                        j.root, old, argc == 7 ? argv[6] : "newer", &text,
+                        &replacement);
+                } else {
+                    final.common_catalogue = NULL;
+                    j.kind = JOB_COMMON_RECOMPARE;
+                    j.common_observation = old;
+                    if (choice == 22)
+                        j.cancel = 1;
+                    if (choice == 23)
+                        fail_at = allocation_calls + 1;
+                    result = pm_common_install(&j, &error);
+                    code = final.common_status;
+                    assert((result == PKG_OK) == (code == APKG_OK));
+                    replacement = final.common_catalogue;
+                    if (!code)
+                        assert(apkg_update_summary_format(
+                                   &replacement->updates,
+                                   argc == 7 ? argv[6] : "newer", &text,
+                                   NULL) == APKG_OK);
+                }
+                assert(!memcmp(before, old, old_size));
+                free(before);
+                printf("status %d\n", (int)code);
+                if (!code) {
+                    assert(replacement && replacement != old);
+                    puts(text);
+                    printf("generation %llu\n",
+                           (unsigned long long)replacement->root_generation);
+                    for (size_t i = 0; i < replacement->count; i++) {
+                        const pm_common_row *r = &replacement->rows[i];
+                        owned_text(replacement,
+                                   (apkg_text){r->name, strlen(r->name)});
+                        owned_text(replacement,
+                                   (apkg_text){r->detail, strlen(r->detail)});
+                        printf("%s\t%s\t%s\t%d\t%d\n", r->selection, r->name,
+                               apkg_candidate_state_name(r->comparison),
+                               r->author_trust, r->target_matches);
+                    }
+                } else
+                    assert(!replacement && !text);
+                FreeVec(
+                    old); /* independent replacement must survive its input */
+                if (replacement) {
+                    assert(replacement->observation.size);
+                    assert(strstr(replacement->summary,
+                                  "online freshness: unknown"));
+                }
+                apkg_client_text_free(text);
+                FreeVec(replacement);
+                assert(allocations == 0);
+                return 0;
+            }
             if (choice == 17 || choice == 18) {
                 if (choice == 18) {
                     char input[2];
@@ -279,9 +349,9 @@ int main(int argc, char **argv) {
                     assert(fgets(input, sizeof input, stdin));
                 }
                 char *text = NULL;
-                apkg_status status =
-                    pm_common_rexx_outdated(j.root, final.common_catalogue,
-                                            argc == 7 ? argv[6] : NULL, &text);
+                apkg_status status = pm_common_rexx_outdated(
+                    j.root, final.common_catalogue, argc == 7 ? argv[6] : NULL,
+                    &text, NULL);
                 printf("status %d\n", (int)status);
                 if (status)
                     assert(!text);

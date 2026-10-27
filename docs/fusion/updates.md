@@ -126,7 +126,22 @@ older observations, same-sequence forks and pending roots refuse explicitly.
 Author withdrawal or target changes affect metadata eligibility separately from
 whether a candidate version is newer. Online freshness remains unknown.
 
-The query leaves the displayed immutable catalogue unchanged: SHOW opens its
-observed-generation view, while returned fields describe the newly captured
-root. Row refresh, persistent source settings and a durable signed-observation
-cache still need integration. No disk cache is created by this query.
+Without SHOW, OUTDATED returns newly captured summary fields and leaves the
+currently displayed observation unchanged. `OUTDATED SHOW` requests an owned
+replacement through the same offline model builder, formats its summary, and
+only then replaces the UI model. Returned counts, details, comparison filters,
+author/target facts and generation therefore describe the same snapshot. A
+failed query (including an invalid field or result overflow) frees the tentative
+replacement and preserves the original. SHOW refuses while an operation owns
+the model; scalar queries remain read-only.
+
+The catalogue's Recompare offline button runs this rebuild in the existing
+worker. The worker borrows the UI's immutable AllocVec until PM_DONE and returns
+a new independent AllocVec; no library-owned handles cross worker exit. The UI
+clears borrowed list/detail references before replacing a successful model.
+Refusal or cancellation retains the previous model under its observed
+generation. Cancellation is checked before and after the bounded metadata
+rebuild; it does not interrupt an individual signature/parser call. The signed
+source identity/snapshot and exact package selections remain unchanged, with
+online freshness unknown and no archive transfers or managed-state writes.
+Persistent source settings and a durable signed-observation cache remain open.

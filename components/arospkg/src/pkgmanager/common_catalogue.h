@@ -37,6 +37,12 @@ typedef enum {
     PM_CATALOGUE_INDETERMINATE,
     PM_CATALOGUE_FILTER_COUNT
 } pm_catalogue_filter;
+/* Pure offline rebuild; input remains owned by the UI and unchanged on failure.
+ * Output is a new AllocVec owned by the caller. No transfer origin is reused.
+ */
+apkg_status pm_common_catalogue_refresh(const char *,
+                                        const pm_common_catalogue *,
+                                        pm_common_catalogue **);
 int pm_common_row_matches(const pm_common_row *, pm_catalogue_filter,
                           const char *);
 int pm_common_row_reviewable(const pm_common_row *);
@@ -61,5 +67,6 @@ apkg_status pm_common_rexx_info(const char *, const char *, const char *,
                                 char **);
 apkg_status pm_common_rexx_outdated(const char *root,
                                     const pm_common_catalogue *,
-                                    const char *field, char **);
+                                    const char *field, char **,
+                                    pm_common_catalogue **refreshed);
 #endif

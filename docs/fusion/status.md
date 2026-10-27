@@ -1092,6 +1092,51 @@ link checks. Native UI/ARexx runtime remains untested; persistent settings and
 row-refresh integration remain open. Exact-source Linux/macOS CI is required
 for this checkpoint before treating it as host-qualified.
 
+## Offline catalogue row refresh and SHOW consistency
+
+The native catalogue now exposes Recompare offline through a separate common
+worker job. Its input is a borrowed immutable UI-owned AllocVec, retained until
+PM_DONE; its result is an independent AllocVec containing revalidated signed
+metadata, complete rows/details, exact selections and a new root-bound summary.
+The UI clears list/detail references before replacement. Failed/cancelled work
+preserves the old observation and its generation. Cancellation is checked at
+metadata-rebuild boundaries rather than inside signature/parser calls.
+
+`OUTDATED SHOW` uses the same model builder and formats its replacement summary
+before updating the window. Returned fields and visible row facts thus share a
+single captured snapshot. Invalid fields, result overflow and refusals discard
+the tentative model. SHOW refuses while an operation holds the UI model;
+ordinary scalar queries do not replace it. No network request, archive transfer,
+trust grant or managed-root write is introduced by either refresh path.
+
+An additional host case runs nine real worker/SHOW scenarios after discovery:
+package removal, author withdrawal, target change, higher replay floor,
+channel withdrawal, invalid field, cancellation and native allocation failure.
+It checks current generation, every selection's original source digest, all-row
+trust/target facts, changed package comparison and zero extra HTTP requests.
+The C harness compares the entire input allocation before/after, checks owned
+output rows and frees the original before inspecting the independent result.
+Persistent source settings, durable observation caching, dated news and native
+UI/runtime qualification remain open; this closes only the offline row-refresh
+integration gap identified in the preceding checkpoint.
+
+Batch evaluation: `make test-fusion` passed 221 common methods, the fusion
+ARexx corpus, 78 default-product checks, 110 provisional CLI checks, 78
+publishing checks and the existing contract/target/application/initialization
+gates. The sanitizer suite passed 141 selected methods plus the instrumented
+fusion ARexx corpus; native C worker/model harnesses are instrumented, while
+direct ctypes fault-injection cases use the ordinary test library. All 69
+documentation files pass link checks. The final native sources passed SDK
+header/type checks on the existing
+aarch64 AROS headers with the previously recorded `vfork` warnings. These
+checks establish types rather than UI dispatch or runtime behavior. This
+checkpoint still requires exact-source Linux/macOS CI.
+
+The earlier summary checkpoint `f0a3d8ed9ed0119ecfc651b4f809f61fb73e15e5`
+has passed its complete
+[CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40439424137),
+including both inherited suites on Linux/macOS and all 107 portal tests.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
