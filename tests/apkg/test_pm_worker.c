@@ -75,6 +75,39 @@ int main(int argc, char **argv) {
     pkg_status result;
     assert(argc >= 4 && argc <= 7);
     j.common_action = argc >= 5 ? atoi(argv[4]) : 0;
+    if (atoi(argv[3]) == 24) {
+        assert(strlen(argv[1]) < sizeof j.root &&
+               strlen(argv[2]) < sizeof j.common_package);
+        strcpy(j.root, argv[1]);
+        strcpy(j.common_package, argv[2]);
+        j.kind = JOB_COMMON_SOURCE_LOAD;
+        j.done = &final;
+        running = &j;
+        if (argc >= 5) {
+            int fault = atoi(argv[4]);
+            if (fault < 0)
+                j.cancel = 1;
+            else
+                fail_at = fault;
+        }
+        pm_common_install(&j, &error);
+        printf("status %d\n", final.common_status);
+        if (!final.common_status) {
+            char *text = NULL;
+            assert(apkg_update_summary_format(&final.common_catalogue->updates,
+                                              NULL, &text, NULL) == APKG_OK);
+            puts(text);
+            apkg_client_text_free(text);
+            assert(final.common_catalogue->observation.size);
+            owned_text(final.common_catalogue,
+                       (apkg_text){final.common_catalogue->endpoint,
+                                   strlen(final.common_catalogue->endpoint)});
+        } else
+            assert(!final.common_catalogue);
+        FreeVec(final.common_catalogue);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 19) {
         assert(argc == 6 || argc == 7);
         apkg_snapshot *snapshot = NULL;
@@ -231,9 +264,9 @@ int main(int argc, char **argv) {
         return 0;
     }
     if ((choice >= 9 && choice <= 11) || choice == 16 || choice == 17 ||
-        choice == 18 || (choice >= 20 && choice <= 23)) {
+        choice == 18 || (choice >= 20 && choice <= 23) || choice == 25) {
         assert(argc == 6 || ((choice == 17 || choice == 18 ||
-                              (choice >= 20 && choice <= 23)) &&
+                              (choice >= 20 && choice <= 23) || choice == 25) &&
                              argc == 7));
         j.kind = JOB_COMMON_DISCOVER;
         fail_at = choice == 10 ? 1 : 0;
@@ -247,7 +280,7 @@ int main(int argc, char **argv) {
         if (choice == 11)
             assert(progress_count == 0);
         if (choice == 9 || choice == 16 || choice == 17 || choice == 18 ||
-            (choice >= 20 && choice <= 23)) {
+            (choice >= 20 && choice <= 23) || choice == 25) {
             assert(result == PKG_OK && final.common_status == APKG_OK);
             assert(final.common_catalogue);
             assert(!strcmp(final.common_catalogue->endpoint, argv[2]));
@@ -274,6 +307,16 @@ int main(int argc, char **argv) {
                 owned_text(final.common_catalogue, r->name);
                 owned_text(final.common_catalogue, r->target);
                 owned_text(final.common_catalogue, r->installed_version);
+            }
+            if (choice == 25) {
+                assert(argc == 7);
+                apkg_status code = pm_common_source_save(
+                    j.root, argv[6], j.common_package, j.common_pool,
+                    final.common_catalogue);
+                printf("status %d\n", (int)code);
+                FreeVec(final.common_catalogue);
+                assert(allocations == 0);
+                return 0;
             }
             if (choice >= 20 && choice <= 23) {
                 pm_common_catalogue *old = final.common_catalogue,

@@ -62,6 +62,27 @@ apkg_status apkg_client_channel_refresh(const char *root, const char *endpoint,
 apkg_status apkg_client_channel_updates(const char *root, const char *endpoint,
     const char *identity, uint64_t minimum_sequence, const apkg_observer *,
     char **, apkg_error **);
+/* Explicit per-source profile, separate from root trust/installed state.
+ * Views borrow their config owner. Reading settings validates framing only;
+ * open revalidates the copied signed observation against the current root.
+ * Outputs own independent handles. Offline channels convey no transfer origin.
+ * save(NULL channel) saves settings only and clears any previous observation.
+ * Profiles are private atomic-file replacements; concurrent saves are last-wins.
+ * No automatic locations, network fallback or trust grants. */
+typedef struct apkg_source_config apkg_source_config;
+typedef struct {
+    apkg_text endpoint;
+    apkg_id id;
+    apkg_bytes observation, signature;
+} apkg_source_config_view;
+apkg_status apkg_source_config_save(const char *path, const char *endpoint,
+    const apkg_id *, const apkg_channel *, apkg_error **);
+apkg_status apkg_source_config_read(const char *path, apkg_source_config **,
+    apkg_error **);
+const apkg_source_config_view *apkg_source_config_get(const apkg_source_config *);
+void apkg_source_config_free(apkg_source_config *);
+apkg_status apkg_source_config_open(const apkg_source_config *, const char *root,
+    apkg_snapshot **, apkg_channel **, apkg_error **);
 const char *apkg_outdated_fields(void);
 /* Accepts a library view or its unchanged owned deep copy. Unknown readiness
  * and freshness remain explicit. Ambiguous unqualified package lists refuse.

@@ -48,6 +48,8 @@ static char *common_preview_text;
 static Object *win_common_catalogue, *str_channel_endpoint, *str_channel_id,
               *str_channel_search, *lst_channel, *txt_channel_detail,
               *btn_channel_recompare, *btn_channel_load, *btn_channel_review, *btn_channel_browse, *txt_channel_summary, *cyc_channel_filter, *txt_channel_counts;
+static Object *str_source_profile, *btn_source_save, *btn_source_load;
+static char source_profile[4096] = "ENVARC:apkg-fusion.source";
 static char channel_counts_text[320];
 static const char *channel_filters[] = {"All candidates", "Updates / blocked candidates",
     "Not installed", "Other targets", "Untrusted authors", "Changed same release", "Indeterminate versions", NULL};
@@ -62,6 +64,8 @@ static char *common_info_text;
 #define ID_CHANNEL_SEARCH 1006
 #define ID_CHANNEL_CLOSE 1007
 #define ID_CHANNEL_RECOMPARE 1008
+#define ID_SOURCE_SAVE 1009
+#define ID_SOURCE_LOAD 1010
 #endif
 static Object *app, *win, *str_search, *cyc_cat, *cyc_state, *lst, *txt_detail,
               *txt_status, *gauge, *btn_install, *btn_remove, *btn_update, *btn_cancel,
@@ -1215,6 +1219,9 @@ static void busy(int on)
 {
 #ifdef APKG_FUSION
     SetAttrs(btn_channel_load, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(str_source_profile, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(btn_source_save, MUIA_Disabled, on, TAG_DONE);
+    SetAttrs(btn_source_load, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_channel_recompare, MUIA_Disabled, on || !common_catalogue, TAG_DONE);
     SetAttrs(str_channel_endpoint, MUIA_Disabled, on, TAG_DONE);
     SetAttrs(str_channel_id, MUIA_Disabled, on, TAG_DONE);
@@ -1248,6 +1255,7 @@ static const char *opname(job_kind k)
     case JOB_COMMON_INSTALL: return "signed-install";
     case JOB_COMMON_DISCOVER: return "update";
     case JOB_COMMON_RECOMPARE: return "recompare";
+    case JOB_COMMON_SOURCE_LOAD: return "source-load";
     case JOB_REMOVE:  return "remove";
     case JOB_UPDATE:  return "update";
     case JOB_PREVIEW_UPGRADE: case JOB_UPGRADE: return "upgrade";
@@ -1332,11 +1340,16 @@ static int start(job_kind kind, const char *id)
         if (!folder || (cur.common_action!=APKG_CLIENT_RECOVER && !*(const char *)folder) || strlen((const char *)folder) >= sizeof cur.common_package) return -1;
         memcpy(cur.common_package, (const char *)folder, strlen((const char *)folder) + 1);
     }
+    if (kind == JOB_COMMON_SOURCE_LOAD) {
+        IPTR path=0; GetAttr(MUIA_String_Contents,str_source_profile,&path);
+        if (!path || !*(const char *)path || strlen((const char *)path)>=sizeof cur.common_package) return -1;
+        memcpy(cur.common_package,(const char *)path,strlen((const char *)path)+1);
+    }
     if (kind == JOB_COMMON_RECOMPARE) {
         if (!common_catalogue) return -1;
         cur.common_observation = common_catalogue;
     }
-    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_RUN) {
+    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_RUN) {
         if (apkg_cancel_create(&cur.common_cancel) != APKG_OK) return -1;
     }
 #endif
@@ -1361,9 +1374,9 @@ static int start(job_kind kind, const char *id)
     in_flight = 1;
 #ifdef APKG_FUSION
     common_select();
-    if (kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE) {
+    if (kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD) {
         SetAttrs(btn_cancel, MUIA_Disabled, FALSE, TAG_DONE);
-        status(kind == JOB_COMMON_RECOMPARE ? "Rechecking signed catalogue offline" : "Reading signed catalogue; managed files remain unchanged");
+        status(kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD ? "Rechecking signed catalogue offline" : "Reading signed catalogue; managed files remain unchanged");
         if (active) active->can_cancel = 1;
         last_can_cancel = 1;
         snprintf(last_phase, sizeof last_phase, "discovery");
@@ -1870,7 +1883,7 @@ static int on_message(pm_msg *m)
         return 0;
     }
 #ifdef APKG_FUSION
-    if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_DISCOVER || cur.kind == JOB_COMMON_RECOMPARE)) {
+    if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_DISCOVER || cur.kind == JOB_COMMON_RECOMPARE || cur.kind == JOB_COMMON_SOURCE_LOAD)) {
         in_flight = 0;
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         if (active) finish(active,
@@ -1884,6 +1897,12 @@ static int on_message(pm_msg *m)
             FreeVec(common_catalogue);
             common_catalogue = m->common_catalogue; m->common_catalogue = NULL;
             SetAttrs(txt_channel_summary, MUIA_Floattext_Text, (IPTR)common_catalogue->summary, TAG_DONE);
+            if (cur.kind == JOB_COMMON_SOURCE_LOAD) {
+                static char identity[33]; const char hex[]="0123456789abcdef";
+                for (size_t k=0;k<16;k++) { identity[2*k]=hex[common_catalogue->channel.id.bytes[k]>>4]; identity[2*k+1]=hex[common_catalogue->channel.id.bytes[k]&15]; }
+                SetAttrs(str_channel_endpoint,MUIA_String_Contents,(IPTR)common_catalogue->endpoint,TAG_DONE);
+                SetAttrs(str_channel_id,MUIA_String_Contents,(IPTR)identity,TAG_DONE);
+            }
             common_refill();
             status("Signed catalogue loaded; review and runtime testing are not asserted");
         } else status(m->common_status == APKG_CANCELLED || cur.cancel ? "Discovery cancelled" : m->err.summary);
@@ -2659,6 +2678,26 @@ static void rexx_command(rexx_msg *m, const char *line)
     quiet = 0;
 }
 
+#ifdef APKG_FUSION
+static void common_source_restore(int startup) {
+    IPTR path=0; GetAttr(MUIA_String_Contents,str_source_profile,&path);
+    apkg_source_config *config=NULL;
+    apkg_status code=apkg_source_config_read((const char *)path,&config,NULL);
+    if (!code) {
+        const apkg_source_config_view *v=apkg_source_config_get(config);
+        char identity[33]={0}; const char hex[]="0123456789abcdef";
+        for (size_t k=0;k<16;k++) { identity[2*k]=hex[v->id.bytes[k]>>4]; identity[2*k+1]=hex[v->id.bytes[k]&15]; }
+        SetAttrs(str_channel_endpoint,MUIA_String_Contents,(IPTR)v->endpoint.data,TAG_DONE);
+        SetAttrs(str_channel_id,MUIA_String_Contents,(IPTR)identity,TAG_DONE);
+        if (v->observation.size) begin(JOB_COMMON_SOURCE_LOAD,NULL,startup ? "startup" : "window");
+        else status("Source settings restored; load a signed catalogue to browse");
+    } else if (!startup || code!=APKG_NOT_FOUND) {
+        static char message[96]; snprintf(message,sizeof message,"Source profile refused (code %d)",(int)code); status(message);
+    }
+    apkg_source_config_free(config);
+}
+#endif
+
 /* ------------------------------------------------------------------ main */
 
 static int real_main(int argc, char **argv)
@@ -2682,6 +2721,12 @@ static int real_main(int argc, char **argv)
         }
         else if (!strcmp(argv[i], "--after-update")) ;
         else if (!strcmp(argv[i], "--release-from") && i + 1 < argc) su_set_base(argv[++i]);  /* tests */
+#ifdef APKG_FUSION
+        else if (!strcmp(argv[i], "--source-profile") && i+1<argc) {
+            if (strlen(argv[i+1])>=sizeof source_profile) return APKG_LIMIT;
+            memcpy(source_profile,argv[i+1],strlen(argv[i+1])+1); i++;
+        }
+#endif
         else if (!strcmp(argv[i], "--root") && i + 1 < argc) snprintf(root, sizeof root, "%s", argv[++i]);
         else if (!strcmp(argv[i], "--slow") && i + 1 < argc) job_set_slow(atoi(argv[++i]));
         else if (!strcmp(argv[i], "--break-download-at") && i + 1 < argc)   /* tests */
@@ -2909,6 +2954,13 @@ static int real_main(int argc, char **argv)
                     Child, (btn_channel_load = SimpleButton("Load catalogue")),
                     Child, (btn_channel_recompare = SimpleButton("Recompare offline")),
                 End),
+                Child, (HGroup,
+                    Child, (str_source_profile = StringObject,
+                        MUIA_String_MaxLen, 4096, MUIA_String_Contents, (IPTR)source_profile,
+                        MUIA_ShortHelp, (IPTR)"Source profile file; separate from root trust and installed state", End),
+                    Child, (btn_source_save = SimpleButton("Save source/cache")),
+                    Child, (btn_source_load = SimpleButton("Restore source/cache")),
+                End),
                 Child, (str_channel_search = StringObject,
                     MUIA_String_MaxLen, 256,
                     MUIA_ShortHelp, (IPTR)"Filter by complete package name, authority or target", End),
@@ -2989,6 +3041,8 @@ static int real_main(int argc, char **argv)
 #ifdef APKG_FUSION
     DoMethod(btn_common_install, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_COMMON_INSTALL);
     DoMethod(btn_channel_browse, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_BROWSE);
+    DoMethod(btn_source_save, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_SOURCE_SAVE);
+    DoMethod(btn_source_load, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_SOURCE_LOAD);
     DoMethod(btn_channel_recompare, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_RECOMPARE);
     DoMethod(btn_channel_load, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_LOAD);
     DoMethod(btn_channel_review, MUIM_Notify, MUIA_Pressed, FALSE, (IPTR)app, 2, MUIM_Application_ReturnID, ID_CHANNEL_REVIEW);
@@ -3030,6 +3084,9 @@ static int real_main(int argc, char **argv)
     if (start_updates) SetAttrs(cyc_state, MUIA_NoNotify, TRUE, MUIA_Cycle_Active, ST_UPDATES, TAG_DONE);
     refill("", NULL, start_updates ? "start updates" : "start");
     su_at_start();
+#ifdef APKG_FUSION
+    if (!busy_now()) common_source_restore(1);
+#endif
 
     while (!quit) {
         ret = DoMethod(app, MUIM_Application_NewInput, (IPTR)&sigs);
@@ -3062,6 +3119,15 @@ static int real_main(int argc, char **argv)
         case ID_COMMON_INSTALL: if (!busy_now()) begin(JOB_COMMON_INSTALL, NULL, "window"); break;
         case ID_CHANNEL_BROWSE:
             SetAttrs(win_common_catalogue, MUIA_Window_Open, TRUE, MUIA_Window_Activate, TRUE, TAG_DONE); break;
+        case ID_SOURCE_LOAD: if (!busy_now()) common_source_restore(0); break;
+        case ID_SOURCE_SAVE: if (!busy_now()) {
+            IPTR path=0,endpoint=0,identity=0;
+            GetAttr(MUIA_String_Contents,str_source_profile,&path);
+            GetAttr(MUIA_String_Contents,str_channel_endpoint,&endpoint);
+            GetAttr(MUIA_String_Contents,str_channel_id,&identity);
+            apkg_status code=pm_common_source_save(root,(const char *)path,(const char *)endpoint,(const char *)identity,common_catalogue);
+            static char message[120]; snprintf(message,sizeof message,code ? "Source profile save refused (code %d)" : "Source profile saved; only matching signed observations retained",(int)code); status(message);
+        } break;
         case ID_CHANNEL_RECOMPARE: if (!busy_now() && common_catalogue) begin(JOB_COMMON_RECOMPARE, NULL, "window"); break;
         case ID_CHANNEL_LOAD: if (!busy_now()) begin(JOB_COMMON_DISCOVER, NULL, "window"); break;
         case ID_CHANNEL_SELECT: common_select(); break;
@@ -3077,7 +3143,7 @@ static int real_main(int argc, char **argv)
         } break;
         case ID_CHANNEL_CLOSE:
             SetAttrs(win_common_catalogue, MUIA_Window_Open, FALSE, TAG_DONE);
-            if (in_flight && (cur.kind == JOB_COMMON_DISCOVER || cur.kind == JOB_COMMON_RECOMPARE)) {
+            if (in_flight && (cur.kind == JOB_COMMON_DISCOVER || cur.kind == JOB_COMMON_RECOMPARE || cur.kind == JOB_COMMON_SOURCE_LOAD)) {
                 cur.cancel = 1; apkg_cancel_request(cur.common_cancel);
             }
             break;

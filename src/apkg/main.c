@@ -62,7 +62,9 @@ int main(int argc, char **argv) {
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
             "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
-            "[MIN-SEQUENCE]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
+            "[MIN-SEQUENCE]\nsource-save PROFILE ENDPOINT CHANNEL-ID\n"
+            "source-cache ROOT PROFILE ENDPOINT CHANNEL-ID\nsource-show PROFILE\n"
+            "source-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel "
             "JSONFILE\nverify-object descriptor|channel JSONFILE SIGNATURE\n"
@@ -224,6 +226,38 @@ int main(int argc, char **argv) {
         apkg_error_free(e);
         apkg_close(c);
         return (int)code;
+    }
+    if (!strcmp(argv[1], "source-save") || !strcmp(argv[1], "source-cache")) {
+        int cached=!strcmp(argv[1],"source-cache");
+        if (argc!=(cached ? 6 : 5)) return APKG_INVALID;
+        const char *path=argv[cached ? 3 : 2], *endpoint=argv[cached ? 4 : 3], *identity=argv[cached ? 5 : 4];
+        apkg_id id; if (ak_hex(identity,id.bytes,16)) return APKG_INVALID;
+        apkg_snapshot *snapshot=NULL; apkg_channel *channel=NULL;
+        code=cached ? apkg_client_channel_refresh(argv[2],endpoint,identity,0,NULL,&snapshot,&channel,&e) : APKG_OK;
+        if (!code) code=apkg_source_config_save(path,endpoint,&id,channel,&e);
+        apkg_snapshot_free(snapshot); apkg_channel_free(channel);
+        report(code,NULL,e); apkg_error_free(e); return code;
+    }
+    if (!strcmp(argv[1], "source-show") || !strcmp(argv[1], "source-outdated")) {
+        int outdated=!strcmp(argv[1],"source-outdated");
+        if ((!outdated && argc!=3) || (outdated && argc!=4 && argc!=5)) return APKG_INVALID;
+        apkg_source_config *config=NULL;
+        code=apkg_source_config_read(argv[outdated ? 3 : 2],&config,&e);
+        if (!code && !outdated) {
+            const apkg_source_config_view *v=apkg_source_config_get(config);
+            char id[33]; ak_tohex(v->id.bytes,16,id);
+            printf("endpoint %.*s\nchannel %s\nobservation %s\nfreshness unknown\n",(int)v->endpoint.size,v->endpoint.data,id,v->observation.size ? "retained" : "absent");
+        } else if (!code) {
+            apkg_snapshot *snapshot=NULL; apkg_channel *channel=NULL; apkg_update_summary *summary=NULL;
+            code=apkg_source_config_open(config,argv[2],&snapshot,&channel,&e);
+            if (!code) code=apkg_channel_summarize(snapshot,channel,&summary,&e);
+            if (!code) code=apkg_update_summary_format(apkg_update_summary_get(summary),argc==5 ? argv[4] : NULL,&text,&e);
+            if (!code) puts(text);
+            apkg_client_text_free(text); apkg_update_summary_free(summary);
+            apkg_snapshot_free(snapshot); apkg_channel_free(channel);
+        }
+        if (code) report(code,NULL,e);
+        apkg_error_free(e); apkg_source_config_free(config); return code;
     }
     if (!strcmp(argv[1], "outdated")) {
         if (argc != 5 && argc != 6) return APKG_INVALID;

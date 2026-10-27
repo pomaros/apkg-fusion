@@ -78,10 +78,12 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     observer.cancel = cancel;
     if (j->cancel)
         apkg_cancel_request(cancel);
-    if (j->kind == JOB_COMMON_RECOMPARE) {
+    if (j->kind == JOB_COMMON_RECOMPARE || j->kind == JOB_COMMON_SOURCE_LOAD) {
         status =
-            j->cancel
-                ? APKG_CANCELLED
+            j->cancel ? APKG_CANCELLED
+            : j->kind == JOB_COMMON_SOURCE_LOAD
+                ? pm_common_source_load(j->root, j->common_package,
+                                        &j->done->common_catalogue)
                 : pm_common_catalogue_refresh(j->root, j->common_observation,
                                               &j->done->common_catalogue);
         if (j->cancel) {

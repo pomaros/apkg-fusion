@@ -144,4 +144,6 @@ generation. Cancellation is checked before and after the bounded metadata
 rebuild; it does not interrupt an individual signature/parser call. The signed
 source identity/snapshot and exact package selections remain unchanged, with
 online freshness unknown and no archive transfers or managed-state writes.
-Persistent source settings and a durable signed-observation cache remain open.
+Explicit per-source settings and retained observations are now implemented in
+[source profiles](sources.md). Multi-channel aggregation and automated retention
+remain separate work.

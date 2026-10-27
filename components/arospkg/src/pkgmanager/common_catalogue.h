@@ -43,6 +43,11 @@ typedef enum {
 apkg_status pm_common_catalogue_refresh(const char *,
                                         const pm_common_catalogue *,
                                         pm_common_catalogue **);
+apkg_status pm_common_source_load(const char *root, const char *profile,
+                                  pm_common_catalogue **);
+apkg_status pm_common_source_save(const char *root, const char *profile,
+                                  const char *endpoint, const char *identity,
+                                  const pm_common_catalogue *);
 int pm_common_row_matches(const pm_common_row *, pm_catalogue_filter,
                           const char *);
 int pm_common_row_reviewable(const pm_common_row *);

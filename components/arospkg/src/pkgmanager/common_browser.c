@@ -105,6 +105,56 @@ apkg_status pm_common_catalogue_refresh(const char *root,
     apkg_close(ctx);
     return code;
 }
+apkg_status pm_common_source_load(const char *root, const char *profile,
+                                  pm_common_catalogue **out) {
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    apkg_source_config *config = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    apkg_status code = apkg_source_config_read(profile, &config, NULL);
+    if (!code)
+        code = apkg_source_config_open(config, root, &snapshot, &channel, NULL);
+    if (!code)
+        code = pm_common_catalogue_copy(
+            channel, snapshot, apkg_source_config_get(config)->endpoint.data,
+            out);
+    apkg_channel_free(channel);
+    apkg_snapshot_free(snapshot);
+    apkg_source_config_free(config);
+    return code;
+}
+apkg_status pm_common_source_save(const char *root, const char *profile,
+                                  const char *endpoint, const char *identity,
+                                  const pm_common_catalogue *model) {
+    if (!identity || strlen(identity) != 32 || !endpoint)
+        return APKG_INVALID;
+    apkg_id id;
+    for (size_t i = 0; i < 16; i++) {
+        unsigned value = 0;
+        for (size_t j = 0; j < 2; j++) {
+            char c = identity[2 * i + j];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+                return APKG_INVALID;
+            value = 16 * value + (unsigned)(c <= '9' ? c - '0' : c - 'a' + 10);
+        }
+        id.bytes[i] = (unsigned char)value;
+    }
+    apkg_ctx *ctx = NULL;
+    apkg_snapshot *snapshot = NULL;
+    apkg_channel *channel = NULL;
+    apkg_status code = APKG_OK;
+    if (model && !strcmp(endpoint, model->endpoint) &&
+        !memcmp(id.bytes, model->channel.id.bytes, 16))
+        code = catalogue_open(root, model, &ctx, &snapshot, &channel);
+    if (!code)
+        code = apkg_source_config_save(profile, endpoint, &id, channel, NULL);
+    apkg_channel_free(channel);
+    apkg_snapshot_free(snapshot);
+    apkg_close(ctx);
+    return code;
+}
 apkg_status pm_common_rexx_outdated(const char *root,
                                     const pm_common_catalogue *model,
                                     const char *field, char **out,

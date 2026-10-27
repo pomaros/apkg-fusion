@@ -1137,6 +1137,51 @@ has passed its complete
 [CI run](https://github.com/pomaros/apkg-fusion/actions/runs/40439424137),
 including both inherited suites on Linux/macOS and all 107 portal tests.
 
+## Persistent source profiles and offline restart
+
+The common client now owns [source profiles](sources.md): an explicit endpoint,
+channel identity and optional exact signed observation, in a bounded private
+file outside managed-root metadata. Settings restore without a root or trust
+grant. Opening retained metadata always revalidates it against current root
+policy, target and replay floor. Returned snapshot/channel owners remain usable
+after the profile owner/context are freed. No transfer origin, readiness or
+online freshness is inherited from a file's presence.
+
+The default common CLI exposes settings save, discovery/cache save, profile
+inspection and offline OUTDATED. PkgManager exposes a path control, explicit
+save/restore and startup restore of existing profiles; the shared worker builds
+a complete independent row model from retained metadata without network access.
+Saving retains displayed bytes only if endpoint and channel identity match the
+controls and current-root validation succeeds; changing a source saves settings
+only. Browsing and exit do not implicitly write profiles or accepted floors.
+
+Six host cases cover private settings-only files/cache clearing, HTTP discovery,
+CLI/native save byte equality, restart with the server stopped/source removed,
+CLI/actual-worker answer equivalence, journaled removal/replay-floor changes,
+withdrawn author/channel roles, forks, pending roots, framing/signature tampering,
+truncation/oversize, symlink/FIFO refusal, allocation failure and cancellation.
+Profile and root bytes remain unchanged on read/refusal; write validation and
+pre-replacement failures preserve existing profiles. Host file-service atomic
+replacement is process-visible evidence, not power-loss or native durability.
+
+Multi-channel aggregation/precedence, automatic retention and native settings/UI
+runtime qualification remain open. The native filesystem adapter refuses writes
+when atomic replacement is unsupported; no older-DOS fallback or native runtime
+success is claimed. Neither the OS repository nor the installed M1 libpkg/update
+process is changed.
+
+Batch evaluation: `make test-fusion` passed 227 common methods, the fusion
+ARexx corpus, 78 default-product checks, 110 provisional CLI checks, 78
+publishing checks and the existing contract/target/application/initialization
+gates. The sanitizer suite passed 147 selected methods plus the instrumented
+fusion ARexx corpus; host C CLI/worker/model harnesses are instrumented, while
+direct ctypes fault-injection cases use the ordinary test library. Public
+library symbol checks passed. The native sources passed SDK
+header/type checks on the existing aarch64 AROS headers with the previously
+recorded `vfork` warnings. All 70 documentation files pass link checks. The
+native startup/control wiring has not been executed on AROS; this checkpoint
+still requires exact-source Linux/macOS CI, including the inherited suites.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |
