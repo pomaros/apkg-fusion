@@ -2679,8 +2679,9 @@ static void rx_info(rexx_msg *m, const rx_req *r)
 {
 #ifdef APKG_FUSION
     char *text = NULL;
-    apkg_status code = pm_common_rexx_info(root, r->package, r->field, &text);
-    if (code == APKG_NOT_FOUND) rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is not installed", r->package);
+    apkg_status code = pm_common_rexx_catalogue_info(root,common_catalogue,r->package,r->field,&text);
+    if (code == APKG_NOT_FOUND) rx_fail(m, RX_RC_ERROR, "NOTFOUND %s is absent from installed and loaded catalogue rows",r->package);
+    else if (code == APKG_CONFLICT) rx_fail(m, RX_RC_ERROR, "CONFLICT %s has several builds; choose an exact build in the window",r->package);
     else if (code == APKG_INVALID) rx_fail(m, RX_RC_FAIL, "BADARGS unknown field; fields: %s", apkg_info_fields());
     else if (code == APKG_LIMIT) rx_fail(m, RX_RC_ERROR, "TOOLONG inspect one FIELD at a time");
     else if (code) rx_fail(m, RX_RC_ERROR, "COMMON inspection refused (code %d)", (int)code);

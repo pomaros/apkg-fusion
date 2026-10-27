@@ -30,7 +30,7 @@ to bypass unfinished non-portal integration or to resume the portal automaticall
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format |
-| Clients/default product | Shared CLI/worker, persistent current/previous source observations, last-refresh comparison, combined typed rows and common recent publications; default CLI/library/tools use the common engine | Remaining desktop settings/ARexx integration and native/consumer qualification; broader historical continuity is deferred |
+| Clients/default product | Shared CLI/worker, explicit source settings, persistent current/previous observations, last-refresh comparison, combined typed rows, recent publications and installed/catalogue INFO/SHOW; default CLI/library/tools use the common engine | Final frozen-candidate host and native interaction qualification against the desktop control inventory; broader historical continuity is deferred |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Deferred: placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification; see support choices above |
 | Portal | Common channel HTTP members, verified metadata API and authenticated signed-snapshot commits use the common executable; existing service and regression baseline retained | Common self-service link-only publication, publishing client, catalogue/qualification integration and migration/backup/restore/rollback rehearsal; no live cutover |
@@ -41,6 +41,40 @@ product. The isolated M1 RAM component profile below passes; broader native qual
 remains open. After final candidate qualification, stop with the merge report;
 portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
+
+## Desktop inventory and catalogue INFO
+
+The [control inventory](desktop-controls.md) names the non-demo window controls,
+ARexx commands, common adapters and required native interactions. Source settings
+and root-source administration are implemented; migration of older preferences
+belongs to the explicitly deferred legacy profiles. The earlier unspecified
+"broader settings" item is replaced by this concrete inventory, not by a claim
+of native execution.
+
+Fusion INFO prefers the installed record and otherwise revalidates the loaded
+catalogue before describing a unique build. The common channel formatter exposes
+the advertised inspection fields, with independent signature/trust/target facts,
+declared archive/payload data and explicit unknown installed/root facts. It owns
+the formatted text after channel closure. Multiple versions, targets or authors
+refuse; stale trust, replay and result limits are not bypassed. Missing and empty
+presentation fields, full revisions, relations and allocation failures are tested.
+
+Evaluation: seven new tests join the catalogue corpus. Before the final
+installed-field wording clarification, `make test-fusion` passed 407 common
+tests, 110 provisional CLI checks, 78 default CLI checks and 78 publication
+checks; the full ASan/UBSan runner passed its C checks and 303 selected tests.
+The clarification changes catalogue installed-version/revision to unknown:
+a channel row cannot establish installation state. All 28 relevant catalogue,
+inspection and combined-library tests then passed again normally and with the
+instrumented worker; direct ctypes allocation cases use the ordinary test
+library. Native SDK syntax/type checks pass on the final changed formatter,
+window and adapter. Compiled native window/worker objects reference no inherited
+mutation writers. Documentation checks cover 85 files with zero broken links.
+
+This closes the named implementation adapters and records their host evaluation.
+Final candidate CI and the host lifecycle audit remain separate HOST-FINAL work;
+native Zune/ARexx interactions remain M1-FINAL. No target access or portal change
+is included, and this checkpoint does not qualify either.
 
 ## Desktop audit: SHOW over the combined list
 

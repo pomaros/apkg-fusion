@@ -52,8 +52,11 @@ recorded empty fields remain empty. They are author text, not qualifications.
 PkgManager installed details and fusion ARexx INFO share that inspection.
 Fusion advertises **ARexx interface 2**: INFO reports explicit unknowns and
 `target-match`/`target-mismatch`, without inferring runtime compatibility or
-fabricating upgrade/rollback booleans. INFO currently describes installed
-records; catalogue-only INFO and remaining queries need common adapters.
+fabricating upgrade/rollback booleans. INFO prefers installed records; when
+there is no installed record, it revalidates the loaded signed observation
+against current policy and replay floors, then requires a unique matching
+catalogue build. Multiple versions, targets or authorities refuse with CONFLICT.
+No network fallback is performed.
 The imported non-fusion client retains interface 1 and its original corpus.
 
 Fusion `LIST [MATCH text]` now reads the retained signed catalogue after
@@ -70,8 +73,34 @@ UPGRADE requires an installed name and keeps its `upgrade` job label. Source
 setup uses the [root source controls](sources.md#root-source-list-controls);
 loading a catalogue with UPDATE alone does not add it as an installation source.
 Job numbers, WAIT and cancellation keep their existing asynchronous protocol.
-The rollback command adapter remains outstanding, as do catalogue-only
-INFO and dated news.
+ROLLBACK uses the common retained-history plan and confirmation flow. Dated
+publication and last-refresh views use the common [news queries](publication-news.md).
+
+## Catalogue information
+
+`apkg_channel_info(CHANNEL, INDEX, FIELD, ...)` formats one immutable channel
+entry with the fields advertised by `apkg_info_fields`. Its returned text owns
+its bytes independently of the channel. Field names are case-insensitive;
+absent or empty FIELD emits name/value lines. Invalid fields and out-of-range
+indices refuse without a partial output.
+
+Catalogue-only INFO reports `state available`, with installed version/revision
+`unknown` and reason/adoption `not-applicable`. The channel formatter has no
+installed-state knowledge, including when the same build happens to be installed.
+Root state, root identity,
+generation and installed snapshot are `unknown`; no installed record is
+fabricated. Archive `size` is the channel's declared archive byte count. Payload
+bytes, files, directories, relations and presentation come from the signed
+descriptor. Missing presentation fields remain unknown and recorded empty
+fields remain empty. Signature, captured author trust and root-target match
+remain independent facts. Runtime/review are `not-asserted`, and payload/system
+requirements are `not-checked`; supplied qualifications have their own
+[observation view](attestations.md).
+
+Fusion ARexx INFO caps the complete reply at its result boundary and refuses
+overflow rather than truncating it. An installed record retains precedence
+even when the catalogue advertises newer versions. An unavailable or invalid
+catalogue cannot replace a failed installed query with an invented success.
 
 Fusion `REQUIREMENTS name` reads the retained signed catalogue offline and
 revalidates current channel/author trust, target and accepted replay floors.

@@ -95,6 +95,29 @@ static apkg_status catalogue_open(const char *root,
         code = apkg_snapshot_read(*ctx, snapshot, NULL);
     return code;
 }
+apkg_status pm_common_rexx_catalogue_info(const char *root,const pm_common_catalogue *model,
+    const char *name,const char *field,char **out) {
+    if (!out) return APKG_INVALID;
+    *out=NULL;
+    if (!name || !*name) return APKG_INVALID;
+    apkg_status code=pm_common_rexx_info(root,name,field,out);
+    if (code!=APKG_NOT_FOUND || !model) return code;
+    apkg_ctx *ctx=NULL; apkg_snapshot *snapshot=NULL; apkg_channel *channel=NULL;
+    code=catalogue_open(root,model,&ctx,&snapshot,&channel);
+    uint64_t found=0, count=0;
+    for (uint64_t i=0; !code && i<apkg_channel_get(channel)->entry_count; i++) {
+        const apkg_channel_entry_view *row=NULL;
+        code=apkg_channel_entry_at(channel,i,&row,NULL);
+        if (!code && row->name.size==strlen(name) && !memcmp(row->name.data,name,row->name.size)) {
+            found=i; count++;
+        }
+    }
+    if (!code) code=count>1 ? APKG_CONFLICT : !count ? APKG_NOT_FOUND :
+        apkg_channel_info(channel,found,field,out,NULL);
+    if (!code && strlen(*out)>RX_MAXRESULT) { apkg_client_text_free(*out); *out=NULL; code=APKG_LIMIT; }
+    apkg_channel_free(channel); apkg_snapshot_free(snapshot); apkg_close(ctx);
+    return code;
+}
 apkg_status pm_common_rexx_requirements(const char *root,
                                         const pm_common_catalogue *model,
                                         const char *name, char **out) {

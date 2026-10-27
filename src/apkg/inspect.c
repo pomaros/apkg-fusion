@@ -10,6 +10,8 @@ struct apkg_inspection {
     apkg_inspection_view view;
     ak_json record;
     char *strings[5];
+    int catalogue;
+    uint64_t archive_bytes;
 };
 static const char empty_relations[] =
     "{\"conflicts\":[],\"depends\":[],\"recommends\":[],\"replaces\":[]}";
@@ -287,7 +289,15 @@ apkg_status apkg_inspection_format(const apkg_inspection *info,
             continue;
         if (!*wanted)
             ak_buf_add(&b, "%s%s ", found ? "\n" : "", name);
-        field_value(&b, &info->view, name);
+        if (info->catalogue && !strcmp(name,"state")) ak_buf_add(&b,"available");
+        else if (info->catalogue && (!strcmp(name,"installedversion") || !strcmp(name,"installedrevision")))
+            ak_buf_add(&b,"unknown");
+        else if (info->catalogue && (!strcmp(name,"reason") || !strcmp(name,"adoption")))
+            ak_buf_add(&b,"not-applicable");
+        else if (info->catalogue && (!strcmp(name,"rootstate") || !strcmp(name,"rootid") ||
+            !strcmp(name,"generation") || !strcmp(name,"snapshot"))) ak_buf_add(&b,"unknown");
+        else if (info->catalogue && !strcmp(name,"size")) ak_buf_add(&b,"%" PRIu64,info->archive_bytes);
+        else field_value(&b, &info->view, name);
         found = 1;
     }
     if (!found && !b.bad)
@@ -299,6 +309,56 @@ apkg_status apkg_inspection_format(const apkg_inspection *info,
     }
     *out = b.data;
     return APKG_OK;
+}
+apkg_status apkg_channel_info(const apkg_channel *channel, uint64_t index,
+    const char *field, char **out, apkg_error **error) {
+    if (error) *error = NULL;
+    if (!out) return APKG_INVALID;
+    *out = NULL;
+    const apkg_channel_entry_view *row = NULL;
+    apkg_status code = apkg_channel_entry_at(channel,index,&row,error);
+    if (code) return code;
+    apkg_inspection info = {0};
+    int parsed = ak_json_parse(row->descriptor.data,row->descriptor.size,&info.record);
+    if (parsed) return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+    int body = ak_member(&info.record,0,"body");
+    int files = ak_member(&info.record,body,"files");
+    char kind[256];
+    if (body < 0 || files < 0 || ak_string(&info.record,
+        ak_member(&info.record,body,"kind"),kind,sizeof kind)) { code=APKG_INVALID; goto done; }
+    apkg_inspection_view *v = &info.view;
+    const apkg_text values[]={row->name,row->authority,row->version,row->target};
+    apkg_text *copies[]={&v->name,&v->authority,&v->version,&v->target};
+    for (size_t i=0; i<4; i++) {
+        info.strings[i]=malloc(values[i].size+1);
+        if (!info.strings[i]) { code=APKG_NOMEM; goto done; }
+        memcpy(info.strings[i],values[i].data,values[i].size);
+        info.strings[i][values[i].size]=0;
+        *copies[i]=(apkg_text){info.strings[i],values[i].size};
+    }
+    v->revision=row->revision;
+    v->kind=(apkg_text){kind,strlen(kind)};
+    v->presentation=row->presentation;
+    v->signature=row->signature; v->author_trust=row->author_trust;
+    v->target_matches=row->target_matches;
+    int relations=ak_member(&info.record,body,"relations");
+    v->relations=relations<0 ? (apkg_bytes){(const unsigned char *)empty_relations,sizeof empty_relations-1}
+        : slice(&info.record,relations);
+    for (size_t i=(size_t)files+1; i<info.record.tokens[files].next; i=info.record.tokens[i].next) {
+        if (ak_equal(&info.record,ak_member(&info.record,(int)i,"type"),"directory")) v->directory_count++;
+        else {
+            uint64_t size;
+            if (ak_u64(&info.record,ak_member(&info.record,(int)i,"size"),&size)) { code=APKG_INVALID; goto done; }
+            if (size>UINT64_MAX-v->payload_bytes) { code=APKG_LIMIT; goto done; }
+            v->payload_bytes+=size; v->file_count++;
+        }
+    }
+    info.catalogue=1; info.archive_bytes=row->archive_bytes;
+    code=apkg_inspection_format(&info,field,out,error);
+done:
+    ak_json_free(&info.record);
+    for (size_t i=0; i<4; i++) free(info.strings[i]);
+    return code;
 }
 apkg_status apkg_client_info(const char *root, const char *name,
                              const char *field, char **out,

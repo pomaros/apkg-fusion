@@ -232,7 +232,9 @@ The remaining non-portal work, in order:
 2. PkgManager source-list controls are wired through the common worker;
    retain the current explicit freshness limits. Wider online revocation policy and self-update copies
    on other volumes remain broader release work.
-3. PkgManager: settings, news and the ARexx surface over the common client API.
+3. PkgManager source settings, news and named ARexx adapters have implementation
+   checkpoints. The [control inventory](docs/fusion/desktop-controls.md) defines
+   the exact surface to qualify on final host source and then the M1.
 4. Legacy completion is deferred by operator instruction: command continuity,
    placement/settings/launch conversion and prior-version history are outside
    the current candidate gate. Preserve existing adapters and regression tests;
@@ -256,11 +258,14 @@ needs its own evaluation; a passing earlier checkpoint does not close it.
 
 | Batch | Deliverable / exit evidence | Remaining size |
 |---|---|---|
-| NEWS-LAST | Finish full checks, documentation and publication of the implemented last-refresh comparison/profile work. | S at the current validation checkpoint |
-| DESKTOP-CLOSE | Finish remaining settings/ARexx behavior and audit every exposed non-demo control against the common engine. | M |
 | HOST-FINAL | Freeze the candidate and run clean-workspace lifecycle/recovery, both inherited suites and exact-source Linux/macOS CI; inspect post-removal state. | M, excluding defects found |
 | M1-FINAL | Test that candidate's CLI/window, real application launch and full package lifecycle on the M1; retain independent results and cleanup checks. | M–L, depending on native defects |
 | REPORT | Deliver the detailed APKG comparison, evidence and limits; stop before the portal. | S |
+
+NEWS-LAST and the named DESKTOP-CLOSE implementation/audit have evaluated host
+checkpoints in [status](docs/fusion/status.md). Their final-source CI and native
+interaction checks are included in HOST-FINAL and M1-FINAL respectively, not
+claimed complete by those component results.
 
 CLI-CONTINUITY, IMPORT-PROFILES and PRIOR-VERSIONS (previous lots 3–5) are
 deferred, not completed, and do not block this sequence. Their support choices,

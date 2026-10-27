@@ -40,7 +40,9 @@ from the whole combined list, so a search with no hits does not erase them.
 The model bounds installed records at 4,096 and combined inputs at 8,192;
 overflow refuses with LIMIT rather than truncating rows or category names.
 
-Broader settings and remaining automation are unfinished integration work.
+The [control and automation inventory](desktop-controls.md) defines settings,
+command scope and qualification evidence; historical settings conversion is
+deferred with the legacy profiles.
 Recently added uses signed publisher claims and never substitutes installation
 time or file modification time for missing dates. Last refresh retains its
 actual pair through display filtering and offline recomparison, with explicit

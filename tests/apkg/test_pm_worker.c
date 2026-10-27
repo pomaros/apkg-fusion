@@ -261,9 +261,9 @@ int main(int argc, char **argv) {
         assert(previews == 0 && allocations == 0);
         return 0;
     }
-    if (atoi(argv[3]) == 45 || atoi(argv[3]) == 46) {
+    if (atoi(argv[3]) == 45 || atoi(argv[3]) == 46 || atoi(argv[3]) == 56) {
         /* ROOT ENDPOINT 45 WAIT CHANNEL-ID MATCH: retain, then query offline. */
-        assert(argc == 7);
+        assert(argc == (atoi(argv[3]) == 56 ? 8 : 7));
         assert(strlen(argv[1]) < sizeof j.root && strlen(argv[2]) < sizeof j.common_package && strlen(argv[5]) < sizeof j.common_pool);
         strcpy(j.root, argv[1]); strcpy(j.common_package, argv[2]); strcpy(j.common_pool, argv[5]);
         j.kind = JOB_COMMON_DISCOVER; j.done = &final; running = &j;
@@ -275,7 +275,9 @@ int main(int argc, char **argv) {
         }
         char *text = NULL;
         assert(pm_common_rexx_list(j.root, NULL, NULL, &text) == APKG_NOT_FOUND && !text);
-        apkg_status code = atoi(argv[3]) == 46
+        apkg_status code = atoi(argv[3]) == 56
+            ? pm_common_rexx_catalogue_info(j.root,final.common_catalogue,argv[6],argv[7],&text)
+            : atoi(argv[3]) == 46
             ? pm_common_rexx_requirements(j.root, final.common_catalogue, argv[6], &text)
             : pm_common_rexx_list(j.root, final.common_catalogue, argv[6], &text);
         FreeVec(final.common_catalogue);

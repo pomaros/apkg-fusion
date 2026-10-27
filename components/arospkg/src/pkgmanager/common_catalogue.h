@@ -126,6 +126,8 @@ apkg_status pm_common_rexx_requirements(const char *root, const pm_common_catalo
                                         const char *name, char **);
 apkg_status pm_common_rexx_info(const char *, const char *, const char *,
                                 char **);
+apkg_status pm_common_rexx_catalogue_info(const char *, const pm_common_catalogue *,
+    const char *, const char *, char **);
 apkg_status pm_common_rexx_outdated(const char *root,
                                     const pm_common_catalogue *,
                                     const char *field, char **,

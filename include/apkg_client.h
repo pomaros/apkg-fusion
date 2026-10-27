@@ -144,6 +144,10 @@ apkg_status apkg_inspection_format(const apkg_inspection *, const char *field,
     char **, apkg_error **);
 apkg_status apkg_client_info(const char *root, const char *name,
     const char *field, char **, apkg_error **);
+/* Same advertised info fields, with available and unknown installed/root
+ * facts for a channel row. Owned text; metadata does not authorize installation. */
+apkg_status apkg_channel_info(const apkg_channel *, uint64_t entry,
+    const char *field, char **text, apkg_error **);
 apkg_status apkg_channel_attestations_format(const apkg_channel *, uint64_t entry,
     char **, apkg_error **);
 apkg_status apkg_attestation_format(const apkg_attestation *, char **, apkg_error **);
