@@ -9,12 +9,20 @@ No self-update or multi-volume operation is enabled by this first executor.
 Those operations must use this journal's participant/decision model when added;
 legacy self-update records remain migration evidence, never a second new engine.
 
-The journal is `<physical-root>.apkg-transaction`, a sibling on the same volume.
+The active journal is `<physical-root>.apkg-transaction`, a sibling on the same
+volume. Preparation first uses a mode-0700 sibling
+`<physical-root>.apkg-prepare.<operation-id>`. Only after intent, local staging,
+identities and `ready` have been flushed is that directory renamed exclusively
+to the active path and its parent flushed. No managed publication starts before
+this step. The draft name has the same suffix length as retained history, so it
+does not reduce the existing filename budget.
 This permits durable intent before creating an absent root. A nonblocking lock
 on the existing parent serializes cooperating mutations (coarser than per-root,
 intentionally). Parent alias resolution and device/inode identity are checked.
-Readers never lock or recover. A journal's presence reports PENDING, including
-after the database commit while cleanup is unfinished.
+Readers never lock or recover. The active journal's presence reports PENDING,
+including after the database commit while cleanup is unfinished. Private drafts
+are not active transactions: readers see the unchanged root during preparation,
+and cooperating writers still serialize on the parent lock.
 
 Journal contents are bounded canonical `plan`, `plan-sha`, `old-state` (install),
 `new-state`, private `tree` staging, `tree-id`, random `archive-id` and durable `ready` / `decision`
@@ -26,12 +34,21 @@ Only relative validated package paths and the exact bound root can be mutated.
 | Boundary | Normal effect | Interrupted execution/recovery |
 |---|---|---|
 | Before journal | Validate approval, root snapshot, policy, destination absence, volume and lock | STALE/UNCHANGED; no managed writes |
-| Preparing journal | Write/flush plan and before/after bytes; build/flush staging, record tree identity | Incomplete/unreadable intent is retained for diagnosis; never guess an external path to delete |
-| Ready | Flush intent and stage before any managed publication | Without decision: preserve original state, remove only verified owned staging/publication |
+| Private preparation | Write/flush plan and before/after bytes; build/flush staging and record identities in the private draft | No active journal or managed changes; a killed process can leave a private orphan, without blocking explicit retry |
+| Publish ready journal | Flush `ready`, exclusively rename the physically bound draft to the active path, flush parent | The active directory is complete and recoverable; an existing foreign coordinator is never overwritten |
+| Ready | Recheck before any managed payload publication | Without decision: preserve original state, remove only verified owned staging/publication |
 | Install apply | Rename staged tree to absent package directory without overwrite | Without decision, restore by removing only the exact recorded tree if all bytes/entries still match; foreign changes require manual recovery |
 | Decision | Create/flush decision marker, flush journal | Every subsequent recovery rolls forward; cancellation is deferred |
 | State publication | Atomically replace state after comparing old/new identity; initialize publishes staged metadata/root without overwriting | Accept already-published exact new state, otherwise finish from retained bytes; different state is unresolved |
 | Completion | Flush affected directories, retain accurate result, atomically archive journal, flush parent | Cleanup interrupted: repeat verification/archive; never apply twice |
+
+A normal preparation failure removes only its own physically bound draft and
+flushes the parent. Cleanup failure reports unchanged managed state with the
+private diagnostic path; it does not fabricate a pending transaction. Replaced
+drafts and unrelated orphans are preserved. Process-death orphans are retained
+privately; garbage collection is not implemented. A preexisting active directory
+with incomplete/corrupt intent still blocks recovery and is never automatically
+deleted on the assumption that it belongs to an unpublished draft.
 
 Before commit, cancellation or write failure attempts restoration. Its result
 separates UNCHANGED, RESTORED and NEEDS_RECOVERY from its error/cancel code. After
@@ -46,7 +63,8 @@ the root directory already exists. The recorded tree identity distinguishes a
 published tree from an unrelated replacement. Initial trust grants are part of
 the approved new state. Legacy metadata and a pre-existing journal are refusals.
 
-Fault checkpoints: 1 preparation, 2 ready, 3 payload published, 4 decision,
+Fault checkpoints: 1 private preparation, 1201–1204 draft creation/records/staging/
+ready-before-publication, 1205 active publication before parent flush, 2 ready, 3 payload published, 4 decision,
 5 state published, 6 recovery start, 7 recovery completion before cleanup.
 The test build supports injected I/O failure or process termination at these
 points. Production builds have no environment-driven fault injection. Tests

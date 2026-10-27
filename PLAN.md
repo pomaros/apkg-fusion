@@ -189,11 +189,11 @@ approved plans and explicit journaled replay floors are implemented checkpoints.
 Online revocation/freshness policy, independent qualifications, native adapters
 and client integration still prevent that gate from passing.
 
-Before the default client switch, close the preparation-prefix journal defect:
-process death at fault 1 preserves root bytes but leaves an unready transaction
-which automatic recovery refuses. Stage/publish intent so every visible active
-transaction is recoverable, and test prefix death plus retry without weakening
-foreign-state checks. Evidence belongs in [status](docs/fusion/status.md).
+The preparation-prefix journal checkpoint now stages privately and publishes a
+complete ready coordinator exclusively. Prefix death/retry and foreign-state
+refusals are tested on hosts. Qualify its exact-source CI before the default
+client switch; native/power-loss qualification and private-orphan collection
+remain separate work. Evidence belongs in [status](docs/fusion/status.md).
 
 Final acceptance is one automated clean-workspace scenario: author a bundle and
 its dependency, package/sign/publish through a real channel, discover through

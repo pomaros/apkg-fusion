@@ -378,7 +378,7 @@ build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_TESTING -fPIC -shared -Iinclude -Isrc/apkg $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 
 .PHONY: test-apkg
-test-apkg: build/test_channel_memory build/libapkg-test.dylib build/apkg-core build/test_pm_common build/libapkg.a check-common-symbols
+test-apkg: build/test_preparation_memory build/test_channel_memory build/libapkg-test.dylib build/apkg-core build/test_pm_common build/libapkg.a check-common-symbols
 	python3 -m unittest discover -s tests/apkg -v
 
 build/apkg-core: src/apkg/main.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/apkg_client.h include/pkg_ameta.h src/apkg/internal.h src/apkg/changes.inc
@@ -411,3 +411,7 @@ print-apkg-sources:
 check-common-symbols: build/libapkg.a build/apkg-core
 	@bad=$$(nm -g build/libapkg.a | awk 'NF==3 && $$2 != "U" {print $$3}' | sed 's/^_//' | grep -vE '^(apkg_|ak_|pkg_)' | sort -u); 	if [ -n "$$bad" ]; then echo "unexpected common-library globals: $$bad"; exit 1; fi
 	@if nm -g build/libapkg.a build/apkg-core | grep -E 'apkg_test_|pkgi_' >/dev/null; then echo "test hooks or provisional request backend in common product"; exit 1; fi
+
+build/test_preparation_memory: tests/apkg/test_preparation_memory.c $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h src/apkg/internal.h src/apkg/changes.inc
+	@mkdir -p build
+	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DPKG_FS_LOCAL_ONLY -DAPKG_TESTING -Iinclude -Isrc/apkg tests/apkg/test_preparation_memory.c $(APKG_ENGINE) $(APKG_SERVICES) -o $@

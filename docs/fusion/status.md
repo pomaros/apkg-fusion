@@ -643,14 +643,51 @@ Exact-source Linux/macOS CI must separately qualify this checkpoint.
 A separate process-death probe at journal fault 1 confirms an existing
 preparation-prefix defect: exit 99 leaves root bytes unchanged, but recovery
 returns `(APKG_RECOVERY_REQUIRED, APKG_NEEDS_RECOVERY)` because `ready` was never
-published. This is not qualified recovery. The next journal batch must make
-unpublished preparation prefixes safely discardable/retryable before default
-clients are switched; passing ready/decision-boundary tests does not close it.
+published. That checkpoint does not qualify preparation-prefix recovery. The
+following journal checkpoint addresses new preparation prefixes; it preserves
+the refusal for ambiguous preexisting active directories.
 
 This is explicit acceptance, not automatic acceptance during default-client
 refresh. Online revocation/freshness policy, independent qualifications, shared
 client discovery/selection, native adapters and all other alpha gates remain
 open. Host process tests do not qualify power loss or a live portal/AROS run.
+
+## FUSION-ALPHA progress: private preparation and ready-journal publication
+
+Both common executors now use the same private preparation helpers. They create
+an exclusive mode-0700 sibling, write/flush intent, staging and identities, then
+publish the complete ready journal without overwrite and flush its parent before
+managed mutation. Readers observe the unchanged root until active publication;
+the existing mutation lock still excludes competing writers. Ordinary errors
+clean only the physically bound owned draft. Changed directory identity or a
+foreign active coordinator refuses without deleting foreign bytes.
+
+This closes the newly reproduced fault-1 root-blocking defect for new
+transactions. Process death before active publication leaves only a private
+orphan: root state is unchanged, recovery reports unchanged and an explicitly
+approved retry can commit. After publication, the existing before/after-decision
+recovery rules apply to a complete journal. Failed private cleanup reports
+unchanged managed state with a diagnostic path. Unrelated orphans are preserved.
+The [journal protocol](journal.md) owns the full contract.
+
+New tests cover initialization, initial install, upgrade and channel acceptance
+across five private-prefix death points, the publication/flush window, ready and
+commit boundaries, normal I/O failure and retry. Deterministically paused host
+processes verify read-only visibility, active-coordinator exclusion, replaced
+private-directory refusal and unchanged personal files. Long-root filenames
+retain their prior history-name budget. A native fault-enabled runner exercises
+single/changes install cleanup and retry through instrumented binaries.
+Local `make test-fusion` passes 172 common methods and the existing integration
+checks. The sanitizer harness passes 92 methods, including the fault-enabled
+native runner under ASan/UBSan; direct ctypes cases use the ordinary test library.
+Documentation links pass for 67 files with zero broken links. Exact-source
+Linux/macOS CI must separately qualify this checkpoint.
+
+Preexisting incomplete or corrupt **active** journals still refuse recovery;
+they are not guessed to be disposable drafts. Private orphan collection, native
+handler behavior and power-loss durability remain unqualified. No AROS, OS or
+live portal operation occurred, and default-client/qualification/import/portal
+alpha gates remain open.
 
 ## Implemented integration pieces
 

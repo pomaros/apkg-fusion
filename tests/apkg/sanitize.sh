@@ -18,5 +18,7 @@ set -- -DPKG_FS_LOCAL_ONLY -std=c99 -O1 -g -fsanitize=address,undefined -fno-omi
 "$CC" "$@" -DAPKG_FUSION -Itests/pm_stubs -Icomponents/arospkg/src/pkgmanager tests/apkg/test_pm_worker.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c $sources -o build/common-sanitized/pm-worker
 # shellcheck disable=SC2086
 "$CC" "$@" tests/apkg/test_channel_memory.c $sources -o build/common-sanitized/channel-memory
+# shellcheck disable=SC2086
+"$CC" "$@" -DAPKG_TESTING tests/apkg/test_preparation_memory.c $sources -o build/common-sanitized/preparation-memory
 ./build/common-sanitized/memory
-APKG_CHANNEL_MEMORY="$PWD/build/common-sanitized/channel-memory" APKG_CLI="$PWD/build/common-sanitized/apkg-core" APKG_PM_WORKER="$PWD/build/common-sanitized/pm-worker" PYTHONPATH=tests/apkg python3 -m unittest test_client test_attributes.Attributes.test_actual_cli_and_worker_install_identical_metadata test_source test_author test_channel test_file_channel test_http_channel test_channel_plan test_channel_heads -v
+APKG_PREPARATION_MEMORY="$PWD/build/common-sanitized/preparation-memory" APKG_CHANNEL_MEMORY="$PWD/build/common-sanitized/channel-memory" APKG_CLI="$PWD/build/common-sanitized/apkg-core" APKG_PM_WORKER="$PWD/build/common-sanitized/pm-worker" PYTHONPATH=tests/apkg python3 -m unittest test_client test_attributes.Attributes.test_actual_cli_and_worker_install_identical_metadata test_source test_author test_channel test_file_channel test_http_channel test_channel_plan test_channel_heads test_preparation -v

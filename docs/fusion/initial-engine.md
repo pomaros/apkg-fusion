@@ -115,10 +115,12 @@ Committed and restored journals are archived by an atomic rename to a sibling
 history directory. Approved descriptors, signatures, before/after states and
 restored payload remain local, so recovery needs no network. Changed published
 files, foreign entries, corrupt intent and unexpected state retain evidence and
-report NEEDS_RECOVERY. Incomplete preparation left by a killed process is
-retained for diagnosis if no readable ready journal exists; it is never guessed
-into a successful operation. Automatic recovery of every corrupt/preparation
-record is not claimed. This profile does not garbage-collect history.
+report NEEDS_RECOVERY. New transactions prepare privately and publish only a
+complete ready journal. A killed preparation can leave a private orphan without
+blocking the root or explicit retry. Preexisting incomplete active journals
+remain refused and preserved. This profile garbage-collects neither orphaned
+preparation nor retained history; host process tests do not establish power-loss
+durability.
 
 Cancellation before mutation reports UNCHANGED; after publication it can report
 RESTORED. A request at commit can finish COMMITTED while still recording that

@@ -317,7 +317,8 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
                                           const apkg_observer *o,
                                           apkg_result *r) {
     ak_json j = {0};
-    char txn[AK_PATH], state[AK_PATH], hex[65], id[33];
+    char txn[AK_PATH], active[AK_PATH], state[AK_PATH], hex[65], id[33];
+    struct stat preparation;
     size_t i, index = 0;
     int arr, ready = 0, decided = 0;
     uint64_t seq = 0;
@@ -342,11 +343,14 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         code = errno == ENOMEM ? APKG_NOMEM : APKG_STALE;
         goto done;
     }
-    if (mkdir(txn, 0700))
+    if (preparation_start(c, r, txn, active, &preparation)) {
+        code = errno == EEXIST || errno == ESTALE ? APKG_STALE
+               : errno == ENAMETOOLONG            ? APKG_LIMIT
+                                                  : APKG_IO;
         goto done;
-    strcpy(r->record, txn);
-    r->view.record.data = (unsigned char *)r->record;
-    r->view.record.size = strlen(txn);
+    }
+    if (ak_fault(1201))
+        goto prepare_fail;
     ak_tohex(r->view.operation_id.bytes, 16, id);
     ak_tohex(p->view.plan_digest.bytes, 32, hex);
     if (write_in(txn, "archive-id", id, 32) ||
@@ -354,7 +358,7 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         write_in(txn, "plan-sha", hex, 64) ||
         write_in(txn, "old-state", s->raw, s->view.source_record.size) ||
         write_in(txn, "new-state", p->root_record, strlen(p->root_record)) ||
-        ak_fault(1))
+        ak_fault(1) || ak_fault(1202))
         goto prepare_fail;
     {
         int body = ak_member(&j, 0, "body"),
@@ -423,10 +427,12 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         free(raw);
     }
     char parent[AK_PATH];
-    if (marker(txn, "ready") || parent_path(c->root, parent) ||
-        ak_sync_dir(parent))
+    if (ak_fault(1203) || marker(txn, "ready") || ak_fault(1204) ||
+        preparation_publish(txn, active, &preparation, r))
         goto prepare_fail;
     ready = 1;
+    if (parent_path(c->root, parent) || ak_fault(1205) || ak_sync_dir(parent))
+        goto fail;
     if (ak_fault(2))
         goto fail;
     if (emit(o, r, &seq, APKG_PHASE_STAGE, 1, c->root)) {
@@ -495,10 +501,13 @@ prepare_fail:
            : errno == ENOEXEC ? APKG_TARGET
            : errno == ENOENT  ? APKG_NOT_FOUND
                               : APKG_IO;
-    if (ak_remove_tree(txn)) {
-        code = APKG_RECOVERY_REQUIRED;
-        result_set(r, code, APKG_NEEDS_RECOVERY);
-    }
+    if (errno == EEXIST || errno == ESTALE)
+        code = APKG_STALE;
+    char cleanup_parent[AK_PATH];
+    if (parent_path(c->root, cleanup_parent) ||
+        preparation_discard(txn, &preparation, cleanup_parent))
+        code = APKG_IO;
+    result_set(r, code, APKG_UNCHANGED);
     goto done;
 fail:
     if (!decided && ready) {

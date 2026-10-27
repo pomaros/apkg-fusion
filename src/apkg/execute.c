@@ -13,6 +13,7 @@
 #include <string.h>
 #include <unistd.h>
 #ifndef __AROS__
+#include <signal.h>
 #include <sys/file.h>
 #ifdef __linux__
 #include <sys/syscall.h>
@@ -31,6 +32,10 @@ int ak_fault(int point) {
         return 0;
     if (test_action == 2)
         _exit(99);
+#ifndef __AROS__
+    if (test_action == 3)
+        raise(SIGSTOP); /* deterministic host race fixtures */
+#endif
     errno = EIO;
     return test_action == 1;
 }
@@ -124,6 +129,58 @@ static int write_in(const char *base, const char *name, const void *p,
                     size_t n) {
     char path[AK_PATH];
     return ak_path(path, base, name) || ak_write(path, p, n, 1);
+}
+/* Drafts are private preparation, never a pending managed transaction. Only a
+ * fully flushed ready journal is published at the coordinator's active path. */
+static void transaction_record(apkg_result *r, const char *path) {
+    strcpy(r->record, path);
+    r->view.record.data = (unsigned char *)r->record;
+    r->view.record.size = strlen(path);
+}
+static int preparation_start(apkg_ctx *c, apkg_result *r, char txn[AK_PATH],
+                             char active[AK_PATH], struct stat *binding) {
+    char draft[AK_PATH], id[33];
+    strcpy(active, txn);
+    int exists = ak_exists(active);
+    if (exists < 0)
+        return -1;
+    if (exists) {
+        errno = EEXIST;
+        return -1;
+    }
+    ak_tohex(r->view.operation_id.bytes, 16, id);
+    int n = snprintf(draft, sizeof draft, "%s.apkg-prepare.%s", c->root, id);
+    if (n < 0 || n >= AK_PATH) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    if (mkdir(draft, 0700))
+        return -1;
+    transaction_record(r, draft);
+    if (lstat(draft, binding) || !S_ISDIR(binding->st_mode))
+        return -1;
+    strcpy(txn, draft);
+    return 0;
+}
+static int preparation_publish(char txn[AK_PATH], const char *active,
+                               const struct stat *binding, apkg_result *r) {
+    if (!ak_physical(txn, binding)) {
+        errno = ESTALE;
+        return -1;
+    }
+    if (ak_publish(txn, active))
+        return -1;
+    strcpy(txn, active);
+    transaction_record(r, active);
+    return 0;
+}
+static int preparation_discard(const char *txn, const struct stat *binding,
+                               const char *parent) {
+    if (!ak_physical(txn, binding)) {
+        errno = ESTALE;
+        return -1;
+    }
+    return ak_remove_tree(txn) || ak_sync_dir(parent);
 }
 static int read_in_limit(const char *base, const char *name, unsigned char **p,
                          size_t *n, size_t max) {
@@ -797,7 +854,9 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
     apkg_snapshot *s = NULL;
     mutation_lock lock;
     apkg_status code = APKG_IO;
-    char txn[AK_PATH], state[AK_PATH], tree[AK_PATH], path[AK_PATH], hex[65];
+    char txn[AK_PATH], active[AK_PATH], state[AK_PATH], tree[AK_PATH],
+        path[AK_PATH], hex[65];
+    struct stat preparation;
     int l, ready = 0, decision = 0;
     uint64_t seq = 0;
     ak_json descriptor = {0};
@@ -877,11 +936,14 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
         goto done;
     }
     code = APKG_IO;
-    if (mkdir(txn, 0700))
+    if (preparation_start(c, r, txn, active, &preparation)) {
+        code = errno == EEXIST || errno == ESTALE ? APKG_STALE
+               : errno == ENAMETOOLONG            ? APKG_LIMIT
+                                                  : APKG_IO;
         goto done;
-    strcpy(r->record, txn);
-    r->view.record.data = (unsigned char *)r->record;
-    r->view.record.size = strlen(r->record);
+    }
+    if (ak_fault(1201))
+        goto prepare_fail;
     {
         char archive_id[33];
         ak_tohex(r->view.operation_id.bytes, 16, archive_id);
@@ -897,6 +959,8 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
          write_in(txn, "old-state", s->raw, s->view.source_record.size)) ||
         ak_path(tree, txn, "tree") || mkdir(tree, 0700))
         goto prepare_fail;
+    if (ak_fault(1202))
+        goto prepare_fail;
     if (p->absent) {
         char meta[AK_PATH];
         if (ak_path(meta, tree, ".apkg") || mkdir(meta, 0700) ||
@@ -907,10 +971,14 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
             stage_package(c, tree, &descriptor, NULL))
             goto prepare_fail;
     }
-    if (sync_tree(tree) || tree_identity(txn, tree, 1) ||
-        marker(txn, "ready") || ak_sync_dir(lock.parent))
+    if (ak_fault(1203) || sync_tree(tree) || tree_identity(txn, tree, 1) ||
+        marker(txn, "ready") || ak_fault(1204) ||
+        preparation_publish(txn, active, &preparation, r))
         goto prepare_fail;
     ready = 1;
+    if (ak_path(tree, txn, "tree") || ak_fault(1205) ||
+        ak_sync_dir(lock.parent))
+        goto fail;
     if (ak_fault(2))
         goto fail;
     if (emit(o, r, &seq, APKG_PHASE_STAGE, 1, p->name)) {
@@ -991,10 +1059,11 @@ prepare_fail: /* No managed publication has occurred. */
            : errno == ENOEXEC ? APKG_TARGET
            : errno == ENOENT  ? APKG_NOT_FOUND
                               : APKG_IO;
-    if (ak_remove_tree(txn) || ak_sync_dir(lock.parent)) {
-        result_set(r, APKG_IO, APKG_NEEDS_RECOVERY);
-    } else
-        result_set(r, code, APKG_UNCHANGED);
+    if (errno == EEXIST || errno == ESTALE)
+        code = APKG_STALE;
+    if (preparation_discard(txn, &preparation, lock.parent))
+        code = APKG_IO;
+    result_set(r, code, APKG_UNCHANGED);
     code = r->view.status;
     goto done;
 fail:

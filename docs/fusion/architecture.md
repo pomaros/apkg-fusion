@@ -74,6 +74,11 @@ Explicit channel acceptance records per-root sequence/digest floors in the same
 journal. Catalogue-only generations preserve a separate package revision, so
 package rollback remains applicable and cannot lower the latest replay floors.
 
+Transaction preparation stays private until its complete ready journal is
+published without overwrite. A killed private preparation cannot create an
+unrecoverable active coordinator or block the unchanged root. Private cleanup
+must preserve replaced drafts and unrelated evidence.
+
 The journal records intent before mutation and distinguishes the commit decision
 from observations of completed actions. Recovery examines both the journal and
 actual filesystem state. Interrupted recovery is repeatable; unresolved state
