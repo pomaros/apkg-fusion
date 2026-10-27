@@ -8,6 +8,11 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+/* Identity fields stay 64-bit even when the target POSIX ino_t is 32-bit. */
+typedef struct {
+    struct stat metadata;
+    uint64_t st_dev, st_ino;
+} ak_identity;
 #define AK_PATH 4096
 #define AK_MAX 16777216u
 #define AK_TOKENS 100000u
@@ -45,7 +50,7 @@ apkg_status ak_attributes_merge(const ak_json *, int, const ak_json *, int,
                                 const ak_json *, int, uint64_t, char **);
 apkg_status ak_source_entry(const char *, char **, apkg_error **);
 apkg_status ak_tree_entry(const char *, const char *, char **);
-apkg_status ak_tree_source_read(const char *, size_t, char **, struct stat *);
+apkg_status ak_tree_source_read(const char *, size_t, char **, ak_identity *);
 apkg_status ak_source_inventory(const char *, char **, apkg_error **);
 int ak_legacy_main(int, char **);
 apkg_status ak_verify_command(int, char **, char **);
@@ -120,10 +125,10 @@ int ak_write(const char *, const void *, size_t, int);
 int ak_sync_dir(const char *);
 int ak_remove_tree(const char *);
 int ak_exists(const char *); /* -1 error, 0 absent, 1 present */
-int ak_resolve(const char *, char *, struct stat *);
-int ak_physical(const char *, const struct stat *);
+int ak_resolve(const char *, char *, ak_identity *);
+int ak_physical(const char *, const ak_identity *);
 char *ak_slice(const ak_json *, int);
-apkg_status ak_tree_read(const char *, size_t, char **, struct stat *);
+apkg_status ak_tree_read(const char *, size_t, char **, ak_identity *);
 apkg_status ak_changes_format(const apkg_plan *, char **);
 int ak_relations_valid(const ak_json *, int);
 int ak_requirement_matches(const ak_json *, int, const apkg_package *);
@@ -153,9 +158,9 @@ apkg_status ak_sources_delta(const char *before_state, const char *after_state,
                              ak_buf *);
 /* stat/lstat whose st_dev/st_ino name the object across renames and
  * restarts (identity.c); st_ino 0 means the filesystem gives no identity. */
-int ak_stat(const char *, struct stat *);
-int ak_lstat(const char *, struct stat *);
-int ak_identity_known(const struct stat *);
+int ak_stat(const char *, ak_identity *);
+int ak_lstat(const char *, ak_identity *);
+int ak_identity_known(const ak_identity *);
 int ak_tree_find(const ak_json *, const char *);
 /* System requirements (system.c). */
 int ak_system_valid(const ak_json *, int);
@@ -166,7 +171,7 @@ apkg_status ak_plan_system_check(const apkg_plan *);
 apkg_status ak_system_format(const char *, ak_buf *);
 struct apkg_ctx {
     char root[AK_PATH], anchor[AK_PATH];
-    struct stat binding;
+    ak_identity binding;
     apkg_mode mode;
     size_t object_max, memory_max;
     unsigned char session[16];
@@ -185,7 +190,7 @@ struct apkg_snapshot {
     uint64_t package_generation;
     char **records;
     char anchor[AK_PATH];
-    struct stat binding;
+    ak_identity binding;
 };
 struct apkg_error {
     apkg_error_view view;
@@ -228,7 +233,7 @@ struct apkg_plan {
     char *raw, *root_record, *package, *name;
     size_t package_size;
     char root[AK_PATH], anchor[AK_PATH];
-    struct stat binding;
+    ak_identity binding;
     unsigned char session[16];
     apkg_digest before;
     int absent;

@@ -83,7 +83,7 @@ done:
  */
 apkg_status ak_source_inventory(const char *base, char **out,
                                 apkg_error **error) {
-    struct stat identity;
+    ak_identity identity;
     char *raw = NULL;
     ak_json tree = {0};
     ak_buf result = {0};

@@ -1454,7 +1454,7 @@ journal and payload reviews found defects that are corrected here:
 
 | Defect | Correction and evidence |
 |---|---|
-| AROS posixc st_ino is a path hash and st_dev a DOS list address, so every moved tree would fail its identity check and leave the root pending | Identity comes from `ak_stat`: device/inode on hosts, the `Examine()` object key and the volume name and date on AROS; no object key refuses mutation. Host suites pass; AROS is type-checked only |
+| AROS posixc st_ino is a path hash and st_dev a DOS list address, so every moved tree would fail its identity check and leave the root pending | Identity comes from `ak_stat`: device/inode on hosts, the full-width DOS lock key and volume name/date on AROS. `fib_DiskKey` is an enumeration cursor on RAM:, so it is not an object identity. Zero keys refuse mutation; handler persistence needs qualification. See the isolated M1 findings below |
 | Initialization recovery published into a root created by someone else after the decision | Recovery follows the recorded anchor; a new test leaves the foreign root and journal untouched |
 | Recovery followed a linked `.apkg` and rewrote state outside the root | Linked metadata or state blocks recovery; tested |
 | A failing existence check during rollback was treated as absence and reported success | Unknown existence is an error |
@@ -1831,6 +1831,32 @@ The integration checks comprise 118 target, 315 application-description,
 27 first-install, 110 CLI and 78 publication checks. All are covered by the passing BASE matrix; the HTTP fixture test additionally
 checks synchronous and threaded responses with reverse DNS unavailable. No operational consumers were
 modified and no portal or AROS deployment was performed.
+
+## Isolated M1 runtime findings
+
+The operator-authorized rehearsal runs candidate applications in a retained
+AArch64 RAM runtime on a physical M1 under an independent hypervisor/debugger.
+The SDK includes local C-runtime changes; this is application-component evidence,
+not coherent OS promotion, bare-metal acceptance or power-loss qualification.
+The installed package manager, library and updater are untouched.
+
+An exported first report identifies the common CLI and an initialization failure
+before managed publication. The prepared journal reached its ready marker.
+The native identity adapter used `fib_DiskKey`, which RAM: changes as children
+are added, instead of the locked object's key. POSIX `ino_t` also truncates a
+64-bit AROS lock key. Internal bindings now retain 64-bit device/object identities
+separately from POSIX metadata. An actual native-branch mock under ASan/UBSan
+checks child/enumeration changes, rename spelling, equal low bits with different
+high bits, volume replacement, missing keys/locks and links.
+
+Host integration passes 347 common tests, and the AArch64 CLI/GUI SDK build and
+worker-object audit pass. On the M1, independent readback verifies the corrected
+CLI bytes before execution; fresh root initialization commits successfully.
+The command rehearsal then stops at first-use archive-cache preparation. A
+subsequent explicit fetch prepares the signed archive without managed commit.
+That cache first-use defect and the remaining command/UI steps require further
+work; no complete native rehearsal pass is claimed. Full sanitizer/CI results
+for this correction are pending.
 
 ## Follow-up verification register
 

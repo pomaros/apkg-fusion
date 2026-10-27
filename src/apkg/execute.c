@@ -138,7 +138,7 @@ static void transaction_record(apkg_result *r, const char *path) {
     r->view.record.size = strlen(path);
 }
 static int preparation_start(apkg_ctx *c, apkg_result *r, char txn[AK_PATH],
-                             char active[AK_PATH], struct stat *binding) {
+                             char active[AK_PATH], ak_identity *binding) {
     char draft[AK_PATH], id[33];
     strcpy(active, txn);
     int exists = ak_exists(active);
@@ -157,14 +157,14 @@ static int preparation_start(apkg_ctx *c, apkg_result *r, char txn[AK_PATH],
     if (mkdir(draft, 0700))
         return -1;
     transaction_record(r, draft);
-    if (ak_lstat(draft, binding) || !S_ISDIR(binding->st_mode) ||
+    if (ak_lstat(draft, binding) || !S_ISDIR(binding->metadata.st_mode) ||
         !ak_identity_known(binding))
         return -1;
     strcpy(txn, draft);
     return 0;
 }
 static int preparation_publish(char txn[AK_PATH], const char *active,
-                               const struct stat *binding, apkg_result *r) {
+                               const ak_identity *binding, apkg_result *r) {
     if (!ak_physical(txn, binding)) {
         errno = ESTALE;
         return -1;
@@ -175,7 +175,7 @@ static int preparation_publish(char txn[AK_PATH], const char *active,
     transaction_record(r, active);
     return 0;
 }
-static int preparation_discard(const char *txn, const struct stat *binding,
+static int preparation_discard(const char *txn, const ak_identity *binding,
                                const char *parent) {
     if (!ak_physical(txn, binding)) {
         errno = ESTALE;
@@ -413,11 +413,11 @@ static int verify_tree(const char *tree, const ak_json *j) {
 }
 static int tree_identity(const char *txn, const char *tree, int save) {
     char text[128];
-    struct stat st;
+    ak_identity st;
     unsigned char *bytes = NULL;
     size_t n;
     int len, result;
-    if (ak_lstat(tree, &st) || !S_ISDIR(st.st_mode) || !ak_identity_known(&st))
+    if (ak_lstat(tree, &st) || !S_ISDIR(st.metadata.st_mode) || !ak_identity_known(&st))
         return -1;
     len =
         snprintf(text, sizeof text,
@@ -583,7 +583,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
                                         "before",    "generation", "new_state",
                                         "root_path", "target_path"};
         uint64_t dev, ino;
-        struct stat st;
+        ak_identity st;
         char parent[AK_PATH];
         if (!ak_fields_optional(&plan, body, f, 8,
                                 (const char *const[]){"origins",
@@ -876,7 +876,7 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
     apkg_status code = APKG_IO;
     char txn[AK_PATH], active[AK_PATH], state[AK_PATH], tree[AK_PATH],
         path[AK_PATH], hex[65];
-    struct stat preparation;
+    ak_identity preparation;
     int l, ready = 0, decision = 0;
     uint64_t seq = 0;
     ak_json descriptor = {0};

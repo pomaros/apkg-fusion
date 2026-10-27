@@ -72,8 +72,8 @@ int ak_exists(const char *p) {
         return 1;
     return errno == ENOENT ? 0 : -1;
 }
-int ak_physical(const char *p, const struct stat *old) {
-    struct stat now;
+int ak_physical(const char *p, const ak_identity *old) {
+    ak_identity now;
     char canonical[AK_PATH];
     /* A moved root reached through a new symlink could otherwise retain its
      * inode while acquiring a different parent lock/coordinator location. */
@@ -83,9 +83,9 @@ int ak_physical(const char *p, const struct stat *old) {
 }
 /* Outputs change only on success: a failed rebind leaves the context's
  * previous binding usable for recovery. */
-int ak_resolve(const char *p, char *o, struct stat *binding) {
+int ak_resolve(const char *p, char *o, ak_identity *binding) {
     char path[AK_PATH];
-    struct stat st;
+    ak_identity st;
     if (pkg_fs_canonical_dir(p, path, sizeof path) || ak_stat(path, &st))
         return -1;
     strcpy(o, path);

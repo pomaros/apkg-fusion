@@ -62,7 +62,7 @@ apkg_status apkg_client_verify(const char *root, const char *name,
     ak_buf rows = {0}, report = {0};
     rows.max = report.max = 65535;
     char *tree = NULL, path[AK_PATH];
-    struct stat identity;
+    ak_identity identity;
     uint64_t ok = 0, changed = 0, missing = 0, unknown = 0;
     apkg_status code = ak_cancelled(observer)
                            ? APKG_CANCELLED

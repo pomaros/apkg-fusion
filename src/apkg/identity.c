@@ -8,11 +8,12 @@
  * hash of the full path, so every rename changes it, and st_dev is the
  * address of the volume's DOS list node, which a reboot can change.
  *
- * On AROS the identity therefore comes from the filesystem itself: the object
- * key Examine() reports (the header block on FFS, the object node on SFS),
- * which a rename within the volume keeps, and the volume's name and creation
- * date. A handler that reports no object key gives no identity (st_ino 0);
- * the callers refuse mutation without one. */
+ * On AROS use the lock's object key, with the volume's name and creation date.
+ * fib_DiskKey is an enumeration cursor: on RAM: it changes when a child is
+ * added. It cannot identify the directory. Keep the full pointer-sized lock
+ * key outside POSIX ino_t, which is only 32 bits on AArch64 AROS.
+ * Zero keys refuse mutation. Handler identity across rename/remount still
+ * requires target qualification; RAM contents do not survive power loss. */
 #ifndef __AROS__
 #define _POSIX_C_SOURCE 200809L
 #endif
@@ -32,14 +33,14 @@ static uint64_t mix(uint64_t h, const void *p, size_t n) {
         h = (h ^ *b++) * 1099511628211ull; /* FNV-1a */
     return h;
 }
-static void native(const char *path, struct stat *st) {
-    struct FileInfoBlock *fib = AllocDosObject(DOS_FIB, NULL);
+static void native(const char *path, ak_identity *st) {
     struct InfoData *info = AllocVec(sizeof *info, MEMF_ANY | MEMF_CLEAR);
     BPTR lock = Lock((CONST_STRPTR)path, SHARED_LOCK);
     st->st_ino = 0;
     st->st_dev = 0;
-    if (lock && fib && info && Examine(lock, fib) && Info(lock, info) &&
-        fib->fib_DiskKey && info->id_VolumeNode) {
+    struct FileLock *object = lock ? BADDR(lock) : NULL;
+    if (object && object->fl_Key && info && Info(lock, info) &&
+        info->id_VolumeNode) {
         struct DeviceList *volume = BADDR(info->id_VolumeNode);
         const unsigned char *name =
             (const unsigned char *)AROS_BSTR_ADDR(volume->dl_Name);
@@ -51,32 +52,43 @@ static void native(const char *path, struct stat *st) {
         uint64_t h = 14695981039346656037ull;
         h = mix(h, name, length);
         h = mix(h, &volume->dl_VolumeDate, sizeof volume->dl_VolumeDate);
-        st->st_dev = (dev_t)(h ? h : 1);
-        st->st_ino = (ino_t)(uint64_t)fib->fib_DiskKey;
+        st->st_dev = h ? h : 1;
+        st->st_ino = (uint64_t)object->fl_Key;
     }
     if (lock)
         UnLock(lock);
     FreeVec(info);
-    if (fib)
-        FreeDosObject(DOS_FIB, fib);
 }
-int ak_stat(const char *path, struct stat *st) {
-    if (stat(path, st))
+int ak_stat(const char *path, ak_identity *st) {
+    if (stat(path, &st->metadata))
         return -1;
     native(path, st);
     return 0;
 }
-int ak_lstat(const char *path, struct stat *st) {
-    if (lstat(path, st))
+int ak_lstat(const char *path, ak_identity *st) {
+    if (lstat(path, &st->metadata))
         return -1;
     /* A soft link has no object of its own to name; callers refuse links
      * from st_mode before they use its identity. */
-    if (!S_ISLNK(st->st_mode))
+    st->st_dev = st->st_ino = 0;
+    if (!S_ISLNK(st->metadata.st_mode))
         native(path, st);
     return 0;
 }
 #else
-int ak_stat(const char *path, struct stat *st) { return stat(path, st); }
-int ak_lstat(const char *path, struct stat *st) { return lstat(path, st); }
+static void host(ak_identity *st) {
+    st->st_dev = (uint64_t)st->metadata.st_dev;
+    st->st_ino = (uint64_t)st->metadata.st_ino;
+}
+int ak_stat(const char *path, ak_identity *st) {
+    int result = stat(path, &st->metadata);
+    if (!result) host(st);
+    return result;
+}
+int ak_lstat(const char *path, ak_identity *st) {
+    int result = lstat(path, &st->metadata);
+    if (!result) host(st);
+    return result;
+}
 #endif
-int ak_identity_known(const struct stat *st) { return st->st_ino != 0; }
+int ak_identity_known(const ak_identity *st) { return st->st_ino != 0; }

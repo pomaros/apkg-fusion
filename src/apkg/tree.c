@@ -247,7 +247,7 @@ static int records(const void *a, const void *b) {
                   ((const ak_tree_row *)b)->path);
 }
 static apkg_status tree_read(const char *base, size_t max, char **out,
-                             struct stat *identity) {
+                             ak_identity *identity) {
     ak_buf files = {0}, result = {0};
     ak_json j = {0};
     ak_tree_row *rows = NULL;
@@ -263,9 +263,9 @@ static apkg_status tree_read(const char *base, size_t max, char **out,
         }
         return APKG_IO;
     }
-    if (!S_ISDIR(identity->st_mode) || !metadata_supported(base, identity))
+    if (!S_ISDIR(identity->metadata.st_mode) || !metadata_supported(base, &identity->metadata))
         return APKG_UNSUPPORTED;
-    code = ak_attributes_read(base, (uint64_t)(identity->st_mode & 0777),
+    code = ak_attributes_read(base, (uint64_t)(identity->metadata.st_mode & 0777),
                               &rootattrs);
     if (code) {
         free(rootattrs);
@@ -326,7 +326,7 @@ static apkg_status tree_read(const char *base, size_t max, char **out,
                    j.text + j.tokens[t].start);
     }
     ak_buf_add(&files, "],\"mode\":\"%u\"}",
-               (unsigned)(identity->st_mode & 0777));
+               (unsigned)(identity->metadata.st_mode & 0777));
     code = files.bad;
     if (!code) {
         *out = files.data;
@@ -346,11 +346,11 @@ done:
     return code;
 }
 apkg_status ak_tree_read(const char *base, size_t max, char **out,
-                         struct stat *identity) {
+                         ak_identity *identity) {
     return tree_read(base, max, out, identity);
 }
 apkg_status ak_tree_source_read(const char *base, size_t max, char **out,
-                                struct stat *identity) {
+                                ak_identity *identity) {
     return tree_read(base, max, out, identity);
 }
 /* Observe exactly one selected authoring entry, without enumerating siblings

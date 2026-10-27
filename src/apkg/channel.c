@@ -16,7 +16,7 @@ struct apkg_channel {
     apkg_attestation ***claims;
     char *policy, *target, *endpoint;
     char root[AK_PATH], anchor[AK_PATH];
-    struct stat binding;
+    ak_identity binding;
     int remote;
     unsigned char key[32];
     apkg_id root_id;

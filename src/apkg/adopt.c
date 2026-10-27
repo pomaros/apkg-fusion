@@ -122,7 +122,7 @@ static apkg_status prepare_adoption(apkg_ctx *c, const apkg_snapshot *s,
          root[AK_PATH];
     char reason[32];
     apkg_package adopted = {0};
-    struct stat binding;
+    ak_identity binding;
     apkg_status code = APKG_INVALID;
     *entry = NULL;
     *observed = NULL;

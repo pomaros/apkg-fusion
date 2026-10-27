@@ -487,7 +487,7 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
         apkg_package *old = NULL;
         char *live = NULL, *next = NULL;
         char path[AK_PATH];
-        struct stat binding = {0};
+        ak_identity binding = {0};
         size_t x;
         if (i < s->nrows) {
             name = s->rows[i].name.value.data;
@@ -978,7 +978,7 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
             char name[256], livepath[AK_PATH], backup[AK_PATH], leaf[64],
                 *live = NULL, *was = NULL, *next = NULL, *desired_tree = NULL;
             ak_json wasj = {0}, nextj = {0};
-            struct stat binding = {0};
+            ak_identity binding = {0};
             if (ak_string(&plan, ak_member(&plan, (int)i, "name"), name,
                           sizeof name) ||
                 !ak_valid_name(name) || ak_path(livepath, c->root, name)) {
@@ -997,7 +997,7 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
              * archive. */
             if (strcmp(was, "null")) {
                 char *retained = NULL;
-                struct stat held;
+                ak_identity held;
                 snprintf(leaf, sizeof leaf, "old-%zu", index);
                 if (ak_path(backup, path, leaf)) {
                     code = APKG_LIMIT;

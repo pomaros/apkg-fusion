@@ -15,7 +15,7 @@ static int change_path(char *out, const char *txn, const char *prefix,
 }
 static int tree_matches(apkg_ctx *c, const char *path, const char *expected,
                         uint64_t dev, uint64_t ino) {
-    struct stat st = {0};
+    ak_identity st = {0};
     char *got = NULL;
     apkg_status status = ak_tree_read(path, change_limit(c), &got, &st);
     int bad = status != APKG_OK;
@@ -38,7 +38,7 @@ static int tree_matches(apkg_ctx *c, const char *path, const char *expected,
 static int new_identity(const char *txn, size_t i, const char *tree,
                         int write) {
     char p[AK_PATH], text[96];
-    struct stat st;
+    ak_identity st;
     unsigned char *bytes = NULL;
     size_t n;
     int len, bad;
@@ -325,7 +325,7 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
                                           apkg_result *r) {
     ak_json j = {0};
     char txn[AK_PATH], active[AK_PATH], state[AK_PATH], hex[65], id[33];
-    struct stat preparation;
+    ak_identity preparation;
     size_t i, index = 0;
     int arr, ready = 0, decided = 0;
     uint64_t seq = 0;
