@@ -32,8 +32,9 @@ and independent review of newly introduced trust and target checks.
 
 ## Define common data and API contracts
 
-Map real APKG registries and scripts before selecting the database schema.
-Cover both existing distributions, custom roots, settings, edited files,
+The common model was selected from pinned sources and fixture evidence. Before
+promising migration of a real installation, map its APKG registry and scripts.
+Cover the distributions selected for support, custom roots, settings, edited files,
 versions, packaging revisions, relations, installation reasons, launch data
 and rollback history, including both existing self-update journals. Retain fixtures with permission and suitable provenance.
 
@@ -94,13 +95,19 @@ accept launching.
 
 ## Complete migration and protect existing APKG users
 
+Completion of these historical migration and continuity profiles is deferred
+for the current candidate; see [legacy support choices](docs/fusion/legacy-support.md).
+The obligations below apply before claiming the corresponding support.
+
 Build the importer from the agreed mapping. Preserve original records, validate
 before commit, support retry after interruption and report rollback-history
 treatment. Keep the original installation usable on failure. Adapt the released
 APKG command/script behavior through explicit compatibility entry points.
 
-Exercise migration on both existing distributions before completing client
-rollout. Retain old catalogue URLs through the upgrade path. The original pkg
+Exercise migration on each distribution claimed before completing its client
+rollout. AROS One 1.3 is named in upstream sources; other deployed distributions
+and their exact versions remain unidentified. Retain old catalogue URLs through
+the upgrade path. The original pkg
 side needs no legacy importer or command compatibility; adapt its consumers
 directly to the common model.
 
@@ -110,8 +117,8 @@ older than APKG 0.5 where their upgrade route applies.
 
 ## Complete authoring, channels and the portal
 
-Run this work alongside engine/client integration after the common schemas are
-defined. Extend the TOML bridge to every semantic field and payload shape.
+Authoring and channel work precedes the deferred portal adaptation. Extend the
+TOML bridge to every semantic field and payload shape claimed by a release.
 Publish from directories, shares and web servers without a central account.
 Preserve the portal's self-service accounts, resumable push, discovery,
 provenance and administration.
@@ -162,12 +169,20 @@ release only after migration, trust, recovery and the included workflows are
 qualified. The development repository and its passing host tests are not a
 release verdict.
 
-## Active goal: FUSION-ALPHA
+<a id="active-goal-fusion-alpha"></a>
 
-Deliver an end-to-end, host-qualified fusion alpha using the common engine by
-default. Move beyond synthetic inline package folders to the real authoring,
-publication, discovery and client workflow. Preserve the broader acceptance
-matrix; an alpha is not a joint release or AROS runtime qualification.
+## FUSION-ALPHA scope and gates
+
+The operator-requested sequence is paused at the pre-portal boundary. The
+non-portal candidate, host CI, scoped M1 trial and report are recorded in
+[status](docs/fusion/status.md). Portal adaptation requires a later instruction;
+the broader historical migration batches remain deferred. The original alpha
+scope below is retained to describe its contracts and remaining gates, not as a
+claim that the portal or a joint release is complete.
+
+The alpha uses the common engine by default and includes real authoring,
+publication, discovery and client workflows. Preserve the broader acceptance
+matrix; an alpha is not a joint release or general AROS runtime qualification.
 
 Work proceeds as one authorized sequence, with one agent,
 focused tests and a recorded evaluation at each gate. Implementation evidence
@@ -197,22 +212,21 @@ suites, integration/memory checks and portal tests must pass in exact-source
 Linux/macOS CI. Record remaining acceptance obligations without promoting a
 host or fixture result into a platform/release claim.
 
-Order of the remaining workstreams: finish the non-portal fusion workstreams,
-then run an isolated M1 runtime rehearsal, then adapt the portal. The existing
+The requested order was non-portal fusion work, an isolated M1 runtime trial,
+then the portal. The first two stages and report are complete within the scoped
+evidence in status; the portal is paused. The existing
 M1 updater uses `libpkg` and is migrated by its own owner. Fusion tests never
 replace its installed library or change its update/startup process. Candidate
 binaries, test roots and recovery fixtures stay separate, and native results
 are recorded by exact build. That rehearsal does not establish power-loss
 durability or qualification of other distributions.
 
-Further portal implementation is outside the current execution sequence. Follow
-the [non-portal checklist](docs/fusion/non-portal-checklist.md), finish its assigned
-implementation, validate locally on macOS and in Linux/macOS CI, then test the
-resulting candidate on the M1. Stop there and deliver a detailed merge report
-comparing the product with original APKG, including additions, intentional
+Further portal implementation is outside the current execution sequence. The
+[non-portal checklist](docs/fusion/non-portal-checklist.md), host CI and scoped M1
+trial support the [merge report](docs/fusion/merge-report.md), including additions,
 compatibility changes, evidence and remaining limits. Resume the portal only on
-a later operator instruction. The earlier RAM component rehearsal does not close
-unfinished client or migration work.
+a later operator instruction. The earlier RAM component rehearsal alone did not
+close the later client and integration checkpoints.
 
 Other AROS execution and power-loss/distribution tests remain deferred. This goal
 changes no OS repository and authorizes no deployment, live portal cutover,
@@ -223,28 +237,26 @@ cutover follows after the fusion is qualified and real operational inputs exist.
 
 ## Immediate work sequence
 
-BASE, MAP, CONTRACT and the first operation, channel, client and import
-checkpoints have code; their evidence is in [status](docs/fusion/status.md).
-The remaining non-portal work, in order:
+The following records the authorized pre-portal sequence and its evaluation.
+Evidence and remaining release obligations are in [status](docs/fusion/status.md).
 
 1. Trust administration and the root source list have code and host tests;
    broader official key endorsement/rotation remains a release-policy task.
 2. PkgManager source-list controls are wired through the common worker;
    retain the current explicit freshness limits. Wider online revocation policy and self-update copies
    on other volumes remain broader release work.
-3. PkgManager source settings, news and named ARexx adapters have implementation
-   checkpoints. The [control inventory](docs/fusion/desktop-controls.md) defines
-   the exact surface to qualify on final host source and then the M1.
+3. PkgManager source settings, news and named ARexx adapters have host evidence
+   and representative M1 interaction. The [control inventory](docs/fusion/desktop-controls.md)
+   distinguishes these results from the broader native qualification matrix.
 4. Legacy completion is deferred by operator instruction: command continuity,
    placement/settings/launch conversion and prior-version history are outside
    the current candidate gate. Preserve existing adapters and regression tests;
    [legacy support choices](docs/fusion/legacy-support.md) define the deferred
    work and acceptance evidence for each future support profile.
-5. The clean-workspace alpha scenario has a host test; run it with both
-   inherited suites and the portal tests in exact-source Linux/macOS CI.
-6. Test the completed candidate on the M1, then stop and deliver the detailed
-   merge report. The earlier isolated rehearsal does not qualify that candidate.
-   Further portal adaptation requires a later operator instruction.
+5. The clean-workspace scenario, both inherited suites and portal baseline tests
+   pass in exact-source Linux/macOS CI.
+6. The candidate passed the scoped M1 trial and the detailed merge report was
+   delivered. Further portal adaptation requires a later operator instruction.
 
 Host and native evidence stay distinct. An AROS type check is not runtime
 qualification, and no step above claims power-loss durability.
@@ -319,7 +331,7 @@ Complexity is relative engineering scope, not a token or time estimate.
 | BUNDLE-LAUNCH | CONTEXT | Native launch of an unregistered application folder. | Check containment, icons, executable target and loader requirements on AROS. No database membership or successful package installation is required. Parser acceptance alone is insufficient. | Medium |
 | BUNDLE-MANAGE | INSTALL + BUNDLE-LAUNCH | Separate tasks for managed adoption and movement. | Ownership, update identity and recovery follow the common context model while standalone launching remains possible. | Two medium tasks |
 | SELF-UPDATE | OPERATIONS + JOURNAL | Connect signed client updates to the common journal; retire both independent update-recovery implementations. | Test concurrent update, changed executable, interrupted replacement/recovery, rollback and old self-update-record import. | Medium |
-| MIGRATE | MAP + OPERATIONS + RELATIONS | Importer, retry/commit protocol and legacy CLI compatibility adapter. | Original records retained; failed import preserves old usability; real fixtures from both distributions pass. Break into validation-only, import/commit, interruption and compatibility tasks. | Several medium tasks |
+| MIGRATE | MAP + OPERATIONS + RELATIONS | Importer, retry/commit protocol and legacy CLI compatibility adapter. | Original records retained; failed import preserves old usability; real fixtures from each distribution claimed pass. Break into validation-only, import/commit, interruption and compatibility tasks. | Several medium tasks |
 | AUTHORING | CONTRACT + RELATIONS | Extend `tools/apkg-publish` field by field; preserve revisions, requirements, relations, hidden files, empty directories and attributes. | Remove a refusal only with an end-to-end fidelity test. One semantic family per task; no silent field dropping. | Several small/medium tasks |
 | QUALIFY | SIGNED-READ + AUTHORING | Connect catalogue/portal/client qualifications, signed attestations and trust bootstrap/rotation. | Open publication remains independent; exact-digest review and runtime evidence survive transport; authors cannot grant review. Split attestations, client presentation and key lifecycle. | Three medium tasks |
 | PORTAL-MIGRATE | Merged client/channel contracts + QUALIFY | Migrate the existing portal at https://aros-pkg.azurewebsites.net/ to the merged product after fusion. | Inventory and back up channels, immutable objects, publisher accounts/authorization, configuration and statistics; rehearse restore and migration; verify signed host/AROS consumption, publishing and existing URLs; retain a tested cutover rollback. Preserve actual trust identities and review provenance. | Several bounded tasks after fusion |

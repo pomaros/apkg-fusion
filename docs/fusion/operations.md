@@ -5,10 +5,11 @@
 
 This extends the [initial engine](initial-engine.md).
 [Streaming payload transport](payload.md) removes the inline-only file-size
-constraint for signed archives and observed transaction trees. Native AROS runtime tests
-are deferred at the operator's request while its source repositories are being
-cleaned. This work changes only the fusion checkout; it launches no OS and
-performs no portal deployment or legacy migration.
+constraint for signed archives and observed transaction trees. The scoped
+[M1 RAM trial](evidence/m1-final/README.md) subsequently exercised common
+operations and real application launch; broader native platform and durability
+qualification remains separate. This work changes only the fusion checkout and
+does not deploy the portal or migrate a live legacy installation.
 
 ## Operation semantics
 

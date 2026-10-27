@@ -160,5 +160,9 @@ ARexx refuses answers over 65,535 bytes with LIMIT/TOOLONG and frees them.
 Callers can request smaller fields. CLI/library formatting uses the bounded
 common metadata limit. Neither path truncates identities or relations.
 
-[Status](status.md) records host/type evidence. Native ARexx/UI interaction and
-script compatibility still need the scheduled M1 rehearsal and further tests.
+[Status](status.md) records host evidence and the scoped
+[M1 trial](evidence/m1-final/README.md). Broader native UI/ARexx coverage and
+historical script compatibility remain separate qualifications. A JOB `message`
+retains a bounded 479-byte report prefix; for long reports, including long
+identities, counts or later paths can fall outside that prefix. The full
+verification report remains available through the window and CLI.

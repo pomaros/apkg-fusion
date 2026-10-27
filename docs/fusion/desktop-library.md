@@ -81,4 +81,5 @@ queued refresh also refuses at that boundary. It never reuses shortened package
 names to recover a selection after filtering.
 
 Host evidence is recorded in [status](status.md). Native SDK compilation is
-distinct from the final M1 interaction and lifecycle test.
+distinct from the scoped [M1 interaction and lifecycle test](evidence/m1-final/README.md);
+the complete native interaction matrix remains a release qualification.

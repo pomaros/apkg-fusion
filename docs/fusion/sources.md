@@ -90,8 +90,9 @@ refusal, cancellation and allocation failures do not manufacture success. The
 native dispatcher and cancellation setup share the common-job classification,
 including installation by source name and self-update. Host tests exercise that
 classification and the actual worker bridge with mocked message ports; SDK
-checks cover the controls, while native UI/runtime behavior still needs target
-qualification.
+checks cover the controls. The [M1 trial](evidence/m1-final/README.md) exercised
+source-profile restoration; broader native source-control behavior remains to
+be qualified.
 
 ## Local file framing and replacement
 

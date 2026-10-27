@@ -86,7 +86,10 @@ Binary hashes, results and limits are recorded in the M1 verdicts and status.
 The CLI is identical to the preceding host candidate; native client changes fix
 reopened confirmation layout and retain verification reports in ARexx jobs.
 Two verifications with different results establish that the first job keeps its
-own report after the window's report is replaced. These records imply no portal
+bounded report prefix after the window's report is replaced. With long package
+identities, that 479-byte ARexx message can omit counts without a truncation
+indicator; the full report remains available in the window and CLI. Improving
+this summary is tracked in [TODO](../../TODO.md). These records imply no portal
 deployment, maintainer agreement, real-distribution migration or joint release.
 
 The requested cycle executed installation, verification/use and removal.

@@ -6,6 +6,12 @@
 Implementation order and acceptance gates belong to [PLAN.md](PLAN.md).
 These items are future work, not implemented capabilities.
 
+- Improve ARexx verification job summaries for long package identities. The
+  current 479-byte message prefix can omit verification counts without a
+  truncation indicator; the complete report remains available in the window
+  and CLI. Expose the counts and truncation explicitly while preserving the
+  existing job/result contract, and test long names, versions and reports.
+
 - Review and document migration between versions of the APKG tool itself:
   supported starting versions, library/client and storage-format
   compatibility, migration ordering, preservation of installed packages,

@@ -5,9 +5,10 @@
 
 This is the transport portion of ALPHA-PAYLOAD, extending the
 [initial engine](initial-engine.md) and [common operations](operations.md).
-It is not completion of FUSION-ALPHA or of the full payload-metadata gate.
-TOML authoring, network channels and the remaining metadata-fidelity obligations
-still require their own implementation and evidence.
+It does not by itself complete the full payload-metadata or release gate.
+[TOML authoring](authoring.md) and [file/HTTP channels](channels.md) have since
+been implemented and host-tested. Additional native metadata fidelity and AROS
+network behavior require their own evidence.
 
 ## Signed descriptor references
 
@@ -96,15 +97,16 @@ without rewriting their approved journal bytes or requiring a cache.
 
 The object store can contain personal configuration and unknown before-image
 bytes. It is private local recovery material, **not a publication directory**.
-Future channel export must include only the explicitly authored signed artifact's
-objects, never bulk-publish this store or its history.
+Channel publication includes only the explicitly authored signed artifact's
+objects; it never bulk-publishes this store or its history.
 
 All prior journal rules remain: one parent-lock domain, exact approval and
 preconditions, retained evidence, rollback before decision and roll-forward
 after it. Unsupported live metadata is still refused rather than stripped.
-General timestamp and authoring fidelity remain required parts of
-ALPHA-PAYLOAD. The host metadata profile below adds protection/comment/owner
-facts; native execution/durability remains deferred.
+Broader timestamp fidelity remains a release obligation. The host metadata
+profile below adds protection/comment/owner facts. The scoped M1 lifecycle
+exercised ordinary payloads; native extended metadata and durability remain
+unqualified.
 
 ## Host semantic metadata profile
 

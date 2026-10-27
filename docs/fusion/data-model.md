@@ -202,7 +202,9 @@ descriptor may carry `requires_system`, at most 16 `{"id","min_version","type"}`
 entries sorted by type and id, never empty. The id is a plain name of up to 63
 characters (`crt.library`), the type 1 to 23 lowercase letters and the minimum
 a version from 0 to 65535. No package satisfies a requirement, so a missing
-one never becomes a search for a provider.
+one never becomes a search for a provider. This 63-character limit applies to
+system requirement identifiers; [package identities](#package-authority-and-build-identities)
+have separate rules.
 
 A plan that brings packages in (install, upgrade, resolution, channel install)
 probes every requirement on the running machine and binds each observation
@@ -388,8 +390,9 @@ in [status](status.md); this is not independent maintainer approval.
 The API and serialization drafts complete the initial CONTRACT design scope.
 Object-family schemas and required-feature gates must be frozen and tested in
 their owning implementation batches before they can authorize operations.
-The initial engine now implements context inspection, signed reads and a
-journalled first install; broader mutation families remain separate work.
+The initial engine implemented context inspection, signed reads and a
+journalled first install. Later [common operations](operations.md) extend that
+checkpoint; their measured scope and release boundaries are in [status](status.md).
 Real-distribution and filesystem evidence remains in the
 [follow-up register](status.md#follow-up-verification-register).
 

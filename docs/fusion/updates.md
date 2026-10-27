@@ -111,8 +111,8 @@ bytes refuse with TOOLONG; individual fields remain available.
 
 ARexx `UPDATE` and the main Refresh button use the signed-discovery worker with
 the endpoint/channel controls; they do not invoke the legacy index writer.
-Source settings/persistence still need their common integration. The native
-model retains an exact copy of the channel object and its signature in the same
+Explicit [source profiles](sources.md) persist settings and observations. The
+native model retains an exact copy of the channel object and its signature in the same
 allocation as its displayed rows. `apkg_channel_observation` exposes these two
 borrowed byte spans for copying; their validity ends with the channel owner.
 They retain no archive-transfer origin and authorize no installation.

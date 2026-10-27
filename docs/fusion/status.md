@@ -17,14 +17,13 @@ lots 3–5) are deferred by the operator, not completed. Existing adapters and
 tests are retained. [Legacy support choices](legacy-support.md) list the work
 and evidence required according to the support selected later. This removes
 legacy completion from the current candidate gate; it does not qualify migration
-of released installations. Host qualification, M1 testing and the report before
-the portal remain in order.
+of released installations. Host qualification, the scoped M1 trial and the
+report have been completed in the requested order.
 
-The active execution sequence stops before further portal work: close the
-[non-portal checklist](non-portal-checklist.md), qualify the resulting source on
-macOS/Linux, test that candidate on the M1, then deliver the detailed APKG merge
-comparison. The existing portal checkpoints below are partial work, not grounds
-to bypass unfinished non-portal integration or to resume the portal automatically.
+The execution sequence has stopped before further portal work. The
+[non-portal checklist](non-portal-checklist.md) records its scope. Existing portal
+checkpoints below are partial work; resuming the portal requires a later
+operator instruction.
 
 | Workstream | Current position | Work still required |
 |---|---|---|
@@ -97,6 +96,16 @@ persistent storage are unchanged. Broader native filesystem/metadata, network,
 self-update, interruption and power-loss qualification stay explicit. The
 [merge report](merge-report.md) distinguishes inherited features, fusion changes
 and these remaining obligations. Portal work has not resumed.
+
+## Historical implementation checkpoints
+
+The following sections retain evidence and decisions as recorded at each
+checkpoint. Statements such as “pending”, “next” or “remaining” describe that
+checkpoint, not necessarily the current candidate. Use the overview and final
+qualification above for current status; the
+[follow-up verification register](#follow-up-verification-register) at the end
+lists remaining release and migration questions. Historical counts and source
+revisions are not updated retroactively.
 
 ## HOST-FINAL passed on the preceding frozen candidate
 
@@ -2264,6 +2273,11 @@ common product. Released APKG users require a tested migration path.
 
 ## Remaining integration
 
+This is the work list recorded at the initial integration checkpoint. Later
+checkpoints implemented many items; it is preserved as history, not a current
+backlog. The [overview](#alpha-progress-at-a-glance) and
+[follow-up register](#follow-up-verification-register) identify remaining work.
+
 - Complete PkgManager common-engine wiring beyond the signed-install path, preserving typed browsing, news,
   plans, cancellation, Run, folder opening and settings.
 - Port the remaining legacy services/operations to the common contexts and
@@ -2344,21 +2358,22 @@ results without claiming power-loss durability.
 
 ## Follow-up verification register
 
-These checks remain scheduled work; they do not block BASE or contract design.
+These are remaining questions for the claimed support and release scope. They
+do not reopen the completed pre-portal trial.
 
 | Item | Owner batch and evidence to obtain |
 |---|---|
-| Existing APKG distributions | MAP: AROS One 1.3 is named in the pinned sources; identify the second distribution and exact releases from evidence. |
+| Existing APKG distributions | AROS One 1.3 is named in the pinned sources. Identify any other deployed distributions and exact releases from evidence; their identity is not established. |
 | DOS and handlers | MAP / PLATFORMS: measure dos.library version/revision and handler capabilities on each distribution; exercise replacement and recovery rather than inferring compatibility from ABI. |
-| Self-update state | MAP / JOURNAL / SELF-UPDATE: map both existing journals, including `ENVARC:arospkg/self-update.json`, into one recovery model and test interrupted self-update recovery. |
+| Self-update state | Single-root common self-update uses the common journal. Define and test migration or settlement of historical journals, including `ENVARC:arospkg/self-update.json`; multi-root replacement remains separate. |
 | Maintainer feedback | ALIGN: collect comments on the selected skeleton, trust administration and release scope when contact is authorized; development continues meanwhile. |
-| M1 rehearsal | Operator-authorized after the other fusion workstreams and before portal work. The isolated RAM file-channel CLI/UI profile passes with retained application evidence below. Broader platform, metadata, native network, interrupted recovery and durability gates remain open. |
+| M1 qualification | The [scoped RAM lifecycle](evidence/m1-final/README.md) passes. Broader platform, metadata, native network, interrupted recovery, self-update and durability gates remain open. |
 | M1 updater | Existing update integration uses `libpkg`. Another owner will migrate it. Preserve the installed library and update/startup process; fusion runtime tests must not replace them. |
 | Existing portal | PORTAL-MIGRATE: migration of https://aros-pkg.azurewebsites.net/ is requested after fusion. Inventory real data/configuration, rehearse backup/restore and cutover, verify publishing/consumption and URLs, and retain rollback. No live migration has been attempted. |
 
 Portal migration work keeps credentials and private data outside the public
 repository. Existing author signatures, channel trust and qualification evidence
 must retain their meaning; migration cannot grant review to unreviewed content.
-Per operator direction, porting this portal follows the other fusion workstreams,
-including client integration, independent qualification facts and legacy import.
-An isolated M1 runtime rehearsal now precedes portal adaptation as well.
+Per operator direction, portal adaptation follows the non-portal work and M1
+trial and requires a later instruction. Broader legacy completion is deferred;
+it is not a prerequisite for resuming portal work unless explicitly selected.

@@ -4,10 +4,11 @@
 # Signed channels
 
 The common library implements authenticated discovery and role-separated policy.
-The local producer now adds verified immutable file publication and an atomic
-current reference. Context-owned host HTTP discovery and selected archive
-transfer and journaled replay floors are implemented below. Online freshness, qualifications and
-default-client integration remain ALPHA-CHANNEL work.
+The producer supports verified immutable file publication and an atomic current
+reference. Context-owned host HTTP discovery, selected archive transfer,
+journaled replay floors, independent observations and default-client integration
+are implemented below. Online freshness and broader revocation policy remain
+separate questions; host HTTP evidence does not qualify AROS network transport.
 
 ## Immutable discovery objects
 
@@ -99,8 +100,9 @@ and exact policy before decoding a selected descriptor. Another root or changed
 policy/target requires a fresh channel observation. Author and target checks
 still run independently through the existing signed-package reader. Returned
 packages own their bytes and survive channel/context release. This lookup does
-not fetch an archive or promise blob availability; real transport and artifact
-binding remain separate work.
+does not itself fetch an archive or promise blob availability. The
+[selected transfer](#host-http-discovery-and-selected-archive-transfer) performs transport and binds
+received bytes to the selected artifact separately.
 
 Freshness is **unknown**. A valid signature and explicit sequence floor do not
 prove the latest online state. Reads enforce the root's explicitly accepted
@@ -288,8 +290,8 @@ installed state or advance database generation.
 The explicit CLI is `apkg channel-fetch ROOT ENDPOINT CHANNEL-ID INDEX
 [MIN-SEQUENCE]`; `channel-open` accepts either a local directory or an HTTP(S)
 URL. Observer phases distinguish checking from transfer. Selected packages
-retain the source facts described below. The default production client switch
-remains a separate alpha gate.
+retain the source facts described below. The default common client uses this
+transport; the inherited backend remains an explicit regression baseline.
 
 ## Source-bound approved plans
 
@@ -328,8 +330,10 @@ and history. Reading, opening, selecting and fetching never advance a floor.
 The current experimental CLI is `apkg channel-accept ROOT ENDPOINT
 CHANNEL-ID [--confirm DIGEST]`: first invocation previews, the confirmed digest
 executes. `channel-open` reports `accepted_sequence` or null separately from
-unknown online freshness. Interactive native refresh integration remains open; approved channel install
-also records the selected floor in its single common transaction.
+unknown online freshness. PkgManager refresh uses the common discovery worker;
+the scoped [M1 trial](evidence/m1-final/README.md) exercised refresh and offline
+profile restoration. Approved channel install also records the selected floor
+in its single common transaction.
 
 Root bodies optionally contain `channel_heads`, sorted unique records with
 exactly `id`, positive uint64 decimal `sequence` and `snapshot_sha256`. At most
@@ -423,8 +427,9 @@ The explicit common CLI uses:
 `--recommends` opts into optional recommendations. Plan presentation includes
 channel id/key/snapshot/floor plus package signer, content, ownership and
 configuration effects. Author/channel trust does not assert review/runtime
-qualification. The default `build/apkg` now uses the same common client; the complete native
-interactive/client qualification gate remains open.
+qualification. The default `build/apkg` uses the same common client. The scoped
+[M1 trial](evidence/m1-final/README.md) exercised representative native
+interaction; comprehensive native client qualification remains open.
 
 The actual PkgManager worker dispatches `APKG_CLIENT_CHANNEL` through the same
 client function. Its advanced operation panel accepts the endpoint and complete
@@ -442,7 +447,9 @@ the catalogue into one bounded `AllocVec` allocation, including all strings,
 64-bit revisions and exact selections; library handles die on the worker.
 Blocked rows remain inspectable. The review button passes the selected
 endpoint and exact snapshot/descriptor selection to the existing shared
-plan/confirmation path. Independent review/runtime claims remain not asserted.
+plan/confirmation path. Individual signed observations retain their separate
+authority and independence facts; no independent qualification is asserted
+when none is authorized.
 
 The UI owns the cancellation token until completion, allowing cancellation
 during an HTTP wait without depending on another progress event. Closing the
@@ -454,9 +461,11 @@ evidence, with complete name/version/revision display, search and action
 identities. Installed LIST/SHOW and RUN/REMOVE have common ARexx source wiring.
 ARexx INSTALL and UPGRADE with a package name run the
 [root source list](#root-source-list) install from the worker, through the usual
-confirmation window. ROLLBACK by name and legacy queries without an adapter
-refuse explicitly. Native interaction, settings/news/filter/update views and
-the remaining ARexx/compatibility cases still require integration/qualification.
+confirmation window. ROLLBACK uses the latest applicable common package
+transaction. [Desktop controls](desktop-controls.md) inventories common
+settings, news, filters and ARexx adapters. The scoped M1 trial exercised
+representative interactions; the exhaustive native matrix and broader legacy
+compatibility remain separate qualifications.
 
 The [attestation profile](attestations.md#channel-carriage-and-catalogue-presentation)
 adds optional per-entry signed observation sets. They preserve review/runtime

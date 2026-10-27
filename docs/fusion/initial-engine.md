@@ -4,7 +4,8 @@
 # Initial common engine implementation
 
 This records the first CONTEXT → SIGNED-READ → PLAN-INSTALL → JOURNAL →
-INSTALL → GUI-INSTALL path. It is a development subset, not a merged release.
+INSTALL → GUI-INSTALL path. It is a historical development subset, not a
+description of every capability or limit of the current candidate.
 The subsequent [operations profile](operations.md) and
 [streaming payload transport](payload.md) extend this initial subset.
 [Architecture](architecture.md), [data model](data-model.md) and
@@ -50,11 +51,15 @@ not supported by this first profile.
 
 A local signed package folder contains `descriptor.json` and `signature.json`.
 The new descriptor is not an existing pkg manifest, archive or channel index;
-no compatibility conversion is guessed. Authoring/channel adapters remain
-AUTHORING/QUALIFY work. The tests generate genuine Ed25519-signed synthetic
-packages through the same existing cryptographic implementation.
+no compatibility conversion is guessed. Later [authoring](authoring.md) and
+[channel](channels.md) adapters extend this initial path. The tests generate
+genuine Ed25519-signed synthetic packages through the same cryptographic code.
 
 ## Implemented schema subset
+
+This table describes the initial checkpoint, not every field supported by the
+current engine. Later schemas and operations are documented in the linked
+profiles and [status](status.md).
 
 All objects use the canonical framing and detached signature transcript in
 [serialization](serialization.md). This profile accepts no required extensions;
@@ -149,8 +154,9 @@ Atomic existing-state replacement is a required capability. AROS needs both an
 SDK exposing `ReplaceObject` and dos.library >= 50.84. Unsupported SDK/runtime
 combinations refuse the signed install plan before publication. Handler flush
 and file/directory sync errors are reported; no delete-then-rename fallback is
-used. Self-update and cross-volume participants remain disabled until their
-operation-specific protocol and legacy import are implemented.
+used. [Single-root self-update](journal.md#single-root-self-update) now uses the
+common journal; multi-root participants and historical journal migration remain
+separate, and unsupported cases refuse.
 
 ## PkgManager path
 
@@ -166,13 +172,13 @@ reconstructed after approval. Progress messages copy full operation identities,
 results distinguish refusal, cancellation, success and required recovery.
 
 Legacy mutations are disabled in this fusion development UI, preventing the
-old worker from mutating a common root through a second engine. The
-non-fusion build retains its inherited workflows. General catalogue browsing,
-settings and the remaining operation families still require common-API wiring.
-The [channel client checkpoint](channels.md#shared-dependency-aware-client-workflow)
-adds shared complete discovery facts and dependency-aware worker installation;
-interactive native catalogue selection remains open.
-Initialize a separate common root explicitly before using this first GUI path.
+old worker from mutating a common root through a second engine. The non-fusion
+build retains its inherited workflows. Later [desktop controls](desktop-controls.md)
+and [channel client integration](channels.md#shared-dependency-aware-client-workflow)
+add common catalogue browsing, settings, selection and operations. The scoped
+[M1 trial](evidence/m1-final/README.md) exercises representative interactions;
+broader native qualification remains open. Initialize a separate common root
+explicitly before using the GUI.
 
 For an aarch64 hosted cross-build, configure `APKG_AROS_SDK` and
 `APKG_AROS_TOOLS`, then run `APKG_AROS_GUI=1 sh tools/build-apkg-aros.sh`.

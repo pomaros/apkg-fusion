@@ -59,13 +59,13 @@ does not remove these commands from the current desktop contract.
 
 ## Native qualification boundary
 
-The completed candidate must exercise the visible controls, ARexx queries and
-asynchronous commands on the M1 after host qualification. Inspect install →
-verify/use → remove, post-removal registration/files, personal/configuration
-preservation, pending transactions and worker/process exit. Exercise selection
-with candidate-only rows, conflicting names and active filters, plus busy,
-confirmation and close paths. Keep the installed M1 updater migration separate;
-test client self-update only inside the approved isolated test root.
+The scoped [M1 trial](evidence/m1-final/README.md) exercised installation →
+verification/use → removal, post-removal state and worker/process exit, plus
+representative controls and ARexx commands. Full native release qualification
+still needs the untested control and selection cases, including candidate-only
+rows, conflicting names, active filters and close-during-work. Keep the installed
+M1 updater migration separate; test client self-update only inside an isolated
+test root.
 
 Repeat confirmation windows at the same size: decline an upgrade, reopen and
 approve it, then request rollback and removal. Each opening must display its
@@ -74,8 +74,9 @@ Floattext while its window is closed can clear its layout without rebuilding
 it when the unchanged-size window reopens; host worker tests do not exercise
 this rendering lifecycle.
 
-After VERIFY completes, JOB and WAIT (including FIELD message) must retain the
-verification counts/report independently of the worker message and the window's
-report buffer. Exercise a subsequent job or model refresh before reading the
-completed job again; successful verification must not return an empty error
-summary in place of its report.
+After VERIFY completes, JOB and WAIT (including FIELD message) retain a bounded
+479-byte report prefix independently of the worker message and the window's
+report buffer. The M1 regression uses short fixture identities so the counts fit
+in that prefix, then runs another verification before reading the earlier job.
+The full report remains available through the window and CLI; long identities
+can push counts beyond the bounded job message.

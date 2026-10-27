@@ -78,8 +78,8 @@ or migration work. Missing common identities never cause a legacy fallback.
 Publication requires no curator approval. Author declarations and trusted
 signatures do not assert independent review or runtime testing. The
 [signed-channel profile](docs/fusion/channels.md) describes separate trust roles,
-replay floors, exact selection and currently unasserted qualifications. Portal
-and catalogue qualification integration remains a separate alpha gate.
+replay floors, exact selection and independent qualification observations.
+Portal publishing/discovery and its catalogue review integration remain separate.
 
 ## Initialize, discover and operate
 
@@ -109,8 +109,9 @@ private preparation can remain after decline; installed state stays unchanged.
 Retained rollback and repair work offline and preserve personal configuration.
 
 `bundle-check FOLDER TARGET` validates an unregistered bundle without running it;
-`run-bundle` has its own platform/runtime requirements. Existing APKG installs
-require the still-pending validated migration/rehearsal before replacement.
+`run-bundle` has its own platform/runtime requirements. Replacing an existing
+APKG installation requires a selected migration profile and qualification on
+real installations; the current fixture rehearsal does not qualify a live upgrade.
 
 ## Documentation and sources
 
@@ -119,7 +120,8 @@ require the still-pending validated migration/rehearsal before replacement.
 - [Acceptance](docs/fusion/acceptance.md): preserved capabilities and evidence.
 - [Status](docs/fusion/status.md): tested checkpoints and remaining work.
 - [Provenance](docs/fusion/provenance.md): pinned inputs and attribution.
-- [Common engine/API](docs/fusion/initial-engine.md) and [operations](docs/fusion/operations.md).
+- [Common API](docs/fusion/api.md), [operations](docs/fusion/operations.md) and
+  [initial engine background](docs/fusion/initial-engine.md).
 - [Imported pkg guide](components/pkg-guide.md) and [arospkg guide](components/arospkg/README.md): inherited baselines.
 - [Portal guide](portal/README.md): current portal service and tests.
 

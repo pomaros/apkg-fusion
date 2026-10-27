@@ -4,9 +4,9 @@
 # Public context API contract
 
 Revision 1, a source API under development. The [header](../../include/apkg.h)
-is now implemented for the [initial common engine profile](initial-engine.md).
-The former contract path forwards to it. Unsupported operation families remain
-explicit refusals; this is not a stable release ABI.
+implements the initial common engine profile and subsequent
+[common operations](operations.md). The former contract path forwards to it.
+Unsupported semantics remain explicit refusals; this is not a stable release ABI.
 [Data model](data-model.md) owns semantics, [serialization](serialization.md)
 owns framing, and [status](status.md) owns measured evidence.
 
@@ -128,22 +128,24 @@ shows creation plus every initial trust grant. It creates nothing until approved
 execution. Initial plan generation is 0; successful initialization publishes
 generation 1. A competing initialization invalidates the plan under the
 filesystem's first-root lock. Legacy metadata or foreign `.apkg` entries are
-conflicts, never overwritten. Implement this path in PLAN-INSTALL/INSTALL with
-first-root tests; CONTEXT only inspects it. Empty seed authorities are valid but
+conflicts, never overwritten. First-root tests cover initialization and competing
+plans. Empty seed authorities are valid but
 cannot authorize a signed install until an explicit trust-policy change.
 
 `apkg_plan_install` accepts a common READY snapshot and exact verified package.
 It checks physical root/snapshot binding, target, installed state and live
 preconditions and produces canonical immutable plan bytes plus typed effects.
-The first tranche plans one signed package without dependency changes, trust
-changes, root initialization or system takeovers. Unsupported work returns
+The initial tranche covered one signed package without dependency changes,
+trust changes, root initialization or system takeovers. The current engine also
+provides dependency-aware resolution through `apkg_plan_resolve` and common
+channel clients; see [operations](operations.md) and [channels](channels.md).
+Unsupported work returns
 UNSUPPORTED or a non-executable plan with structured blockers, never a weaker
 plan. PENDING returns RECOVERY_REQUIRED; missing/uninitialized root returns
 NOT_FOUND; LEGACY needs migration. Dependencies already satisfied must still
-bind exact providers and checks. Initial simpler implementations may refuse all
-nonempty dependencies explicitly until supported.
+bind exact providers and checks.
 
-Planning writes nothing to the managed root. Future downloads require explicit
+Planning writes nothing to the managed root. Downloads use explicit
 cache/transport APIs and budgets; no hidden fetch is implied by this signature.
 Every effect includes destination, before/after content/attribute references,
 ownership/preservation policy and preconditions in its full record. The client

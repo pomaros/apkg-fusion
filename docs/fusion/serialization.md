@@ -3,10 +3,11 @@
 
 # Object and signature framing
 
-CONTRACT draft revision 1. This defines deterministic object bytes and signing
-transcripts for future implementation. It does not change existing manifests,
-signatures or installed databases. The [reference checker](../../tests/contracts/check.py)
-produces framing test vectors; it is not a production parser or verifier.
+CONTRACT revision 1 defines deterministic common-object bytes and signing
+transcripts. The [common engine](initial-engine.md) implements this framing;
+it does not silently convert existing manifests, signatures or installed
+databases. The [reference checker](../../tests/contracts/check.py) produces
+framing test vectors; it is not a production parser or verifier.
 
 ## Canonical object bytes
 

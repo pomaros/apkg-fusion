@@ -83,8 +83,9 @@ Versions and revisions travel unchanged, including orderable prereleases.
 Existing depends, recommends, conflicts and replaces map to common relations;
 unqualified TOML names bind to the explicitly selected authority and target.
 A missing minimum version means `0`, minimum revision `1`. Recommendation
-reasons and descriptive metadata remain in the exact signed TOML provenance;
-client presentation of that descriptive metadata remains ALPHA-CLIENTS work.
+reasons remain in the exact signed TOML provenance. Supported descriptive
+metadata also flows through the signed descriptor and catalogue to the common
+CLI and PkgManager; see [desktop library](desktop-library.md).
 The new optional `config` list names relative files inside the drawer and maps
 to the engine's `preserve` configuration policy. Missing, duplicate, directory
 and control-file configuration entries refuse.
@@ -120,8 +121,9 @@ producer](channels.md#atomic-local-publication) publishes it, and
 `build/apkg`; `--common` remains an explicit alias and `--legacy` selects the
 old bridge only for regressions/rehearsals. Installed helpers include their
 parser resources and resolve the installed common engine without a checkout.
-File/HTTP selection and dependency-aware installation are implemented; native
-interactive integration, independent qualifications, complete broader
-metadata/timestamp coverage, legacy import and portal migration remain open.
-The final FUSION-ALPHA scenario and exact-source Linux/macOS checks are still
-required. No native program is executed by the host authoring fixtures.
+File/HTTP selection, dependency-aware installation and independent qualification
+observations are implemented. The final host scenario and exact-source
+Linux/macOS CI passed; the separate [M1 trial](evidence/m1-final/README.md)
+exercised representative native interaction. Broader native coverage,
+metadata/timestamp semantics, complete legacy migration and portal adaptation
+remain separate work. Host authoring fixtures do not execute native programs.
