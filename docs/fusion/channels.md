@@ -101,6 +101,37 @@ sequence/digest plus any stricter caller floor. The view exposes
 `accepted_sequence` independently; it is unknown before first acceptance.
 Revocation observation and current review status remain separate facts.
 
+## Root source list
+
+A root keeps its own ordered list of named sources, each a channel identity at
+an endpoint, as pkg's channel list did:
+
+```sh
+apkg source-add ROOT NAME ENDPOINT CHANNEL-ID [--confirm DIGEST]
+apkg source-remove ROOT NAME [--confirm DIGEST]
+apkg source-list ROOT
+apkg source-install ROOT NAME [--recommends] [--confirm DIGEST]
+```
+
+The list lives in root state as an optional `sources` array and changes only
+through a state-only plan that shows each source added or removed and the
+resulting order. Adding a source first opens and verifies its channel under
+the current policy, so it never stands in for granting the channel key.
+Removing one leaves what was installed from it in place. Names are 1 to 63
+letters, digits, `.`, `_` or `-`, starting with a letter or digit; names and
+endpoint/channel pairs are unique, and a root lists at most 16 sources.
+
+`source-install` reads every listed source in order and installs or upgrades
+the named package. The newest trusted candidate for the root's target wins;
+an equal version and revision goes to the earlier source. Dependencies are
+pooled across the list under the same rule, and each package is prepared from
+the source that offers it. Each source that supplies a package advances its own
+replay floor and contributes its observations; the others are untouched. A
+source that cannot be read, the same name from two authorities, and candidates
+with no defined order refuse rather than narrow the choice silently. A package
+that is already current yields an unchanged result. Rollback keeps the current
+list, and a list change itself is never rolled back.
+
 ## Atomic local publication
 
 `tools/apkg-channel ARCHIVE --directory CHANNEL --id CHANNEL-ID --sign KEY`
@@ -413,10 +444,12 @@ retain the previous catalogue. Host tests exercise the actual discovery and
 installation workers and allocation ownership; SDK header/type checks cover
 the UI wiring. The main installed list now owns full common snapshot rows and
 evidence, with complete name/version/revision display, search and action
-identities. Installed LIST/SHOW and RUN/REMOVE have common ARexx source wiring;
-legacy queries without an adapter refuse explicitly. Native interaction,
-settings/news/filter/update views and the remaining ARexx/compatibility cases
-still require integration/qualification.
+identities. Installed LIST/SHOW and RUN/REMOVE have common ARexx source wiring.
+ARexx INSTALL and UPGRADE with a package name run the
+[root source list](#root-source-list) install from the worker, through the usual
+confirmation window. ROLLBACK by name and legacy queries without an adapter
+refuse explicitly. Native interaction, settings/news/filter/update views and
+the remaining ARexx/compatibility cases still require integration/qualification.
 
 The [attestation profile](attestations.md#channel-carriage-and-catalogue-presentation)
 adds optional per-entry signed observation sets. They preserve review/runtime

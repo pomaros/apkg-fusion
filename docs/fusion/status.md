@@ -15,10 +15,10 @@ implemented below; remaining service/operation integration is listed separately.
 |---|---|---|
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
-| Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation | Remote revocation/freshness policy, a signed key-endorsement format and multi-channel configuration |
+| Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format, PkgManager source-list controls |
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
-| Legacy migration | Schema-1 host copy import, immutable approval and common recovery work on pinned synthetic fixtures | Broader relations/placements, active settings/launch/history conversion, script compatibility and distribution qualification |
+| Legacy migration | Schema-1 host copy import with recorded relations, immutable approval and common recovery on pinned synthetic fixtures | System requirements, placements, active settings/launch/history conversion, script compatibility and distribution qualification |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
 These are implementation positions, not six completed gates. The final clean
@@ -1483,6 +1483,42 @@ losing author trust, an added reviewer role, refusals of unchanged, invalid,
 non-canonical and read-only requests, a stale plan, rollback that never crosses
 the change, crashes before and after the decision, and the CLI confirmation
 round trip. The self-update and policy cases also run under ASan/UBSan.
+
+## Root source list
+
+The [root source list](channels.md#root-source-list) carries pkg's ordered,
+named channel list into the common model. The channel planner takes several
+channels in precedence order; the single-channel API is the one-channel case.
+Six host cases cover preview, ordered listing and refusal of untrusted,
+duplicate and badly named sources; the newest version across sources with only
+the supplying floor advancing and an unchanged second run; an equal version
+from the earlier source; a dependency from another source recording both
+floors; refusals for two authorities, an unknown name and an unreadable
+source; and removal that keeps installed packages and is never rolled back.
+
+## Recorded legacy relations
+
+The import maps recorded legacy relations instead of refusing them; see the
+[import profile](legacy-copy.md#profile-and-qualification-boundaries). Two
+host cases import a dependent pair with a recommendation and its dependency
+together, and refuse a different signed minimum, an unreadable id, a
+conflicting family and a self-named relation with the original unchanged.
+System requirements remain a refusal.
+
+## Clean-workspace alpha scenario
+
+[`tests/apkg/test_alpha.py`](../../tests/apkg/test_alpha.py) runs the alpha's
+final scenario as one automated host test. It authors an application and its
+dependency from TOML, builds and signs them, publishes through a file channel
+served over HTTP, discovers through the CLI and the actual PkgManager worker,
+adds the source to the root, declines and then installs by name with the
+dependency, keeps a personal configuration through an upgrade, refuses a
+tampered archive without change, recovers a crash after the commit decision to
+the whole new release, rolls back offline with the channel deleted, repairs and
+removes while the personal file stays. It runs in `make test-fusion` and under
+the sanitizers. It is host evidence: exact-source Linux/macOS CI, both
+inherited suites on the final source, the portal and native runtime remain
+separate gates.
 
 ## Implemented integration pieces
 

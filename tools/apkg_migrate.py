@@ -21,6 +21,11 @@ MAX = 16 * 1024 * 1024
 RECEIPT = '.apkg-legacy/import.json'
 NAME = re.compile(r'[a-z0-9][a-z0-9._-]{0,254}\Z')
 SHA = re.compile(r'[0-9a-f]{64}\Z')
+# arospkg's relation syntax (mkindex.py): an id, and for depends an optional
+# dotted-number minimum.
+DEPEND = re.compile(r'([a-z][a-z0-9._-]{0,63})(?: >= ([0-9]{1,9}(?:\.[0-9]{1,9}){0,7}))?\Z')
+VERSION = re.compile(r'[0-9]{1,9}(?:\.[0-9]{1,9}){0,7}\Z')
+FAMILIES = ('conflicts', 'depends', 'recommends', 'replaces')
 
 class Refused(Exception):
     pass
@@ -152,6 +157,37 @@ def identity(path):
     require(stat.S_ISDIR(st.st_mode), 'directory replaced by another node')
     return [st.st_dev, st.st_ino]
 
+def legacy_relations(record):
+    """Each family as a set of (name, minimum version); '0' means any. Names and
+    minimums are what a legacy registry can state. Authority, target and
+    revision floors come only from the signed artifact."""
+    out = {}
+    for family in ('depends', 'conflicts', 'replaces'):
+        items = record.get(family, [])
+        require(isinstance(items, list) and len(items) <= 16, 'invalid legacy relation list: ' + family)
+        found = set()
+        for item in items:
+            hit = DEPEND.match(item) if isinstance(item, str) else None
+            require(hit and (family == 'depends' or hit.group(2) is None), 'unreadable legacy relation: ' + family)
+            found.add((hit.group(1), hit.group(2) or '0'))
+        require(len(found) == len(items), 'duplicate legacy relation: ' + family)
+        out[family] = found
+    items = record.get('recommends', [])
+    require(isinstance(items, list) and len(items) <= 16, 'invalid legacy relation list: recommends')
+    found = set()
+    for item in items:
+        require(isinstance(item, dict) and 'id' in item and not set(item) - {'id', 'min_version', 'reason'} and
+                isinstance(item['id'], str) and DEPEND.match(item['id']) and ' ' not in item['id'] and
+                isinstance(item.get('reason', ''), str) and
+                ('min_version' not in item or (isinstance(item['min_version'], str) and VERSION.match(item['min_version']))),
+                'unreadable legacy relation: recommends')
+        found.add((item['id'], item.get('min_version') or '0'))
+    require(len(found) == len(items), 'duplicate legacy relation: recommends')
+    out['recommends'] = found
+    names = [name for family in ('depends', 'conflicts', 'replaces') for name, _ in out[family]]
+    require(record.get('name') not in names, 'a legacy relation names its own package')
+    return out
+
 def package_evidence(record, raw):
     allowed = {'schema','name','version','revision','arch','abi','subdir','installed',
                'origin','archive_sha256','archive_size','reason','relations_schema','dir',
@@ -172,9 +208,9 @@ def package_evidence(record, raw):
             type(record.get('archive_size')) is int and 0 <= record['archive_size'] < 2**64, 'invalid original archive identity')
     for field in ('origin','subdir','installed'):
         require(isinstance(record.get(field), str), 'invalid legacy text field: ' + field)
-    for key in ('requires_system','depends','recommends','conflicts','replaces'):
-        require(isinstance(record.get(key, []), list) and not record.get(key),
-                'legacy semantics require an explicit adapter: ' + key)
+    require(isinstance(record.get('requires_system', []), list) and not record.get('requires_system'),
+            'legacy semantics require an explicit adapter: requires_system')
+    legacy_relations(record)
     icon = record.get('icon', {})
     require(isinstance(icon, dict) and icon.get('state', 'none') in ('none','kept-existing'),
             'owned root icon placement is not mapped')
@@ -237,10 +273,19 @@ def inspect_source(source, mapping):
         observations.append(dict(name=name, original_authentication='unknown',
             abi='recorded' if record.get('abi') else 'unrecorded',
             revision='recorded' if 'revision' in record else 'unrecorded; compatibility default 0',
-            relations='recorded-empty' if 'relations_schema' in record else 'unrecorded',
+            relations=('recorded-empty' if not any(legacy_relations(record).values()) else 'recorded')
+                if 'relations_schema' in record else 'unrecorded',
             launch='original record retained; no launch performed', history=history,
             legacy_rollback='not converted; retained records are not common rollback history'))
     require(set(records) == set(mapped), 'mapping and installed registry sets differ')
+    # The recorded set must be consistent on its own before anything is copied.
+    for name, record in records.items():
+        relations = legacy_relations(record)
+        for needed, _ in relations['depends']:
+            require(needed in records, 'recorded dependency is not installed: %s needs %s' % (name, needed))
+        for family in ('conflicts', 'replaces'):
+            for other, _ in relations[family]:
+                require(other not in records, 'recorded %s names an installed package: %s, %s' % (family, name, other))
     manifest = dict(body=dict(packages=packages), format='apkg-json-1', requires=[], schema='1', type='adoption-set')
     return rows, records, artifacts, observations, manifest
 
@@ -283,7 +328,12 @@ def validate_selected(records, plan):
         require(len(target) == 4 and target[0] == record.get('arch') and
                 (not record.get('abi') or target[2] == record['abi']), 'artifact target mapping differs from legacy facts')
         if 'relations_schema' in record:
-            require(not any(body.get('relations',{}).values()), 'signed relations differ from recorded empty relations')
+            signed = body.get('relations', {})
+            want = legacy_relations(record)
+            for family in FAMILIES:
+                got = {(r['name'], r['min_version']) for r in signed.get(family, [])}
+                require(len(got) == len(signed.get(family, [])) and got == want[family],
+                        'signed relations differ from recorded relations: ' + family)
 
 def prepare(args):
     require(args.quiescent, 'prepare requires explicit --quiescent; no legacy writer may run')

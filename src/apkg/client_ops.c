@@ -304,6 +304,8 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
                              ? "Accept channel replay floor"
                          : p->view.kind == APKG_PLAN_POLICY
                              ? "Change trust policy"
+                         : p->view.kind == APKG_PLAN_SOURCES
+                             ? "Change source list"
                              : "Resolve/install";
     ak_tohex(p->view.plan_digest.bytes, 32, digest);
     ak_buf_add(&b, "%s\nRoot folder: %s\nApproved plan: %s\n", action, p->root,
@@ -366,6 +368,17 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
                        issuer, kind, result, (unsigned long long)sequence,
                        target, descriptor);
         }
+    }
+    if (p->view.kind == APKG_PLAN_SOURCES) {
+        apkg_status delta =
+            ak_sources_delta(p->before_state, p->root_record, &b);
+        if (delta) {
+            ak_json_free(&changes);
+            ak_json_free(&state);
+            free(b.data);
+            return delta;
+        }
+        goto finish;
     }
     if (p->view.kind == APKG_PLAN_POLICY) {
         apkg_status delta = ak_policy_delta(p->before_state, p->root_record, &b);

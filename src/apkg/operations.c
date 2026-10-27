@@ -355,12 +355,14 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
                                   const char *entries, apkg_plan_kind kind,
                                   const char *focus, const char *heads,
                                   const char *qualifications,
-                                  const char *policy, apkg_plan **out,
-                                  apkg_error **e) {
+                                  const char *policy, const char *sources,
+                                  apkg_plan **out, apkg_error **e) {
     /* Channel acceptance and policy changes rewrite root state only. */
-    int state_only =
-        kind == APKG_PLAN_CHANNEL_ACCEPT || kind == APKG_PLAN_POLICY;
-    if ((policy != NULL) != (kind == APKG_PLAN_POLICY)) {
+    int state_only = kind == APKG_PLAN_CHANNEL_ACCEPT ||
+                     kind == APKG_PLAN_POLICY || kind == APKG_PLAN_SOURCES;
+    char *sources_field = NULL;
+    if ((policy != NULL) != (kind == APKG_PLAN_POLICY) ||
+        (sources != NULL) != (kind == APKG_PLAN_SOURCES)) {
         if (out)
             *out = NULL;
         return APKG_INVALID;
@@ -459,6 +461,10 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
         if (code)
             goto done;
     }
+    if (sources && !(sources_field = ak_sources_field(sources))) {
+        code = APKG_NOMEM;
+        goto done;
+    }
     state.max = changes.max = raw.max =
         c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
     ak_tohex(s->view.root_id.bytes, 16, id);
@@ -466,12 +472,12 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
                "{\"body\":{\"channel_heads\":%s,\"generation\":\"%" PRIu64
                "\",\"installed\":%s,\"package_generation\":\"%" PRIu64
                "\",\"policy\":%s,\"qualification_records\":%s,\"root_id\":\"%"
-               "s\",\"target\":"
+               "s\"%s,\"target\":"
                "\"%s\"},\"format\":\"apkg-json-1\",\"requires\":[],\"schema\":"
                "\"1\",\"type\":\"root\"}",
                heads, s->view.generation.value + 1, entries,
                s->package_generation + !state_only, policy, qualifications,
-               id, s->target);
+               id, sources_field ? sources_field : s->sources_field, s->target);
     ak_buf_add(&changes, "[");
     k = 0;
     /* Existing entries first, followed by newly selected packages. */
@@ -643,6 +649,7 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
     p = NULL;
     code = APKG_OK;
 done:
+    free(sources_field);
     for (i = 0; i < n; i++)
         if (packages)
             apkg_package_free(packages[i]);
@@ -661,7 +668,7 @@ apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
     return ak_plan_records_heads(c, s, entries, kind, focus,
                                  s ? s->channel_heads : NULL,
                                  s ? s->qualification_records : NULL, NULL,
-                                 out, e);
+                                 NULL, out, e);
 }
 apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
                           const char *heads, const char *qualifications,
@@ -677,7 +684,7 @@ apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
         return APKG_NOMEM;
     apkg_status code =
         ak_plan_records_heads(c, s, entries, APKG_PLAN_CHANNEL_ACCEPT, NULL,
-                              heads, qualifications, NULL, out, e);
+                              heads, qualifications, NULL, NULL, out, e);
     free(entries);
     if (!code) {
         apkg_plan *p = *out;
@@ -801,8 +808,9 @@ static apkg_status rollback_applicable(const apkg_snapshot *s,
                                   "root_id", "target"},
             5,
             (const char *const[]){"channel_heads", "package_generation",
-                                  "qualification_records"},
-            3) ||
+                                  "qualification_records", "sources"},
+            4) ||
+        !ak_sources_valid(&j, ak_member(&j, b, "sources")) ||
         ak_u64(&j, ak_member(&j, b, "generation"), &generation) ||
         !generation || generation > s->view.generation.value ||
         !ak_channel_heads_valid(&j, ak_member(&j, b, "channel_heads")))
@@ -914,7 +922,8 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
     int kind_token = ak_member(&plan, b, "kind");
     if (kind_token >= 0 && !ak_u64(&plan, kind_token, &historical_kind) &&
         (historical_kind == APKG_PLAN_CHANNEL_ACCEPT ||
-         historical_kind == APKG_PLAN_POLICY)) {
+         historical_kind == APKG_PLAN_POLICY ||
+         historical_kind == APKG_PLAN_SOURCES)) {
         code = APKG_POLICY;
         goto done;
     }

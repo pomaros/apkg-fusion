@@ -483,8 +483,9 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
         !ak_fields_optional(&j, ak_member(&j, 0, "body"), fields, 5,
                             (const char *const[]){"channel_heads",
                                                   "package_generation",
-                                                  "qualification_records"},
-                            3))
+                                                  "qualification_records",
+                                                  "sources"},
+                            4))
         goto unsupported;
     b = ak_member(&j, 0, "body");
     {
@@ -539,6 +540,18 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
         s->qualification_records =
             records < 0 ? ak_copy("[]", 2) : ak_slice(&j, records);
         if (!s->qualification_records)
+            goto nomem;
+        int sources = ak_member(&j, b, "sources");
+        if (!ak_sources_valid(&j, sources))
+            goto invalid;
+        if (sources < 0)
+            s->sources_field = ak_copy("", 0);
+        else {
+            char *list = ak_slice(&j, sources);
+            s->sources_field = list ? ak_sources_field(list) : NULL;
+            free(list);
+        }
+        if (!s->sources_field)
             goto nomem;
         apkg_digest digest;
         ak_hash(s->qualification_records, strlen(s->qualification_records),
@@ -769,6 +782,7 @@ void apkg_snapshot_free(apkg_snapshot *s) {
     free(s->target);
     free(s->diagnostic);
     free(s->channel_heads);
+    free(s->sources_field);
     free(s->qualification_records);
     free(s);
 }

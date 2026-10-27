@@ -363,7 +363,7 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
     ak_tohex(s->view.root_id.bytes, 16, id);
     cap = entries_size + strlen(p->raw) + strlen(p->signature) +
           strlen(s->policy) + strlen(s->channel_heads) +
-          strlen(s->qualification_records) + 1088;
+          strlen(s->qualification_records) + strlen(s->sources_field) + 1088;
     if (cap > c->object_max || cap > c->memory_max / 32) {
         free(entries);
         ak_json_free(&j);
@@ -380,12 +380,12 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
              "\",\"installed\":[%s%s{\"descriptor\":%s,\"signature\":%s}],"
              "\"package_generation\":\"%" PRIu64
              "\",\"policy\":%s,\"qualification_records\":%s,\"root_"
-             "id\":\"%s\",\"target\":\"%s\"},\"format\":\"apkg-json-1\","
+             "id\":\"%s\"%s,\"target\":\"%s\"},\"format\":\"apkg-json-1\","
              "\"requires\":[],\"schema\":"
              "\"1\",\"type\":\"root\"}",
              s->channel_heads, gen + 1, entries, entries_size ? "," : "",
              p->raw, p->signature, s->package_generation + 1, s->policy,
-             s->qualification_records, id, s->target);
+             s->qualification_records, id, s->sources_field, s->target);
     r = ak_make_plan(c, s, record, p->raw, p->name, out, e);
     if (!r) {
         r = ak_plan_bind(c, *out, &p, 1);

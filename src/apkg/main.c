@@ -83,7 +83,9 @@ static int apkg_main(int argc, char **argv) {
             "[--confirm DIGEST]\nchannel-accept ROOT ENDPOINT "
             "CHANNEL-ID [--confirm DIGEST]\nself-update ROOT ENDPOINT "
             "CHANNEL-ID EXECUTABLE [--check] [--confirm DIGEST]\npolicy ROOT "
-            "POLICY-FILE [--confirm DIGEST]\n");
+            "POLICY-FILE [--confirm DIGEST]\nsource-add ROOT NAME ENDPOINT "
+            "CHANNEL-ID | source-remove ROOT NAME | source-install ROOT NAME "
+            "[--recommends], each [--confirm DIGEST]\nsource-list ROOT\n");
         return argc == 2 && !strcmp(argv[1], "--help") ? APKG_OK : APKG_INVALID;
     }
     if (!strcmp(argv[1], "channel-install")) {
@@ -106,6 +108,46 @@ static int apkg_main(int argc, char **argv) {
         code = apkg_client_channel_apply(argv[2], argv[3], selection,
                                          recommendations, confirm,
                                          (void *)confirmation, NULL, &r, &e);
+        goto done;
+    }
+    if (!strcmp(argv[1], "source-list")) {
+        char *list = NULL;
+        if (argc != 3)
+            return APKG_INVALID;
+        code = apkg_client_source_list(argv[2], &list, &e);
+        if (!code)
+            fputs(list, stdout);
+        apkg_client_text_free(list);
+        goto done;
+    }
+    if (!strcmp(argv[1], "source-add") || !strcmp(argv[1], "source-remove") ||
+        !strcmp(argv[1], "source-install")) {
+        /* source-add ROOT NAME ENDPOINT CHANNEL-ID | source-remove ROOT NAME |
+         * source-install ROOT NAME [--recommends]; then [--confirm DIGEST] */
+        int add = !strcmp(argv[1], "source-add"),
+            install = !strcmp(argv[1], "source-install"), recommends = 0;
+        int fixed = add ? 6 : 4;
+        if (argc < fixed)
+            return APKG_INVALID;
+        for (int i = fixed; i < argc; i++) {
+            if (install && !strcmp(argv[i], "--recommends") && !recommends)
+                recommends = 1;
+            else if (!strcmp(argv[i], "--confirm") && !confirmation &&
+                     i + 1 < argc)
+                confirmation = argv[++i];
+            else
+                return APKG_INVALID;
+        }
+        code = add ? apkg_client_source_add(argv[2], argv[3], argv[4], argv[5],
+                                            confirm, (void *)confirmation, NULL,
+                                            &r, &e)
+               : install
+                   ? apkg_client_source_install(argv[2], argv[3], recommends,
+                                                confirm, (void *)confirmation,
+                                                NULL, &r, &e)
+                   : apkg_client_source_remove(argv[2], argv[3], confirm,
+                                               (void *)confirmation, NULL, &r,
+                                               &e);
         goto done;
     }
     if (!strcmp(argv[1], "self-update")) {

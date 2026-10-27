@@ -369,7 +369,8 @@ typedef enum {
     APKG_PLAN_RESOLVE,
     APKG_PLAN_CHANNEL_ACCEPT,
     APKG_PLAN_ADOPT,
-    APKG_PLAN_POLICY
+    APKG_PLAN_POLICY,
+    APKG_PLAN_SOURCES
 } apkg_plan_kind;
 typedef struct {
     apkg_plan_kind kind;
@@ -451,6 +452,11 @@ apkg_status apkg_plan_resolve(apkg_ctx *, const apkg_snapshot *,
  * Rollback never crosses a policy change. */
 apkg_status apkg_plan_policy(apkg_ctx *, const apkg_snapshot *,
                              apkg_bytes policy, apkg_plan **, apkg_error **);
+/* Replace the root's ordered source list: a canonical array of
+ * {"endpoint","id","name"} objects in precedence order ("[]" removes all).
+ * The plan rewrites root state only and grants no key. */
+apkg_status apkg_plan_sources(apkg_ctx *, const apkg_snapshot *,
+                              apkg_bytes list, apkg_plan **, apkg_error **);
 apkg_status apkg_plan_channel_accept(apkg_ctx *, const apkg_snapshot *,
                                       const apkg_channel *, apkg_plan **,
                                       apkg_error **);

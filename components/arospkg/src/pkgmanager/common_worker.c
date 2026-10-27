@@ -111,6 +111,10 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
             j->done->common_catalogue = NULL;
             status = APKG_CANCELLED;
         }
+    } else if (j->kind == JOB_COMMON_SOURCE_INSTALL) {
+        /* id: the package name, from the root's own source list. */
+        status = apkg_client_source_install(j->root, j->id, 0, ask, j,
+                                            &observer, &result, &detail);
     } else if (j->kind == JOB_COMMON_SELF_UPDATE) {
         /* common_package: endpoint, common_pool: channel id, common_action:
          * 1 checks only. The report becomes the window's record. */

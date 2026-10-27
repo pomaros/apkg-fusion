@@ -158,7 +158,7 @@ apkg_status apkg_plan_policy(apkg_ctx *c, const apkg_snapshot *s,
     }
     code = ak_plan_records_heads(c, s, entries, APKG_PLAN_POLICY, NULL,
                                  s->channel_heads, s->qualification_records,
-                                 text, out, e);
+                                 text, NULL, out, e);
     free(entries);
     free(text);
     if (!code) {

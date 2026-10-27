@@ -216,15 +216,16 @@ BASE, MAP, CONTRACT and the first operation, channel, client and import
 checkpoints have code; their evidence is in [status](docs/fusion/status.md).
 The remaining non-portal work, in order:
 
-1. Trust administration: an explicit, journaled policy change for key
-   rotation and reset, shown grant by grant before approval.
-2. Channel sources: multi-channel source configuration and an explicit
-   revocation/freshness policy for online sources. Self-update copies on other
-   volumes wait for the multi-participant protocol.
+1. Trust administration and the root source list have code and host tests;
+   a signed key-endorsement format remains undefined.
+2. Channel sources: an explicit revocation/freshness policy for online
+   sources, and PkgManager controls for the root source list. Self-update
+   copies on other volumes wait for the multi-participant protocol.
 3. PkgManager: settings, news and the ARexx surface over the common client API.
 4. ALPHA-IMPORT completion: relations, placements, settings and launch
    conversion, prior-version history and the command-compatibility adapter.
-5. The final clean-workspace alpha scenario and exact-source CI.
+5. The clean-workspace alpha scenario has a host test; run it with both
+   inherited suites and the portal tests in exact-source Linux/macOS CI.
 6. The isolated M1 runtime rehearsal, then PORTAL-MIGRATE.
 
 Host and native evidence stay distinct. An AROS type check is not runtime

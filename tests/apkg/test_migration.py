@@ -276,4 +276,65 @@ class MigrationCopies(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
             self.assertEqual(json.loads((a/'.apkg/state').read_bytes())['body']['installed'],json.loads((b/'.apkg/state').read_bytes())['body']['installed'])
 
+class MigrationRelations(unittest.TestCase):
+    """Recorded legacy relations import only when the signed artifacts state
+    the same names and minimum versions."""
+    def fixture(self, d, demo_relations, signed_depends):
+        base = Path(d); source = base / 'original'; (source / 'db/installed').mkdir(parents=True)
+        template = json.loads((ROOT / 'tests/fixtures/migration/registry-current.json').read_bytes())
+        artifacts = []
+        for name, content, legacy, signed in (
+                ('map-demo', b'demo program\n', demo_relations,
+                 dict(conflicts=[], depends=signed_depends,
+                      recommends=[dict(authority=AUTH, min_revision='0', min_version='0', name='map-extra', target=TARGET)],
+                      replaces=[])),
+                ('map-lib', b'library\n', {}, None)):
+            record = copy.deepcopy(template); record.update(name=name, dir=name, version='1.2', revision=1, reason='explicit')
+            record['contents'] = [dict(path='Demo', sha256=hashlib.sha256(content).hexdigest(), size=len(content))]
+            record.pop('previous'); record.update(legacy)
+            (source / 'db/installed' / (name + '.json')).write_bytes(json.dumps(record, indent=2).encode())
+            (source / name).mkdir(); (source / name / 'Demo').write_bytes(content)
+            data = json.loads(descriptor(name=name, files=[payload('Demo', content.decode())]))
+            data['body'].update(version='1.2', revision='1')
+            if signed:
+                data['body']['relations'] = signed
+            data = json.dumps(data, sort_keys=True, separators=(',', ':')).encode()
+            artifact = base / ('artifact-' + name); artifact.mkdir()
+            (artifact / 'descriptor.json').write_bytes(data); (artifact / 'signature.json').write_bytes(sign(data))
+            artifacts.append(dict(name=name, artifact=str(artifact)))
+        mapping = base / 'mapping.json'
+        mapping.write_bytes(canonical(dict(format='apkg-legacy-import-1', legacy_root='', packages=artifacts)))
+        seed = base / 'policy.json'; seed.write_bytes(policy())
+        return source, base / 'copy', mapping, seed
+    def helper(self, *args):
+        return subprocess.run([sys.executable, str(ROOT / 'tools/apkg_migrate.py'), '--apkg', str(CLI), *map(str, args)], capture_output=True, text=True)
+    def depends(self, minimum):
+        return [dict(authority=AUTH, min_revision='0', min_version=minimum, name='map-lib', target=TARGET)]
+    LEGACY = dict(depends=['map-lib >= 1.0'], recommends=[dict(id='map-extra', reason='adds maps')])
+
+    def test_matching_relations_import_with_their_dependency(self):
+        with tempfile.TemporaryDirectory() as d:
+            source, copy_root, mapping, seed = self.fixture(d, self.LEGACY, self.depends('1.0'))
+            prepared = self.helper('prepare', source, copy_root, mapping, seed, TARGET, '--quiescent')
+            self.assertEqual(prepared.returncode, 0, prepared.stdout + prepared.stderr)
+            receipt = json.loads(prepared.stdout)
+            self.assertEqual({o['name']: o['relations'] for o in receipt['observations']}, {'map-demo': 'recorded', 'map-lib': 'recorded-empty'})
+            done = self.helper('commit', copy_root, '--confirm', receipt['approval']); self.assertEqual(done.returncode, 0, done.stderr)
+            installed = {e['descriptor']['body']['name']: e for e in json.loads((copy_root / '.apkg/state').read_bytes())['body']['installed']}
+            self.assertEqual(installed['map-demo']['descriptor']['body']['relations']['depends'][0]['name'], 'map-lib')
+            self.assertEqual(sorted(installed), ['map-demo', 'map-lib'])
+
+    def test_a_different_signed_minimum_or_an_unreadable_legacy_relation_refuses(self):
+        cases = ((self.LEGACY, self.depends('1.1'), 'depends'),
+                 (dict(depends=['Map-Lib >= 1.0']), self.depends('1.0'), 'unreadable legacy relation'),
+                 (dict(depends=['map-lib >= 1.0'], conflicts=['map-lib']), self.depends('1.0'), 'conflicts'),
+                 (dict(depends=['map-demo']), self.depends('1.0'), 'own package'))
+        for legacy, signed, message in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as d:
+                source, copy_root, mapping, seed = self.fixture(d, legacy, signed)
+                before = migration.inventory(source)
+                result = self.helper('prepare', source, copy_root, mapping, seed, TARGET, '--quiescent')
+                self.assertNotEqual(result.returncode, 0); self.assertIn(message, result.stdout + result.stderr)
+                self.assertEqual(migration.inventory(source), before)
+
 def canonical(value):return json.dumps(value,sort_keys=True,separators=(',',':')).encode()

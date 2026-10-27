@@ -133,6 +133,25 @@ apkg_status apkg_client_self_update(const char *root, const char *endpoint,
     const char *identity, const char *executable, int check_only,
     apkg_confirm_fn, void *, const apkg_observer *, char **report,
     apkg_result **, apkg_error **);
+/* The root's ordered source list. add opens and verifies the channel under the
+ * current policy first; neither add nor remove grants or withdraws a key.
+ * install reads every listed source in order and installs or upgrades `name`:
+ * the newest trusted candidate wins, an equal version goes to the earlier
+ * source, dependencies are pooled across the list, and an unreadable source,
+ * two authors for one name or incomparable candidates refuse. A current
+ * package yields an UNCHANGED result. list text: ORDER<TAB>NAME<TAB>ID<TAB>
+ * ENDPOINT lines (apkg_client_text_free). */
+apkg_status apkg_client_source_add(const char *root, const char *name,
+    const char *endpoint, const char *identity, apkg_confirm_fn, void *,
+    const apkg_observer *, apkg_result **, apkg_error **);
+apkg_status apkg_client_source_remove(const char *root, const char *name,
+    apkg_confirm_fn, void *, const apkg_observer *, apkg_result **,
+    apkg_error **);
+apkg_status apkg_client_source_list(const char *root, char **text,
+                                    apkg_error **);
+apkg_status apkg_client_source_install(const char *root, const char *name,
+    int recommendations, apkg_confirm_fn, void *, const apkg_observer *,
+    apkg_result **, apkg_error **);
 /* Bundle inspection/launch requires no registration and mutates no root. */
 apkg_status apkg_bundle_check(const char *folder, const char *target, char **,
                               apkg_error **);

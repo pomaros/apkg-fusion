@@ -6,8 +6,9 @@
 A source profile is an explicitly selected client file, separate from managed
 root state, policy, journals and the archive/object stores. It holds one endpoint,
 one channel identity and optionally the exact channel object/signature observed
-there. Multiple profile files can coexist; this is not a completed multi-channel
-aggregation or source-precedence model.
+there. Multiple profile files can coexist. Precedence across several channels
+belongs to the root's own [source list](channels.md#root-source-list), not to
+profiles.
 
 Saving settings grants no keys, advances no replay floor and installs nothing.
 Settings-only saves clear an older observation. Retaining a channel copies its

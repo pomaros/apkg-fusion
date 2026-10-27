@@ -139,6 +139,17 @@ apkg_status ak_resolve_metadata(apkg_ctx *, const apkg_snapshot *,
                                 ak_resolution *, apkg_error **);
 void ak_resolution_free(ak_resolution *);
 int ak_version_compare(const char *, const char *);
+/* Root-owned ordered source list (sources.c). */
+#define AK_SOURCES 16u
+apkg_status ak_plan_channels_install(apkg_ctx *, const apkg_snapshot *,
+                                     const apkg_channel *const *, size_t,
+                                     size_t, const apkg_digest *, int,
+                                     const apkg_observer *, apkg_plan **,
+                                     apkg_error **);
+int ak_sources_valid(const ak_json *, int);
+char *ak_sources_field(const char *sources_array); /* NULL on NOMEM */
+apkg_status ak_sources_delta(const char *before_state, const char *after_state,
+                             ak_buf *);
 /* stat/lstat whose st_dev/st_ino name the object across renames and
  * restarts (identity.c); st_ino 0 means the filesystem gives no identity. */
 int ak_stat(const char *, struct stat *);
@@ -159,6 +170,8 @@ struct apkg_ctx {
 struct apkg_snapshot {
     apkg_root_view view;
     char *raw, *policy, *target, *diagnostic, *channel_heads, *qualification_records;
+    /* "" without a source list, else ,"sources":[...] for state builders. */
+    char *sources_field;
     apkg_installed_view *rows;
     size_t nrows;
     uint64_t package_generation;
@@ -234,7 +247,7 @@ struct apkg_event_copy {
 apkg_status ak_plan_records_heads(apkg_ctx *, const apkg_snapshot *,
                                   const char *, apkg_plan_kind, const char *,
                                   const char *, const char *, const char *,
-                                  apkg_plan **, apkg_error **);
+                                  const char *, apkg_plan **, apkg_error **);
 apkg_status ak_policy_delta(const char *before_state, const char *after_state,
                             ak_buf *);
 apkg_status ak_plan_records(apkg_ctx *, const apkg_snapshot *, const char *,

@@ -134,6 +134,23 @@ int main(int argc, char **argv) {
         assert(allocations == 0);
         return 0;
     }
+    if (atoi(argv[3]) == 41) {
+        /* ROOT NAME 41: install by name from the root's source list. */
+        assert(argc == 4 && strlen(argv[1]) < sizeof j.root &&
+               strlen(argv[2]) < sizeof j.id);
+        strcpy(j.root, argv[1]);
+        strcpy(j.id, argv[2]);
+        j.kind = JOB_COMMON_SOURCE_INSTALL;
+        j.done = &final;
+        running = &j;
+        choice = 1;
+        pm_common_install(&j, &error);
+        printf("status %d outcome %d previews %d\n", final.common_status,
+               final.common_outcome, previews);
+        FreeVec(final.common_record);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 40) {
         /* ROOT ENDPOINT 40 CHECK CHANNEL-ID EXECUTABLE: self-update through
          * the actual worker bridge; the window approves the plan. */

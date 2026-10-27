@@ -51,7 +51,7 @@ attributes refuse. macOS provenance bookkeeping is excluded, as in the engine.
 The common engine verifies the supplied artifacts, target, trust, recorded file
 baselines and the combined dependency set. The adapter additionally compares
 legacy package name, upstream version, packaging revision, recorded CPU/ABI and
-known-empty relations with the verified descriptors. Unknown ABI, reason and
+recorded relations with the verified descriptors. Unknown ABI, reason and
 relations remain labelled unknown. Missing revision keeps its original omission
 and the legacy reader's effective default zero separately; a matching supplied
 artifact may carry revision zero. Zero is also a valid common dependency floor.
@@ -92,12 +92,21 @@ bytes from unavailable/unresolved references.
 
 ## Profile and qualification boundaries
 
-This profile interprets schema-1 installed records with file baselines. Nonempty
-legacy dependency/recommendation/conflict/replacement lists and system
-requirements require semantic adapters and explicitly refuse. Owned icons at
-shared root destinations also refuse. The common adoption-set API itself supports
-mutually dependent bundles; that does not establish translation of legacy
-relation syntax. Unknown record fields refuse instead of disappearing.
+This profile interprets schema-1 installed records with file baselines.
+Recorded `depends`, `conflicts`, `replaces` and `recommends` are read in
+arospkg's own syntax (`id` or `id >= dotted.version`, and recommendation
+objects) and must equal the signed artifact's relations family by family, by
+name and minimum version; an absent minimum is `0`. A legacy record cannot
+state an authority, a target or a revision floor, so those come only from the
+signed artifact, and the common engine checks the imported set's dependency
+closure. Before anything is copied, the recorded set must be consistent on
+its own: every recorded dependency is installed, and no recorded conflict or
+replacement names an installed package. A recommendation's reason stays in the
+original record bytes; the
+common descriptor has no field for it. An unreadable or self-naming relation,
+or any difference, refuses. System requirements still refuse: the common
+engine has no check for them yet. Owned icons at shared root destinations also
+refuse. Unknown record fields refuse instead of disappearing.
 
 Launch metadata and settings are preserved as original bytes; this adapter does
 not reconstruct launch descriptors or activate old client settings. External

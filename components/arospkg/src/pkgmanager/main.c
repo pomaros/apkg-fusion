@@ -1264,6 +1264,7 @@ static const char *opname(job_kind k)
     case JOB_COMMON_SOURCE_LOAD: return "source-load";
     case JOB_COMMON_ATTESTATION: return "attestation";
     case JOB_COMMON_SELF_UPDATE: return "self-update";
+    case JOB_COMMON_SOURCE_INSTALL: return "install";
     case JOB_REMOVE:  return "remove";
     case JOB_UPDATE:  return "update";
     case JOB_PREVIEW_UPGRADE: case JOB_UPGRADE: return "upgrade";
@@ -1372,13 +1373,14 @@ static int start(job_kind kind, const char *id)
         if (!common_catalogue) return -1;
         cur.common_observation = common_catalogue;
     }
-    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION || kind == JOB_COMMON_SELF_UPDATE || kind == JOB_RUN) {
+    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION || kind == JOB_COMMON_SELF_UPDATE || kind == JOB_COMMON_SOURCE_INSTALL || kind == JOB_RUN) {
         if (apkg_cancel_create(&cur.common_cancel) != APKG_OK) return -1;
     }
 #endif
     last_phase[0] = 0; last_can_cancel = 0;
     busy(1);
     status(kind == JOB_COMMON_SELF_UPDATE ? "looking for a newer arospkg in the signed source..." :
+           kind == JOB_COMMON_SOURCE_INSTALL ? "reading the root's signed sources..." :
            kind == JOB_COMMON_INSTALL ? "checking signed package..." : kind == JOB_INSTALL ? "installing..." : kind == JOB_REMOVE ? "removing..." :
            kind == JOB_UPDATE ? "updating the index..." :
            kind == JOB_UPGRADE ? "upgrading..." : kind == JOB_ROLLBACK ? "rolling back..." :
@@ -1422,6 +1424,9 @@ static rx_job *begin(job_kind kind, const char *pkg, const char *origin)
         SetAttrs(str_common_package,MUIA_String_Contents,(IPTR)(pkg?pkg:""),TAG_DONE);
         kind=JOB_COMMON_INSTALL;
     }
+    /* INSTALL and UPGRADE by name read the root's own source list. */
+    if ((kind == JOB_INSTALL || kind == JOB_UPGRADE) && pkg && *pkg)
+        kind = JOB_COMMON_SOURCE_INSTALL;
     if (kind == JOB_INSTALL || kind == JOB_UPDATE || kind == JOB_UPGRADE || kind == JOB_ROLLBACK) {
         status("This development build uses signed plans; legacy mutations need migration");
         return NULL;
@@ -1996,7 +2001,7 @@ static int on_message(pm_msg *m)
         FreeVec(m->common_record); m->common_record = NULL;
         return quit_pending;
     }
-    if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_INSTALL || cur.kind == JOB_RUN)) {
+    if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_INSTALL || cur.kind == JOB_COMMON_SOURCE_INSTALL || cur.kind == JOB_RUN)) {
         apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
         in_flight = 0; common_waiting = 0; confirm_close();
         if (common_preview_text) { FreeVec(common_preview_text); common_preview_text = NULL; }
