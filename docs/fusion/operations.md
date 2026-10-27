@@ -155,12 +155,12 @@ confirmation and execution for both CLI and PkgManager. No wildcard approval or
 plan regeneration occurs after confirmation. The GUI operation selector accepts
 a signed folder, package name or history folder and an optional local pool.
 Installed browsing/search, details, Remove, Run and Open folder use common root
-queries; operation completion refreshes the common list. Existing preferences
-and native DOS Process lifecycle remain. The row adapter refuses identities its
-legacy display columns cannot represent; it never uses truncated names in a
-mutation. Full network catalogue/news/update discovery and legacy ARexx
-compatibility remain separate integration/migration work, not passes inferred
-from local installed browsing.
+queries; operation completion refreshes the common list. The native DOS Process
+lifecycle remains. The [combined library](desktop-library.md) and
+[channel clients](channels.md#shared-dependency-aware-client-workflow) carry full
+common identities through catalogue, news and update discovery; mutation never
+uses a shortened display name. Historical preferences and broader legacy
+command compatibility remain deferred migration work.
 
 Standalone application folders require no registration. Shared bundle checking
 uses the existing application schema parser, canonical containment, executable
@@ -170,9 +170,11 @@ The AROS backend probes declared library requirements before launch, refuses
 unsupported requirement probes, starts Workbench objects through its library,
 and uses LoadSeg/RunCommand with a bounded icon/default stack for Shell mode.
 A Workbench success means an accepted launch request, not a confirmed process.
-Host launch refuses UNSUPPORTED. Native runtime qualification, icon/tooltype and
-resident-library scenarios remain deferred; managed adoption/movement remain
-BUNDLE-MANAGE, not implied by launching or manually moving an unregistered folder.
+Host launch refuses UNSUPPORTED. The [M1 trial](evidence/m1-final/README.md)
+observed a real managed launch and an unregistered moved bundle. Broader native
+runtime, icon/tooltype and resident-library scenarios remain to qualify.
+Managed [adoption](adoption.md) is implemented for the documented host scope;
+managed movement remains open and is not implied by moving an unregistered folder.
 
 ## Evaluation gates
 
