@@ -42,6 +42,30 @@ remains open. After final candidate qualification, stop with the merge report;
 portal adaptation requires a later operator instruction. Deployment and live
 portal cutover remain outside this run.
 
+## Frozen-candidate lifecycle qualification: removal inspection
+
+The clean-workspace alpha scenario now checks live files through both the CLI
+and actual common worker helper immediately after installation, after personal
+edits and after offline repair. It independently reopens the snapshot following
+install, upgrade, recovery, offline rollback, repair and removal, requiring READY,
+a known zero pending count, the expected installed set and no active transaction
+or private preparation left by the completed operation.
+
+After application removal, it checks the exact remaining subtree: only the
+modified delivered configuration and a separate unowned personal file remain.
+INFO, VERIFY and folder lookup refuse the removed name, as does the worker
+verification query; the read queries leave the state bytes unchanged. The
+dependency remains installed and verifiable until explicitly removed. After
+that removal the installed set is empty, its package drawer is absent and the
+application's personal files remain. Retained common history/cache are governed
+by their own retention policy, not incorrectly deleted as uninstall residue.
+
+Evaluation: the strengthened clean-workspace scenario passes locally, including
+normal termination of its CLI and worker helper processes. The full final host
+suite, sanitizers, inherited suites and exact-source CI are the separate closing
+gate; results are not inferred from this single scenario. These are host process
+results, not evidence that native DOS workers or launched AROS applications exit.
+
 ## Desktop inventory and catalogue INFO
 
 The [control inventory](desktop-controls.md) names the non-demo window controls,

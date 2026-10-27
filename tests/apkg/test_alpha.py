@@ -56,6 +56,34 @@ def versions(root): return {r['descriptor']['body']['name']: r['descriptor']['bo
 class Alpha(unittest.TestCase):
     def tearDown(self): lib.apkg_test_fault(0, 0)
 
+    def assert_settled(self, root, names):
+        """Independently reopen state after each completed operation."""
+        code, ctx = open_ctx(root); self.assertEqual(code, 0)
+        snap = C.c_void_p()
+        try:
+            code, snap = snapshot(ctx); self.assertEqual(code, 0)
+            facts = lib.apkg_snapshot_root(snap).contents
+            self.assertEqual(facts.state, 2)  # READY, not merely an exit status
+            self.assertEqual((facts.pending_count.state, facts.pending_count.value), (1, 0))
+            self.assertEqual(lib.apkg_snapshot_installed_count(snap), len(names))
+            self.assertEqual(set(versions(root)), set(names))
+            self.assertFalse(root.with_name(root.name + '.apkg-transaction').exists())
+            self.assertFalse(list(root.parent.glob(root.name + '.apkg-prepare.*')))
+        finally:
+            lib.apkg_snapshot_free(snap); lib.apkg_close(ctx)
+
+    def assert_verify_clients(self, root, name):
+        """Real CLI and worker helper both exit, returning the same live facts."""
+        result = cli('verify', root, name)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        worker = subprocess.run([str(clients.WORKER), str(root), name, '47', '0'],
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(worker.returncode, 0, worker.stdout + worker.stderr)
+        header, _, text = worker.stdout.partition('\n')
+        self.assertEqual(header, 'status 0')
+        self.assertEqual(result.stdout.removesuffix('status=0 outcome=0\n').strip(), text.strip())
+        return text
+
     def release(self, name, version, program, depends=None):
         folder = self.d / (name + '-' + version); folder.mkdir()
         source = folder / name.capitalize()
@@ -94,11 +122,19 @@ class Alpha(unittest.TestCase):
                 self.assertEqual(versions(root), {})
                 _, installed = confirmed('source-install', root, 'app'); self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
                 self.assertEqual(versions(root), {'app': '1.2', 'provider': '1.2'})
+                self.assert_settled(root, {'app', 'provider'})
+                self.assertIn('changed 0\nmissing 0\nunknown 0', self.assert_verify_clients(root, 'app'))
+                self.assertEqual((app / 'program').read_bytes(), b'app one')
                 (app / '.hidden').write_bytes(b'personal setting')
+                (app / 'personal-note').write_bytes(b'not owned by the package')
+                changed = self.assert_verify_clients(root, 'app')
+                self.assertIn('changed 1\nmissing 0\nunknown 1', changed)
+                self.assertIn('unknown App/personal-note', changed)
                 # Upgrade keeps the personal configuration.
                 self.release('app', '2.0', b'app two', depends=['provider >= 1.1'])
                 _, upgraded = confirmed('source-install', root, 'app'); self.assertEqual(upgraded.returncode, 0, upgraded.stdout + upgraded.stderr)
                 self.assertEqual((app / 'program').read_bytes(), b'app two'); self.assertEqual((app / '.hidden').read_bytes(), b'personal setting')
+                self.assert_settled(root, {'app', 'provider'})
                 upgraded_state = (root / '.apkg/state').read_bytes()
                 # A tampered archive refuses without change.
                 self.release('app', '3.0', b'app three', depends=['provider >= 1.1'])
@@ -116,6 +152,7 @@ class Alpha(unittest.TestCase):
                 self.assertEqual(cli('source-install', root, 'app').returncode, 9)
                 recovered = cli('recover', root); self.assertEqual(recovered.returncode, 0, recovered.stdout + recovered.stderr)
                 self.assertEqual(versions(root)['app'], '3.0'); self.assertEqual((app / '.hidden').read_bytes(), b'personal setting')
+                self.assert_settled(root, {'app', 'provider'})
             # Offline from here: the channel is gone.
             shutil.rmtree(self.endpoint)
             current = (root / '.apkg/state').read_bytes()
@@ -124,14 +161,37 @@ class Alpha(unittest.TestCase):
             _, rolled = confirmed('rollback', root, history); self.assertEqual(rolled.returncode, 0, rolled.stdout + rolled.stderr)
             self.assertEqual(versions(root)['app'], '2.0'); self.assertEqual((app / 'program').read_bytes(), b'app two')
             self.assertEqual((app / '.hidden').read_bytes(), b'personal setting')
+            self.assert_settled(root, {'app', 'provider'})
             (app / 'program').write_bytes(b'damaged')
             _, repaired = confirmed('repair', root, 'app'); self.assertEqual(repaired.returncode, 0, repaired.stdout + repaired.stderr)
             self.assertEqual((app / 'program').read_bytes(), b'app two')
             self.assertEqual((app / '.hidden').read_bytes(), b'personal setting')
+            self.assert_settled(root, {'app', 'provider'})
+            self.assertIn('changed 1\nmissing 0\nunknown 1', self.assert_verify_clients(root, 'app'))
             _, removed = confirmed('remove', root, 'app'); self.assertEqual(removed.returncode, 0, removed.stdout + removed.stderr)
             self.assertNotIn('app', versions(root)); self.assertFalse((app / 'program').exists())
             self.assertEqual((app / '.hidden').read_bytes(), b'personal setting')
             self.assertIn('provider', versions(root))
+            self.assertEqual((app / 'personal-note').read_bytes(), b'not owned by the package')
+            self.assertEqual({str(p.relative_to(root / 'app')) for p in (root / 'app').rglob('*')},
+                {'App', 'App/.hidden', 'App/personal-note'})
+            self.assert_settled(root, {'provider'})
+            removed_state = (root / '.apkg/state').read_bytes()
+            for command in ('info', 'verify', 'folder'):
+                self.assertEqual(cli(command, root, 'app').returncode, 5, command)
+            worker = subprocess.run([str(clients.WORKER), str(root), 'app', '47', '0'],
+                capture_output=True, text=True, timeout=60)
+            self.assertEqual(worker.returncode, 0, worker.stdout + worker.stderr)
+            self.assertEqual(worker.stdout, 'status 5\n')
+            self.assertEqual((root / '.apkg/state').read_bytes(), removed_state)
+            # A dependency is not silently removed with its former dependent.
+            self.assertIn('changed 0\nmissing 0\nunknown 0', self.assert_verify_clients(root, 'provider'))
+            _, removed_provider = confirmed('remove', root, 'provider')
+            self.assertEqual(removed_provider.returncode, 0, removed_provider.stdout + removed_provider.stderr)
+            self.assert_settled(root, set())
+            self.assertFalse((root / 'provider').exists())
+            self.assertEqual((app / '.hidden').read_bytes(), b'personal setting')
+            self.assertEqual((app / 'personal-note').read_bytes(), b'not owned by the package')
 
 if __name__ == '__main__':
     unittest.main()
