@@ -127,8 +127,10 @@ apkg_status apkg_package_read(apkg_ctx *c, apkg_bytes descriptor,
         r = APKG_NOMEM;
         goto fail;
     }
-    if (ak_u64(&p->json, ak_member(&p->json, body, "revision"), &p->revision))
+    if (ak_u64(&p->json, ak_member(&p->json, body, "revision"), &p->revision)) {
+        r = APKG_INVALID;
         goto fail;
+    }
     r = apkg_snapshot_read(c, &s, e);
     if (r != APKG_OK)
         goto done;

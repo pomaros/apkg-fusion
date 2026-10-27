@@ -42,7 +42,8 @@ static int new_identity(const char *txn, size_t i, const char *tree,
     unsigned char *bytes = NULL;
     size_t n;
     int len, bad;
-    if (change_path(p, txn, "new-id", i) || stat(tree, &st))
+    if (change_path(p, txn, "new-id", i) || ak_stat(tree, &st) ||
+        !ak_identity_known(&st))
         return -1;
     len =
         snprintf(text, sizeof text, "%llu:%llu", (unsigned long long)st.st_dev,
@@ -223,15 +224,18 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
             ak_path(live, c->root, name);
             change_path(backup, txn, "old", index);
             change_path(restored, txn, "restored", index);
-            if (ak_exists(backup) == 1) {
-                if (ak_exists(live) == 1 &&
+            int held_old = ak_exists(backup), present = ak_exists(live);
+            if (held_old < 0 || present < 0)
+                goto done;
+            if (held_old == 1) {
+                if (present == 1 &&
                     (ak_publish(live, restored) || ak_sync_dir(c->root) ||
                      ak_sync_dir(txn)))
                     goto done;
                 if (ak_publish(backup, live) || ak_sync_dir(c->root) ||
                     ak_sync_dir(txn))
                     goto done;
-            } else if (was_absent && ak_exists(live) == 1) {
+            } else if (was_absent && present == 1) {
                 if (ak_publish(live, restored) || ak_sync_dir(c->root) ||
                     ak_sync_dir(txn))
                     goto done;

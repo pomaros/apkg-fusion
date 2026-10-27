@@ -111,7 +111,7 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
         return apkg_client_install(root, arg, confirm, user, observer, out, e);
     if (action < APKG_CLIENT_REMOVE ||
         (action > APKG_CLIENT_RECOVER && action != APKG_CLIENT_ADOPT &&
-         action != APKG_CLIENT_ADOPT_SET) ||
+         action != APKG_CLIENT_ADOPT_SET && action != APKG_CLIENT_POLICY) ||
         !arg || !confirm)
         return APKG_INVALID;
     if (action == APKG_CLIENT_ADOPT && (!pool || !*pool))
@@ -132,6 +132,13 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
                               candidates, &n, e);
         if (!code)
             code = apkg_plan_adopt_many(c, snapshot, adoptions, n, &p, e);
+    } else if (action == APKG_CLIENT_POLICY) {
+        if (ak_read(arg, &evidence, &evidence_size, c->object_max))
+            code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+        else
+            code = apkg_plan_policy(c, snapshot,
+                                    (apkg_bytes){evidence, evidence_size}, &p,
+                                    e);
     } else if (action == APKG_CLIENT_REMOVE)
         code = apkg_plan_remove(c, snapshot, argument, &p, e);
     else if (action == APKG_CLIENT_REPAIR)
@@ -295,6 +302,8 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
                          : p->view.kind == APKG_PLAN_ROLLBACK ? "Rollback"
                          : p->view.kind == APKG_PLAN_CHANNEL_ACCEPT
                              ? "Accept channel replay floor"
+                         : p->view.kind == APKG_PLAN_POLICY
+                             ? "Change trust policy"
                              : "Resolve/install";
     ak_tohex(p->view.plan_digest.bytes, 32, digest);
     ak_buf_add(&b, "%s\nRoot folder: %s\nApproved plan: %s\n", action, p->root,
@@ -357,6 +366,19 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
                        issuer, kind, result, (unsigned long long)sequence,
                        target, descriptor);
         }
+    }
+    if (p->view.kind == APKG_PLAN_POLICY) {
+        apkg_status delta = ak_policy_delta(p->before_state, p->root_record, &b);
+        if (delta) {
+            ak_json_free(&changes);
+            ak_json_free(&state);
+            free(b.data);
+            return delta;
+        }
+        ak_buf_add(&b, "Installed packages, channel floors and retained "
+                       "observations are unchanged. Rollback of earlier "
+                       "history refuses once the policy differs.\n");
+        goto finish;
     }
     if (p->view.kind == APKG_PLAN_CHANNEL_ACCEPT) {
         arr = ak_member(&state, ak_member(&state, 0, "body"), "channel_heads");

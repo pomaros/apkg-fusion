@@ -354,8 +354,19 @@ apkg_status ak_verified_entry(apkg_ctx *c, const char *entry,
 apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
                                   const char *entries, apkg_plan_kind kind,
                                   const char *focus, const char *heads,
-                                  const char *qualifications, apkg_plan **out,
+                                  const char *qualifications,
+                                  const char *policy, apkg_plan **out,
                                   apkg_error **e) {
+    /* Channel acceptance and policy changes rewrite root state only. */
+    int state_only =
+        kind == APKG_PLAN_CHANNEL_ACCEPT || kind == APKG_PLAN_POLICY;
+    if ((policy != NULL) != (kind == APKG_PLAN_POLICY)) {
+        if (out)
+            *out = NULL;
+        return APKG_INVALID;
+    }
+    if (!policy)
+        policy = s ? s->policy : NULL;
     apkg_snapshot *current = NULL;
     ak_json list = {0};
     ak_buf state = {0}, changes = {0}, raw = {0};
@@ -404,7 +415,7 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
     }
     for (i = 1; i < list.tokens[0].next; i = list.tokens[i].next)
         n++;
-    if (kind == APKG_PLAN_CHANNEL_ACCEPT) {
+    if (state_only) {
         if (n != s->nrows) {
             code = APKG_INVALID;
             goto done;
@@ -459,12 +470,12 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
                "\"%s\"},\"format\":\"apkg-json-1\",\"requires\":[],\"schema\":"
                "\"1\",\"type\":\"root\"}",
                heads, s->view.generation.value + 1, entries,
-               s->package_generation + (kind != APKG_PLAN_CHANNEL_ACCEPT),
-               s->policy, qualifications, id, s->target);
+               s->package_generation + !state_only, policy, qualifications,
+               id, s->target);
     ak_buf_add(&changes, "[");
     k = 0;
     /* Existing entries first, followed by newly selected packages. */
-    for (i = 0; kind != APKG_PLAN_CHANNEL_ACCEPT && i < s->nrows + n; i++) {
+    for (i = 0; !state_only && i < s->nrows + n; i++) {
         const char *name;
         const apkg_package *nw = NULL;
         apkg_package *old = NULL;
@@ -649,7 +660,8 @@ apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
                             apkg_error **e) {
     return ak_plan_records_heads(c, s, entries, kind, focus,
                                  s ? s->channel_heads : NULL,
-                                 s ? s->qualification_records : NULL, out, e);
+                                 s ? s->qualification_records : NULL, NULL,
+                                 out, e);
 }
 apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
                           const char *heads, const char *qualifications,
@@ -665,7 +677,7 @@ apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
         return APKG_NOMEM;
     apkg_status code =
         ak_plan_records_heads(c, s, entries, APKG_PLAN_CHANNEL_ACCEPT, NULL,
-                              heads, qualifications, out, e);
+                              heads, qualifications, NULL, out, e);
     free(entries);
     if (!code) {
         apkg_plan *p = *out;
@@ -901,7 +913,8 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
     uint64_t historical_kind;
     int kind_token = ak_member(&plan, b, "kind");
     if (kind_token >= 0 && !ak_u64(&plan, kind_token, &historical_kind) &&
-        historical_kind == APKG_PLAN_CHANNEL_ACCEPT) {
+        (historical_kind == APKG_PLAN_CHANNEL_ACCEPT ||
+         historical_kind == APKG_PLAN_POLICY)) {
         code = APKG_POLICY;
         goto done;
     }

@@ -11,6 +11,10 @@
 #define AK_PATH 4096
 #define AK_MAX 16777216u
 #define AK_TOKENS 100000u
+/* Total declared file bytes of one descriptor, shared blob references
+ * counted once per entry: the materialized tree never exceeds the largest
+ * PKG/1 envelope. */
+#define AK_TREE_MAX 2147483647u
 typedef struct {
     size_t start, end, next;
     char type;
@@ -135,6 +139,11 @@ apkg_status ak_resolve_metadata(apkg_ctx *, const apkg_snapshot *,
                                 ak_resolution *, apkg_error **);
 void ak_resolution_free(ak_resolution *);
 int ak_version_compare(const char *, const char *);
+/* stat/lstat whose st_dev/st_ino name the object across renames and
+ * restarts (identity.c); st_ino 0 means the filesystem gives no identity. */
+int ak_stat(const char *, struct stat *);
+int ak_lstat(const char *, struct stat *);
+int ak_identity_known(const struct stat *);
 int ak_tree_find(const ak_json *, const char *);
 struct apkg_ctx {
     char root[AK_PATH], anchor[AK_PATH];
@@ -142,6 +151,10 @@ struct apkg_ctx {
     apkg_mode mode;
     size_t object_max, memory_max;
     unsigned char session[16];
+    /* Retained qualification records are pure functions of their bytes;
+     * the last set verified by this context is not re-verified. */
+    int records_verified;
+    apkg_digest records_digest;
 };
 struct apkg_snapshot {
     apkg_root_view view;
@@ -216,9 +229,14 @@ struct apkg_event_copy {
     apkg_event view;
     char *strings[4];
 };
+/* policy NULL keeps the snapshot's trust policy; only APKG_PLAN_POLICY
+ * replaces it. */
 apkg_status ak_plan_records_heads(apkg_ctx *, const apkg_snapshot *,
                                   const char *, apkg_plan_kind, const char *,
-                                  const char *, const char *, apkg_plan **, apkg_error **);
+                                  const char *, const char *, const char *,
+                                  apkg_plan **, apkg_error **);
+apkg_status ak_policy_delta(const char *before_state, const char *after_state,
+                            ak_buf *);
 apkg_status ak_plan_records(apkg_ctx *, const apkg_snapshot *, const char *,
                             apkg_plan_kind, const char *, apkg_plan **,
                             apkg_error **);

@@ -15,8 +15,9 @@ implemented below; remaining service/operation integration is listed separately.
 |---|---|---|
 | Payload/common operations | Working host archive transport, fidelity, dependency operations and recovery checkpoints | Keep broader unsupported semantics and native/power-loss qualification explicit |
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
-| Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal | Remote revocation/freshness policy, rotation/reset and multi-channel configuration |
+| Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation | Remote revocation/freshness policy, a signed key-endorsement format and multi-channel configuration |
 | Clients/default product | Shared CLI/worker, source profiles, catalogue observations and typed installed rows; default CLI/library/tools use the common engine | Remaining desktop settings/news/ARexx integration and native/consumer/compatibility qualification |
+| Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import, immutable approval and common recovery work on pinned synthetic fixtures | Broader relations/placements, active settings/launch/history conversion, script compatibility and distribution qualification |
 | Portal | Existing service and regression baseline retained | Common-contract adaptation and migration/backup/restore/rollback rehearsal; no live cutover |
 
@@ -1444,6 +1445,44 @@ External associations, old script/command behavior, broader profiles and actual
 distribution/native/DOS/power-loss evidence remain required. These fixture passes
 do not complete ALPHA-IMPORT or the full alpha goal. Portal work remains deferred
 until the other workstreams and isolated M1 rehearsal.
+
+## Independent review and single-root self-update
+
+Three read-only reviews covered the journal and recovery, channel trust, and
+untrusted payload handling. Trust verification was found consistent; the
+journal and payload reviews found defects that are corrected here:
+
+| Defect | Correction and evidence |
+|---|---|
+| AROS posixc st_ino is a path hash and st_dev a DOS list address, so every moved tree would fail its identity check and leave the root pending | Identity comes from `ak_stat`: device/inode on hosts, the `Examine()` object key and the volume name and date on AROS; no object key refuses mutation. Host suites pass; AROS is type-checked only |
+| Initialization recovery published into a root created by someone else after the decision | Recovery follows the recorded anchor; a new test leaves the foreign root and journal untouched |
+| Recovery followed a linked `.apkg` and rewrote state outside the root | Linked metadata or state blocks recovery; tested |
+| A failing existence check during rollback was treated as absence and reported success | Unknown existence is an error |
+| A failed rebind cleared the context binding; `Work:Packages` resolved against the current directory on AROS | Rebind changes outputs only on success; AROS volume roots split at the colon |
+| Payload paths of 256 bytes or more never matched, so such packages could not be repaired or removed | Token comparison has no length limit; a 264-byte path repairs and removes |
+| One shared blob could expand without bound | The total declared size of a descriptor is capped at the PKG/1 envelope limit |
+| 64 KiB stack buffers and 12 KiB per tree level overran a 256 KiB AROS stack | Buffers and path scratch are heap memory; the AROS CLI moves to a 1 MiB stack |
+| Retained attestations were signature-checked on every root read | A context skips re-verifying the byte-identical record set it already verified; changed bytes are verified again |
+| A descriptor revision parse failure could return success with no package | It returns INVALID |
+| Incomparable dependency candidates were chosen by string or digest order | The channel plan refuses unless the package is the explicit selection |
+
+Single-root self-update is described in the
+[journal design](journal.md#single-root-self-update). Ten host cases cover
+current, check-only, decline, update and offline rollback, an edited client,
+an unowned or outside client, an unsettled legacy journal, recorded copies, a
+release without the client at the same path, the CLI confirmation round trip,
+crashes before and after the decision, and the actual PkgManager worker
+bridge checking and then updating through its confirmation message.
+
+## Trust administration
+
+An explicit [policy change](channels.md#changing-the-policy) replaces the root's
+trust policy through the common journal. Seven host cases cover a rotation
+whose preview names every granted and revoked key and the installed package
+losing author trust, an added reviewer role, refusals of unchanged, invalid,
+non-canonical and read-only requests, a stale plan, rollback that never crosses
+the change, crashes before and after the decision, and the CLI confirmation
+round trip. The self-update and policy cases also run under ASan/UBSan.
 
 ## Implemented integration pieces
 

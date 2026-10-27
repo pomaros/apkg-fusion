@@ -16,7 +16,8 @@ typedef enum { JOB_NONE, JOB_INSTALL, JOB_REMOVE, JOB_UPDATE,
                JOB_PREVIEW_UPGRADE, JOB_UPGRADE, JOB_PREVIEW_ROLLBACK, JOB_ROLLBACK,
                JOB_CHECK_RELEASE, JOB_VERIFY, JOB_RUN,
                JOB_SU_LOCATE, JOB_SU_STAGE, JOB_COMMON_INSTALL,
-               JOB_COMMON_DISCOVER, JOB_COMMON_RECOMPARE, JOB_COMMON_SOURCE_LOAD, JOB_COMMON_ATTESTATION } job_kind;
+               JOB_COMMON_DISCOVER, JOB_COMMON_RECOMPARE, JOB_COMMON_SOURCE_LOAD, JOB_COMMON_ATTESTATION,
+               JOB_COMMON_SELF_UPDATE } job_kind;
 
 /* Updating arospkg (libpkg/selfup.h): what the worker finds and stages for
    the window, which shows it and decides. Too big for a message, and only
@@ -60,6 +61,7 @@ typedef struct {
     char            common_package[4096]; /* signed local package directory */
     int             common_action;
     char            common_pool[4096];
+    char            common_executable[4096]; /* JOB_COMMON_SELF_UPDATE: this program */
     volatile int    common_decision;      /* 0 waiting, 1 approve, -1 decline */
 #ifdef APKG_FUSION
     const pm_common_catalogue *common_observation; /* UI retains until PM_DONE */

@@ -237,9 +237,26 @@ int ak_string(const ak_json *j, int i, char *o, size_t n) {
         return -1;
     return memchr(o, 0, l) ? -1 : 0;
 }
+/* No length limit: payload paths reach 4095 bytes. An unescaped token is
+ * compared in place; an escaped one is decoded into a buffer of its raw
+ * size, which bounds the decoded size. */
 int ak_equal(const ak_json *j, int i, const char *s) {
-    char b[256];
-    return !ak_string(j, i, b, sizeof b) && !strcmp(b, s);
+    char small[256], *b = small;
+    size_t raw, n = strlen(s);
+    int equal;
+    if (i < 0 || (size_t)i >= j->count || j->tokens[i].type != '"')
+        return 0;
+    raw = j->tokens[i].end - j->tokens[i].start - 2; /* without quotes */
+    if (!memchr(j->text + j->tokens[i].start + 1, '\\', raw))
+        return raw == n && !memcmp(j->text + j->tokens[i].start + 1, s, n);
+    if (raw >= sizeof small && !(b = malloc(raw + 1))) {
+        errno = ENOMEM;
+        return 0;
+    }
+    equal = !ak_string(j, i, b, raw + 1) && !strcmp(b, s);
+    if (b != small)
+        free(b);
+    return equal;
 }
 int ak_u64(const ak_json *j, int i, uint64_t *out) {
     char s[21];

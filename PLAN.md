@@ -212,19 +212,23 @@ cutover follows after the fusion is qualified and real operational inputs exist.
 
 ## Immediate work sequence
 
-1. BASE, MAP and CONTRACT are recorded in the fusion documents. The first six
-   implementation lots now have code and per-lot evaluation in
-   [status](docs/fusion/status.md) and the
-   [initial engine profile](docs/fusion/initial-engine.md).
-2. Keep host and native evidence distinct: the common engine/CLI/worker bridge
-   have host suites; an AROS cross-build is not distribution GUI/runtime or
-   power-loss qualification. Complete those platform gates before release.
-3. Subsequent work remains the separately bounded operation families, relations,
-   migration, full authoring/channels and the other platform/release obligations.
-   The operator subsequently authorized repair, upgrade, rollback, package
-   relations and their CLI/PkgManager/bundle integration, with transactional
-   removal as a prerequisite. Native AROS execution is deferred while its
-   repositories are cleaned. See the [operations profile](docs/fusion/operations.md).
+BASE, MAP, CONTRACT and the first operation, channel, client and import
+checkpoints have code; their evidence is in [status](docs/fusion/status.md).
+The remaining non-portal work, in order:
+
+1. Trust administration: an explicit, journaled policy change for key
+   rotation and reset, shown grant by grant before approval.
+2. Channel sources: multi-channel source configuration and an explicit
+   revocation/freshness policy for online sources. Self-update copies on other
+   volumes wait for the multi-participant protocol.
+3. PkgManager: settings, news and the ARexx surface over the common client API.
+4. ALPHA-IMPORT completion: relations, placements, settings and launch
+   conversion, prior-version history and the command-compatibility adapter.
+5. The final clean-workspace alpha scenario and exact-source CI.
+6. The isolated M1 runtime rehearsal, then PORTAL-MIGRATE.
+
+Host and native evidence stay distinct. An AROS type check is not runtime
+qualification, and no step above claims power-loss durability.
 
 ## Bounded execution batches
 

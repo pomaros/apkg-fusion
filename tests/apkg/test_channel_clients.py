@@ -60,6 +60,16 @@ class ChannelClients(unittest.TestCase):
    for name,version in (('provider','2.0'),('unused','1.2')):(endpoint/'archives'/(row(endpoint,name,version)['archive']['sha256']+'.pkg')).unlink()
    with serve(endpoint) as (url,server):
     code,ch=http_open(c,url);self.assertEqual(code,0);code,p=plan(c,ch,digest(endpoint));self.assertEqual(code,0);self.assertEqual((root/'.apkg/state').read_bytes(),before);self.assertFalse((root/'app').exists());selected_archives={path.split('/')[-1] for path in server.requests if path.startswith('/archives/')};self.assertEqual(selected_archives,{row(endpoint,'app')['archive']['sha256']+'.pkg',row(endpoint,'provider')['archive']['sha256']+'.pkg'});body=json.loads(raw(lib.apkg_plan_get(p).contents.canonical))['body'];self.assertEqual(body['new_state']['body']['channel_heads'][0]['sequence'],'4');self.assertEqual(len(body['origins']),1);self.assertEqual(run_plan(c,p),(0,1));actual=committed(root);self.assertEqual(actual['generation'],'2');self.assertEqual(actual['package_generation'],'2');self.assertEqual([(x['descriptor']['body']['name'],x['descriptor']['body']['version'],x['reason']) for x in actual['installed']],[('app','1.2','explicit'),('provider','1.2','dependency')]);lib.apkg_plan_free(p);lib.apkg_channel_free(ch);lib.apkg_close(c)
+ def test_incomparable_dependency_candidates_refuse_instead_of_string_order(self):
+  with tempfile.TemporaryDirectory() as d:
+   d=Path(d);key=key_fixture(d/'author-key');ckey=channel_key(d/'channel-key');endpoint=d/'channel'
+   for name,version,depends in (('provider','2.0-test1',[]),('provider','2.0-preview1',[]),('app','1.2',['provider >= 1.1'])):
+    source=d/(name+'-'+version+'-drawer');author_fixture(source,name=name,version=version,depends=depends);(source/'program').write_bytes((name+version).encode())
+    archive=d/(name+'-'+version+'.pkg');result=build(source,archive,key);self.assertEqual(result.returncode,0,result.stderr);result=publish(archive,endpoint,ckey);self.assertEqual(result.returncode,0,result.stderr)
+   root=d/'root';before=state(root,policy=seed());code,c=open_ctx(root,1);code,ch=open_file(c,endpoint);self.assertEqual(code,0)
+   code,p=plan(c,ch,digest(endpoint));self.assertEqual(code,14);self.assertFalse(p);self.assertEqual((root/'.apkg/state').read_bytes(),before)
+   code,p=plan(c,ch,digest(endpoint,'provider','2.0-test1'));self.assertEqual(code,0);lib.apkg_plan_free(p)
+   lib.apkg_channel_free(ch);lib.apkg_close(c)
  def test_installed_compatible_provider_is_reused_without_archive_fetch(self):
   with tempfile.TemporaryDirectory() as d:
    d=Path(d);endpoint,archives=published(d);root=d/'root';state(root,policy=seed());code,c=open_ctx(root,1);install_archive(c,archives['provider','1.2'])

@@ -48,11 +48,17 @@ Directories, including empty drawers, come from the signed inventory rather
 than being invented by extraction.
 
 This uncompressed interoperable PKG/1 envelope is bounded to 2,147,483,647 bytes.
+A descriptor's declared file sizes, summed over every entry, have the same
+bound. Entries may share one blob, but each entry counts its full size, so a
+small archive cannot expand into an unbounded installed tree.
 Compressed or other archive formats are explicitly unsupported here. This is
 not a claim that the whole-stream inherited container API can handle larger
 inputs or that distribution/image transport is finished. Existing descriptor
 and memory budgets apply to metadata, not to payload file size; metadata can
-still reach LIMIT. Streams are processed with a fixed 64 KiB I/O buffer.
+still reach LIMIT. Streams are processed with a fixed 64 KiB I/O buffer, allocated on the heap.
+AROS task stacks have no guard page: tree walks keep their path buffers on the
+heap too, and the AROS command client moves to a 1 MiB stack of its own when
+the Shell gives it less.
 
 The explicit `apkg_package_import` write-context API verifies metadata first,
 then streams objects while reporting cancellable byte progress with an owning

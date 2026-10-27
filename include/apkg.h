@@ -368,7 +368,8 @@ typedef enum {
     APKG_PLAN_ROLLBACK,
     APKG_PLAN_RESOLVE,
     APKG_PLAN_CHANNEL_ACCEPT,
-    APKG_PLAN_ADOPT
+    APKG_PLAN_ADOPT,
+    APKG_PLAN_POLICY
 } apkg_plan_kind;
 typedef struct {
     apkg_plan_kind kind;
@@ -443,6 +444,13 @@ apkg_status apkg_plan_resolve(apkg_ctx *, const apkg_snapshot *,
 /* Explicit journaled metadata change: retain channel floor and independently
  * authorized signed observations. Preserves packages and grants no keys or
  * current approval. Rechecks a bound endpoint; same-sequence forks refuse. */
+/* Replace the root's trust policy (rotation, reset, revocation). The policy
+ * is a complete canonical apkg-json-1 policy object. The installed set, channel
+ * floors and retained observations are unchanged; the plan's presentation lists
+ * every grant added or revoked and every installed package losing author trust.
+ * Rollback never crosses a policy change. */
+apkg_status apkg_plan_policy(apkg_ctx *, const apkg_snapshot *,
+                             apkg_bytes policy, apkg_plan **, apkg_error **);
 apkg_status apkg_plan_channel_accept(apkg_ctx *, const apkg_snapshot *,
                                       const apkg_channel *, apkg_plan **,
                                       apkg_error **);

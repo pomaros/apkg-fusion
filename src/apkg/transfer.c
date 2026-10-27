@@ -43,13 +43,14 @@ static apkg_status cache_dir(apkg_ctx *ctx, char out[AK_PATH]) {
 }
 /* Verify what was read/copied in fixed chunks. A cached object is never
  * trusted by its filename and a failed read does not replace it. */
-static apkg_status file_bytes(const char *path, int output, uint64_t expected,
-                              const unsigned char wanted[32],
-                              ak_import_progress *progress,
-                              const apkg_observer *observer) {
+static apkg_status file_bytes_with(unsigned char *buffer, const char *path,
+                                   int output, uint64_t expected,
+                                   const unsigned char wanted[32],
+                                   ak_import_progress *progress,
+                                   const apkg_observer *observer) {
     int flags = O_RDONLY, fd = -1;
     struct stat before, after;
-    unsigned char buffer[65536], digest[32];
+    unsigned char digest[32];
     struct pkg_sha256 hash;
     uint64_t total = 0;
     apkg_status code = APKG_OK;
@@ -78,7 +79,7 @@ static apkg_status file_bytes(const char *path, int output, uint64_t expected,
             code = APKG_CANCELLED;
             goto done;
         }
-        ssize_t count = read(fd, buffer, sizeof buffer);
+        ssize_t count = read(fd, buffer, (size_t)65536);
         if (count < 0 && errno == EINTR)
             continue;
         if (count < 0) {
@@ -125,6 +126,20 @@ static apkg_status file_bytes(const char *path, int output, uint64_t expected,
 done:
     if (close(fd) && !code)
         code = APKG_IO;
+    return code;
+}
+/* Heap buffer: AROS task stacks have no guard page. */
+static apkg_status file_bytes(const char *path, int output, uint64_t expected,
+                              const unsigned char wanted[32],
+                              ak_import_progress *progress,
+                              const apkg_observer *observer) {
+    unsigned char *buffer = malloc(65536);
+    apkg_status code;
+    if (!buffer)
+        return APKG_NOMEM;
+    code = file_bytes_with(buffer, path, output, expected, wanted, progress,
+                           observer);
+    free(buffer);
     return code;
 }
 apkg_status apkg_channel_fetch(apkg_ctx *ctx, const apkg_channel *channel,

@@ -78,13 +78,19 @@ int ak_physical(const char *p, const struct stat *old) {
     /* A moved root reached through a new symlink could otherwise retain its
      * inode while acquiring a different parent lock/coordinator location. */
     return pkg_fs_canonical_dir(p, canonical, sizeof canonical) == 0 &&
-           !strcmp(p, canonical) && stat(p, &now) == 0 &&
+           !strcmp(p, canonical) && ak_stat(p, &now) == 0 &&
            old->st_dev == now.st_dev && old->st_ino == now.st_ino;
 }
+/* Outputs change only on success: a failed rebind leaves the context's
+ * previous binding usable for recovery. */
 int ak_resolve(const char *p, char *o, struct stat *binding) {
-    if (pkg_fs_canonical_dir(p, o, AK_PATH))
+    char path[AK_PATH];
+    struct stat st;
+    if (pkg_fs_canonical_dir(p, path, sizeof path) || ak_stat(path, &st))
         return -1;
-    return stat(o, binding);
+    strcpy(o, path);
+    *binding = st;
+    return 0;
 }
 int ak_read(const char *p, unsigned char **out, size_t *size, size_t max) {
     int fd;
@@ -268,6 +274,19 @@ apkg_status apkg_open(const apkg_open_options *o, apkg_ctx **out,
             return ak_fail(err, APKG_IO, "cannot resolve root", p);
         }
         slash = strrchr(p, '/');
+#ifdef __AROS__
+        /* "Work:Packages": the parent is the volume, as parent_path has it. */
+        if (!slash && strchr(p, ':')) {
+            char *colon = strrchr(p, ':');
+            if (!colon[1]) {
+                free(c);
+                return ak_fail(err, APKG_UNSUPPORTED, "root volume must exist",
+                               p);
+            }
+            strcpy(c->root, colon + 1);
+            colon[1] = 0;
+        } else
+#endif
         if (!slash) {
             strcpy(c->root, p);
             strcpy(p, ".");
@@ -517,12 +536,20 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
     }
     {
         int records = ak_member(&j, b, "qualification_records");
-        if (!ak_qualification_records_valid(&j, records))
-            goto invalid;
         s->qualification_records =
             records < 0 ? ak_copy("[]", 2) : ak_slice(&j, records);
         if (!s->qualification_records)
             goto nomem;
+        apkg_digest digest;
+        ak_hash(s->qualification_records, strlen(s->qualification_records),
+                &digest);
+        if (!c->records_verified ||
+            memcmp(digest.bytes, c->records_digest.bytes, 32)) {
+            if (!ak_qualification_records_valid(&j, records))
+                goto invalid;
+            c->records_digest = digest;
+            c->records_verified = 1;
+        }
     }
     arr = ak_member(&j, b, "installed");
     if (arr < 0 || j.tokens[arr].type != '[')

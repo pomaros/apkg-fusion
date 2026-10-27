@@ -235,6 +235,7 @@ int ak_descriptor(const ak_json *j) {
     arr = ak_member(j, b, "files");
     if (arr < 0 || j->tokens[arr].type != '[')
         return 0;
+    uint64_t total = 0;
     for (i = (size_t)arr + 1; i < j->tokens[arr].next; i = j->tokens[i].next) {
         int data;
         size_t n;
@@ -279,6 +280,9 @@ int ak_descriptor(const ak_json *j) {
             (mode > 0777 || !(mode & 0400)) ||
             !ak_attributes_valid(j, ak_member(j, (int)i, "amiga"), mode))
             return 0;
+        if (v > AK_TREE_MAX - total)
+            return 0;
+        total += v;
         if (blob) {
             char sha[65];
             unsigned char hashbytes[32];

@@ -174,6 +174,31 @@ apkg_status apkg_plan_channel_install(apkg_ctx *ctx, const apkg_snapshot *s,
                                recommendations, &resolution, error);
     if (code)
         goto done;
+    /* Candidate order sorts incomparable versions only to stay deterministic.
+     * A dependency chosen over a same-identity alternative whose order is
+     * indeterminate, or equal with different content, is a decision the
+     * resolver cannot make; the explicit selection is the caller's own. */
+    for (size_t i = 0; i < resolution.count; i++) {
+        const apkg_package *r = resolution.packages[i];
+        if (!memcmp(r->digest.bytes, pool[0]->digest.bytes, 32))
+            continue;
+        for (size_t k = 1; k < count; k++) {
+            const apkg_package *q = pool[k];
+            if (!memcmp(q->digest.bytes, r->digest.bytes, 32) ||
+                strcmp(q->authority, r->authority) ||
+                strcmp(q->name, r->name) || strcmp(q->target, r->target))
+                continue;
+            int order = ak_version_compare(r->version, q->version);
+            if (order == 2 || (order == 0 && r->revision == q->revision)) {
+                code = APKG_CONFLICT;
+                ak_fail(error, code,
+                        "dependency candidates have no defined order; "
+                        "select one explicitly",
+                        r->name);
+                goto done;
+            }
+        }
+    }
     for (size_t i = 0; i < resolution.count; i++) {
         uint64_t index;
         for (index = 0; index < view->entry_count; index++) {
@@ -199,7 +224,8 @@ apkg_status apkg_plan_channel_install(apkg_ctx *ctx, const apkg_snapshot *s,
     if (!code)
         code =
             ak_plan_records_heads(ctx, s, resolution.entries, APKG_PLAN_RESOLVE,
-                                  NULL, heads, qualifications, out, error);
+                                  NULL, heads, qualifications, NULL, out,
+                                  error);
     if (!code) {
         code = ak_plan_bind(ctx, *out,
                             (const apkg_package *const *)resolution.packages,

@@ -1236,7 +1236,11 @@ static void busy(int on)
 #endif
     SetAttrs(btn_update,  MUIA_Disabled, on, TAG_DONE);
     SetAttrs(btn_check,   MUIA_Disabled, on, TAG_DONE);
+#ifdef APKG_FUSION
+    SetAttrs(btn_selfupdate, MUIA_Disabled, on, TAG_DONE); /* the job checks */
+#else
     SetAttrs(btn_selfupdate, MUIA_Disabled, on || !su_offer, TAG_DONE);
+#endif
     SetAttrs(btn_cancel,  MUIA_Disabled, TRUE, TAG_DONE);   /* until an event says otherwise */
     SetAttrs(gauge, MUIA_Gauge_Current, 0, MUIA_Gauge_InfoText, (IPTR)(on ? "starting" : ""), TAG_DONE);
     if (on) {
@@ -1259,6 +1263,7 @@ static const char *opname(job_kind k)
     case JOB_COMMON_RECOMPARE: return "recompare";
     case JOB_COMMON_SOURCE_LOAD: return "source-load";
     case JOB_COMMON_ATTESTATION: return "attestation";
+    case JOB_COMMON_SELF_UPDATE: return "self-update";
     case JOB_REMOVE:  return "remove";
     case JOB_UPDATE:  return "update";
     case JOB_PREVIEW_UPGRADE: case JOB_UPGRADE: return "upgrade";
@@ -1343,6 +1348,21 @@ static int start(job_kind kind, const char *id)
         if (!folder || (cur.common_action!=APKG_CLIENT_RECOVER && !*(const char *)folder) || strlen((const char *)folder) >= sizeof cur.common_package) return -1;
         memcpy(cur.common_package, (const char *)folder, strlen((const char *)folder) + 1);
     }
+    if (kind == JOB_COMMON_SELF_UPDATE) {
+        /* The source shown in the window and this PkgManager's own file. */
+        IPTR endpoint = 0, identity = 0;
+        GetAttr(MUIA_String_Contents, str_channel_endpoint, &endpoint);
+        GetAttr(MUIA_String_Contents, str_channel_id, &identity);
+        if (!endpoint || !*(const char *)endpoint || !identity ||
+            strlen((const char *)endpoint) >= sizeof cur.common_package ||
+            strlen((const char *)identity) >= sizeof cur.common_pool ||
+            !*sujob.program || strlen(sujob.program) >= sizeof cur.common_executable)
+            return -1;
+        strcpy(cur.common_package, (const char *)endpoint);
+        strcpy(cur.common_pool, (const char *)identity);
+        strcpy(cur.common_executable, sujob.program);
+        cur.common_action = 0;
+    }
     if (kind == JOB_COMMON_SOURCE_LOAD) {
         IPTR path=0; GetAttr(MUIA_String_Contents,str_source_profile,&path);
         if (!path || !*(const char *)path || strlen((const char *)path)>=sizeof cur.common_package) return -1;
@@ -1352,13 +1372,14 @@ static int start(job_kind kind, const char *id)
         if (!common_catalogue) return -1;
         cur.common_observation = common_catalogue;
     }
-    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION || kind == JOB_RUN) {
+    if (kind == JOB_COMMON_INSTALL || kind == JOB_COMMON_DISCOVER || kind == JOB_COMMON_RECOMPARE || kind == JOB_COMMON_SOURCE_LOAD || kind == JOB_COMMON_ATTESTATION || kind == JOB_COMMON_SELF_UPDATE || kind == JOB_RUN) {
         if (apkg_cancel_create(&cur.common_cancel) != APKG_OK) return -1;
     }
 #endif
     last_phase[0] = 0; last_can_cancel = 0;
     busy(1);
-    status(kind == JOB_COMMON_INSTALL ? "checking signed package..." : kind == JOB_INSTALL ? "installing..." : kind == JOB_REMOVE ? "removing..." :
+    status(kind == JOB_COMMON_SELF_UPDATE ? "looking for a newer arospkg in the signed source..." :
+           kind == JOB_COMMON_INSTALL ? "checking signed package..." : kind == JOB_INSTALL ? "installing..." : kind == JOB_REMOVE ? "removing..." :
            kind == JOB_UPDATE ? "updating the index..." :
            kind == JOB_UPGRADE ? "upgrading..." : kind == JOB_ROLLBACK ? "rolling back..." :
            kind == JOB_PREVIEW_UPGRADE ? "working out what the upgrade would do..." :
@@ -1813,8 +1834,19 @@ static void su_decline(const char *how)
 static void su_begin(void)
 {
 #ifdef APKG_FUSION
-    status("Common self-update is not available in this development build");
-    return;
+    {
+        /* The common path: the arospkg package of this root, from the signed
+         * source shown in the window, through the shared plan and journal. */
+        char run[SU_MAXCAND][PKG_MAXPATH];
+        int un = 0, n = su_running_pkgmanagers(run, SU_MAXCAND, &un), i, mine = 0;
+        for (i = 0; i < n; i++) if (!strcasecmp(run[i], self_drawer)) mine++;
+        if (mine > 1 || un) {
+            su_say("close the other PkgManager windows first: they would keep running the old version", NULL);
+            return;
+        }
+        if (!busy_now()) begin(JOB_COMMON_SELF_UPDATE, NULL, "window");
+        return;
+    }
 #endif
     char run[SU_MAXCAND][PKG_MAXPATH];
     int un = 0, n = su_running_pkgmanagers(run, SU_MAXCAND, &un), i, mine = 0;
@@ -1944,6 +1976,24 @@ static int on_message(pm_msg *m)
             MUI_Request(app,win,0,(STRPTR)"Signed qualification claim",(STRPTR)"OK",(STRPTR)"%s",m->common_record);
         status(m->common_status==APKG_OK ? "Signed claim inspected; freshness and current approval are not asserted" : m->common_status==APKG_CANCELLED ? "Inspection cancelled" : m->err.summary);
         FreeVec(m->common_record); m->common_record=NULL;
+        return quit_pending;
+    }
+    if (m->kind == PM_DONE && cur.kind == JOB_COMMON_SELF_UPDATE) {
+        apkg_cancel_free(cur.common_cancel); cur.common_cancel = NULL;
+        in_flight = 0; common_waiting = 0; confirm_close();
+        if (common_preview_text) { FreeVec(common_preview_text); common_preview_text = NULL; }
+        if (active) finish(active, m->common_status == APKG_OK ? RXJ_DONE : m->common_status == APKG_CANCELLED ? RXJ_CANCELLED : RXJ_FAILED,
+                           m->common_status == APKG_OK ? "" : "SELFUPDATE", m->err.summary);
+        busy(0);
+        if (m->common_record) su_say(m->common_record, NULL);
+        if (m->common_outcome == APKG_NEEDS_RECOVERY)
+            status("Recovery required; the previous arospkg was preserved");
+        else if (m->common_status == APKG_OK && m->common_outcome == APKG_COMMITTED)
+            MUI_Request(app, win, 0, (STRPTR)"arospkg updated", (STRPTR)"OK",
+                        (STRPTR)"The new arospkg is installed. This window still runs the previous one: close PkgManager and start it again.");
+        else
+            status(m->common_status == APKG_OK ? "arospkg is current" : m->common_status == APKG_CANCELLED ? "Update cancelled; nothing was changed" : m->err.summary);
+        FreeVec(m->common_record); m->common_record = NULL;
         return quit_pending;
     }
     if (m->kind == PM_DONE && (cur.kind == JOB_COMMON_INSTALL || cur.kind == JOB_RUN)) {

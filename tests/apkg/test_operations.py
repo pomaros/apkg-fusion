@@ -56,6 +56,14 @@ class Operations(unittest.TestCase):
      lib.apkg_approval_free(a);lib.apkg_plan_free(p);lib.apkg_close(c)
 if __name__=='__main__':unittest.main()
 
+class LongPaths(unittest.TestCase):
+ def test_paths_longer_than_255_bytes_repair_and_remove(self):
+  with tempfile.TemporaryDirectory() as d:
+   root=Path(d)/'root';c=init(root);parts=['y'*52]*5;dirs=['/'.join(parts[:i]) for i in range(1,5)];long='/'.join(parts);self.assertGreater(len(long),255)
+   files=sorted([dict(path=x,type='directory') for x in dirs]+[payload(long,'old'),payload('short','old')],key=lambda f:f['path']);install(c,descriptor(files=files))
+   (root/'demo'/long).write_bytes(b'damage');code,p=op(c,'repair');self.assertEqual(code,0);self.assertEqual(run_plan(c,p),(0,1));lib.apkg_plan_free(p);self.assertEqual((root/'demo'/long).read_bytes(),b'old')
+   code,p=op(c,'remove');self.assertEqual(code,0);self.assertEqual(run_plan(c,p),(0,1));lib.apkg_plan_free(p);self.assertFalse((root/'demo').exists());code,s=snapshot(c);self.assertEqual(lib.apkg_snapshot_installed_count(s),0);lib.apkg_snapshot_free(s);lib.apkg_close(c)
+
 class Upgrade(unittest.TestCase):
  def tearDown(self):lib.apkg_test_fault(0,0)
  def plan(self,c,data):

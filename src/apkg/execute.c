@@ -157,7 +157,8 @@ static int preparation_start(apkg_ctx *c, apkg_result *r, char txn[AK_PATH],
     if (mkdir(draft, 0700))
         return -1;
     transaction_record(r, draft);
-    if (lstat(draft, binding) || !S_ISDIR(binding->st_mode))
+    if (ak_lstat(draft, binding) || !S_ISDIR(binding->st_mode) ||
+        !ak_identity_known(binding))
         return -1;
     strcpy(txn, draft);
     return 0;
@@ -416,7 +417,7 @@ static int tree_identity(const char *txn, const char *tree, int save) {
     unsigned char *bytes = NULL;
     size_t n;
     int len, result;
-    if (lstat(tree, &st) || !S_ISDIR(st.st_mode))
+    if (ak_lstat(tree, &st) || !S_ISDIR(st.st_mode) || !ak_identity_known(&st))
         return -1;
     len =
         snprintf(text, sizeof text,
@@ -528,7 +529,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
                   *recorded_sha = NULL;
     size_t n = 0, nn = 0, on = 0, sn = 0;
     ak_json plan = {0}, newjson = {0}, descriptor = {0};
-    int body, init, decision;
+    int body, init, decision, root_was_absent = 0;
     apkg_digest hash;
     apkg_status r = APKG_RECOVERY_REQUIRED;
     if (paths(c, txn, state))
@@ -553,6 +554,12 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         apkg_snapshot_free(inspection);
         result_set(result, APKG_OK, APKG_UNCHANGED);
         return APKG_OK;
+    }
+    {
+        char meta[AK_PATH];
+        if (ak_path(meta, c->root, ".apkg") || pkg_fs_path_is_link(meta) != 0 ||
+            pkg_fs_path_is_link(state) != 0)
+            goto done; /* a reader would refuse it too: context.c */
     }
     if (pkg_fs_path_is_link(txn) != 0 || has(txn, "ready") != 1 ||
         read_in_limit(txn, "plan", &raw, &n,
@@ -584,11 +591,12 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             ak_u64(&plan, ak_member(&plan, body, "anchor_dev"), &dev) ||
             ak_u64(&plan, ak_member(&plan, body, "anchor_ino"), &ino))
             goto done;
-        if (stat(c->root, &st) || (uint64_t)st.st_dev != dev ||
+        if (ak_stat(c->root, &st) || (uint64_t)st.st_dev != dev ||
             (uint64_t)st.st_ino != ino) {
-            if (parent_path(c->root, parent) || stat(parent, &st) ||
+            if (parent_path(c->root, parent) || ak_stat(parent, &st) ||
                 (uint64_t)st.st_dev != dev || (uint64_t)st.st_ino != ino)
                 goto done;
+            root_was_absent = 1; /* the plan was anchored at the parent */
         }
     }
     {
@@ -646,8 +654,12 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
                             */
         } else if (exact_file(state, newstate, nn) ==
                    0) { /* already committed */
-        } else if (ak_exists(c->root) == 0) {
-            if (tree_identity(txn, tree, 0) || ak_publish(tree, c->root))
+        } else if (root_was_absent) {
+            /* Whatever stands at the root now was created by someone else
+             * after the decision; publishing over or into it would take it
+             * over. The journal stays for diagnosis. */
+            if (ak_exists(c->root) != 0 || tree_identity(txn, tree, 0) ||
+                ak_publish(tree, c->root))
                 goto done;
         } else {
             char staged_meta[AK_PATH];
@@ -693,7 +705,10 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         if (!decision) {
             if (exact_file(state, oldstate, on))
                 goto done;
-            if (ak_exists(live) == 1) {
+            int present = ak_exists(live);
+            if (present < 0)
+                goto done;
+            if (present == 1) {
                 char held[AK_PATH];
                 if (ak_path(held, txn, "restored-payload") ||
                     tree_identity(txn, live, 0) ||
@@ -715,8 +730,9 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             }
         }
     }
-    if (ak_exists(c->root) == 1) {
-        if (ak_sync_dir(c->root))
+    {
+        int present = ak_exists(c->root);
+        if (present < 0 || (present == 1 && ak_sync_dir(c->root)))
             goto done;
     }
     if (ak_fault(7))

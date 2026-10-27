@@ -103,9 +103,10 @@ static int metadata_supported(const char *path, const struct stat *st) {
 static int names(const void *a, const void *b) {
     return strcmp(*(char *const *)a, *(char *const *)b);
 }
-static int scan(const char *base, const char *rel, ak_buf *out, unsigned depth,
-                size_t *names_memory) {
-    char path[AK_PATH];
+static int scan(const char *, const char *, ak_buf *, unsigned, size_t *);
+static int scan_in(const char *base, const char *rel, ak_buf *out,
+                   unsigned depth, size_t *names_memory, char *path,
+                   char *sub, char *full) {
     DIR *d;
     struct dirent *e;
     char **list = NULL;
@@ -160,7 +161,6 @@ static int scan(const char *base, const char *rel, ak_buf *out, unsigned depth,
     if (n > 1)
         qsort(list, n, sizeof *list, names);
     for (i = 0; i < n && !bad; i++) {
-        char sub[AK_PATH], full[AK_PATH];
         struct stat st;
         if ((*rel ? ak_path(sub, rel, list[i])
                   : (strlen(list[i]) >= AK_PATH ? -1
@@ -228,6 +228,19 @@ static int scan(const char *base, const char *rel, ak_buf *out, unsigned depth,
     *names_memory -= held;
     return bad;
 }
+/* One level's three path buffers live on the heap: 32 levels of 12 KiB
+ * would overrun a 256 KiB AROS worker stack, which has no guard page. */
+static int scan(const char *base, const char *rel, ak_buf *out, unsigned depth,
+                size_t *names_memory) {
+    char *paths = malloc(3 * (size_t)AK_PATH);
+    int r;
+    if (!paths)
+        return APKG_NOMEM;
+    r = scan_in(base, rel, out, depth, names_memory, paths, paths + AK_PATH,
+                paths + 2 * AK_PATH);
+    free(paths);
+    return r;
+}
 /* Entries are globally sorted after the walk: DFS order differs for a.b/a/x. */
 static int records(const void *a, const void *b) {
     return strcmp(((const ak_tree_row *)a)->path,
@@ -243,7 +256,7 @@ static apkg_status tree_read(const char *base, size_t max, char **out,
     char *rootattrs = NULL;
     *out = NULL;
     files.max = result.max = max;
-    if (lstat(base, identity)) {
+    if (ak_lstat(base, identity)) {
         if (errno == ENOENT) {
             *out = ak_copy("null", 4);
             return *out ? APKG_OK : APKG_NOMEM;
@@ -520,7 +533,7 @@ apkg_status ak_tree_normalize(const char *raw, char **out) {
                     goto done;
                 }
                 struct pkg_sha256 hash;
-                unsigned char chunk[65536];
+                unsigned char chunk[1024]; /* small: AROS stacks have no guard page */
                 uint64_t pos = 0;
                 char actual[65];
                 pkg_sha256_init(&hash);

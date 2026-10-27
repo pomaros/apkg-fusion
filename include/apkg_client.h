@@ -29,7 +29,8 @@ typedef enum {
     APKG_CLIENT_CHANNEL,
     APKG_CLIENT_CHANNEL_ACCEPT,
     APKG_CLIENT_ADOPT,
-    APKG_CLIENT_ADOPT_SET
+    APKG_CLIENT_ADOPT_SET,
+    APKG_CLIENT_POLICY /* argument: a complete policy object file */
 } apkg_client_action;
 /* ADOPT: argument=artifact, pool=evidence file. ADOPT_SET: argument=canonical
  * adoption-set manifest. Both use the same exact confirmation and journal. */
@@ -119,6 +120,19 @@ apkg_status apkg_attestation_format(const apkg_attestation *, char **, apkg_erro
  * attestation.signature.json. No network/evidence fetch or implicit policy. */
 apkg_status apkg_client_attestation(const char *root, const char *folder,
     char **, apkg_error **);
+/* Self-update of the client from a channel, for a client installed as a
+ * managed package of `root`. `executable` is the running client's path; it
+ * must be a file of an installed package with its recorded bytes. The newest
+ * trusted candidate of the same authority/name/target that carries the file at
+ * the same path is applied through apkg_client_channel_apply, so the shared
+ * plan, confirmation, journal and recovery apply. check_only reports without
+ * planning. *report (owned, apkg_client_text_free) says what was found and that
+ * a restart is required. Recorded copies and an unsettled legacy arospkg
+ * self-update refuse. */
+apkg_status apkg_client_self_update(const char *root, const char *endpoint,
+    const char *identity, const char *executable, int check_only,
+    apkg_confirm_fn, void *, const apkg_observer *, char **report,
+    apkg_result **, apkg_error **);
 /* Bundle inspection/launch requires no registration and mutates no root. */
 apkg_status apkg_bundle_check(const char *folder, const char *target, char **,
                               apkg_error **);

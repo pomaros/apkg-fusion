@@ -5,9 +5,10 @@
 
 This is the protocol for the first operation subset, following the immutable
 context/plan model. Runtime qualification remains distinct from this protocol.
-No self-update or multi-volume operation is enabled by this first executor.
-Those operations must use this journal's participant/decision model when added;
-legacy self-update records remain migration evidence, never a second new engine.
+Multi-volume operations are not enabled. Self-update of a client installed in
+one root is an ordinary package transaction on this journal; see
+[the single-root profile](#single-root-self-update). Legacy self-update records
+remain migration evidence, never a second engine.
 
 The active journal is `<physical-root>.apkg-transaction`, a sibling on the same
 volume. Preparation first uses a mode-0700 sibling
@@ -60,7 +61,12 @@ foreign entries or missing retained content block recovery and preserve evidence
 
 Initialization uses a staged complete root when absent, or staged `.apkg` when
 the root directory already exists. The recorded tree identity distinguishes a
-published tree from an unrelated replacement. Initial trust grants are part of
+published tree from an unrelated replacement. Recovery follows the plan's
+recorded anchor, not the current filesystem: a root that was absent at
+planning and exists without the exact new state was made by someone else, and
+recovery leaves it and the journal untouched. A linked `.apkg` or state file
+blocks recovery as it blocks reading. An existence check that fails is an
+error, never an absence. Initial trust grants are part of
 the approved new state. Legacy metadata and a pre-existing journal are refusals.
 
 Fault checkpoints: 1 private preparation, 1201–1204 draft creation/records/staging/
@@ -89,9 +95,31 @@ otherwise leave an unparseable active transaction. Rollback moves an owned tree
 into the retained journal instead of deleting its bytes. Garbage collection is
 an explicit future retention-policy operation; this subset does not prune.
 
-## Self-update extension contract (not enabled by this executor)
+## Single-root self-update
 
-The future operation is `self-update` with required feature `self-update-v1`.
+`apkg_client_self_update` and `apkg self-update` update a client that is a file
+of a package installed in the root. The running client's path must name a file
+of that package's descriptor, and its bytes must equal the recorded hash; an
+edited client is repaired first. The candidate is the newest trusted channel
+entry of the same authority, name and target that carries the client at the
+same path. Incomparable newer releases refuse. The update is then the shared
+channel plan, confirmation, journal and recovery: a crash before or after the
+decision recovers to one whole release, and rollback is the ordinary offline
+rollback. A check-only call reports without planning. The running program is
+not claimed updated: the result requires a restart. PkgManager's **Update
+arospkg** runs the same call from its DOS worker, for its own file and the
+signed source shown in its window; the plan appears in the usual confirmation
+window, and other PkgManagers running from the same drawer refuse the update.
+
+Two cases refuse rather than guess. An `ENVARC:arospkg/self-update.json` from an
+arospkg self-update needs that arospkg to settle it. A recorded copy in
+`ENVARC:arospkg/copies.json`, such as `C:apkg`, lives outside the root, so its
+update needs the multi-participant protocol below. Afterwards, a client file
+that the upgrade kept as an edit is reported as a conflict.
+
+## Multi-root self-update contract (not enabled)
+
+The operation is `self-update` with required feature `self-update-v1`.
 Its approved plan binds the exact signed release, managed home/root and every
 explicitly associated executable copy, their current hashes, replacement hashes,
 local backup/stage locations, required restart/deferred activation and trust
@@ -127,11 +155,11 @@ staging/Windows `previous.exe` has no equivalent durable JSON intent; absent
 identity/hash evidence stays unknown and requires diagnosis rather than guessed
 activation. Imported restart arguments and task pointers remain inert.
 
-SELF-UPDATE must implement/fault-test preparation on each participant, loss of
-one volume, held executables/restart, coordinator and participant interruption,
-interrupted recovery again, changed/foreign executable bytes, concurrent updates,
-old journal import and explicit rollback. Until those gates pass, common clients
-refuse that operation, and fusion PkgManager disables the inherited self-updater.
+The multi-root extension must implement/fault-test preparation on each
+participant, loss of one volume, held executables/restart, coordinator and
+participant interruption, interrupted recovery again, concurrent updates and old
+journal import. Until then, recorded copies refuse, and the inherited
+arospkg self-updater is not used by the fusion build.
 
 The implemented `changes` action extends this same journal to removal, repair,
 upgrade, rollback and multi-package installation; see the

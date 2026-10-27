@@ -78,7 +78,13 @@ Legacy transaction entries report PENDING and refuse common recovery until
 validated migration exists. Coexisting common/legacy databases report INVALID,
 preventing two writers from being treated as one authoritative root.
 Common snapshots own immutable record/view storage and survive context close.
-Missing filesystem inode identity refuses mutation. Live filesystem bindings are checked independently from root ids/generations;
+Missing filesystem object identity refuses mutation. On POSIX hosts the
+identity is the device and inode. AROS posixc derives its inode from a hash of
+the path and its device from a DOS list address, so neither survives a rename
+or a reboot; there the identity is the object key `Examine()` reports, which a
+rename within the volume keeps, with the volume's name and creation date. A
+handler that reports no object key gives no identity, so mutation on it is
+refused rather than guessed. Live filesystem bindings are checked independently from root ids/generations;
 there is no global clone registry or automatic clone-id reassignment in this
 profile. Cross-root plan/approval transfer is refused.
 

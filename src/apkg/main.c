@@ -40,7 +40,7 @@ static void report(apkg_status code, apkg_result *result, apkg_error *error) {
         printf("record=%.*s\n", (int)apkg_result_get(result)->record.size,
                apkg_result_get(result)->record.data);
 }
-int main(int argc, char **argv) {
+static int apkg_main(int argc, char **argv) {
     apkg_open_options o = {0};
     apkg_ctx *c = NULL;
     apkg_snapshot *s = NULL;
@@ -81,7 +81,9 @@ int main(int argc, char **argv) {
             "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-install ROOT ENDPOINT "
             "CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256 [--recommends] "
             "[--confirm DIGEST]\nchannel-accept ROOT ENDPOINT "
-            "CHANNEL-ID [--confirm DIGEST]\n");
+            "CHANNEL-ID [--confirm DIGEST]\nself-update ROOT ENDPOINT "
+            "CHANNEL-ID EXECUTABLE [--check] [--confirm DIGEST]\npolicy ROOT "
+            "POLICY-FILE [--confirm DIGEST]\n");
         return argc == 2 && !strcmp(argv[1], "--help") ? APKG_OK : APKG_INVALID;
     }
     if (!strcmp(argv[1], "channel-install")) {
@@ -104,6 +106,35 @@ int main(int argc, char **argv) {
         code = apkg_client_channel_apply(argv[2], argv[3], selection,
                                          recommendations, confirm,
                                          (void *)confirmation, NULL, &r, &e);
+        goto done;
+    }
+    if (!strcmp(argv[1], "self-update")) {
+        /* self-update ROOT ENDPOINT CHANNEL-ID EXECUTABLE [--check]
+         *             [--confirm PLAN-DIGEST] */
+        int check = 0;
+        char *text = NULL;
+        if (argc < 6 || strlen(argv[4]) != 32)
+            return APKG_INVALID;
+        for (int i = 6; i < argc; i++) {
+            if (!strcmp(argv[i], "--check") && !check)
+                check = 1;
+            else if (!strcmp(argv[i], "--confirm") && !confirmation &&
+                     i + 1 < argc)
+                confirmation = argv[++i];
+            else
+                return APKG_INVALID;
+        }
+        code = apkg_client_self_update(argv[2], argv[3], argv[4], argv[5],
+                                       check, confirm, (void *)confirmation,
+                                       NULL, &text, check ? NULL : &r, &e);
+        if (text)
+            fputs(text, stdout);
+        apkg_client_text_free(text);
+        if (check) {
+            report(code, NULL, e);
+            apkg_error_free(e);
+            return code;
+        }
         goto done;
     }
     if (!strcmp(argv[1], "adopt-set")) {
@@ -402,7 +433,8 @@ int main(int argc, char **argv) {
     }
     if (!strcmp(argv[1], "remove") || !strcmp(argv[1], "repair") ||
         !strcmp(argv[1], "upgrade") || !strcmp(argv[1], "rollback") ||
-        !strcmp(argv[1], "resolve") || !strcmp(argv[1], "adopt")) {
+        !strcmp(argv[1], "resolve") || !strcmp(argv[1], "adopt") ||
+        !strcmp(argv[1], "policy")) {
         if (argc < 4)
             goto done;
         const char *pool = NULL;
@@ -423,7 +455,9 @@ int main(int argc, char **argv) {
             : !strcmp(argv[1], "repair")   ? APKG_CLIENT_REPAIR
             : !strcmp(argv[1], "upgrade")  ? APKG_CLIENT_UPGRADE
             : !strcmp(argv[1], "rollback") ? APKG_CLIENT_ROLLBACK
-                                           : !strcmp(argv[1], "adopt") ? APKG_CLIENT_ADOPT : APKG_CLIENT_RESOLVE;
+                                           : !strcmp(argv[1], "adopt") ? APKG_CLIENT_ADOPT
+                                           : !strcmp(argv[1], "policy") ? APKG_CLIENT_POLICY
+                                                                        : APKG_CLIENT_RESOLVE;
         code = apkg_client_apply(action, argv[2], argv[3], pool, confirm,
                                  (void *)confirmation, NULL, &r, &e);
         goto done;
@@ -539,3 +573,47 @@ done:
     apkg_close(c);
     return (int)code;
 }
+
+#ifdef __AROS__
+#include <exec/memory.h>
+#include <exec/tasks.h>
+#include <proto/exec.h>
+/* The Shell gives a command a small stack unless someone typed Stack, and an
+ * overrun on AROS is a Software Failure, not a refusal. The engine's frames
+ * reach tens of KiB, so apkg runs on a stack of its own whenever the one it
+ * was given is smaller, as the earlier pkg client does. */
+#define APKG_STACK_BYTES (1024ul * 1024ul)
+struct entry_args {
+    int argc;
+    char **argv;
+};
+static IPTR on_own_stack(struct entry_args *a) {
+    return (IPTR)apkg_main(a->argc, a->argv);
+}
+int main(int argc, char **argv) {
+    struct Task *me = FindTask(NULL);
+    struct StackSwapStruct sss;
+    struct StackSwapArgs ssa;
+    struct entry_args a;
+    UBYTE *stack;
+    int rc;
+    if ((IPTR)me->tc_SPUpper - (IPTR)me->tc_SPLower >= APKG_STACK_BYTES)
+        return apkg_main(argc, argv);
+    stack = AllocVec(APKG_STACK_BYTES, MEMF_ANY);
+    if (!stack) {
+        fputs("apkg: not enough memory for its stack\n", stderr);
+        return APKG_NOMEM;
+    }
+    a.argc = argc;
+    a.argv = argv;
+    sss.stk_Lower = stack;
+    sss.stk_Upper = stack + APKG_STACK_BYTES;
+    sss.stk_Pointer = sss.stk_Upper;
+    ssa.Args[0] = (IPTR)&a;
+    rc = (int)NewStackSwap(&sss, (LONG_FUNC)on_own_stack, &ssa);
+    FreeVec(stack);
+    return rc;
+}
+#else
+int main(int argc, char **argv) { return apkg_main(argc, argv); }
+#endif

@@ -167,6 +167,17 @@ class QualificationMemory(unittest.TestCase):
             (root/'.apkg/state').write_bytes(wire('root',corrupted))
             self.assertNotEqual(run('channel-open',root,b,ALT).returncode,0)
 
+    def test_one_context_reverifies_retained_records_whose_bytes_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d=Path(tmp); root,a,b,data,records=fixture(d); accept_root(root,a); self.assertTrue(memory(root))
+            code,c=open_ctx(root); self.assertEqual(code,0)
+            for _ in range(2):
+                code,s=snapshot(c); self.assertEqual(code,0); lib.apkg_snapshot_free(s)
+            corrupted=body(root); corrupted['qualification_records'][0]['signature']['signature']='00'*64
+            (root/'.apkg/state').write_bytes(wire('root',corrupted))
+            code,s=snapshot(c); self.assertNotEqual(code,0); self.assertFalse(s)
+            lib.apkg_close(c)
+
     def test_memory_reads_and_acceptance_allocation_failures_clear_outputs_and_preserve_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             d=Path(tmp); root,a,b,data,records=fixture(d); accept_root(root,a); before=(root/'.apkg/state').read_bytes(); code,ctx=open_ctx(root,1)

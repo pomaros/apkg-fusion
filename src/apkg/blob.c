@@ -38,9 +38,8 @@ static int regular_open(const char *path) {
     }
     return fd;
 }
-apkg_status ak_stream_hash(const char *path, uint64_t *size, char hex[65],
-                           unsigned char head[64], size_t *head_size) {
-    unsigned char buffer[AK_CHUNK], digest[32];
+static apkg_status ak_stream_hash_with(unsigned char *buffer, const char *path, uint64_t *size, char hex[65], unsigned char head[64], size_t *head_size) {
+    unsigned char digest[32];
     struct pkg_sha256 hash;
     uint64_t total = 0;
     int fd = regular_open(path);
@@ -54,7 +53,7 @@ apkg_status ak_stream_hash(const char *path, uint64_t *size, char hex[65],
     pkg_sha256_init(&hash);
     *head_size = 0;
     for (;;) {
-        ssize_t n = read(fd, buffer, sizeof buffer);
+        ssize_t n = read(fd, buffer, AK_CHUNK);
         if (n < 0 && errno == EINTR)
             continue;
         if (n < 0) {
@@ -89,6 +88,18 @@ apkg_status ak_stream_hash(const char *path, uint64_t *size, char hex[65],
     ak_tohex(digest, 32, hex);
     *size = total;
     return APKG_OK;
+}
+/* The 64 KiB I/O buffer is heap memory: an AROS task stack has no guard
+ * page, and these calls nest under deep tree walks. */
+apkg_status ak_stream_hash(const char *path, uint64_t *size, char hex[65],
+                           unsigned char head[64], size_t *head_size) {
+    unsigned char *buffer = malloc(AK_CHUNK);
+    apkg_status code;
+    if (!buffer)
+        return APKG_NOMEM;
+    code = ak_stream_hash_with(buffer, path, size, hex, head, head_size);
+    free(buffer);
+    return code;
 }
 static apkg_status store_dir(apkg_ctx *c, char *out, int create) {
     struct stat st;
@@ -191,11 +202,10 @@ static int write_all(int fd, const unsigned char *p, size_t size) {
 /* The caller has bounded the source stream to exactly size bytes. A failed
  * import leaves only verified immutable objects; its private temp is removed.
  */
-apkg_status ak_blob_ingest(apkg_ctx *c, const char *sha, uint64_t size,
-                           int input, ak_import_progress *progress) {
+static apkg_status ak_blob_ingest_with(unsigned char *buffer, apkg_ctx *c, const char *sha, uint64_t size, int input, ak_import_progress *progress) {
     char dir[AK_PATH], temp[AK_PATH], final[AK_PATH], actual[65];
     int output = -1;
-    unsigned char buffer[AK_CHUNK], digest[32];
+    unsigned char digest[32];
     uint64_t left = size;
     struct pkg_sha256 hash;
     apkg_status code;
@@ -212,7 +222,7 @@ apkg_status ak_blob_ingest(apkg_ctx *c, const char *sha, uint64_t size,
     }
     pkg_sha256_init(&hash);
     while (left) {
-        size_t take = left > sizeof buffer ? sizeof buffer : (size_t)left;
+        size_t take = left > AK_CHUNK ? AK_CHUNK : (size_t)left;
         ssize_t n = read(input, buffer, take);
         if (n < 0 && errno == EINTR)
             continue;
@@ -275,7 +285,19 @@ done:
         unlink(temp);
     return code;
 }
-apkg_status ak_blob_inline(apkg_ctx *c, const ak_json *j, int entry) {
+/* The 64 KiB I/O buffer is heap memory: an AROS task stack has no guard
+ * page, and these calls nest under deep tree walks. */
+apkg_status ak_blob_ingest(apkg_ctx *c, const char *sha, uint64_t size,
+                           int input, ak_import_progress *progress) {
+    unsigned char *buffer = malloc(AK_CHUNK);
+    apkg_status code;
+    if (!buffer)
+        return APKG_NOMEM;
+    code = ak_blob_ingest_with(buffer, c, sha, size, input, progress);
+    free(buffer);
+    return code;
+}
+static apkg_status ak_blob_inline_with(unsigned char *buffer, apkg_ctx *c, const ak_json *j, int entry) {
     char sha[65];
     uint64_t size;
     int data = ak_member(j, entry, "data");
@@ -295,10 +317,9 @@ apkg_status ak_blob_inline(apkg_ctx *c, const ak_json *j, int entry) {
     code = temp_open(c, dir, temp, &fd);
     if (code)
         return code;
-    unsigned char buffer[AK_CHUNK];
     uint64_t offset = 0;
     while (offset < size) {
-        size_t n = size - offset > sizeof buffer ? sizeof buffer
+        size_t n = size - offset > AK_CHUNK ? AK_CHUNK
                                                  : (size_t)(size - offset);
         for (size_t x = 0; x < n; x++) {
             char hex[3] = {
@@ -335,8 +356,18 @@ done:
     unlink(temp);
     return code;
 }
-apkg_status ak_blob_copy(apkg_ctx *c, const char *sha, uint64_t size,
-                         const char *fallback, const char *destination) {
+/* The 64 KiB I/O buffer is heap memory: an AROS task stack has no guard
+ * page, and these calls nest under deep tree walks. */
+apkg_status ak_blob_inline(apkg_ctx *c, const ak_json *j, int entry) {
+    unsigned char *buffer = malloc(AK_CHUNK);
+    apkg_status code;
+    if (!buffer)
+        return APKG_NOMEM;
+    code = ak_blob_inline_with(buffer, c, j, entry);
+    free(buffer);
+    return code;
+}
+static apkg_status ak_blob_copy_with(unsigned char *buffer, apkg_ctx *c, const char *sha, uint64_t size, const char *fallback, const char *destination) {
     apkg_status code = ak_blob_check(c, sha, size, NULL);
     char path[AK_PATH];
     if (code == APKG_NOT_FOUND && fallback) {
@@ -352,7 +383,7 @@ apkg_status ak_blob_copy(apkg_ctx *c, const char *sha, uint64_t size,
     if (code)
         return code;
     int input = regular_open(path), output = -1;
-    unsigned char buffer[AK_CHUNK], digest[32];
+    unsigned char digest[32];
     struct pkg_sha256 hash;
     char actual[65];
     uint64_t copied = 0;
@@ -365,7 +396,7 @@ apkg_status ak_blob_copy(apkg_ctx *c, const char *sha, uint64_t size,
     }
     pkg_sha256_init(&hash);
     for (;;) {
-        ssize_t n = read(input, buffer, sizeof buffer);
+        ssize_t n = read(input, buffer, AK_CHUNK);
         if (n < 0 && errno == EINTR)
             continue;
         if (n < 0) {
@@ -399,6 +430,18 @@ apkg_status ak_blob_copy(apkg_ctx *c, const char *sha, uint64_t size,
         code = APKG_IO;
     if (code)
         unlink(destination);
+    return code;
+}
+/* The 64 KiB I/O buffer is heap memory: an AROS task stack has no guard
+ * page, and these calls nest under deep tree walks. */
+apkg_status ak_blob_copy(apkg_ctx *c, const char *sha, uint64_t size,
+                         const char *fallback, const char *destination) {
+    unsigned char *buffer = malloc(AK_CHUNK);
+    apkg_status code;
+    if (!buffer)
+        return APKG_NOMEM;
+    code = ak_blob_copy_with(buffer, c, sha, size, fallback, destination);
+    free(buffer);
     return code;
 }
 apkg_status ak_package_payload_check(apkg_ctx *c, const apkg_package *p) {

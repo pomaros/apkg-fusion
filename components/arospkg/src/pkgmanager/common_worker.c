@@ -111,6 +111,23 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
             j->done->common_catalogue = NULL;
             status = APKG_CANCELLED;
         }
+    } else if (j->kind == JOB_COMMON_SELF_UPDATE) {
+        /* common_package: endpoint, common_pool: channel id, common_action:
+         * 1 checks only. The report becomes the window's record. */
+        char *report = NULL;
+        status = apkg_client_self_update(
+            j->root, j->common_package, j->common_pool, j->common_executable,
+            j->common_action == 1, ask, j, &observer, &report,
+            j->common_action == 1 ? NULL : &result, &detail);
+        if (report) {
+            size_t size = strlen(report) + 1;
+            j->done->common_record = AllocVec(size, MEMF_PUBLIC);
+            if (j->done->common_record)
+                memcpy(j->done->common_record, report, size);
+            else if (!status)
+                status = APKG_NOMEM;
+        }
+        apkg_client_text_free(report);
     } else if (j->kind == JOB_COMMON_DISCOVER) {
         apkg_channel *channel = NULL;
         apkg_snapshot *snapshot = NULL;
@@ -141,7 +158,7 @@ pkg_status pm_common_install(job *j, pkg_err *error) {
     if (result) {
         const apkg_result_view *r = apkg_result_get(result);
         j->done->common_outcome = r->outcome;
-        if (r->record.size) {
+        if (r->record.size && !j->done->common_record) {
             char *copy = AllocVec(r->record.size + 1, MEMF_PUBLIC);
             if (copy) {
                 memcpy(copy, r->record.data, r->record.size);

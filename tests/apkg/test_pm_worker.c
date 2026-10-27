@@ -134,6 +134,30 @@ int main(int argc, char **argv) {
         assert(allocations == 0);
         return 0;
     }
+    if (atoi(argv[3]) == 40) {
+        /* ROOT ENDPOINT 40 CHECK CHANNEL-ID EXECUTABLE: self-update through
+         * the actual worker bridge; the window approves the plan. */
+        assert(argc == 7 && strlen(argv[1]) < sizeof j.root &&
+               strlen(argv[2]) < sizeof j.common_package &&
+               strlen(argv[5]) < sizeof j.common_pool &&
+               strlen(argv[6]) < sizeof j.common_executable);
+        strcpy(j.root, argv[1]);
+        strcpy(j.common_package, argv[2]);
+        strcpy(j.common_pool, argv[5]);
+        strcpy(j.common_executable, argv[6]);
+        j.kind = JOB_COMMON_SELF_UPDATE;
+        j.done = &final;
+        running = &j;
+        choice = 1;
+        pm_common_install(&j, &error);
+        printf("status %d outcome %d previews %d\n%s", final.common_status,
+               final.common_outcome, previews,
+               final.common_record ? final.common_record : "");
+        assert(previews == (j.common_action == 1 || final.common_status ? 0 : 1));
+        FreeVec(final.common_record);
+        assert(allocations == 0);
+        return 0;
+    }
     if (atoi(argv[3]) == 29) {
         const char *names[] = {
             "descriptor.json",  "signature.json",

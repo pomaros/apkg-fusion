@@ -59,3 +59,26 @@ class FailureCoverage(unittest.TestCase):
     ids.append(bytes(ptr.contents.operation_id.bytes));return 1
    obs=Observer(event,None,None);self.assertEqual(execute(c,p,a,C.byref(obs)),(16,0));lib.apkg_approval_free(a);r,a=approve(c,p);self.assertEqual(r,0);self.assertEqual(execute(c,p,a,C.byref(obs)),(16,0));self.assertEqual(len(set(ids)),2);lib.apkg_approval_free(a);lib.apkg_plan_free(p);lib.apkg_close(c)
 if __name__=='__main__':unittest.main()
+
+class RecoveryFollowsRecordedIntent(unittest.TestCase):
+    def tearDown(self): lib.apkg_test_fault(0,0)
+    def crash(self,c,p,a):
+        pid=os.fork()
+        if pid==0:
+            lib.apkg_test_fault(4,2);execute(c,p,a);os._exit(98)
+        os.waitpid(pid,0)
+    def test_initialization_recovery_never_takes_over_a_root_created_after_the_decision(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)/'root';code,c=open_ctx(root,1);self.assertEqual(code,0);code,s=snapshot(c);code,p=initialize_plan(c,s);code,a=approve(c,p)
+            self.crash(c,p,a);self.assertTrue(Path(str(root)+'.apkg-transaction').exists())
+            root.mkdir();(root/'foreign.txt').write_text('user data')
+            code,c2=open_ctx(root,1);self.assertEqual(recover(c2),(9,3))
+            self.assertEqual(sorted(os.listdir(root)),['foreign.txt']);self.assertTrue(Path(str(root)+'.apkg-transaction').exists())
+            lib.apkg_close(c2);lib.apkg_close(c)
+    def test_recovery_refuses_a_linked_metadata_directory(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)/'root';c=init(root);p,a=prepared_install(c);self.crash(c,p,a)
+            outside=Path(d)/'outside';shutil.move(str(root/'.apkg'),str(outside));os.symlink(str(outside),str(root/'.apkg'));before=(outside/'state').read_bytes()
+            self.assertEqual(recover(c),(9,3));self.assertEqual((outside/'state').read_bytes(),before);self.assertTrue(Path(str(root)+'.apkg-transaction').exists())
+            lib.apkg_close(c)

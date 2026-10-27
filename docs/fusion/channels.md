@@ -53,8 +53,25 @@ A channel key authorizes discovery for its named channel id. It does not
 approve package authors, targets, system writes, review or runtime testing.
 An authority key authorizes package signatures for its named authority and does
 not grant channel privileges. The operator may explicitly grant both roles to
-one key/id; possession of one role never creates the other. This batch adds no
-implicit policy updates, rotation or subscription installation.
+one key/id; possession of one role never creates the other. Nothing updates
+the policy implicitly, and no subscription installs keys.
+
+### Changing the policy
+
+Rotation, reset and revocation are one operation: `apkg_plan_policy`, or
+`apkg policy ROOT POLICY-FILE`, replaces the whole policy with a complete
+canonical policy object. Its presentation lists every grant added and revoked,
+role by role, and every installed package whose signing key loses its
+authority grant. Those packages stay installed; their author trust reads as
+untrusted. The plan rewrites root state only, through the common journal:
+installed records, channel floors and retained observations are unchanged, and
+a plan made before any other change is stale. A rollback never crosses a policy
+change, in either direction; reverting a change is another policy plan.
+
+A producer's new key therefore reaches a root only when its operator approves
+a policy naming it. A signed statement by the old key endorsing the new one
+would let a client propose that plan, not skip it; that statement format is
+not defined.
 
 ## Public context API and lifetime
 

@@ -182,16 +182,20 @@ class Inspection(unittest.TestCase):
             self.assertFalse((legacy / '.apkg').exists())
 
     def test_payload_counter_overflow_is_refused_without_wrapping_or_io(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / 'root'
-            files = [dict(path=name, type='file', mode='420', size=str(size),
-                sha256='ab' * 32, blob='ab' * 32) for name, size in [('a', 2**64-1), ('b', 1)]]
-            data = descriptor(files=files)
-            before = state(root, policy=policy(), installed=[dict(
-                descriptor=json.loads(data), signature=json.loads(sign(data)))])
-            self.assertEqual(info(root, field='payloadbytes'), (3, None))
-            self.assertEqual((root / '.apkg/state').read_bytes(), before)
-            self.assertFalse(Path(str(root) + '.apkg-objects').exists())
+        # The descriptor's total declared size is bounded by the PKG/1 envelope
+        # limit, so an overflowing or merely oversized total is an invalid
+        # descriptor before any counter is summed.
+        for sizes in ([2**64-1, 1], [2**31-1, 1]):
+            with self.subTest(sizes=sizes), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp) / 'root'
+                files = [dict(path=name, type='file', mode='420', size=str(size),
+                    sha256='ab' * 32, blob='ab' * 32) for name, size in zip('ab', sizes)]
+                data = descriptor(files=files)
+                before = state(root, policy=policy(), installed=[dict(
+                    descriptor=json.loads(data), signature=json.loads(sign(data)))])
+                self.assertEqual(info(root, field='payloadbytes'), (1, None))
+                self.assertEqual((root / '.apkg/state').read_bytes(), before)
+                self.assertFalse(Path(str(root) + '.apkg-objects').exists())
 
     def test_allocation_failures_leave_no_partial_output_and_can_retry(self):
         with tempfile.TemporaryDirectory() as tmp:
