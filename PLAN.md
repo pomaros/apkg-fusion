@@ -185,8 +185,15 @@ The [signed-channel profile](docs/fusion/channels.md) divides ALPHA-CHANNEL
 into authenticated metadata, atomic file publication, context-owned file/HTTP
 transport/freshness, and independent qualifications/client discovery. Metadata
 validation, atomic local publication, host HTTP transfer and source-bound
-approved plans are implemented checkpoints. Persistent freshness, qualifications,
-native adapters and client integration still prevent that gate from passing.
+approved plans and explicit journaled replay floors are implemented checkpoints.
+Online revocation/freshness policy, independent qualifications, native adapters
+and client integration still prevent that gate from passing.
+
+Before the default client switch, close the preparation-prefix journal defect:
+process death at fault 1 preserves root bytes but leaves an unready transaction
+which automatic recovery refuses. Stage/publish intent so every visible active
+transaction is recoverable, and test prefix death plus retry without weakening
+foreign-state checks. Evidence belongs in [status](docs/fusion/status.md).
 
 Final acceptance is one automated clean-workspace scenario: author a bundle and
 its dependency, package/sign/publish through a real channel, discover through

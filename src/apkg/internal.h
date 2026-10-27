@@ -126,9 +126,10 @@ struct apkg_ctx {
 };
 struct apkg_snapshot {
     apkg_root_view view;
-    char *raw, *policy, *target, *diagnostic;
+    char *raw, *policy, *target, *diagnostic, *channel_heads;
     apkg_installed_view *rows;
     size_t nrows;
+    uint64_t package_generation;
     char **records;
     char anchor[AK_PATH];
     struct stat binding;
@@ -190,6 +191,14 @@ apkg_status ak_plan_bind(apkg_ctx *, apkg_plan *, const apkg_package *const *,
 apkg_status ak_plan_origins_check(apkg_ctx *, const apkg_plan *,
                                   const apkg_observer *);
 int ak_origins_valid(const ak_json *, int);
+apkg_status ak_channel_heads_add(const apkg_snapshot *, const apkg_id *,
+                                 uint64_t, const apkg_digest *, char **);
+int ak_channel_heads_valid(const ak_json *, int);
+apkg_status ak_channel_head_check(const apkg_snapshot *, const apkg_id *,
+                                  uint64_t, const apkg_digest *,
+                                  apkg_u64_fact *);
+apkg_status ak_plan_heads(apkg_ctx *, const apkg_snapshot *, const char *,
+                          apkg_plan **, apkg_error **);
 int ak_cancelled(const apkg_observer *);
 int ak_descriptor(const ak_json *);
 int ak_valid_name(const char *);

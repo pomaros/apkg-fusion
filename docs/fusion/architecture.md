@@ -70,6 +70,9 @@ File/HTTP selections bind their source facts into canonical plan bytes, includin
 selected dependency origins. The [source-bound plan contract](channels.md#source-bound-approved-plans)
 requires rechecking before the commit decision; recovery and retained offline
 operations never require remote revalidation after that decision.
+Explicit channel acceptance records per-root sequence/digest floors in the same
+journal. Catalogue-only generations preserve a separate package revision, so
+package rollback remains applicable and cannot lower the latest replay floors.
 
 The journal records intent before mutation and distinguishes the commit decision
 from observations of completed actions. Recovery examines both the journal and

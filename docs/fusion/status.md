@@ -603,6 +603,55 @@ tracking, independent qualifications, default client integration and native HTTP
 adapters remain open. No OS changes, AROS execution or live portal operation
 occurred. Host process/recovery tests do not establish power-loss durability.
 
+## FUSION-ALPHA progress: journaled channel replay floors
+
+The transport checkpoint on source
+[0a45f83](https://github.com/pomaros/apkg-fusion/commit/0a45f833a8e5608197d6ad410e439b2ee7e07097)
+is now fully qualified by the
+[Linux/macOS/portal run](https://github.com/pomaros/apkg-fusion/actions/runs/40421306193).
+The source-bound-plan checkpoint on
+[188c63a](https://github.com/pomaros/apkg-fusion/commit/188c63afdfed0cf6d2f025681ac10b42e378933d)
+is independently qualified by its full
+[Linux/macOS/portal run](https://github.com/pomaros/apkg-fusion/actions/runs/40422461420).
+
+The [journaled replay profile](channels.md#journaled-replay-floors) adds explicit
+approved acceptance through the common transaction engine. Roots retain sorted
+channel identity/sequence/digest marks, capped at 1,024 identities. Reads remain
+read-only, automatically reject older metadata and same-sequence forks, and
+expose accepted sequence independently of unknown online freshness. Mirrors
+share the same identity's floor. The common CLI previews/confirms file and HTTP
+acceptance; it does not fetch/install a package or grant a signing key.
+
+All package state builders preserve the registry. A separate package revision
+allows rollback of the latest package history after intervening catalogue-only
+acceptance, with exact current-root approval and strict recorded-history
+validation. Rollback retains the current registry and consumes its package
+revision, preventing repeated application of the same package history.
+
+New tests cover persistence across contexts, stricter caller floors, forks,
+old observations and racing approvals, file/HTTP mirrors, malformed stored
+registries, sorted independent identities and uint64 boundaries, the 1,024-row
+limit, package rollback after later acceptance, cancellation, five injected I/O
+boundaries, process death and repeated recovery, 280 allocation-failure positions,
+and actual CLI preview/confirmation through both endpoint types. Local
+`make test-fusion` passes all 163 common methods and the existing integration
+checks. The sanitizer harness passes 83 methods, including actual file/HTTP
+acceptance in instrumented CLI binaries; direct ctypes tests use the ordinary
+test library. Documentation links pass for 67 files with zero broken links.
+Exact-source Linux/macOS CI must separately qualify this checkpoint.
+
+A separate process-death probe at journal fault 1 confirms an existing
+preparation-prefix defect: exit 99 leaves root bytes unchanged, but recovery
+returns `(APKG_RECOVERY_REQUIRED, APKG_NEEDS_RECOVERY)` because `ready` was never
+published. This is not qualified recovery. The next journal batch must make
+unpublished preparation prefixes safely discardable/retryable before default
+clients are switched; passing ready/decision-boundary tests does not close it.
+
+This is explicit acceptance, not automatic acceptance during default-client
+refresh. Online revocation/freshness policy, independent qualifications, shared
+client discovery/selection, native adapters and all other alpha gates remain
+open. Host process tests do not qualify power loss or a live portal/AROS run.
+
 ## Implemented integration pieces
 
 | Piece | Evidence and limits |

@@ -6,7 +6,7 @@
 The common library implements authenticated discovery and role-separated policy.
 The local producer now adds verified immutable file publication and an atomic
 current reference. Context-owned host HTTP discovery and selected archive
-transfer are implemented below. Durable freshness, qualifications and
+transfer and journaled replay floors are implemented below. Online freshness, qualifications and
 default-client integration remain ALPHA-CHANNEL work.
 
 ## Immutable discovery objects
@@ -77,9 +77,10 @@ not fetch an archive or promise blob availability; real transport and artifact
 binding remain separate work.
 
 Freshness is **unknown**. A valid signature and explicit sequence floor do not
-prove the latest online state. The caller supplies the floor; durable high-water
-tracking and revocation observation have not yet been implemented. This is not
-a claim of rollback-resistant subscriptions or current review status.
+prove the latest online state. Reads enforce the root's explicitly accepted
+sequence/digest plus any stricter caller floor. The view exposes
+`accepted_sequence` independently; it is unknown before first acceptance.
+Revocation observation and current review status remain separate facts.
 
 ## Atomic local publication
 
@@ -125,9 +126,8 @@ or different content under the same build identity, refuses explicitly.
 The configured channel id and current signing key must remain continuous.
 Changing a key requires a separate rotation protocol, not implicit acceptance
 of a new signer. Sequence advances relative to the authenticated current head;
-this is not durable external high-water tracking or protection against a server
-replaying an older valid head. Those remain separate consumer/publisher policy
-obligations. This profile uses Linux/macOS POSIX locking, links, atomic replace
+the producer alone cannot protect a reader from an older valid head. Readers
+use the explicitly approved per-root replay floors below. This profile uses Linux/macOS POSIX locking, links, atomic replace
 and flush operations. It does not certify Windows, network-filesystem semantics,
 native DOS or power-loss durability.
 
@@ -199,8 +199,8 @@ cutover and joint-release claims remain separate gates.
 checks both roles and the snapshot digest, then rereads `current`. Discovery is
 read-only and creates no cache. Its observer reports one operation identity,
 monotonic transferred bytes and an unknown total across the metadata requests.
-The caller's sequence floor remains required for its own replay policy; this
-implementation does not persist a high-water mark.
+The root's durable replay floor is enforced automatically. A caller can supply
+a stricter floor without changing the stored value.
 
 The Linux/macOS adapter launches host `curl` directly without a shell or the
 legacy client's global request state. It disables curlrc loading, retains normal
@@ -261,4 +261,51 @@ remain in local plan/history records and are not copied into installed-state
 records. Repair/removal and rollback from verified retained history therefore
 work without a channel. Older journal plans without origins remain recoverable;
 new origin fields are structurally validated without contacting a source during
-recovery. No durable channel replay high-water mark is implemented yet.
+recovery. Replay floors use the same journal through the following profile.
+
+## Journaled replay floors
+
+`apkg_plan_channel_accept` creates an explicit metadata plan for an already
+verified channel. It grants no author/channel keys or independent qualification.
+Approval and execution use the common root lock, journal, generation, recovery
+and history. Reading, opening, selecting and fetching never advance a floor.
+The current experimental CLI is `apkg-core channel-accept ROOT ENDPOINT
+CHANNEL-ID [--confirm DIGEST]`: first invocation previews, the confirmed digest
+executes. `channel-open` reports `accepted_sequence` or null separately from
+unknown online freshness. Default-client refresh integration remains open.
+
+Root bodies optionally contain `channel_heads`, sorted unique records with
+exactly `id`, positive uint64 decimal `sequence` and `snapshot_sha256`. At most
+1,024 channel identities are retained; exceeding the bound refuses rather than
+forgetting older marks. Pre-floor common roots read as an empty registry. New
+root generations retain it across all package operations. Policy changes or
+endpoint changes do not implicitly reset it. Each accepted identity applies to
+all its mirrors, independently of other identities or author trust.
+
+Authenticated metadata below a stored sequence refuses as stale. A different
+snapshot at the same sequence refuses as a conflict, including on another
+mirror; equal sequence/digest is valid. Higher sequences can be observed without
+writing. Only approved acceptance advances the persistent mark. Repeating an
+explicit acceptance records another metadata generation while preserving the
+same floor. It never silently lowers one. This protects persisted observations;
+it does not prove that the observed signed head is the latest online head.
+
+Root bodies also carry `package_generation`, a positive revision no greater than
+the overall generation. Initialization starts both at 1; package operations
+advance both, while channel acceptance advances only the overall generation.
+Pre-extension common roots use their existing generation as the package
+revision. This separates journal concurrency from package-history applicability.
+A package rollback after catalogue-only updates still binds the exact current
+root for execution, validates its selected history's intent/new-state hashes,
+requires unchanged package revision/installed facts/policy/identity/target, and
+preserves the latest replay registry. A subsequent package operation, including
+rollback, invalidates reuse of that history. Restoring package state never
+restores a lower catalogue floor. Attempting to use a channel-acceptance history
+as a package rollback explicitly refuses; it cannot masquerade as undoing a
+security floor.
+
+Cancellation before decision restores or preserves the previous root. A
+recorded decision is completed from local journal data even when the endpoint
+is gone. Host tests exercise I/O failures, process death, interrupted recovery,
+allocation failures and competing plans. Power-loss and native filesystem
+qualification remain separate gates.

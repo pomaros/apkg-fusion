@@ -224,6 +224,11 @@ apkg_status apkg_channel_read(apkg_ctx *c, const apkg_id *expected,
         code = APKG_STALE;
         goto done;
     }
+    code = ak_channel_head_check(
+        snapshot, &channel->view.id, channel->view.sequence,
+        &channel->view.snapshot_digest, &channel->view.accepted_sequence);
+    if (code)
+        goto done;
     entries = ak_member(&channel->json, body, "entries");
     for (size_t i = (size_t)entries + 1; i < channel->json.tokens[entries].next;
          i = channel->json.tokens[i].next)
@@ -657,6 +662,10 @@ apkg_status ak_origin_check(apkg_ctx *ctx, const ak_json *j, int row,
     apkg_observer silent = {0};
     if (observer)
         silent.cancel = observer->cancel;
+    code = ak_channel_head_check(state, &identity, sequence,
+                                 &bound.view.snapshot_digest, NULL);
+    if (code)
+        goto done;
     code = source_current(&bound, &silent);
     if (code)
         goto done;
@@ -751,6 +760,10 @@ apkg_status ak_channel_select(apkg_ctx *ctx, const apkg_channel *channel,
         strcmp(snapshot->policy, channel->policy) ||
         strcmp(snapshot->target, channel->target))
         code = APKG_STALE;
+    if (!code)
+        code = ak_channel_head_check(snapshot, &channel->view.id,
+                                     channel->view.sequence,
+                                     &channel->view.snapshot_digest, NULL);
     apkg_snapshot_free(snapshot);
     if (code)
         return code;
@@ -764,6 +777,52 @@ apkg_status ak_channel_select(apkg_ctx *ctx, const apkg_channel *channel,
             *out = NULL;
         }
     }
+    return code;
+}
+apkg_status apkg_plan_channel_accept(apkg_ctx *ctx, const apkg_snapshot *s,
+                                     const apkg_channel *channel,
+                                     apkg_plan **out, apkg_error **error) {
+    if (error)
+        *error = NULL;
+    if (!out)
+        return APKG_INVALID;
+    *out = NULL;
+    if (!ctx || !s || !channel)
+        return APKG_INVALID;
+    if (s->view.state != APKG_ROOT_READY)
+        return s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
+                                                  : APKG_POLICY;
+    if (strcmp(ctx->root, channel->root) ||
+        strcmp(ctx->anchor, channel->anchor) ||
+        ctx->binding.st_dev != channel->binding.st_dev ||
+        ctx->binding.st_ino != channel->binding.st_ino ||
+        memcmp(s->view.root_id.bytes, channel->root_id.bytes, 16) ||
+        strcmp(s->policy, channel->policy) ||
+        strcmp(s->target, channel->target))
+        return APKG_STALE;
+    apkg_status code = source_current(channel, NULL);
+    char *heads = NULL;
+    if (!code)
+        code =
+            ak_channel_heads_add(s, &channel->view.id, channel->view.sequence,
+                                 &channel->view.snapshot_digest, &heads);
+    if (!code)
+        code = ak_plan_heads(ctx, s, heads, out, error);
+    free(heads);
+    if (!code) {
+        apkg_package source = {0};
+        code = package_origin(channel, &source);
+        const apkg_package *sources[] = {&source};
+        if (!code)
+            code = ak_plan_bind(ctx, *out, sources, 1);
+        free(source.origin);
+        if (code) {
+            apkg_plan_free(*out);
+            *out = NULL;
+        }
+    }
+    if (code && error && !*error)
+        ak_fail(error, code, "channel acceptance refused", "");
     return code;
 }
 apkg_status apkg_channel_package(apkg_ctx *ctx, const apkg_channel *channel,
@@ -828,7 +887,13 @@ apkg_status ak_channel_inspect(const char *root, const char *dir,
             goto done;
     }
     ak_tohex(channel->view.snapshot_digest.bytes, 32, digest);
-    ak_buf_add(&b, "{\"channel_id\":\"%s\",\"entries\":[", identity);
+    char accepted[32] = "null";
+    if (channel->view.accepted_sequence.state == APKG_KNOWN)
+        snprintf(accepted, sizeof accepted, "\"%" PRIu64 "\"",
+                 channel->view.accepted_sequence.value);
+    ak_buf_add(&b,
+               "{\"accepted_sequence\":%s,\"channel_id\":\"%s\",\"entries\":[",
+               accepted, identity);
     for (uint64_t i = 0; i < channel->view.entry_count; i++) {
         const apkg_channel_entry_view *r = &channel->rows[i];
         char sha[65], archive[65];

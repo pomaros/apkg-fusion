@@ -58,7 +58,7 @@ unknown execution metadata is refused. It does not discard unsupported fields.
 
 | Object | `body` fields |
 |---|---|
-| Root | `generation`, `installed`, `policy`, `root_id`, `target` |
+| Root | `generation`, `installed`, `policy`, `root_id`, `target`; optional `channel_heads` and `package_generation` from the [replay profile](channels.md#journaled-replay-floors) |
 | Policy | `authorities`, each with `id` and sorted Ed25519 `keys` |
 | Descriptor | `authority`, `files`, `kind`, `name`, `revision`, `target`, `version` |
 | Installed entry | `descriptor` and `signature` objects, retained byte-for-byte in canonical form |

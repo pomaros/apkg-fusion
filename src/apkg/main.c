@@ -61,8 +61,50 @@ int main(int argc, char **argv) {
             "descriptor|channel "
             "JSONFILE\nverify-object descriptor|channel JSONFILE SIGNATURE\n"
             "archive-check ROOT ARCHIVE\nchannel-fetch ROOT ENDPOINT "
-            "CHANNEL-ID INDEX [MIN-SEQUENCE]\n");
+            "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-accept ROOT ENDPOINT "
+            "CHANNEL-ID [--confirm DIGEST]\n");
         return APKG_INVALID;
+    }
+    if (!strcmp(argv[1], "channel-accept")) {
+        if (argc != 5 && argc != 7)
+            return APKG_INVALID;
+        if (argc == 7) {
+            if (strcmp(argv[5], "--confirm"))
+                return APKG_INVALID;
+            confirmation = argv[6];
+        }
+        apkg_channel *channel = NULL;
+        apkg_id id;
+        if (ak_hex(argv[4], id.bytes, 16))
+            return APKG_INVALID;
+        o.contract_version = 1;
+        o.struct_size = sizeof o;
+        o.root.data = argv[2];
+        o.root.size = strlen(argv[2]);
+        o.mode = APKG_WRITE;
+        code = apkg_open(&o, &c, &e);
+        apkg_text source = {argv[3], strlen(argv[3])};
+        if (!code)
+            code =
+                ak_http_url(argv[3])
+                    ? apkg_channel_open_http(c, source, &id, 0, NULL, &channel,
+                                             &e)
+                    : apkg_channel_open_file(c, source, &id, 0, &channel, &e);
+        if (!code)
+            code = apkg_snapshot_read(c, &s, &e);
+        if (!code)
+            code = apkg_plan_channel_accept(c, s, channel, &p, &e);
+        apkg_channel_free(channel);
+        if (!code)
+            code = apkg_plan_format(p, &text);
+        if (!code && !confirm((void *)confirmation, p, text))
+            code = APKG_CANCELLED;
+        if (!code)
+            code =
+                apkg_plan_approve(c, p, &apkg_plan_get(p)->plan_digest, &a, &e);
+        if (!code)
+            code = apkg_execute(c, p, a, NULL, &r, &e);
+        goto done;
     }
     if (!strcmp(argv[1], "channel-fetch")) {
         if (argc != 6 && argc != 7)

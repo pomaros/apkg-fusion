@@ -22,6 +22,7 @@ completed and outstanding work against the [architecture](architecture.md).
 | Authoring | One TOML description drives validation, bundles and signed publication. | End-to-end round trip preserves metadata, files, attributes and launch description with untouched inputs. |
 | Open publishing | Authors publish without curator approval or a central account. | Signed directory/share/web channels consumed directly; portal publication succeeds without review. |
 | Selected transfer | Context-owned bounded and cancellable file/web preparation binds the received archive to the selected descriptor/signature. | Read-only discovery, corruption/truncation, wrong valid archive, cache rehash, cancellation, flush failure and retry; no installed-state commit. |
+| Channel replay | Approved acceptance persists identity/sequence/digest through the common journal; reads never advance it. | Old valid heads and same-sequence forks refuse across mirrors/restarts; concurrent plans, process death, recovery and package rollback retain the highest accepted floor. |
 | Curated catalogue | Review is independent of publication and tied to exact content. | Authors cannot grant reviewer status; changed content/target cannot inherit a qualification. |
 | Runtime qualifications | Results identify content, target and environment. | Record validation and UI display; rejection of misleading or stale claims. |
 | Trust | Separate author/channel signatures, key trust, review and testing. | Tampering, unknown key, replacement key, bootstrap and rotation; no silent trust expansion. |

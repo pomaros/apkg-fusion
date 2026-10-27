@@ -225,7 +225,8 @@ apkg_status apkg_plan_initialize(apkg_ctx *c, const apkg_snapshot *s,
         return APKG_NOMEM;
     }
     snprintf(record, cap,
-             "{\"body\":{\"generation\":\"1\",\"installed\":[],\"policy\":%s,"
+             "{\"body\":{\"channel_heads\":[],\"generation\":\"1\","
+             "\"installed\":[],\"package_generation\":\"1\",\"policy\":%s,"
              "\"root_id\":\"%s\","
              "\"target\":\"%s\"},\"format\":\"apkg-json-1\",\"requires\":[],"
              "\"schema\":\"1\","
@@ -360,7 +361,7 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
     }
     ak_tohex(s->view.root_id.bytes, 16, id);
     cap = entries_size + strlen(p->raw) + strlen(p->signature) +
-          strlen(s->policy) + 1024;
+          strlen(s->policy) + strlen(s->channel_heads) + 1056;
     if (cap > c->object_max || cap > c->memory_max / 32) {
         free(entries);
         ak_json_free(&j);
@@ -373,14 +374,15 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
         return APKG_NOMEM;
     }
     snprintf(record, cap,
-             "{\"body\":{\"generation\":\"%" PRIu64
+             "{\"body\":{\"channel_heads\":%s,\"generation\":\"%" PRIu64
              "\",\"installed\":[%s%s{\"descriptor\":%s,\"signature\":%s}],"
-             "\"policy\":%s,\"root_"
+             "\"package_generation\":\"%" PRIu64 "\",\"policy\":%s,\"root_"
              "id\":\"%s\",\"target\":\"%s\"},\"format\":\"apkg-json-1\","
              "\"requires\":[],\"schema\":"
              "\"1\",\"type\":\"root\"}",
-             gen + 1, entries, entries_size ? "," : "", p->raw, p->signature,
-             s->policy, id, s->target);
+             s->channel_heads, gen + 1, entries, entries_size ? "," : "",
+             p->raw, p->signature, s->package_generation + 1, s->policy, id,
+             s->target);
     r = ak_make_plan(c, s, record, p->raw, p->name, out, e);
     if (!r) {
         r = ak_plan_bind(c, *out, &p, 1);

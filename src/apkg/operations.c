@@ -295,10 +295,10 @@ apkg_status ak_verified_entry(apkg_ctx *c, const char *entry,
 }
 /* Candidate records are signed entries. This is also the multi-package planner
  * used by dependency resolution: one generation, one approval, one journal. */
-apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
-                            const char *entries, apkg_plan_kind kind,
-                            const char *focus, apkg_plan **out,
-                            apkg_error **e) {
+static apkg_status plan_records(apkg_ctx *c, const apkg_snapshot *s,
+                                const char *entries, apkg_plan_kind kind,
+                                const char *focus, const char *heads,
+                                apkg_plan **out, apkg_error **e) {
     apkg_snapshot *current = NULL;
     ak_json list = {0};
     ak_buf state = {0}, changes = {0}, raw = {0};
@@ -374,13 +374,15 @@ apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
     state.max = changes.max = raw.max =
         c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
     ak_tohex(s->view.root_id.bytes, 16, id);
-    ak_buf_add(
-        &state,
-        "{\"body\":{\"generation\":\"%" PRIu64
-        "\",\"installed\":%s,\"policy\":%s,\"root_id\":\"%s\",\"target\":"
-        "\"%s\"},\"format\":\"apkg-json-1\",\"requires\":[],\"schema\":"
-        "\"1\",\"type\":\"root\"}",
-        s->view.generation.value + 1, entries, s->policy, id, s->target);
+    ak_buf_add(&state,
+               "{\"body\":{\"channel_heads\":%s,\"generation\":\"%" PRIu64
+               "\",\"installed\":%s,\"package_generation\":\"%" PRIu64
+               "\",\"policy\":%s,\"root_id\":\"%s\",\"target\":"
+               "\"%s\"},\"format\":\"apkg-json-1\",\"requires\":[],\"schema\":"
+               "\"1\",\"type\":\"root\"}",
+               heads, s->view.generation.value + 1, entries,
+               s->package_generation + (kind != APKG_PLAN_CHANNEL_ACCEPT),
+               s->policy, id, s->target);
     ak_buf_add(&changes, "[");
     k = 0;
     /* Existing entries first, followed by newly selected packages. */
@@ -542,6 +544,37 @@ done:
     apkg_plan_free(p);
     return code;
 }
+apkg_status ak_plan_records(apkg_ctx *c, const apkg_snapshot *s,
+                            const char *entries, apkg_plan_kind kind,
+                            const char *focus, apkg_plan **out,
+                            apkg_error **e) {
+    return plan_records(c, s, entries, kind, focus, s ? s->channel_heads : NULL,
+                        out, e);
+}
+apkg_status ak_plan_heads(apkg_ctx *c, const apkg_snapshot *s,
+                          const char *heads, apkg_plan **out, apkg_error **e) {
+    ak_json j = {0};
+    int parsed = ak_json_parse(s->raw, s->view.source_record.size, &j);
+    if (parsed)
+        return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+    char *entries =
+        ak_slice(&j, ak_member(&j, ak_member(&j, 0, "body"), "installed"));
+    ak_json_free(&j);
+    if (!entries)
+        return APKG_NOMEM;
+    apkg_status code = plan_records(c, s, entries, APKG_PLAN_CHANNEL_ACCEPT,
+                                    NULL, heads, out, e);
+    free(entries);
+    if (!code) {
+        apkg_plan *p = *out;
+        p->effects[0].kind = APKG_EFFECT_DATABASE;
+        p->effects[0].destination.data = ".apkg/state#channel_heads";
+        p->effects[0].destination.size = strlen(p->effects[0].destination.data);
+        p->effects[0].record.data = (unsigned char *)p->root_record;
+        p->effects[0].record.size = strlen(p->root_record);
+    }
+    return code;
+}
 static apkg_status one(apkg_ctx *c, const apkg_snapshot *s, apkg_text name,
                        const apkg_package *nw, apkg_plan_kind kind,
                        apkg_plan **out, apkg_error **e) {
@@ -634,6 +667,55 @@ apkg_status apkg_plan_upgrade(apkg_ctx *c, const apkg_snapshot *s,
     return one(c, s, n, p, APKG_PLAN_UPGRADE, out, e);
 }
 /* Rollback consumes an immutable local archive, never a remote version hint. */
+static apkg_status rollback_applicable(const apkg_snapshot *s,
+                                       const char *after, size_t size) {
+    ak_json j = {0}, current = {0};
+    int parsed = ak_json_parse(after, size, &j);
+    if (parsed)
+        return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+    apkg_status code = APKG_STALE;
+    int b = ak_member(&j, 0, "body");
+    uint64_t generation, package_generation;
+    if (!ak_object(&j, "root") ||
+        !ak_fields_optional(
+            &j, b,
+            (const char *const[]){"generation", "installed", "policy",
+                                  "root_id", "target"},
+            5, (const char *const[]){"channel_heads", "package_generation"},
+            2) ||
+        ak_u64(&j, ak_member(&j, b, "generation"), &generation) ||
+        !generation || generation > s->view.generation.value ||
+        !ak_channel_heads_valid(&j, ak_member(&j, b, "channel_heads")))
+        goto done;
+    package_generation = generation;
+    int pg = ak_member(&j, b, "package_generation");
+    if (pg >= 0 && (ak_u64(&j, pg, &package_generation) ||
+                    !package_generation || package_generation > generation))
+        goto done;
+    if (package_generation != s->package_generation)
+        goto done;
+    parsed = ak_json_parse(s->raw, s->view.source_record.size, &current);
+    if (parsed) {
+        code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+        goto done;
+    }
+    int cb = ak_member(&current, 0, "body");
+    const char *fields[] = {"installed", "policy", "root_id", "target"};
+    for (size_t k = 0; k < 4; k++) {
+        int a = ak_member(&j, b, fields[k]),
+            x = ak_member(&current, cb, fields[k]);
+        size_t n = j.tokens[a].end - j.tokens[a].start;
+        if (n != current.tokens[x].end - current.tokens[x].start ||
+            memcmp(j.text + j.tokens[a].start,
+                   current.text + current.tokens[x].start, n))
+            goto done;
+    }
+    code = APKG_OK;
+done:
+    ak_json_free(&j);
+    ak_json_free(&current);
+    return code;
+}
 apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
                                apkg_text history, apkg_plan **out,
                                apkg_error **e) {
@@ -685,10 +767,9 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
         code = APKG_RECOVERY_REQUIRED;
         goto done;
     }
-    if (an != s->view.source_record.size || memcmp(after, s->raw, an)) {
-        code = APKG_STALE;
+    code = rollback_applicable(s, (char *)after, an);
+    if (code)
         goto done;
-    }
     ak_hash(intent, in, &h);
     ak_tohex(h.bytes, 32, sha);
     if (memcmp(digest, sha, 64)) {
@@ -701,6 +782,21 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
         goto done;
     }
     b = ak_member(&plan, 0, "body");
+    uint64_t historical_kind;
+    int kind_token = ak_member(&plan, b, "kind");
+    if (kind_token >= 0 && !ak_u64(&plan, kind_token, &historical_kind) &&
+        historical_kind == APKG_PLAN_CHANNEL_ACCEPT) {
+        code = APKG_POLICY;
+        goto done;
+    }
+    int recorded_after = ak_member(&plan, b, "new_state");
+    if (recorded_after < 0 ||
+        plan.tokens[recorded_after].end - plan.tokens[recorded_after].start !=
+            an ||
+        memcmp(plan.text + plan.tokens[recorded_after].start, after, an)) {
+        code = APKG_INTEGRITY;
+        goto done;
+    }
     ak_hash(old, on, &h);
     ak_tohex(h.bytes, 32, sha);
     if (ak_string(&plan, ak_member(&plan, b, "before"), before,

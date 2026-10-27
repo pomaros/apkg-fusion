@@ -461,7 +461,9 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
     if (ak_json_parse(raw, len, &j))
         goto invalid;
     if (!ak_object(&j, "root") ||
-        !ak_fields(&j, ak_member(&j, 0, "body"), fields, 5))
+        !ak_fields_optional(
+            &j, ak_member(&j, 0, "body"), fields, 5,
+            (const char *const[]){"channel_heads", "package_generation"}, 2))
         goto unsupported;
     b = ak_member(&j, 0, "body");
     {
@@ -483,6 +485,12 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
         s->view.identity_state = APKG_KNOWN;
         s->view.generation.state = APKG_KNOWN;
         s->view.generation.value = generation;
+        s->package_generation = generation;
+        int pg = ak_member(&j, b, "package_generation");
+        if (pg >= 0 &&
+            (ak_u64(&j, pg, &s->package_generation) || !s->package_generation ||
+             s->package_generation > generation))
+            goto invalid;
     }
     {
         int p = ak_member(&j, b, "policy");
@@ -496,6 +504,14 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
             goto invalid;
         }
         ak_json_free(&policy);
+    }
+    {
+        int heads = ak_member(&j, b, "channel_heads");
+        if (!ak_channel_heads_valid(&j, heads))
+            goto invalid;
+        s->channel_heads = heads < 0 ? ak_copy("[]", 2) : ak_slice(&j, heads);
+        if (!s->channel_heads)
+            goto nomem;
     }
     arr = ak_member(&j, b, "installed");
     if (arr < 0 || j.tokens[arr].type != '[')
@@ -704,5 +720,6 @@ void apkg_snapshot_free(apkg_snapshot *s) {
     free(s->policy);
     free(s->target);
     free(s->diagnostic);
+    free(s->channel_heads);
     free(s);
 }

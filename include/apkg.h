@@ -172,6 +172,7 @@ typedef struct {
     apkg_trust_state trust;
     apkg_fact_state
         freshness; /* UNKNOWN: signature/floor is not online freshness */
+    apkg_u64_fact accepted_sequence; /* root's durable floor; UNKNOWN before acceptance */
 } apkg_channel_view;
 typedef struct {
     apkg_text authority, name, version, target;
@@ -254,7 +255,8 @@ typedef enum {
     APKG_PLAN_REPAIR,
     APKG_PLAN_UPGRADE,
     APKG_PLAN_ROLLBACK,
-    APKG_PLAN_RESOLVE
+    APKG_PLAN_RESOLVE,
+    APKG_PLAN_CHANNEL_ACCEPT
 } apkg_plan_kind;
 typedef struct {
     apkg_plan_kind kind;
@@ -310,6 +312,11 @@ apkg_status apkg_plan_resolve(apkg_ctx *, const apkg_snapshot *,
                               apkg_package *const *candidates,
                               size_t candidate_count, int include_recommends,
                               apkg_plan **, apkg_error **);
+/* Explicit journaled metadata change. Preserves installed packages and grants
+ * no keys/review. Rechecks a bound endpoint; same-sequence forks refuse. */
+apkg_status apkg_plan_channel_accept(apkg_ctx *, const apkg_snapshot *,
+                                      const apkg_channel *, apkg_plan **,
+                                      apkg_error **);
 const apkg_plan_view *apkg_plan_get(const apkg_plan *);
 apkg_status apkg_plan_effect_at(const apkg_plan *, uint64_t,
                                 const apkg_effect_view **, apkg_error **);

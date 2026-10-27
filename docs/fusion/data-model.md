@@ -282,8 +282,9 @@ formats requires an explicitly versioned transcript. Old payload/manifest
 signatures remain verifiable in their source format.
 
 The first [signed-channel metadata profile](channels.md) implements discovery
-signature/role checks and exact immutable views; transport, durable freshness
-tracking and qualification remain separate obligations.
+signature/role checks and exact immutable views. Host file/HTTP transport and
+explicit journaled per-root replay floors are now implemented; online freshness,
+revocation observation and independent qualification remain separate obligations.
 
 A channel has a stable configured identity, endpoints, snapshot reference and
 its own authentication/trust policy. Channel signatures authenticate discovery;

@@ -216,15 +216,33 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
         ak_json_free(&state);
         return errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
     }
-    const char *action = p->view.kind == APKG_PLAN_REMOVE    ? "Remove"
-                         : p->view.kind == APKG_PLAN_REPAIR  ? "Repair"
-                         : p->view.kind == APKG_PLAN_UPGRADE ? "Upgrade"
-                         : p->view.kind == APKG_PLAN_ROLLBACK
-                             ? "Rollback"
+    const char *action = p->view.kind == APKG_PLAN_REMOVE     ? "Remove"
+                         : p->view.kind == APKG_PLAN_REPAIR   ? "Repair"
+                         : p->view.kind == APKG_PLAN_UPGRADE  ? "Upgrade"
+                         : p->view.kind == APKG_PLAN_ROLLBACK ? "Rollback"
+                         : p->view.kind == APKG_PLAN_CHANNEL_ACCEPT
+                             ? "Accept channel replay floor"
                              : "Resolve/install";
     ak_tohex(p->view.plan_digest.bytes, 32, digest);
     ak_buf_add(&b, "%s\nRoot folder: %s\nApproved plan: %s\n", action, p->root,
                digest);
+    if (p->view.kind == APKG_PLAN_CHANNEL_ACCEPT) {
+        arr = ak_member(&state, ak_member(&state, 0, "body"), "channel_heads");
+        for (i = (size_t)arr + 1; i < state.tokens[arr].next;
+             i = state.tokens[i].next) {
+            char id[33], sha[65];
+            uint64_t sequence;
+            ak_string(&state, ak_member(&state, (int)i, "id"), id, sizeof id);
+            ak_string(&state, ak_member(&state, (int)i, "snapshot_sha256"), sha,
+                      sizeof sha);
+            ak_u64(&state, ak_member(&state, (int)i, "sequence"), &sequence);
+            ak_buf_add(&b,
+                       "Channel: %s\nAccepted sequence: %" PRIu64
+                       "\nSnapshot SHA-256: %s\n",
+                       id, sequence, sha);
+        }
+        goto finish;
+    }
     arr = ak_member(&state, ak_member(&state, 0, "body"), "installed");
     for (i = (size_t)arr + 1; i < state.tokens[arr].next;
          i = state.tokens[i].next) {
@@ -320,6 +338,7 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
         ak_json_free(&before);
         ak_json_free(&next);
     }
+finish:
     ak_buf_add(&b, "\nCommit .apkg/state at generation %" PRIu64 "\n",
                p->view.generation + 1);
     apkg_status code = b.bad;
