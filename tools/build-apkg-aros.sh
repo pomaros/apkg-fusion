@@ -22,7 +22,7 @@ sdk=$APKG_AROS_SDK
 dev=$sdk/AROS/Developer
 cc=$APKG_AROS_TOOLS/bin/clang
 ar=$APKG_AROS_TOOLS/bin/llvm-ar
-out=$repo/build/aros-common/$target-$abi-$runtime
+out=${APKG_AROS_OUT:-$repo/build/aros-common/$target-$abi-$runtime}
 # collect-aros lives in the SDK's tools, or beside a native build's host tools.
 export COMPILER_PATH="${APKG_AROS_HOST_TOOLS:-$sdk/tools}:$APKG_AROS_TOOLS/bin"
 for need in "$cc" "$ar" "$dev/lib/startup.o"; do [ -e "$need" ] || { echo "missing $need" >&2; exit 2; }; done

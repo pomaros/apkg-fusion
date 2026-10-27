@@ -179,7 +179,9 @@ For an aarch64 hosted cross-build, configure `APKG_AROS_SDK` and
 `APKG_AROS_RUNTIME=native` builds for native AROS (no x18 reservation); a
 native SDK keeps `collect-aros` with its build's host tools, named by
 `APKG_AROS_HOST_TOOLS`.
-It writes only under this checkout's build directory. It does not launch or
+It writes under this checkout's build directory by default. `APKG_AROS_OUT`
+selects a separate output directory for an SDK/runtime cohort; use a fresh
+directory or `APKG_AROS_REBUILD=1` when changing SDKs. It does not launch or
 modify an operating system. `tools/check-apkg-aros.sh` provides a separate
 header/type check with a configured SDK. Cross-builds prove compilation/linking,
 not a GUI/runtime acceptance pass on either distribution.
@@ -196,6 +198,10 @@ files, parent-lock contention, cancellation and late cancellation. Test-only
 nth-allocation injection covers 293 planner/executor/reader/presentation
 positions, requiring typed failures and consistent recoverable outcomes. CLI/worker
 outputs are compared for identical installed descriptor/state semantics.
+
+The [isolated AROS rehearsal](../../tests/aros/README.md) prepares signed RAM-only
+fixtures and independently validates an exported command report. Preparation
+and host verifier tests do not establish target runtime acceptance.
 
 `sh tests/apkg/sanitize.sh` runs actual common-library lifetime/event-copy
 checks and CLI/worker client scenarios under ASan/UBSan. The normal fusion CI
