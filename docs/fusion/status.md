@@ -11,6 +11,14 @@ implemented below; remaining service/operation integration is listed separately.
 
 ## Alpha progress at a glance
 
+Scope decision: CLI-CONTINUITY, IMPORT-PROFILES and PRIOR-VERSIONS (previous
+lots 3–5) are deferred by the operator, not completed. Existing adapters and
+tests are retained. [Legacy support choices](legacy-support.md) list the work
+and evidence required according to the support selected later. This removes
+legacy completion from the current candidate gate; it does not qualify migration
+of released installations. Host qualification, M1 testing and the report before
+the portal remain in order.
+
 The active execution sequence stops before further portal work: close the
 [non-portal checklist](non-portal-checklist.md), qualify the resulting source on
 macOS/Linux, test that candidate on the M1, then deliver the detailed APKG merge

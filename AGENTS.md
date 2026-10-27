@@ -14,7 +14,10 @@ from a sibling or ancestor project.
 - Preserve capabilities from both projects. Record intentional behavior changes
   in acceptance and update consumers together. The original pkg side has no
   compatibility obligation. Released APKG users require migration, recovery
-  and command/script continuity.
+  and command/script continuity before those support claims. The operator has
+  deferred completion of CLI-CONTINUITY, IMPORT-PROFILES and PRIOR-VERSIONS
+  from this candidate; see [legacy support choices](docs/fusion/legacy-support.md).
+  Preserve existing adapters/tests without expanding those deferred lots.
 - Keep author publication independent of curated review. Signature, trust,
   review and runtime testing are distinct facts. Authors cannot self-award
   maintainer qualifications through package metadata.

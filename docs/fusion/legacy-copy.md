@@ -3,6 +3,10 @@
 
 # Legacy copy import rehearsal
 
+Completion of historical support is deferred from the current candidate.
+See [support choices and remaining work](legacy-support.md). Existing tested
+adapters remain available without a complete migration/compatibility claim.
+
 The host adapter [apkg_migrate.py](../../tools/apkg_migrate.py) prepares a separate
 copy of an arospkg root and registers its bundles through the common engine.
 It never changes the original root, installs the new client over an existing

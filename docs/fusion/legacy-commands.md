@@ -3,6 +3,10 @@
 
 # Legacy command rehearsal
 
+Completion of historical support is deferred from the current candidate.
+See [support choices and remaining work](legacy-support.md). Existing tested
+adapters remain available without a complete migration/compatibility claim.
+
 `apkg legacy ...` and the installed `apkg-legacy` alias accept a defined
 subset of released APKG command spelling over the common engine. The adapter
 is native C and also builds for the AROS SDK; host execution qualifies the

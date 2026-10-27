@@ -233,13 +233,11 @@ The remaining non-portal work, in order:
    retain the current explicit freshness limits. Wider online revocation policy and self-update copies
    on other volumes remain broader release work.
 3. PkgManager: settings, news and the ARexx surface over the common client API.
-4. ALPHA-IMPORT completion: recorded relations and system requirements
-   import; placements, settings and launch conversion and prior-version
-   history remain. The first native [command compatibility profile](docs/fusion/legacy-commands.md)
-   maps list/info/verify and install/upgrade/remove/recovery to the common engine
-   and is rehearsed on an imported copy with a local signed channel. Wider
-   command/output compatibility remains explicit work.
-   Production upstream catalogue publication is a separate rollout dependency.
+4. Legacy completion is deferred by operator instruction: command continuity,
+   placement/settings/launch conversion and prior-version history are outside
+   the current candidate gate. Preserve existing adapters and regression tests;
+   [legacy support choices](docs/fusion/legacy-support.md) define the deferred
+   work and acceptance evidence for each future support profile.
 5. The clean-workspace alpha scenario has a host test; run it with both
    inherited suites and the portal tests in exact-source Linux/macOS CI.
 6. Test the completed candidate on the M1, then stop and deliver the detailed
@@ -249,9 +247,35 @@ The remaining non-portal work, in order:
 Host and native evidence stay distinct. An AROS type check is not runtime
 qualification, and no step above claims power-loss durability.
 
+### Remaining closure batches
+
+This is the operator-facing breakdown through the stop before portal work.
+Sizes describe relative remaining effort, not calendar promises: S small,
+M medium, L substantial, XL several implementation sub-batches. Each batch
+needs its own evaluation; a passing earlier checkpoint does not close it.
+
+| Batch | Deliverable / exit evidence | Remaining size |
+|---|---|---|
+| NEWS-LAST | Finish full checks, documentation and publication of the implemented last-refresh comparison/profile work. | S at the current validation checkpoint |
+| DESKTOP-CLOSE | Finish remaining settings/ARexx behavior and audit every exposed non-demo control against the common engine. | M |
+| HOST-FINAL | Freeze the candidate and run clean-workspace lifecycle/recovery, both inherited suites and exact-source Linux/macOS CI; inspect post-removal state. | M, excluding defects found |
+| M1-FINAL | Test that candidate's CLI/window, real application launch and full package lifecycle on the M1; retain independent results and cleanup checks. | M–L, depending on native defects |
+| REPORT | Deliver the detailed APKG comparison, evidence and limits; stop before the portal. | S |
+
+CLI-CONTINUITY, IMPORT-PROFILES and PRIOR-VERSIONS (previous lots 3–5) are
+deferred, not completed, and do not block this sequence. Their support choices,
+sizes and acceptance criteria live in
+[legacy support choices](docs/fusion/legacy-support.md). Broader migration between versions of the APKG tool itself
+is separately tracked in [TODO](TODO.md); import of an old installation is not
+proof of that complete version-to-version upgrade path. The installed M1
+`libpkg` updater migration stays with its separate owner. No portal batch is
+included in this closure sequence.
+
 ## Alpha scope boundary
 
-The six ALPHA gates above retain their operator-authorized scope. Existing
+The ALPHA gates retain their operator-authorized scope except for the explicit
+legacy deferral above. This candidate makes no complete historical migration
+or script-continuity claim. Existing
 source-list, policy-administration, single-root self-update and system-probe
 code must meet their implemented contracts; their presence does not add an
 unbounded new release prerequisite. Multi-volume self-update, official key

@@ -7,6 +7,13 @@ These rows define preserved capabilities and evidence needed to accept them.
 They are obligations, not passes. [Implementation status](status.md) records
 completed and outstanding work against the [architecture](architecture.md).
 
+For this candidate, the operator has deferred completion of historical command
+compatibility, installation conversion and prior-version import.
+[Legacy support choices](legacy-support.md) define the work before those claims;
+the corresponding rows below remain future support obligations, not current
+candidate blockers. Existing common recovery, rollback and new-installation
+tests remain active.
+
 | Capability | Common behavior | Acceptance evidence |
 |---|---|---|
 | One library | Clients share contexts, resolution, ownership and transactions. | Link and integration checks exclude a second mutation engine; CLI and GUI produce equivalent state. |
