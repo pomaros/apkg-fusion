@@ -9,6 +9,11 @@
 <h1>API and feeds</h1>
 <p class="lead">For tools, agents and feed readers. Read-only, no key, JSON or Atom. Channels themselves are plain files: pkg reads them directly.</p>
 
+<h2 class="label">APKG packages</h2>
+<p><a href="/packages/apkg">Browse common APKG channels</a>. The signed common catalogue is also available as JSON:</p>
+<pre><code>GET /api/common/channels/&lt;channel&gt;/packages?q=&lt;text&gt;&amp;authority=&lt;identity&gt;&amp;target=&lt;target&gt;&amp;skip=0&amp;take=100</code></pre>
+<p>The response includes the channel identity, exact snapshot, matching build count and paged builds with complete signed descriptors and snapshot-pinned page links. Revisions and sizes remain decimal strings. Signatures are checked by APKG; client trust, reviewer and tester authorization are not evaluated. Use the channel's immutable files for signed bytes.</p>
+
 <h2 class="label">Reading a channel</h2>
 <pre><code>curl '@site/pkg/index'
 curl '@site/pkg/withdrawals'</code></pre>

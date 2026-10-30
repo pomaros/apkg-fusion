@@ -1,0 +1,24 @@
+@* SPDX-License-Identifier: MIT
+   Copyright (c) 2026 John Knipper *@
+@page "/packages/apkg"
+@using Portal.Channels
+@inject CommonCatalogue CommonCatalogue
+@{
+    ViewData["Title"] = "APKG packages";
+    Response.Headers.CacheControl = "no-store";
+    var channels = CommonCatalogue.ChannelNames().ToList();
+}
+<h1>APKG packages</h1>
+<p class="lead">Browse signed packages for the common APKG client. Authors can publish without catalogue review. Your package manager decides which signing keys to trust.</p>
+@if (channels.Count == 0)
+{
+    <p>No APKG channels have been published here yet.</p>
+}
+@foreach (var channel in channels)
+{
+    <section class="channel">
+        <h2><a href="/packages/apkg/channels/@channel">@channel</a></h2>
+        <p>Browse packages and exact builds in this channel.</p>
+    </section>
+}
+<p><a href="/search">Browse the existing Pkg catalogue</a>.</p>

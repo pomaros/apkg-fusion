@@ -19,9 +19,10 @@
 <header class="top">
     <div class="wrap top-row">
         <a class="brand" href="/"><span class="mark" aria-hidden="true"></span>AROS Packages</a>
-        @{ var here = Context.Request.Path.Value ?? "/"; string On(string p) => (p == "/search" ? here.StartsWith("/packages") || here.StartsWith("/search") : here.StartsWith(p)) ? "on" : ""; }
+        @{ var here = Context.Request.Path.Value ?? "/"; string On(string p) => (p == "/search" ? !here.StartsWith("/packages/apkg") && (here.StartsWith("/packages") || here.StartsWith("/search")) : here.StartsWith(p)) ? "on" : ""; }
         <nav class="nav" aria-label="Main">
             <a class="@On("/search")" href="/search">Packages</a>
+            <a class="@(here.StartsWith("/packages/apkg") ? "on" : "")" href="/packages/apkg">APKG</a>
             <a class="@On("/channels")" href="/channels">Channels</a>
             <a class="@On("/downloads")" href="/downloads">Downloads</a>
             <a class="@(here.StartsWith("/publishers") ? "on" : "")" href="/publishers">Publishers</a>

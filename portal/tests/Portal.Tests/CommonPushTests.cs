@@ -16,15 +16,17 @@ namespace Portal.Tests;
 
 public sealed class CommonPushTests
 {
-    sealed class Site : WebApplicationFactory<Program>
+    internal sealed class Site : WebApplicationFactory<Program>
     {
-        public readonly CommonChannelTests.Fixture Source = new();
+        public readonly CommonChannelTests.Fixture Source;
+        public bool Loopback;
         public readonly string Data = Directory.CreateTempSubdirectory("portal-common-push-").FullName;
         public readonly string Key, OtherKey, LinkKey;
         readonly string configuration;
         public string Live => Path.Combine(Data, "channels", "common");
-        public Site()
+        public Site(bool rich = false)
         {
+            Source = new(rich);
             var a = PublisherKeys.Create("first", "common", files: true);
             var b = PublisherKeys.Create("second", "common", files: true);
             var c = PublisherKeys.Create("link", "common");
@@ -37,6 +39,7 @@ public sealed class CommonPushTests
             builder.UseSetting("Portal:ApkgPath", Source.Engine);
             builder.UseSetting("Portal:PkgPath", Path.Combine(Data, "legacy-must-not-run"));
             builder.UseSetting("Portal:Keys", configuration);
+            builder.UseSetting("Portal:AllowLoopbackHttpPush", Loopback.ToString());
         }
         public HttpClient Client(string? key = null)
         {

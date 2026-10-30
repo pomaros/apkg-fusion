@@ -1,0 +1,77 @@
+@* SPDX-License-Identifier: MIT
+   Copyright (c) 2026 John Knipper *@
+@page "/packages/apkg/builds/{channel}/{digest}"
+@using Portal.Channels
+@using Microsoft.Extensions.Options
+@inject CommonCatalogue CommonCatalogue
+@inject IOptions<PortalOptions> Options
+@{
+    ViewData["Title"] = "APKG build";
+    Response.Headers.CacheControl = "no-store";
+    var channel = (string)RouteData.Values["channel"]!;
+    var digest = (string)RouteData.Values["digest"]!;
+    var snapshot = Request.Query["snapshot"].ToString();
+    var result = await CommonCatalogue.Read(channel, snapshot.Length == 0 ? null : snapshot, Request.HttpContext.RequestAborted);
+    var view = result.View;
+    var build = view?.Builds.SingleOrDefault(b => b.Digest == digest);
+    Response.StatusCode = view is null ? result.Status : build is null ? 404 : 200;
+}
+<p class="crumbs"><a href="/packages/apkg">APKG packages</a> / <a href="/packages/apkg/channels/@channel">@channel</a></p>
+@if (build is null || view is null)
+{
+    <h1>Build unavailable</h1>
+    <p>@(result.Error ?? "This exact build is not in the selected signed snapshot.")</p>
+    return;
+}
+@{
+    ViewData["Title"] = build.Name + " " + build.Version + " · APKG";
+    var url = Site.ChannelUrl(Request, Options.Value, channel);
+    var command = $"apkg channel-install ROOT \"{url}\" {view.ChannelId} {view.Snapshot} {build.Digest}";
+}
+<h1>@build.Name <span class="muted">@build.Version</span></h1>
+<p class="lead">@build.Summary</p>
+<dl class="facts">
+    <dt>Author identity</dt><dd><code class="digest">@build.Authority</code></dd>
+    <dt>Target</dt><dd>@build.Target</dd>
+    <dt>Packaging revision</dt><dd>@build.Revision</dd>
+    <dt>Kind</dt><dd>@build.Kind</dd>
+    <dt>Category</dt><dd>@(build.Category ?? "Not recorded")</dd>
+    <dt>License</dt><dd>@(build.License ?? "Not recorded")</dd>
+    <dt>Source repository</dt><dd>@(build.Repository ?? "Not recorded")</dd>
+</dl>
+<h2>Signatures and review</h2>
+<p>The channel and package signatures have been checked. Your client must authorize the channel and author keys before installation. Publication does not mean this build has been reviewed or tested on your system.</p>
+<p>@build.Attestations.GetArrayLength() signed observation(s) attached; reviewer and tester authorization have not been evaluated here. Payload contents have not been checked by this page.</p>
+<dl class="facts">
+    <dt>Author public key</dt><dd><code class="digest">@build.AuthorSignature.GetProperty("public_key").GetString()</code></dd>
+    <dt>Channel public key</dt><dd><code class="digest">@view.ChannelPublicKey</code></dd>
+    <dt>Exact build</dt><dd><code class="digest">@build.Digest</code></dd>
+    <dt>Signed snapshot</dt><dd><code class="digest">@view.Snapshot</code></dd>
+</dl>
+<h2>Preview installation</h2>
+<p>Replace <code>ROOT</code> with an initialized package root whose trust policy you have configured. This command previews the exact build and its dependencies. Review the effects before confirming the plan digest it returns.</p>
+<div class="cmd wrapcode"><code>@command</code><button class="copy" data-copy="@command">Copy</button></div>
+<p class="muted small">This page retains the selected snapshot. If the channel advances, refresh its catalogue and review a new plan. APKG refuses an outdated selection.</p>
+<h2>Declared files</h2>
+<table class="list">
+    <thead><tr><th>Path</th><th>Type</th><th>Bytes</th><th>Configuration</th></tr></thead>
+    <tbody>
+    @foreach (var file in build.Files)
+    {
+        <tr>
+            <td>@file.GetProperty("path").GetString()</td>
+            <td>@file.GetProperty("type").GetString()</td>
+            <td>@(file.TryGetProperty("size", out var size) ? size.GetString() : "—")</td>
+            <td>@(file.TryGetProperty("config", out var config) ? config.GetString() : "—")</td>
+        </tr>
+    }
+    </tbody>
+</table>
+<details>
+    <summary>Complete signed descriptor and observations</summary>
+    <p>Includes dependencies, requirements, payload attributes and exact signature evidence.</p>
+    <pre>@build.Descriptor.GetRawText()</pre>
+    <pre>@build.AuthorSignature.GetRawText()</pre>
+    <pre>@build.Attestations.GetRawText()</pre>
+</details>
+<p><a href="/@channel/snapshots/@view.Snapshot/channel.json">Signed channel document</a> · <a href="/@channel/snapshots/@view.Snapshot/channel.signature.json">Channel signature</a></p>

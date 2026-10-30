@@ -26,6 +26,12 @@ public sealed partial class CommonChannels(IOptions<PortalOptions> options, Comm
     [GeneratedRegex("^[0-9a-f]{64}\\n\\z")]
     private static partial Regex Reference();
 
+    [GeneratedRegex("^[0-9a-f]{64}\\z")]
+    private static partial Regex Digest();
+
+    public bool HasReference(string channel) => ChannelPaths.IsChannelName(channel)
+        && File.Exists(Path.Combine(options.Value.ChannelsDir, channel, "current"));
+
     async Task<byte[]> Read(string path, int bound, CancellationToken ct)
     {
         // Refuse links inside the operator-owned data tree. Ancestors of that configured
@@ -61,6 +67,26 @@ public sealed partial class CommonChannels(IOptions<PortalOptions> options, Comm
         var reference = Encoding.ASCII.GetString(before);
         if (!Reference().IsMatch(reference)) throw new InvalidDataException("invalid common current reference");
         var digest = reference[..64];
+        var observed = await ReadSnapshot(directory, digest, ct);
+        var after = await Read(head, 65, ct);
+        if (!before.AsSpan().SequenceEqual(after))
+            throw new InvalidDataException("common channel changed during observation");
+        return observed;
+    }
+
+    /// Exact-build links keep their signed snapshot when the channel advances.
+    /// An historical observation makes no claim about the current channel head.
+    public async Task<CommonChannel?> OpenSnapshot(string channel, string digest, CancellationToken ct = default)
+    {
+        if (!ChannelPaths.IsChannelName(channel) || !Digest().IsMatch(digest))
+            return null;
+        var directory = Path.Combine(options.Value.ChannelsDir, channel);
+        return Directory.Exists(Path.Combine(directory, "snapshots", digest))
+            ? await ReadSnapshot(directory, digest, ct) : null;
+    }
+
+    async Task<CommonChannel> ReadSnapshot(string directory, string digest, CancellationToken ct)
+    {
         var snapshot = Path.Combine(directory, "snapshots", digest);
         var document = await Read(Path.Combine(snapshot, "channel.json"), 2 * 1024 * 1024, ct);
         var signature = await Read(Path.Combine(snapshot, "channel.signature.json"), 16384, ct);
@@ -77,9 +103,6 @@ public sealed partial class CommonChannels(IOptions<PortalOptions> options, Comm
             if (verified.GetProperty("sha256").GetString() != digest ||
                 verified.GetProperty("domain").GetString() != "channel")
                 throw new InvalidDataException("common verifier identity mismatch");
-            var after = await Read(head, 65, ct);
-            if (!before.AsSpan().SequenceEqual(after))
-                throw new InvalidDataException("common channel changed during observation");
             using var json = JsonDocument.Parse(document);
             return new(digest, verified.GetProperty("public_key").GetString()!, json.RootElement.Clone());
         }

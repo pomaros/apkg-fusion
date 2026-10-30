@@ -14,6 +14,11 @@ The [selective arospkg 0.7.2 overlay](#selective-arospkg-072-overlay) is a later
 authorized maintenance follow-up. The M1 qualification below still identifies
 the earlier frozen candidate; it does not cover the new link UI.
 
+Portal adaptation was resumed by the operator on 2026-10-30, with joint design
+agreement still open. The [first portal lot](#portal-common-catalogue-and-http-lifecycle)
+adds a verified common catalogue and tests the merged clients over real HTTP.
+Earlier pre-portal stop statements are historical boundaries, not a new hold.
+
 ## Alpha progress at a glance
 
 Scope decision: CLI-CONTINUITY, IMPORT-PROFILES and PRIOR-VERSIONS (previous
@@ -24,10 +29,10 @@ legacy completion from the current candidate gate; it does not qualify migration
 of released installations. Host qualification, the scoped M1 trial and the
 report have been completed in the requested order.
 
-The execution sequence has stopped before further portal work. The
-[non-portal checklist](non-portal-checklist.md) records its scope. Existing portal
-checkpoints below are partial work; resuming the portal requires a later
-operator instruction.
+The [non-portal checklist](non-portal-checklist.md) records the completed earlier
+sequence. Portal work has now resumed provisionally in the
+[portal execution batches](portal.md#portal-execution-batches); joint maintainer
+decisions, live data inventory and production cutover remain separate work.
 
 | Workstream | Current position | Work still required |
 |---|---|---|
@@ -37,14 +42,14 @@ operator instruction.
 | Clients/default product | Shared CLI/worker, explicit source settings, persistent current/previous observations, last-refresh comparison, combined typed rows, recent publications and installed/catalogue INFO/SHOW; default CLI/library/tools use the common engine | Broader native desktop/platform qualification; historical continuity is deferred |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Deferred: placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification; see support choices above |
-| Portal | Common channel HTTP members, verified metadata API and authenticated signed-snapshot commits use the common executable; existing service and regression baseline retained | Common self-service link-only publication, publishing client, catalogue/qualification integration and migration/backup/restore/rollback rehearsal; no live cutover |
+| Portal | Common HTTP metadata/publication plus a verified browsable common catalogue, exact-build pages and a real HTTP client lifecycle; existing service retained | Self-service link-only publication, publishing client, authorized qualification display and migration/backup/restore/rollback rehearsal; no live cutover |
 
-The current stop boundary is reached: the frozen product candidate passes the
+The earlier pre-portal stop boundary was reached: the frozen product candidate passes the
 clean-workspace scenario and exact-source Linux/macOS CI, the scoped M1 lifecycle
 and native regressions pass, and the [merge report](merge-report.md) is delivered.
 This does not complete every release obligation in the table. Legacy completion
-is deferred and portal adaptation requires a later operator instruction. No
-live portal cutover is included.
+is deferred and the resumed portal adaptation remains provisional. No live
+portal cutover is included.
 
 ## Final host qualification and M1 lifecycle passed
 
@@ -99,7 +104,7 @@ it supplies no APKG runtime result. Installed libpkg, startup, updater and
 persistent storage are unchanged. Broader native filesystem/metadata, network,
 self-update, interruption and power-loss qualification stay explicit. The
 [merge report](merge-report.md) distinguishes inherited features, fusion changes
-and these remaining obligations. Portal work has not resumed.
+and these remaining obligations. At that checkpoint, portal work had not resumed.
 
 ## Selective arospkg 0.7.2 overlay
 
@@ -125,7 +130,10 @@ complete inherited arospkg host suite also pass. The updated packer regression
 separately confirms the unchanged 256 MiB expanded-total cap after accepting
 128 MiB members. Documentation checks cover 87 Markdown files with no broken
 links. The new link/report C suite passes ASan/UBSan; the full memory matrix
-remains part of the Linux/macOS CI workflow.
+passed in [exact-source Linux/macOS CI](https://github.com/pomaros/apkg-fusion/actions/runs/41112582555)
+for overlay source `49e6d227b9eda3dbd90f384a5c4adc2b71041639`; all four fusion
+and portal baseline jobs passed. This preceding CI result is not substituted
+for the later portal checkpoint.
 The browser/clipboard/pagination/close-during-open workflow still needs an AROS
 runtime follow-up; compilation is not native behavior evidence. The old M1
 report is retained without requalification. Tool migration cases from upstream
@@ -133,6 +141,50 @@ report is retained without requalification. Tool migration cases from upstream
 remain deferred. The next shared step is the
 [maintainer alignment handoff](maintainer-agreement.md), with actual joint
 decisions still unrecorded.
+
+## Portal common catalogue and HTTP lifecycle
+
+The operator resumed portal work while joint design decisions remain open.
+[Portal contracts and batches](portal.md) record the provisional scope. The
+portal now presents common-engine-verified channel packages through an APKG
+navigation entry, a per-channel search and exact-build pages. Author identities,
+full version/revision and targets remain distinct; files and complete signed
+records remain inspectable. Exact-build links pin an immutable signed snapshot,
+which is reverified on each read even after the current head advances. The
+JSON catalogue retains 64-bit values as strings, filters by full author/target
+and searches package text and declared file paths. Unlisted-channel discovery
+uses the portal's existing visibility rules; direct links remain available.
+
+Signature checks do not grant author/channel trust or reviewer/tester roles.
+A real author-signed self-review fixture remains unevaluated in the portal;
+client policy still decides authorization. A deliberately extended signed
+PKG/1 fixture exercises the full uint64 revision range without widening the
+inherited TOML bridge's 31-bit authoring profile. The legacy catalogue is not a
+fallback for missing, corrupt or unverifiable common metadata.
+
+A new test starts a real loopback Kestrel listener, uses authenticated resumable
+uploads and the common commit helper, reads the new catalogue, then consumes
+its exact selection through the actual common CLI and PkgManager worker
+adapter. The test checks an untrusted-author refusal, identical installed
+records/replay floors, hidden files, empty directories and full-width identity.
+It advances publication while retaining the old exact-build page, stops the
+portal, and removes the packages offline. Independent inspection checks the
+empty registry, no pending transaction/preparation and exactly the edited
+configuration and personal file preserved in each root. This is a host worker
+adapter and application-data lifecycle, not an AROS GUI/network run.
+
+Local macOS validation passes all 149 portal tests and `make test-fusion`:
+408 common tests, 110 provisional CLI checks, 78 default CLI checks and 78
+publication checks. The final portal build has zero warnings/errors. Headless
+Chrome captures were inspected at 1280-pixel desktop and 390-pixel phone
+viewports; both catalogue and build pages have document widths equal to their
+viewports after the responsive layout correction. Documentation checks cover
+87 Markdown files with no broken links. CI includes the actual worker-adapter
+build as a portal-test prerequisite. Local browser captures use synthetic data;
+no production accounts, keys or package data are modified. Link-only common publication, a common publishing client, authorized
+qualification projection and the data migration/restore/cutover-rollback
+rehearsal remain future lots. No deployment or common-design approval is
+claimed.
 
 ## Historical implementation checkpoints
 

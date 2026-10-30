@@ -103,6 +103,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<PkgRunner>();
 builder.Services.AddSingleton<CommonEngine>();
 builder.Services.AddSingleton<CommonChannels>();
+builder.Services.AddSingleton<CommonCatalogue>();
 builder.Services.AddSingleton<PushService>();
 builder.Services.AddSingleton<ArchiveChecker>();
 builder.Services.AddSingleton<ArchiveStore>();

@@ -25,13 +25,18 @@ The [selective arospkg 0.7.2 overlay](docs/fusion/upstream-0.7.2.md) is a bounde
 maintenance update after the qualified candidate. It does not settle the open
 joint decisions or renew that candidate's native runtime qualification.
 
-Next, obtain both maintainers' decisions on the
+Keep both maintainers' decisions open in the
 [alignment handoff](docs/fusion/maintainer-agreement.md): skeleton/common
 journal, publication versus independent review and official-key ownership,
 existing-user support and the first joint release scope. Record proposals,
 accepted decisions and objections explicitly, then assign non-overlapping
 implementation tasks. No maintainer agreement has yet been recorded.
-Further portal work remains deferred until the operator resumes it.
+The operator resumed portal adaptation on 2026-10-30 while joint design
+agreement remains open. The first bounded lot is the verified common catalogue,
+exact-build UI and a real HTTP publication/client lifecycle. See the
+[portal execution batches](docs/fusion/portal.md#portal-execution-batches).
+Work is provisional and reviewable; deployment and live data cutover are not
+part of this sequence.
 
 ## Establish the integration baseline
 
@@ -131,7 +136,7 @@ older than APKG 0.5 where their upgrade route applies.
 
 ## Complete authoring, channels and the portal
 
-Authoring and channel work precedes the deferred portal adaptation. Extend the
+Authoring and channel foundations precede the resumed portal adaptation. Extend the
 TOML bridge to every semantic field and payload shape claimed by a release.
 Publish from directories, shares and web servers without a central account.
 Preserve the portal's self-service accounts, resumable push, discovery,
@@ -187,9 +192,9 @@ release verdict.
 
 ## FUSION-ALPHA scope and gates
 
-The operator-requested sequence is paused at the pre-portal boundary. The
-non-portal candidate, host CI, scoped M1 trial and report are recorded in
-[status](docs/fusion/status.md). Portal adaptation requires a later instruction;
+The pre-portal sequence reached its requested boundary. The non-portal
+candidate, host CI, scoped M1 trial and report are recorded in
+[status](docs/fusion/status.md). The operator has now resumed portal adaptation;
 the broader historical migration batches remain deferred. The original alpha
 scope below is retained to describe its contracts and remaining gates, not as a
 claim that the portal or a joint release is complete.
@@ -209,7 +214,7 @@ facts belong in [status](docs/fusion/status.md).
 | ALPHA-CHANNEL | **Host scope complete** — [signed channels and shared clients](docs/fusion/channels.md); AROS network and online freshness remain open | File and HTTP channels feed context-owned discovery, bounded fetching/cache retention, signature/trust validation and exact-content review/runtime facts. | Genuine signed publication is discoverable and installable. Changed channel/content, unknown keys, stale qualifications, network interruption and offline recovery are tested. Open publication never requires curated approval. |
 | ALPHA-CLIENTS | **Scoped candidate complete** — common CLI/worker and representative M1 interactions; full native matrix remains open | Default `apkg` and the fusion PkgManager use the common engine for this workflow, including browsing and the implemented operations. Adapt current repository consumers; keep imported engines as explicit regression baselines. | CLI and actual worker adapter select and execute equivalent plans. Default product symbols/builds exclude the provisional global request backend. No silent fallback to another writer or truncated operation identity. |
 | ALPHA-IMPORT | **Deferred / partial** — [schema-1 fixture rehearsal](docs/fusion/legacy-copy.md) exists; real installation conversion and broader continuity are deferred | Legacy validation, import/commit and command-compatibility rehearsals preserve originals and provenance. | At least one fully specified pinned fixture migrates and remains operable; ambiguity refuses with diagnostics. Interrupted import/retry preserves old usability and retained records. Unknown distribution identities remain unknown; fixture passes do not certify either live distribution. |
-| ALPHA-PORTAL | **Deferred / partial** — channel read/publication checkpoints exist; portal migration and end-to-end rehearsal await a later instruction | Portal consumes/publishes the common contracts with independent qualifications; migration tooling and a backup/restore/cutover-rollback rehearsal are reviewable. | Portal tests and an end-to-end publication/consumption scenario pass. Rehearsal preserves publisher/trust identities, object identity, URLs and review provenance; no live data or credentials enter the public repository. |
+| ALPHA-PORTAL | **In progress** — common catalogue/exact-build UI and HTTP client lifecycle are the first resumed lot; publication-client, link-only and migration work remain | Portal consumes/publishes the common contracts with independent qualifications; migration tooling and a backup/restore/cutover-rollback rehearsal are reviewable. | Portal tests and an end-to-end publication/consumption scenario pass. Rehearsal preserves publisher/trust identities, object identity, URLs and review provenance; no live data or credentials enter the public repository. |
 
 The [signed-channel profile](docs/fusion/channels.md) divides ALPHA-CHANNEL
 into authenticated metadata, atomic file publication, context-owned file/HTTP
@@ -218,7 +223,7 @@ position of each gate is recorded in the
 [status overview](docs/fusion/status.md#alpha-progress-at-a-glance).
 
 The host clean-workspace scenario and exact-source CI passed; the portal
-migration/rehearsal is still deferred, so the full portal gate is not complete.
+migration/rehearsal is not complete, so the full portal gate remains open.
 The scenario authors a bundle and its dependency, packages/signs/publishes
 through a real channel, discovers through both client paths, previews/approves/
 installs, preserves a personal configuration through upgrade, repairs, rolls
@@ -230,18 +235,17 @@ release claim.
 
 The requested order was non-portal fusion work, an isolated M1 runtime trial,
 then the portal. The first two stages and report are complete within the scoped
-evidence in status; the portal is paused. The existing
+evidence in status; portal adaptation has resumed provisionally. The existing
 M1 updater uses `libpkg` and is migrated by its own owner. Fusion tests never
 replace its installed library or change its update/startup process. Candidate
 binaries, test roots and recovery fixtures stay separate, and native results
 are recorded by exact build. That rehearsal does not establish power-loss
 durability or qualification of other distributions.
 
-Further portal implementation is outside the current execution sequence. The
+Portal implementation now follows the bounded lots in the portal document. The
 [non-portal checklist](docs/fusion/non-portal-checklist.md), host CI and scoped M1
 trial support the [merge report](docs/fusion/merge-report.md), including additions,
-compatibility changes, evidence and remaining limits. Resume the portal only on
-a later operator instruction. The earlier RAM component rehearsal alone did not
+compatibility changes, evidence and remaining limits. The earlier RAM component rehearsal alone did not
 close the later client and integration checkpoints.
 
 Other AROS execution and power-loss/distribution tests remain deferred. This goal
@@ -358,7 +362,7 @@ Complexity is relative engineering scope, not a token or time estimate.
 | MIGRATE | **Deferred** — [schema-1 copy rehearsal](docs/fusion/legacy-copy.md) exists; live-distribution import and broad compatibility are deferred | MAP + OPERATIONS + RELATIONS | Importer, retry/commit protocol and legacy CLI compatibility adapter. | Original records retained; failed import preserves old usability; real fixtures from each distribution claimed pass. Break into validation-only, import/commit, interruption and compatibility tasks. | Several medium tasks |
 | AUTHORING | **Partial** — [TOML, signed artifacts and channels](docs/fusion/authoring.md) work on hosts; unsupported semantics and native metadata qualification remain open | CONTRACT + RELATIONS | Extend `tools/apkg-publish` field by field; preserve revisions, requirements, relations, hidden files, empty directories and attributes. | Remove a refusal only with an end-to-end fidelity test. One semantic family per task; no silent field dropping. | Several small/medium tasks |
 | QUALIFY | **Partial** — [independent attestations](docs/fusion/attestations.md) implemented; portal integration and official key governance remain open | SIGNED-READ + AUTHORING | Connect catalogue/portal/client qualifications, signed attestations and trust bootstrap/rotation. | Open publication remains independent; exact-digest review and runtime evidence survive transport; authors cannot grant review. Split attestations, client presentation and key lifecycle. | Three medium tasks |
-| PORTAL-MIGRATE | **Deferred** — preliminary channel integration exists; [migration and rehearsal](docs/fusion/portal.md) await a later instruction | Merged client/channel contracts + QUALIFY | Migrate the existing portal at https://aros-pkg.azurewebsites.net/ to the merged product after fusion. | Inventory and back up channels, immutable objects, publisher accounts/authorization, configuration and statistics; rehearse restore and migration; verify signed host/AROS consumption, publishing and existing URLs; retain a tested cutover rollback. Preserve actual trust identities and review provenance. | Several bounded tasks after fusion |
+| PORTAL-MIGRATE | **In progress** — [portal batches](docs/fusion/portal.md#portal-execution-batches) begin with verified browsing and a real HTTP lifecycle; data migration/rehearsal remain open | Merged client/channel contracts + QUALIFY | Migrate the existing portal at https://aros-pkg.azurewebsites.net/ to the merged product after fusion. | Inventory and back up channels, immutable objects, publisher accounts/authorization, configuration and statistics; rehearse restore and migration; verify signed host/AROS consumption, publishing and existing URLs; retain a tested cutover rollback. Preserve actual trust identities and review provenance. | Several bounded tasks after fusion |
 | CONSUMERS | **Partial** — repository clients use the common API; external consumer inventory/adaptations remain open; M1 updater has a separate owner | Stable operation APIs | Inventory-driven changes in each consuming repository. | Adapt one consumer, its pin/build/API/CLI parsing and its own tests in one task. Private integrations remain private. Do not migrate to the provisional shim. | Small/medium per consumer |
 | PLATFORMS | **Partial** — Linux/macOS hosts and scoped M1 under HV tested; Windows, other targets and general native platform qualification remain open | Relevant functionality complete | One CPU/ABI/runtime or host qualification per task, with exact binary identity. | Build and runtime results stated separately; DOS/filesystem requirements checked. No unrelated hardware changes. | Medium per target |
 | DISTRIBUTION | **Open** — full fresh-volume install, distribution upgrade, boot fallback and Installer integration are not qualified | Recovery + system operations qualified | Separate tasks for package sets, fresh-volume installation, configuration edits, deferred activation and boot fallback. | Each task has a physical/VM acceptance scenario and recovery evidence; coordinate Installer interface independently. | Several large tasks |

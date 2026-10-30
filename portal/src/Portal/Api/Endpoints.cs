@@ -20,6 +20,23 @@ public static class Endpoints
     public static void MapPortalApi(this WebApplication app)
     {
         var api = app.MapGroup("/api").RequireRateLimiting("api");
+        api.MapGet("/common/channels/{channel}/packages", async (string channel, CommonCatalogue catalogue, HttpContext http) =>
+        {
+            http.Response.Headers.CacheControl = "no-store";
+            var result = await catalogue.Read(channel, ct: http.RequestAborted);
+            if (result.View is not { } view) return Results.Problem(result.Error, statusCode: result.Status);
+            string query = http.Request.Query["q"].ToString(), authority = http.Request.Query["authority"].ToString(),
+                target = http.Request.Query["target"].ToString();
+            if (query.Length > 256 || authority.Length > 256 || target.Length > 256)
+                return Results.BadRequest();
+            var skip = int.TryParse(http.Request.Query["skip"], out var offset) ? Math.Max(0, offset) : 0;
+            var take = int.TryParse(http.Request.Query["take"], out var count) ? Math.Clamp(count, 1, 200) : 100;
+            var builds = view.Search(query, authority, target).ToArray();
+            return Results.Json(new { view.Channel, view.Snapshot, view.ChannelId, view.ChannelPublicKey, view.Sequence,
+                view.Signature, view.Trust, view.Review, view.RuntimeTesting, view.Payload, view.Freshness,
+                total = builds.Length, skip, take,
+                builds = builds.Skip(skip).Take(take).Select(build => new { build, page = view.BuildUrl(build) }) });
+        });
         api.MapGet("/common/channels/{channel}", async (string channel, CommonChannels channels, HttpContext http) =>
         {
             http.Response.Headers.CacheControl = "no-store";

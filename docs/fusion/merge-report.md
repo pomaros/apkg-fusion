@@ -7,8 +7,10 @@ This report covers the fusion work outside the portal: the common engine and
 clients, host qualification and the application lifecycle on the M1. Measured
 results and counts belong in [status](status.md), and obligations in the
 [closure checklist](non-portal-checklist.md). These results are distinct from
-general release qualification. Work stops before the portal, which requires a
-later instruction.
+general release qualification. This report originally ended at the pre-portal
+boundary. The operator has since resumed a provisional
+[portal port](portal.md#portal-execution-batches); its evidence is separate from
+this non-portal report.
 
 A subsequent [selective arospkg 0.7.2 overlay](upstream-0.7.2.md) brings link UI
 and authoring fixes plus legacy self-update corrections into the workspace.

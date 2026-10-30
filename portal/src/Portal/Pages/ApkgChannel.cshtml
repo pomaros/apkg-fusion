@@ -1,0 +1,67 @@
+@* SPDX-License-Identifier: MIT
+   Copyright (c) 2026 John Knipper *@
+@page "/packages/apkg/channels/{channel}"
+@using Portal.Channels
+@inject CommonCatalogue CommonCatalogue
+@{
+    ViewData["Title"] = "APKG channel";
+    Response.Headers.CacheControl = "no-store";
+    var channel = (string)RouteData.Values["channel"]!;
+    var result = await CommonCatalogue.Read(channel, ct: Request.HttpContext.RequestAborted);
+    Response.StatusCode = result.Status;
+    var view = result.View;
+}
+<p class="crumbs"><a href="/packages/apkg">APKG packages</a></p>
+@if (view is null)
+{
+    <h1>Catalogue unavailable</h1>
+    <p>@result.Error</p>
+    return;
+}
+@{
+    ViewData["Title"] = channel + " · APKG";
+    var query = Request.Query["q"].ToString();
+    var authority = Request.Query["authority"].ToString();
+    var target = Request.Query["target"].ToString();
+    if (query.Length > 256 || authority.Length > 256 || target.Length > 256)
+    {
+        Response.StatusCode = 400;
+        <h1>Search is too long</h1>
+        return;
+    }
+    var hits = view.Search(query, authority, target).ToArray();
+    var skip = int.TryParse(Request.Query["skip"], out var offset) ? Math.Max(0, offset) : 0;
+    string Next(int offset) => $"?q={Uri.EscapeDataString(query)}&authority={Uri.EscapeDataString(authority)}&target={Uri.EscapeDataString(target)}&skip={offset}";
+}
+<h1>@channel</h1>
+<p>Channel signature checked. Review and runtime testing have not been evaluated here. All matching builds are shown; no version or author is selected on your behalf.</p>
+<form method="get" class="filters apkg-filters" role="search">
+    <label>Search <input type="search" name="q" value="@query" maxlength="256" placeholder="Package, description or file" /></label>
+    <label>Author identity <input name="authority" value="@authority" maxlength="32" /></label>
+    <label>Target <input name="target" value="@target" maxlength="256" placeholder="CPU-aros-ABI-runtime" /></label>
+    <button type="submit">Search</button>
+</form>
+<p>@hits.Length matching builds · snapshot <code class="digest">@view.Snapshot</code></p>
+<table class="list apkg-builds">
+    <thead><tr><th>Package</th><th>Version / revision</th><th>Target</th><th>Author identity</th></tr></thead>
+    <tbody>
+    @foreach (var build in hits.Skip(skip).Take(100))
+    {
+        <tr>
+            <td><a href="@view.BuildUrl(build)">@build.Name</a><br /><span class="muted">@build.Summary</span></td>
+            <td>@build.Version / @build.Revision</td>
+            <td>@build.Target</td>
+            <td><code class="digest">@build.Authority</code></td>
+        </tr>
+    }
+    </tbody>
+</table>
+@if (skip > 0)
+{
+    <a href="@Next(Math.Max(0, skip - 100))">Previous builds</a>
+}
+@if ((long)skip + 100 < hits.Length)
+{
+    <a href="@Next(skip + 100)">Next builds</a>
+}
+<p class="small"><a href="/api/common/channels/@channel/packages">Catalogue as JSON</a> · <a href="/@channel/snapshots/@view.Snapshot/channel.json">Signed channel document</a></p>

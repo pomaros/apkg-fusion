@@ -23,7 +23,9 @@ public sealed class CommonChannelTests
         public string Head => File.ReadAllText(Path.Combine(Channel, "current")).TrimEnd('\n');
         public string Snapshot => Path.Combine(Channel, "snapshots", Head);
 
-        public Fixture()
+        public readonly Dictionary<string, string> Settings = [];
+
+        public Fixture(bool rich = false)
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
             while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "tools", "apkg-channel"))) dir = dir.Parent;
@@ -31,7 +33,7 @@ public sealed class CommonChannelTests
             Engine = Path.Combine(Repository, "build", "apkg-core");
             // Required dependency: fail rather than silently skipping the common acceptance tests.
             Assert.True(File.Exists(Engine), "build common verifier with make build/apkg-core");
-            Run("python3", Path.Combine(Repository, "portal", "tests", "common_fixture.py"), Repository, Data, Engine);
+            Run("python3", Path.Combine(Repository, "portal", "tests", "common_fixture.py"), Repository, Data, Engine, rich ? "--rich" : "--plain");
         }
         public static string Run(string executable, params string[] args)
         {
@@ -54,6 +56,7 @@ public sealed class CommonChannelTests
             builder.UseSetting("Portal:DataDir", Data);
             builder.UseSetting("Portal:ApkgPath", Engine);
             builder.UseSetting("Portal:PkgPath", Path.Combine(Data, "legacy-must-not-run"));
+            foreach (var setting in Settings) builder.UseSetting(setting.Key, setting.Value);
         }
         public void Rewrite(JsonNode document)
         {

@@ -6,11 +6,19 @@
 The common-engine adapter is described in [Common portal contracts](../docs/fusion/portal.md).
 Set `Portal:ApkgPath` to the common `apkg` executable. Common signed channel
 members are served directly, and `/api/common/channels/<channel>` verifies a
-metadata observation without granting client trust. The legacy push and UI
-below remain a regression baseline. Common publication uses the same plan/files
+metadata observation without granting client trust. The existing push and Pkg UI
+below remain available during the staged port. Common publication uses the same plan/files
 uploads and an explicit `common-commit` with a client-signed snapshot; Python
 3.11+ and the common executable are required on the POSIX host. Catalogue and
 migration integration are tracked in [fusion status](../docs/fusion/status.md).
+
+The **APKG** navigation entry opens `/packages/apkg`: a common-engine-verified
+catalogue with per-channel search and exact-build pages. Same-name authors,
+targets and full revisions remain separate. Build pages retain a signed
+snapshot and expose a preview command; no client trust or review is granted.
+The existing catalogue remains available while common publishing, qualification
+and migration workflows are ported. Joint design decisions are still open.
+See the [portal execution batches](../docs/fusion/portal.md#portal-execution-batches).
 
 A small package site in the manner of nuget.org, for Pkg channels. It does two things:
 
@@ -170,7 +178,11 @@ a code block, and one-line `@if (…) { <tag> }` blocks.
 
 ## Tests
 
-`dotnet test portal/tests/Portal.Tests` covers the version order (the same
+Build prerequisites with `make build/pkg build/apkg-core build/test_pm_common`.
+`dotnet test portal/tests/Portal.Tests` includes a real loopback portal test:
+authenticated resumable common publication, catalogue browsing, exact CLI and
+actual PkgManager worker-adapter installation, trust refusal and offline removal
+with independently checked preserved files and empty registry. It also covers the version order (the same
 as Pkg's), which paths a channel serves, manifest attributes, and the push
 gate (HTTPS, key, channel scope, no indexing).
 
