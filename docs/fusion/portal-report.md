@@ -3,11 +3,12 @@
 
 # Clean common portal qualification report
 
-The new portal now uses the merged APKG engine for publishing and discovery.
-The operator explicitly removed old pkg portal compatibility and deployed-data
-conversion from scope. The common-only implementation, publisher client,
-backup/restore tools and repeatable published-artifact test are implemented.
-Final exact-source CI is pending; this report records completed host evidence.
+The portal uses the merged APKG engine for publishing and discovery. It supports
+common signed channels, self-service publishing, independent qualifications and
+new-data backup/restore. Old pkg portal formats and deployed-data conversion
+are not supported.
+The qualified portal candidate is `457b598`. Its Linux and macOS portal jobs pass;
+the broader fusion CI gates are still running.
 The existing public Azure portal has not been switched.
 
 ## What changed
@@ -37,11 +38,11 @@ The existing public Azure portal has not been switched.
 The portal suite passes **65 tests**, including real socket publication and
 common CLI/worker consumption, authentication/replay/refusals, account/admin
 CSRF and role separation, exact historical browsing, qualification withdrawal
-and the warning. Retired old pkg-only API tests do not imply compatibility.
-Three new data-tool tests also exercise the actual backup/restore CLI, corrupt
+and the warning.
+Three backup/restore tests also exercise the actual backup/restore CLI, corrupt
 bytes, path traversal, private modes and replacement refusal.
 
-The [published-artifact receipt](evidence/portal-common/local-rehearsal.json)
+The [clean published-artifact receipt](evidence/portal-common/final-local-rehearsal.json)
 records a successful synthetic application loop:
 
 1. Start the published .NET application with its bundled common executable and
@@ -64,11 +65,6 @@ records a successful synthetic application loop:
    artifact and verify health, publisher identities, owner pins and baseline
    signed URLs. No active data tree is overwritten.
 
-The rehearsal exposed a restore CLI argument-order defect; it was corrected and
-a subprocess regression added before the successful complete rerun. A separate
-initial regression run was invalidated by host disk exhaustion; abandoned
-synthetic big-push fixtures were cleaned and affected checks restarted.
-
 [Browser evidence](evidence/portal-common/README.md) covers channel, build and
 documentation pages at phone and desktop widths with no horizontal overflow.
 The notice is visible in each rendered page.
@@ -79,8 +75,8 @@ See the [portal guide](../../portal/README.md) and
 [operations procedure](../../portal/OPERATIONS.md). `apkg-portal-package` builds a
 host-native framework-dependent artifact with a per-file SHA-256 manifest.
 The CI portal jobs run the same deployed loop on Linux and macOS and archive
-the tested native deployment plus its report. Build on Linux for a Linux Azure
-host; a macOS executable is not a Linux artifact.
+the tested native deployment plus its report. The exact destination OS image and runtime
+dependencies still need checking before an Azure cutover.
 
 Backup captures new common channels, immutable content/link mappings, owner
 pins, publisher records, staging and cookie keys with exact file modes. Stop
@@ -88,6 +84,18 @@ all writers first. Keep archives private; external configuration/secrets and
 remotely hosted payloads need their own retention. Restore only to a new tree.
 The operations guide records cutover checks and matching artifact/data/config
 rollback, including accounting for writes after the baseline.
+
+## Exact-source portal artifacts
+
+[Portal CI run](https://github.com/pomaros/apkg-fusion/actions/runs/41143362898)
+for `457b598b4db1b8256ca53f62b23a75ff165c70b2` passes the 65-test portal suite
+and full published-artifact loop on Linux x86_64 and macOS arm64. Both native
+archives were downloaded and every packaged file and manifest/receipt binding
+was verified. [Artifact identities](evidence/portal-common/final-deployment-artifacts.json),
+[archive hashes](evidence/portal-common/final-artifact-validation.json),
+[Linux receipt](evidence/portal-common/final-ci-linux-rehearsal.json) and
+[macOS receipt](evidence/portal-common/final-ci-macos-rehearsal.json) are retained.
+CI artifacts expire under repository retention; the source and receipts remain.
 
 ## Remaining boundaries
 
@@ -97,7 +105,7 @@ fixtures do not establish live OAuth readiness. Host Python payload execution
 does not qualify an AROS runtime. Native network/UI testing and broader platform
 claims remain separate. The installed M1 updater was not modified.
 
-No old pkg data migration or compatibility layer is required. Compatibility
+Compatibility
 with released Coffeecat APKG remains deferred to joint discussion, as do official
 key custody, shared governance and the first joint release scope. Development
 evidence is not agreement by both maintainers.

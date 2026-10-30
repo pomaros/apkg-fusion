@@ -120,8 +120,7 @@ def commit(args):
     defaults = dict(links=None, scratch=None, link_hosts='', link_only=False,
                     allow_loopback_links=False, max_link_bytes=128*1024*1024,
                     max_validation_bytes=512*1024*1024)
-    # Library callers retain their input namespace, including when retrying an
-    # interrupted commit or assembling a subsequent command-line invocation.
+    # Caller-owned options may be reused for retries.
     args = argparse.Namespace(**(defaults | vars(args)))
     if not re.fullmatch('[0-9a-f]{64}', args.snapshot):
         refuse('invalid', 'snapshot must be a lowercase SHA-256')

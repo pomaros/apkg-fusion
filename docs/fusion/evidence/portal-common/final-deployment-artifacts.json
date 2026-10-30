@@ -1,0 +1,31 @@
+{
+  "source_revision": "457b598b4db1b8256ca53f62b23a75ff165c70b2",
+  "run_url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898",
+  "artifacts": [
+    {
+      "id": 13020327328,
+      "name": "portal-deployment-macos-latest",
+      "zip_digest": "sha256:99dd0d6776ef94388ea012c992b1c7b1777d96b146e7b6614b9ee5a88b5c15d0",
+      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898/artifacts/13020327328"
+    },
+    {
+      "id": 13020127271,
+      "name": "portal-deployment-ubuntu-latest",
+      "zip_digest": "sha256:fe4525aa976567dacf444b92dd601af99acc0787d872c52512b44a1427be7f96",
+      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898/artifacts/13020127271"
+    },
+    {
+      "id": 13019608181,
+      "name": "portal-rehearsal-macos-latest",
+      "zip_digest": "sha256:d5220f086be01d3c7f9ef8f2c40885e5a5474ca514134a2af3809d0256edc6b3",
+      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898/artifacts/13019608181"
+    },
+    {
+      "id": 13019582980,
+      "name": "portal-rehearsal-ubuntu-latest",
+      "zip_digest": "sha256:6b001f6e5e34ba3d1958b44ddaca3cf395e371f6963954bcd962095a062e20e7",
+      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898/artifacts/13019582980"
+    }
+  ],
+  "validation": "Both portal CI jobs passed. Downloaded ZIP hashes, archive types, all 31 packaged file hashes, executable permissions and manifest/rehearsal/source bindings verified."
+}

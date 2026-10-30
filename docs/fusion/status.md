@@ -81,9 +81,7 @@ exact leftovers are inspected, and a restored baseline serves the correct signed
 URLs and owner/account identities. Browser checks pass at 390/1280 pixels.
 The [portal report](portal-report.md) records receipts, scope and remaining
 exact-source CI; [operations](../../portal/OPERATIONS.md) records deployment inputs.
-An initial full regression attempt was invalidated by host disk exhaustion;
-only a completed rerun will qualify the candidate. Abandoned synthetic big-push
-test directories were removed to free space, without touching production data.
+
 
 ## Final host qualification and M1 lifecycle passed
 

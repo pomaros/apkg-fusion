@@ -10,8 +10,7 @@ for the deployed pkg portal. Finish a clean common-engine portal and prove the
 complete test-application cycle on a disposable deployment. No old pkg API,
 UI, manifest, installer or deployed-data conversion is a product requirement.
 Compatibility with Coffeecat's released APKG is deferred until joint discussion.
-Backup/restore and rollback cover new common-portal data only. Earlier retained-
-baseline statements in historical status checkpoints are superseded by this scope.
+Backup/restore and rollback cover new common-portal data only.
 
 The operator also requires a prominent English deployment notice asking people
 not to use the portal or its packages until further notice while the system is
@@ -23,7 +22,7 @@ signed-request authentication, independent qualification evidence, a clean
 default UI, deployable artifacts, and publication/installation/upgrade/repair/
 rollback/uninstallation with exact retained-file inspection. Evaluate each
 stage and continue through this sequence; the operator authorized finishing
-the portal, not just its initial browser.
+the portal and validate the complete application lifecycle.
 
 
 ## Authenticated publication

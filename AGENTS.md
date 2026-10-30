@@ -27,6 +27,10 @@ from a sibling or ancestor project.
 - Publish only material whose provenance and licence permit publication here.
   Private source, histories, credentials, machine-specific records and product
   integrations stay outside this repository.
+- Public documentation describes current behavior, reproducible evidence and
+  remaining limitations. Omit resolved debugging incidents, local environment
+  problems and session chronology. Code comments explain lasting constraints
+  and decisions rather than edit history.
 - Write project documentation and public project communications in English.
   Preserve original legal notices and upstream attribution.
 - Preserve original notices. New original source carries

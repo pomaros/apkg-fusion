@@ -1,0 +1,22 @@
+[
+  {
+    "platform": "ubuntu",
+    "host": {
+      "machine": "x86_64",
+      "system": "Linux"
+    },
+    "files": 31,
+    "tar_sha256": "39e99b26b9bdb8e75761fb447f59bb8b4cee44e73c16092348187ec04282c850",
+    "manifest_sha256": "661ef5d308970e6f174b60e8058d2bb758e1a2eec11d4b00a98259423a305440"
+  },
+  {
+    "platform": "macos",
+    "host": {
+      "machine": "arm64",
+      "system": "Darwin"
+    },
+    "files": 31,
+    "tar_sha256": "665b5d82b37d4f42936b53af736cd15e438d02f0cf332638bfa7c4cfdd865dac",
+    "manifest_sha256": "ab1bb13025d1ae62c0c1d848bab039de5c8aa7c594aa14705727f0702c37c9eb"
+  }
+]

@@ -11,13 +11,13 @@
     "quiesced private backup and exact restore",
     "restored deployment health, identities, owner pins and baseline URLs"
   ],
-  "deployment_manifest_sha256": "eab3ee3f35ff43ceff8b720ae327d75e9d955e91b8715e87628689ad507249a0",
-  "dirty_source": true,
+  "deployment_manifest_sha256": "661ef5d308970e6f174b60e8058d2bb758e1a2eec11d4b00a98259423a305440",
+  "dirty_source": false,
   "limitations": [
     "synthetic publisher registration; live GitHub OAuth not exercised",
     "host payload execution does not qualify AROS runtime",
     "local process/data rollback; no production cutover or power-loss claim"
   ],
   "result": "passed",
-  "source_revision": "ac471fb7b74026302c6a0f7567401642d208689d"
+  "source_revision": "457b598b4db1b8256ca53f62b23a75ff165c70b2"
 }
