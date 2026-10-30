@@ -25,6 +25,9 @@ set -- -DPKG_FS_LOCAL_ONLY -std=c99 -O1 -g -fsanitize=address,undefined -fno-omi
 # shellcheck disable=SC2086
 "$CC" "$@" -std=gnu99 -DAPKG_FUSION $rexx_sources -o build/common-sanitized/rexx
 "$CC" "$@" -DAPKG_FUSION -Itests/pm_stubs tests/apkg/test_pm_dispatch.c -o build/common-sanitized/dispatch
+# Imported URL parsing plus fusion report collection own dynamically sized text.
+"$CC" "$@" -std=gnu99 components/arospkg/tests/test_linktext.c components/arospkg/src/pkgmanager/linktext.c -o build/common-sanitized/linktext
+./build/common-sanitized/linktext
 ./build/common-sanitized/dispatch
 ./build/common-sanitized/rexx
 ./build/common-sanitized/memory

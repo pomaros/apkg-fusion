@@ -10,6 +10,10 @@ context-based core as the skeleton. The common engine and clients are
 implemented below; measured gates and remaining release obligations are listed
 separately.
 
+The [selective arospkg 0.7.2 overlay](#selective-arospkg-072-overlay) is a later,
+authorized maintenance follow-up. The M1 qualification below still identifies
+the earlier frozen candidate; it does not cover the new link UI.
+
 ## Alpha progress at a glance
 
 Scope decision: CLI-CONTINUITY, IMPORT-PROFILES and PRIOR-VERSIONS (previous
@@ -96,6 +100,39 @@ persistent storage are unchanged. Broader native filesystem/metadata, network,
 self-update, interruption and power-loss qualification stay explicit. The
 [merge report](merge-report.md) distinguishes inherited features, fusion changes
 and these remaining obligations. Portal work has not resumed.
+
+## Selective arospkg 0.7.2 overlay
+
+The [overlay review](upstream-0.7.2.md) records the selected upstream revision,
+ported link UI/authoring fixes and legacy self-update corrections. Fusion link
+collection also handles common installed/candidate and channel reports,
+confirmations and verification text. Exact repository fields retain trailing
+punctuation, JSON evidence is not scanned as prose, and link IDs avoid the
+common controls. The fusion GUI version remains explicitly `fusion-alpha`.
+
+The common lock has no stale-file takeover. A new signed self-update host
+regression passes: contenders and recovery refuse a live holder, and a new
+holder remains exclusive after the previous holder is killed; two successive
+holder deaths are followed by a successful whole-release retry. The pure link
+suite, including common-report cases, passes ASan/UBSan. It is also wired into
+the maintained sanitizer runner. The AArch64 native SDK syntax check, object
+audit and complete CLI/PkgManager cross-link pass. The object audit continues
+to exclude inherited mutation/self-update writers from the fusion clients.
+
+Local macOS `make test-fusion` passes 408 common tests, 110 provisional CLI
+checks, 78 default CLI checks and 78 publication checks. `make test` and the
+complete inherited arospkg host suite also pass. The updated packer regression
+separately confirms the unchanged 256 MiB expanded-total cap after accepting
+128 MiB members. Documentation checks cover 87 Markdown files with no broken
+links. The new link/report C suite passes ASan/UBSan; the full memory matrix
+remains part of the Linux/macOS CI workflow.
+The browser/clipboard/pagination/close-during-open workflow still needs an AROS
+runtime follow-up; compilation is not native behavior evidence. The old M1
+report is retained without requalification. Tool migration cases from upstream
+0.7.1 are recorded in [TODO](../../TODO.md); legacy support and portal adaptation
+remain deferred. The next shared step is the
+[maintainer alignment handoff](maintainer-agreement.md), with actual joint
+decisions still unrecorded.
 
 ## Historical implementation checkpoints
 

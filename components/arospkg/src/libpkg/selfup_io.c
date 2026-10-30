@@ -25,6 +25,7 @@
 #include <exec/execbase.h>
 #include <exec/ports.h>
 #include <exec/memory.h>
+#include <exec/semaphores.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
@@ -709,13 +710,39 @@ static int task_alive(unsigned long addr)
     return yes;
 }
 
-static pkg_status su_lock(pkg_err *e)
+/* Taking the lock over is "read the holder, see it gone, delete the file",
+   and nothing on a file makes those three one step: a process that read a
+   dead holder could otherwise delete (or move aside) a lock that another
+   process took over meanwhile, and a third could then enter beside the
+   second. So every attempt to take the lock passes this gate, which only
+   the lock's own holder can bypass to release it. It is a public semaphore
+   so that every process on the machine finds the same one; it is never
+   removed, because another process may hold or have found it, and it costs
+   one small block per boot. It is held for a few file operations only, so
+   a gate that stays taken means its holder died inside: refused, and a
+   reboot clears it as it clears the lock. */
+#define SU_GATE "arospkg self-update lock"
+static struct SignalSemaphore *su_gate(void)
+{
+    struct gate { struct SignalSemaphore s; char name[sizeof SU_GATE]; } *g;
+    struct SignalSemaphore *s;
+    Forbid();
+    if (!(s = FindSemaphore((STRPTR)SU_GATE)) &&
+        (g = AllocMem(sizeof *g, MEMF_PUBLIC | MEMF_CLEAR))) {
+        strcpy(g->name, SU_GATE);
+        g->s.ss_Link.ln_Name = g->name;
+        AddSemaphore(&g->s);
+        s = &g->s;
+    }
+    Permit();
+    return s;
+}
+
+static pkg_status su_lock_gated(pkg_err *e)
 {
     char tmp[80], body[120];
     int tries;
     FILE *f;
-    u_mkdir("ENV:arospkg");
-    snprintf(lock_nonce, sizeof lock_nonce, "%lx%lx", (unsigned long)(IPTR)FindTask(NULL), (unsigned long)time(NULL));
     snprintf(tmp, sizeof tmp, "ENV:arospkg/self-update.%s", lock_nonce);
     snprintf(body, sizeof body, "%lx %s\n", (unsigned long)(IPTR)FindTask(NULL), lock_nonce);
     for (tries = 0; tries < 2; tries++) {
@@ -731,27 +758,39 @@ static pkg_status su_lock(pkg_err *e)
         if (holder && task_alive(holder))
             return pkg_fail(e, PKG_E_LOCKED, "another update of arospkg is running",
                             "Wait for it to finish, then try again.", SU_LOCK_FILE);
-        {
-            /* Its holder is gone. Taken aside by rename, which only one
-               process can win; if what was taken aside is a live holder's
-               (it was taken over meanwhile), it is put back. */
-            char aside[80];
-            snprintf(aside, sizeof aside, "ENV:arospkg/self-update.stale.%s", lock_nonce);
-            if (Rename((CONST_STRPTR)SU_LOCK_FILE, (CONST_STRPTR)aside)) {
-                unsigned long now = 0;
-                have = u_read_all(aside, NULL);
-                if (have) now = strtoul(have, NULL, 16);
-                free(have);
-                if (now && task_alive(now)) {
-                    Rename((CONST_STRPTR)aside, (CONST_STRPTR)SU_LOCK_FILE);
-                    return pkg_fail(e, PKG_E_LOCKED, "another update of arospkg is running",
-                                    "Wait for it to finish, then try again.", SU_LOCK_FILE);
-                }
-                u_delete(aside);
-            }
+        if (!strncmp(fail_s, "takeover:", 9)) {
+            /* Testing only: stop between seeing the holder gone and taking
+               its lock, say so, and wait for the file to exist, so that
+               other updates can be started inside this window. */
+            char here[PKG_MAXPATH + 8];
+            int t;
+            snprintf(here, sizeof here, "%s-here", fail_s + 9);
+            if ((f = fopen(here, "wb"))) fclose(f);
+            for (t = 0; t < 600 * 50 && !u_exists(fail_s + 9); t += 25) Delay(25);
         }
+        /* Its holder is gone, and under the gate no one else can remove or
+           replace the file meanwhile: this deletes that holder's lock. */
+        u_delete(SU_LOCK_FILE);
     }
     return pkg_fail(e, PKG_E_LOCKED, "cannot take the self-update lock", "", SU_LOCK_FILE);
+}
+
+static pkg_status su_lock(pkg_err *e)
+{
+    struct SignalSemaphore *g;
+    pkg_status s;
+    int t;
+    u_mkdir("ENV:arospkg");
+    snprintf(lock_nonce, sizeof lock_nonce, "%lx%lx", (unsigned long)(IPTR)FindTask(NULL), (unsigned long)time(NULL));
+    if (!(g = su_gate())) return pkg_fail(e, PKG_E_NOMEM, "cannot take the self-update lock", "", "");
+    for (t = 0; !AttemptSemaphore(g); t++) {
+        if (t >= 500) return pkg_fail(e, PKG_E_LOCKED, "another update of arospkg is starting",
+                                      "Wait for it, then try again. If this stays, restart the computer.", SU_LOCK_FILE);
+        Delay(2);
+    }
+    s = su_lock_gated(e);
+    ReleaseSemaphore(g);
+    return s;
 }
 
 static void su_unlock(void)

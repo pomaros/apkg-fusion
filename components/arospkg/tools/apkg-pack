@@ -48,7 +48,8 @@ except ImportError:
 SIBLING_INDEX = HERE.parent.parent / "arospkg-index"
 
 DOWNLOAD_MAX = 64 * 1024 * 1024          # the client's own download limit
-FILE_MAX, TOTAL_MAX = 64 * 1024 * 1024, 256 * 1024 * 1024
+# apkg-pack writes ZIP; the client streams ZIP members up to 128 MiB since 0.6.0 (src/libpkg/limits.h).
+FILE_MAX, TOTAL_MAX = 128 * 1024 * 1024, 256 * 1024 * 1024
 JUNK = re.compile(r"(^|/)(\.DS_Store|\._[^/]*|\.git(/|$)|Thumbs\.db)")
 EM_ARCH = {62: "x86_64", 3: "i386", 183: "aarch64"}
 # Key order of a written manifest: plain keys before any table (TOML puts a
@@ -458,9 +459,12 @@ def cmd_build(a):
                 zi.external_attr = (0o40755 << 16) | 0x10
                 z.writestr(zi, b"")
                 return
-            zi.external_attr = 0o644 << 16
+            body = data if data is not None else src.read_bytes()
+            # ELF programs keep the execute bit, so that UnZip by hand gives them AROS's `e` flag
+            # (apkg itself installs every file rwed). Decided by content, the same on every host.
+            zi.external_attr = (0o755 if body[:4] == b"\x7fELF" else 0o644) << 16
             zi.compress_type = zipfile.ZIP_DEFLATED
-            z.writestr(zi, data if data is not None else src.read_bytes(), compresslevel=9)
+            z.writestr(zi, body, compresslevel=9)
         app_member = f"{drawer.name}/{APP_FILE_NAME}"
         for n in sorted(names):
             if n.endswith("/"):

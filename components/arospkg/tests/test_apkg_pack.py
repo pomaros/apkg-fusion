@@ -75,6 +75,9 @@ with tempfile.TemporaryDirectory() as d:
     if "xRick/data/saves/" not in names or ".arospkg/manifest.toml" not in names \
             or "xRick.info" not in names or any(".DS_Store" in n for n in names):
         fails.append(f"archive members: {names}")
+    modes = {i.filename: i.external_attr >> 16 for i in zipfile.ZipFile(z1).infolist()}
+    if modes.get("xRick/xRick") != 0o755 or modes.get("xRick/ReadMe") != 0o644:
+        fails.append(f"ELF programs keep the execute bit, other files do not: {modes}")
     code, out = run("build", dr, "--output", dr / "self.zip")
     if code == 0:
         fails.append("build must refuse an output inside the drawer")
@@ -180,6 +183,48 @@ with tempfile.TemporaryDirectory() as d:
     code, out = run("build", dr, "--output", d / "plain.zip")
     if code or "Tool/application.json" in zipfile.ZipFile(d / "plain.zip").namelist():
         fails.append(f"no launch: build as before, without application.json: {out}")
+
+# Real sparse files check the author's public size boundary without a huge
+# fixture in the repository. Large ZIP support does not widen fusion's PKG/1
+# transport limits, which are enforced by its separate builder and engine.
+with tempfile.TemporaryDirectory() as temporary:
+    d = Path(temporary); dr = d / "Large"; dr.mkdir()
+    (dr / "program").write_bytes(elf())
+    (d / "Large.arospkg.toml").write_text(
+        'id = "large"\nversion = "1.0"\nsummary = "Size boundary"\n'
+        'category = "utility/misc"\nkind = "data"\narch = "x86_64"\n'
+        'abi = "v11"\nsubdir = "Large"\ndepends = []\ndepends_checked = true\n')
+    big = dr / "data"
+    with big.open("wb") as f:
+        f.truncate(64 * 1024 * 1024 + 1)
+    code, out = run("build", dr, "--output", d / "large.zip")
+    if code:
+        fails.append(f"file just above the old 64 MiB boundary: {out}")
+    else:
+        with zipfile.ZipFile(d / "large.zip") as z:
+            if z.getinfo("Large/data").file_size != 64 * 1024 * 1024 + 1:
+                fails.append("large member size changed")
+            if (z.getinfo("Large/program").external_attr >> 16) & 0o111 != 0o111:
+                fails.append("ELF ZIP execute bits lost")
+            if (z.getinfo("Large/data").external_attr >> 16) & 0o111:
+                fails.append("ordinary data acquired ZIP execute bits")
+    with big.open("wb") as f:
+        f.truncate(128 * 1024 * 1024)
+    code, out = run("check", dr)
+    if code:
+        fails.append(f"128 MiB member boundary refused: {out}")
+    other = dr / "other"
+    with other.open("wb") as f:
+        f.truncate(128 * 1024 * 1024)
+    code, out = run("check", dr)
+    if code == 0 or "bytes unpacked; the client takes 268435456" not in out:
+        fails.append(f"per-member increase must retain the expanded total limit: {out}")
+    other.unlink()
+    with big.open("wb") as f:
+        f.truncate(128 * 1024 * 1024 + 1)
+    code, out = run("check", dr)
+    if code == 0 or "the client installs files up to 134217728" not in out:
+        fails.append(f"member above 128 MiB must refuse for its size: {out}")
 
 if fails:
     print("\n".join(fails)); print(f"APKG-PACK: {len(fails)} failed"); sys.exit(1)

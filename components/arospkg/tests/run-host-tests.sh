@@ -20,6 +20,10 @@ $CC -O1 -Wall -Wextra -std=gnu99 -o "$OUT/test_app" \
 "$OUT/test_app"
 
 python3 "$HERE/../tools/make-demo-store.py" "$OUT/demostore" >/dev/null
+$CC -O1 -Wall -Wextra -std=gnu99 -o "$OUT/test_linktext" \
+    "$HERE/test_linktext.c" "$HERE/../src/pkgmanager/linktext.c"
+"$OUT/test_linktext"
+
 $CC -O1 -Wall -Wextra -std=gnu99 -o "$OUT/test_demo" \
     "$HERE/test_demo.c" "$HERE/../src/pkgmanager/demo.c" "$SRC/json.c"
 "$OUT/test_demo" "$OUT/demostore"

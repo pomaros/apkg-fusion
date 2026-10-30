@@ -22,7 +22,9 @@ const char *pkg_release_target(void)
     if (!strcmp(a, "x86_64") && !strcmp(b, "v11")) return "x86_64-aros-v11";
     if (!strcmp(a, "x86_64") && !strcmp(b, "v1"))  return "x86_64-aros-v1";
     if (!strcmp(a, "i386")   && !strcmp(b, "v0"))  return "i386-aros-v0";
-    if (!strcmp(a, "aarch64"))                     return "aarch64-aros";
+    /* aarch64 runs natively on the Pi and hosted on a Mac, with separate
+       SDKs: CPU and ABI do not tell them apart, so such a build updates
+       itself only when it names its archive (PKG_TARGET). */
     return NULL;
 }
 

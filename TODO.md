@@ -20,7 +20,12 @@ These items are future work, not implemented capabilities.
   prevents using an older executable. Rehearse representative APKG-to-APKG
   upgrades with existing managed installations. Coordinate consumer adaptations
   with their owners; the installed
-  M1 `libpkg` updater migration remains owned separately.
+  M1 `libpkg` updater migration remains owned separately. Include arospkg
+  0.7.1's safe capability-probe case: query `--version` before any self-update
+  protocol request, because older binaries interpret an unknown protocol
+  option as an actual update. Cover 0.4–0.6 CLI-only upgrades followed by the
+  GUI replacement, 0.7.0/0.7.1 installations and interruption with `.old`/`.new`
+  helpers. These are future migration cases, not supported starting versions.
 
 - Add `apkg diagnose` over the common engine, with human-readable and JSON
   reports usable from the CLI and PkgManager. Record the executable/build,

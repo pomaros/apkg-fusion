@@ -472,7 +472,7 @@ typedef struct {
     int  index_missing;       /* 1: there is no index on this machine at all */
     char url[512];
     char sha256[65];
-    char source[256];         /* where its source is published; "" when not stated */
+    char source[2048];        /* where its source is published; "" when not stated */
     char license[64];         /* "" when not stated */
     char variants[160];       /* every target the index has for this id: "x86_64/v11, i386/v0" */
     int  nvariants;
@@ -523,7 +523,7 @@ typedef struct {
     char app_first_added[11];
     /* The address the catalogue in use was fetched from, as recorded by the
        last apkg update; "" when unknown (fetched by an apkg before 0.6). */
-    char catalogue[512];
+    char catalogue[2048];
 } pkg_details;
 
 /* The review status and the dates of `d` as one line each, in the words
@@ -655,7 +655,7 @@ typedef struct {
     char first_why[120];    /* why, in the user's words, when first               */
     char when[24];          /* the refresh, machine's local clock, "2026-10-14 10:25" */
     char previous[24];      /* the catalogue it was compared with, by its date    */
-    char catalogue[512];    /* the address it was fetched from                    */
+    char catalogue[2048];   /* the address it was fetched from                    */
     char catalogue_sha256[65];  /* the catalogue file it describes               */
     int  apps, builds, updated, recent;   /* rows per kind */
     int  unknown_dates;     /* pkg_recent: applications for here with no date     */

@@ -8,7 +8,7 @@ AROS_CC=${AROS_CC:-clang}
 cd "$(dirname "$0")/.."
 set -- -std=gnu99 -Werror=implicit-function-declaration -Wno-typedef-redefinition -DAPKG_FUSION -DPKG_FS_LOCAL_ONLY -Iinclude -Isrc/apkg "-I$SDK_INCLUDE/aros/posixc" "-I$SDK_INCLUDE/aros/stdc" "-I$SDK_INCLUDE"
 if [ -n "${AROS_TARGET:-}" ]; then set -- "--target=$AROS_TARGET" "$@"; fi
-"$AROS_CC" "$@" -fsyntax-only src/apkg/*.c src/pkg_sha256.c src/pkg_sha512.c src/pkg_ed25519.c src/pkg_target.c src/pkg_application.c src/pkg_fs_posix.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c components/arospkg/src/pkgmanager/main.c components/arospkg/src/pkgmanager/worker.c components/arospkg/src/pkgmanager/rexxcmd.c
+"$AROS_CC" "$@" -fsyntax-only src/apkg/*.c src/pkg_sha256.c src/pkg_sha512.c src/pkg_ed25519.c src/pkg_target.c src/pkg_application.c src/pkg_fs_posix.c components/arospkg/src/pkgmanager/common_worker.c components/arospkg/src/pkgmanager/common_browser.c components/arospkg/src/pkgmanager/main.c components/arospkg/src/pkgmanager/links.c components/arospkg/src/pkgmanager/linktext.c components/arospkg/src/pkgmanager/worker.c components/arospkg/src/pkgmanager/rexxcmd.c
 # Optional SDK object audit: verify the native clients cannot reference the
 # inherited mutation or self-update writers, even when those libraries remain
 # linked for read-only presentation/network services.

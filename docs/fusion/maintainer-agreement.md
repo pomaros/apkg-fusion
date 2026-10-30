@@ -3,10 +3,11 @@
 
 # Maintainer alignment handoff
 
-Development follows the [selected skeleton](architecture.md#implementation-skeleton)
-without waiting for missing distribution details or prior approval from the
-other upstream maintainer. This file records the feedback to obtain; it grants
-no authority to contact anyone. A joint release requires the release agreement
+The implementation follows the
+[selected skeleton](architecture.md#implementation-skeleton) as an engineering
+proposal. Joint decisions are still open; reviewing them together is the next
+collaboration step before assigning further implementation. This file records
+the feedback to obtain; it grants no authority to contact anyone. A joint release requires the release agreement
 defined in [PLAN](../../PLAN.md#release-gate).
 
 | Topic | Proposed direction | Feedback to record |
@@ -16,6 +17,12 @@ defined in [PLAN](../../PLAN.md#release-gate).
 | Publication | Open author channels with independent review/runtime evidence | Official channel/key ownership and reviewer administration |
 | Existing users | Preserve released APKG installations and script behavior | Distribution names, releases, custom-root cases and representative records |
 | First release | Explicit subset of the acceptance matrix | Included operations, clients, targets and measured qualification |
+
+The next collaboration step is to review these proposals together, record
+agreement or changes, and assign distinct implementation tasks. The
+[selective 0.7.2 maintenance overlay](upstream-0.7.2.md) does not resolve any of
+these joint decisions. In particular, no implementation choice in this checkout
+is an approval on behalf of the other maintainer.
 
 AROS One 1.3 x86_64 ABIv11 is named in the pinned arospkg release notes and
 screenshots. The second distribution described in the merger proposal is not

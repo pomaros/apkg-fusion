@@ -111,6 +111,43 @@ class SelfUpdate(unittest.TestCase):
                 if version == '1.2':
                     self.assertEqual(self_update(root, endpoint, exe)[:2], (0, 1)); self.assertEqual(exe.read_bytes(), b'client two')
 
+    def test_competing_updates_stay_exclusive_after_holder_death(self):
+        from test_preparation import stopped, reap
+        with tempfile.TemporaryDirectory() as temporary:
+            d = Path(temporary)
+            root, endpoint, exe = fixture(d)
+            release(d, endpoint, '2.0', b'client two')
+            before = (root / '.apkg/state').read_bytes()
+            # Hold the actual update inside private preparation under the
+            # mutation lock, then kill it. A new process must take ownership;
+            # subsequent contenders must still refuse that live new holder.
+            for _ in range(2):
+                pid = os.fork()
+                if pid == 0:
+                    lib.apkg_test_fault(1201, 3)
+                    code = self_update(root, endpoint, exe)[0]
+                    os._exit(100 + code)
+                self.addCleanup(reap, pid)
+                try:
+                    stopped(pid)
+                    contender = self_update(root, endpoint, exe)
+                    self.assertEqual(contender[:2], (7, 0), contender)
+                    code, ctx = open_ctx(root, 1)
+                    self.assertEqual(code, 0)
+                    try:
+                        self.assertEqual(recover(ctx)[0], 7)
+                    finally:
+                        lib.apkg_close(ctx)
+                    self.assertEqual((root / '.apkg/state').read_bytes(), before)
+                    self.assertEqual(exe.read_bytes(), b'client one')
+                    self.assertFalse(Path(str(root) + '.apkg-transaction').exists())
+                finally:
+                    reap(pid)
+            self.assertEqual(self_update(root, endpoint, exe)[:2], (0, 1))
+            self.assertEqual(exe.read_bytes(), b'client two')
+            self.assertEqual([row['descriptor']['body']['version']
+                             for row in committed(root)['installed']], ['2.0'])
+
     def test_edited_client_is_refused_before_planning(self):
         with tempfile.TemporaryDirectory() as d:
             d = Path(d); root, endpoint, exe = fixture(d); release(d, endpoint, '2.0', b'client two')

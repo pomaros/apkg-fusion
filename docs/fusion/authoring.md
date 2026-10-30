@@ -127,3 +127,14 @@ Linux/macOS CI passed; the separate [M1 trial](evidence/m1-final/README.md)
 exercised representative native interaction. Broader native coverage,
 metadata/timestamp semantics, complete legacy migration and portal adaptation
 remain separate work. Host authoring fixtures do not execute native programs.
+
+## Selective upstream packer update
+
+The [arospkg 0.7.2 overlay](upstream-0.7.2.md) brings the inherited ZIP packer
+up to 128 MiB per member, retaining its 256 MiB expanded total limit. ELF content
+receives executable ZIP mode bits, including when the publishing host did not
+mark that source file executable. This concerns the standalone inherited
+`apkg-pack` ZIP path. The common `apkg-build` PKG/1 path preserves source modes
+and validated AROS metadata through its own inventory and descriptor; its
+existing engine/transport bounds remain enforced. The ZIP size increase is not
+a claim that the common engine accepts 128 MiB members.

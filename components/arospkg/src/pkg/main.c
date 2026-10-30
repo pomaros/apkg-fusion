@@ -27,9 +27,9 @@
 static const char *VERSION = "apkg " APKG_TEST_VERSION;
 static const char VERSTAG[] __attribute__((used)) = "$VER: apkg " APKG_TEST_VERSION " (24.10.2026)";
 #else
-static const char *VERSION = "apkg 0.6.0";
+static const char *VERSION = "apkg 0.7.2";
 /* What a self-update reads to tell this file's version without running it. */
-static const char VERSTAG[] __attribute__((used)) = "$VER: apkg 0.6.0 (24.10.2026)";
+static const char VERSTAG[] __attribute__((used)) = "$VER: apkg 0.7.2 (30.10.2026)";
 #endif
 
 /* `show`: the library's account of one package, laid out for a person. The
@@ -1181,10 +1181,14 @@ static int real_main(int argc, char **argv)
             {
                 char self[65];
                 pkg_self_sha256(self);
+                /* The last line is how PkgManager finds an apkg that can
+                   finish its update: --version is the one request every
+                   apkg since 0.3 answers without touching anything. */
                 printf("%s\n  abi     %s\n  binary  %s\n  source  %s\n"
-                       "  cc      %s\n  tc      %s\n  sdk     %s\n  tls     %s\n",
+                       "  cc      %s\n  tc      %s\n  sdk     %s\n  tls     %s\n"
+                       "  self-update protocol %d\n",
                        VERSION, pkg_abi(), self, pkg_build_id(), pkg_cc(),
-                       pkg_toolchain(), pkg_sdk(), tls_name());
+                       pkg_toolchain(), pkg_sdk(), tls_name(), SU_PROTOCOL);
             }
             return 0;
         }

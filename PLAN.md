@@ -19,6 +19,20 @@ it does not complete a later integration gate.
 
 [TODO.md](TODO.md) records additional follow-up proposals outside these gates.
 
+## Current follow-up order
+
+The [selective arospkg 0.7.2 overlay](docs/fusion/upstream-0.7.2.md) is a bounded
+maintenance update after the qualified candidate. It does not settle the open
+joint decisions or renew that candidate's native runtime qualification.
+
+Next, obtain both maintainers' decisions on the
+[alignment handoff](docs/fusion/maintainer-agreement.md): skeleton/common
+journal, publication versus independent review and official-key ownership,
+existing-user support and the first joint release scope. Record proposals,
+accepted decisions and objections explicitly, then assign non-overlapping
+implementation tasks. No maintainer agreement has yet been recorded.
+Further portal work remains deferred until the operator resumes it.
+
 ## Establish the integration baseline
 
 Preserve pinned public inputs, licences and both regression suites. Establish

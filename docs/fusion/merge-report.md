@@ -10,6 +10,11 @@ results and counts belong in [status](status.md), and obligations in the
 general release qualification. Work stops before the portal, which requires a
 later instruction.
 
+A subsequent [selective arospkg 0.7.2 overlay](upstream-0.7.2.md) brings link UI
+and authoring fixes plus legacy self-update corrections into the workspace.
+Its host/cross-build checks are separate from this report's frozen M1 evidence.
+Joint decisions remain open in the [maintainer handoff](maintainer-agreement.md).
+
 ## What is retained and what changes
 
 The fusion adopts APKG's model: an explicit context per root, plans, a recovery

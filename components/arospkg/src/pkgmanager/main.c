@@ -13,6 +13,7 @@
 #include "../about.h"
 #include "../libpkg/verify.h"
 #include "demo.h"
+#include "links.h"
 #include "../libpkg/util.h"
 #include <dos/dostags.h>
 #include <proto/exec.h>
@@ -32,8 +33,10 @@
    never sets it. */
 #ifdef PM_TEST_VERSION
 #define PM_VERSION PM_TEST_VERSION
+#elif defined(APKG_FUSION)
+#define PM_VERSION "fusion-alpha"
 #else
-#define PM_VERSION "0.6.0"
+#define PM_VERSION "0.7.2"
 #endif
 
 enum { ID_SEARCH = 1, ID_INSTALL, ID_REMOVE, ID_UPDATE, ID_CANCEL, ID_SELECT, ID_FILTER,
@@ -184,6 +187,7 @@ static void common_library_clear(void)
     static const char *empty_categories[] = {"All categories", NULL};
     DoMethod(lst, MUIM_List_Clear);
     SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+    lk_show(LK_DETAIL, NULL, 0);
     SetAttrs(txt_head, MUIA_Text_Contents, (IPTR)"", TAG_DONE);
     SetAttrs(cyc_cat, MUIA_NoNotify, TRUE, MUIA_Cycle_Entries,
         (IPTR)empty_categories, MUIA_Cycle_Active, 0, TAG_DONE);
@@ -245,6 +249,10 @@ static void common_select(void)
     pm_common_row *row = common_selected();
     SetAttrs(txt_channel_detail, MUIA_Floattext_Text,
         (IPTR)(row ? row->detail : "Select a package. Review and runtime testing are not asserted."), TAG_DONE);
+    lk_begin(LK_CHANNEL);
+    lk_report(LK_CHANNEL, row ? row->detail : NULL);
+    if (common_catalogue) lk_url(LK_CHANNEL, common_catalogue->endpoint);
+    lk_end(LK_CHANNEL);
     SetAttrs(btn_channel_review, MUIA_Disabled,
         in_flight || !pm_common_row_reviewable(row), TAG_DONE);
 }
@@ -343,21 +351,63 @@ AROS_UFH3S(void, display_func,
 }
 static struct Hook display_hook;
 
+/* The status line as given: for what the links themselves report. */
+static void status_plain(const char *text)
+{
+    static char line[700];
+    snprintf(line, sizeof line, "%s", text);
+    SetAttrs(txt_status, MUIA_Text_Contents, (IPTR)line, TAG_DONE);
+}
+
+/* The line itself shows a long address shortened, so it does not widen
+   the window; the link beside it has the whole one. */
+static void status_line(const char *text)
+{
+    static char line[700];
+    lk_shorten(text, line, sizeof line, 40);
+    SetAttrs(txt_status, MUIA_Text_Contents, (IPTR)line, TAG_DONE);
+}
+
+/* A message with an address gets its link beside it. */
 static void status(const char *text)
 {
-    SetAttrs(txt_status, MUIA_Text_Contents, (IPTR)text, TAG_DONE);
+    lk_show1(LK_STATUS, text);
+    status_line(text);
+}
+
+static void confirm_text(const char *text)
+{
+    SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)text, TAG_DONE);
+    lk_show1(LK_CONFIRM, text);
 }
 
 static void show_err(const char *what, pkg_status st, const pkg_err *e)
 {
     static char buf[640];
+    size_t at = 0, after = 0;
     /* As libpkg wrote it; the front does not re-phrase. On one line, because
        the status is a Text object of one line's height. */
     if (st == PKG_OK) snprintf(buf, sizeof buf, "%s", what);
-    else snprintf(buf, sizeof buf, "%s: %s%s%s%s%s%s", what, e->summary,
-                  e->subject[0] ? " (" : "", e->subject, e->subject[0] ? ")" : "",
-                  e->detail[0] ? " -- " : "", e->detail);
-    status(buf);
+    else {
+        snprintf(buf, sizeof buf, "%s: %s%s%s%s%s%s", what, e->summary,
+                 e->subject[0] ? " (" : "", e->subject, e->subject[0] ? ")" : "",
+                 e->detail[0] ? " -- " : "", e->detail);
+        if (e->subject[0]) {
+            at = strlen(what) + 2 + strlen(e->summary) + 2;
+            after = at + strlen(e->subject);
+        }
+    }
+    /* The subject is a field: when it is an address (a download's), that
+       address exactly, not what a reading of the sentence makes of it. */
+    lk_begin(LK_STATUS);
+    if (after > at && lk_exact(e->subject)) {
+        size_t bl = strlen(buf);
+        lk_text(LK_STATUS, buf, at < bl ? at : bl);
+        lk_url(LK_STATUS, e->subject);
+        if (after < bl) lk_text(LK_STATUS, buf + after, (size_t)-1);
+    } else lk_text(LK_STATUS, buf, (size_t)-1);
+    lk_end(LK_STATUS);
+    status_line(buf);
 }
 
 /* ---------------------------------------------------------------- filters */
@@ -975,7 +1025,7 @@ static void buy_preview(const demo_offer *o)
     SetAttrs(btn_proceed, MUIA_ShowMe, FALSE, TAG_DONE);
     SetAttrs(btn_decline, MUIA_Text_Contents, (IPTR)"Close", TAG_DONE);
     SetAttrs(win_confirm, MUIA_Window_Title, (IPTR)"PkgManager: demo purchase", MUIA_Window_Open, TRUE, TAG_DONE);
-    SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)text, TAG_DONE);
+    confirm_text(text);
     logline("demo purchase preview for %s (%s %s); nothing bought", o->e.id, o->price, o->currency);
     status(demo_banner());
 }
@@ -1010,6 +1060,11 @@ static void show_offer(const demo_offer *o)
     SetAttrs(btn_verify,   MUIA_Disabled, TRUE, TAG_DONE);
     SetAttrs(btn_buy,      MUIA_Disabled, busy_now(), TAG_DONE);
     show_media(o->e.id, NULL);
+    {
+        const char *t[3];
+        t[0] = head; t[1] = body; t[2] = provenance;
+        lk_show(LK_DETAIL, t, 3);
+    }
 }
 
 /* The last Verify, kept for the package it was made for and shown in its
@@ -1048,6 +1103,7 @@ static void verify_store(const char *id, pkg_status st, const pkg_verify_result 
 static void show_detail(void)
 {
     static char buf[6144], head[700];
+    size_t src_at = 0, src_end = 0;      /* the source and catalogue lines in buf */
     char icon_file[PKG_MAXPATH] = "";
     int run_ready;
     char reqs[1024] = "";
@@ -1064,6 +1120,9 @@ static void show_detail(void)
     if (info_code) snprintf(buf, sizeof buf, "Inspection refused (code %d)", (int)info_code);
     SetAttrs(txt_head,MUIA_Text_Contents,(IPTR)(selected_common?selected_common->name:""),TAG_DONE);
     SetAttrs(txt_detail,MUIA_Floattext_Text,(IPTR)(common_info_text ? common_info_text : info_code ? buf : candidate ? candidate->detail : "Select a package"),TAG_DONE);
+    lk_begin(LK_DETAIL);
+    lk_report(LK_DETAIL, common_info_text ? common_info_text : info_code ? buf : candidate ? candidate->detail : NULL);
+    lk_end(LK_DETAIL);
     SetAttrs(btn_install,MUIA_Disabled,busy_now()||!pm_common_row_reviewable(candidate),TAG_DONE);
     SetAttrs(btn_remove,MUIA_Disabled,busy_now()||!row,TAG_DONE);
     SetAttrs(btn_open,MUIA_Disabled,busy_now()||!row,TAG_DONE);
@@ -1078,6 +1137,7 @@ static void show_detail(void)
 
     if (!e) {
         SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
+        lk_show(LK_DETAIL, NULL, 0);
         SetAttrs(btn_install,  MUIA_Disabled, TRUE, TAG_DONE);
         SetAttrs(btn_remove,   MUIA_Disabled, TRUE, TAG_DONE);
         SetAttrs(btn_upgrade,  MUIA_Disabled, TRUE, TAG_DONE);
@@ -1250,9 +1310,19 @@ static void show_detail(void)
         for (i = 0; i < det.ntests && i < PKG_TESTS_MAX && k < sizeof buf; i++)
             k += (size_t)snprintf(buf + k, sizeof buf - k, "runtime test: %s\n", det.tests[i]);
         pkg_added_text(&det, text, sizeof text);
+        /* These two are fields: their links are made from the fields, not
+           from this text (which a full buffer may have cut). */
+        src_at = k < sizeof buf ? k : sizeof buf - 1;
+        /* A full field may hold a cut address; a link must not open a
+           different page. */
+        if (det.source[0] && k < sizeof buf)
+            k += (size_t)snprintf(buf + k, sizeof buf - k, "source: %s\n",
+                                  strlen(det.source) + 1 < sizeof det.source ? det.source
+                                  : "stated, but longer than this version can show");
         if (k < sizeof buf)
             k += (size_t)snprintf(buf + k, sizeof buf - k, "added: %s\ncatalogue: %s", text,
                                   det.catalogue[0] ? det.catalogue : "the catalogue file on this machine");
+        src_end = k < sizeof buf ? k : sizeof buf - 1;
     }
     {
         /* What it needs, recommends, conflicts with and replaces, from the
@@ -1290,11 +1360,23 @@ static void show_detail(void)
             memmove(buf + vl + 1, buf, bl + 1);
             memcpy(buf, last_verify.text, vl);
             buf[vl] = '\n';
+            src_at += vl + 1; src_end += vl + 1;
         }
     }
     SetAttrs(txt_head, MUIA_Text_Contents, (IPTR)head, TAG_DONE);
     SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)buf, TAG_DONE);
     show_media(e->id, icon_file);
+    /* Every address the pane shows, the pictures' sources included. */
+    lk_begin(LK_DETAIL);
+    lk_text(LK_DETAIL, head, (size_t)-1);
+    lk_text(LK_DETAIL, buf, src_at);
+    if (src_end > src_at) {
+        if (strlen(det.source) + 1 < sizeof det.source) lk_url(LK_DETAIL, det.source);
+        lk_url(LK_DETAIL, det.catalogue);
+    }
+    lk_text(LK_DETAIL, buf + src_end, (size_t)-1);
+    lk_text(LK_DETAIL, media_now ? provenance : "", (size_t)-1);
+    lk_end(LK_DETAIL);
     SetAttrs(btn_open, MUIA_Disabled, busy_now() || !e->installed, TAG_DONE);
     SetAttrs(btn_run, MUIA_Disabled, busy_now() || !run_ready, TAG_DONE);
     SetAttrs(btn_verify, MUIA_Disabled, busy_now() || !e->installed, TAG_DONE);
@@ -1653,7 +1735,7 @@ static int install_gate(rx_job *j)
     status("waiting for your decision");
     if (auto_yes) { proceed("confirmed automatically (--yes)"); return 1; }
     SetAttrs(win_confirm, MUIA_Window_Open, TRUE, TAG_DONE);
-    SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)text, TAG_DONE);
+    confirm_text(text);
     return 1;
 }
 
@@ -1709,11 +1791,26 @@ static void decline(const char *how)
 /* Said where the question was asked, in About, and on the status line. */
 /* About's text is five lines of about fifty characters; a longer line is
    broken at a space rather than cut off at the frame. */
-static void about_text(const char *in)
+static void about_links(const char *a, const char *b)
+{
+    /* The release page always: what the check talks about. */
+    lk_begin(LK_RELEASE);
+    lk_text(LK_RELEASE, a, (size_t)-1);
+    lk_text(LK_RELEASE, b, (size_t)-1);
+    lk_url(LK_RELEASE, PKG_RELEASE_PAGE);
+    lk_end(LK_RELEASE);
+}
+
+static void about_text(const char *raw)
 {
     static char text[900];
+    char short_in[900];
+    const char *in = short_in;
     size_t k = 0, col = 0, last = 0;
     int lines = 1;
+    about_links(raw, NULL);
+    /* A long address has no space to break at. */
+    lk_shorten(raw, short_in, sizeof short_in, 46);
     for (; *in && k + 2 < sizeof text; in++) {
         if (*in == '\n') { text[k++] = '\n'; col = 0; last = 0; lines++; continue; }
         if (*in == ' ') last = k;
@@ -1745,10 +1842,10 @@ static void su_quote(char *out, size_t n, const char *arg)
     out[k] = 0;
 }
 
-/* Run a command and give back the first line it printed: whether an apkg
+/* Run a command and give back what it printed: whether an apkg
    understands the hand-off this window writes, before the window closes
    for good. */
-static int su_first_line(const char *cmd, char *out, size_t n)
+static int su_output(const char *cmd, char *out, size_t n)
 {
     char file[64], *t;
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -1771,9 +1868,37 @@ static int su_first_line(const char *cmd, char *out, size_t n)
     t = u_read_all(file, NULL);
     u_delete(file);
     if (rc != 0 || !t) { free(t); return -1; }
-    t[strcspn(t, "\r\n")] = 0;
     snprintf(out, n, "%s", t);
     free(t);
+    return 0;
+}
+
+/* Whether the apkg at `path` can finish this window's update. It is asked
+   only for --version first: an apkg before 0.7.0 takes any other request
+   as a command, and "self-update --protocol" made 0.6.0 update itself from
+   the network. An apkg that names the protocol in --version is asked
+   nothing more; 0.7.0, which does not, is asked the way it understands. */
+static int su_speaks(const char *path, char *why, size_t n)
+{
+    char q[PKG_MAXPATH + 8], cmd[PKG_MAXPATH + 64], out[1024], want[40], ver[40] = "";
+    const char *p;
+    su_quote(q, sizeof q, path);
+    snprintf(cmd, sizeof cmd, "%s --version", q);
+    if (su_output(cmd, out, sizeof out) != 0) { snprintf(why, n, "no answer to --version"); return 0; }
+    if (!strncmp(out, "apkg ", 5)) snprintf(ver, sizeof ver, "%.*s", (int)strcspn(out + 5, "\r\n"), out + 5);
+    if ((p = strstr(out, "self-update protocol "))) {
+        if (atoi(p + 21) == SU_PROTOCOL) return 1;
+        snprintf(why, n, "apkg %s, protocol %d", ver, atoi(p + 21));
+        return 0;
+    }
+    if (!ver[0] || pkg_release_vercmp(ver, "0.7.0") < 0) { snprintf(why, n, "apkg %s", ver[0] ? ver : "?"); return 0; }
+    snprintf(want, sizeof want, "arospkg-self-update %d", SU_PROTOCOL);
+    snprintf(cmd, sizeof cmd, "%s self-update --protocol", q);
+    if (su_output(cmd, out, sizeof out) == 0) {
+        out[strcspn(out, "\r\n")] = 0;
+        if (!strcmp(out, want)) return 1;
+    }
+    snprintf(why, n, "apkg %s", ver);
     return 0;
 }
 
@@ -1781,9 +1906,8 @@ static int su_first_line(const char *cmd, char *out, size_t n)
    one just checked, whichever reads this window's hand-off. */
 static int su_helper(char *out, size_t n)
 {
-    char cand[5][PKG_MAXPATH], cmd[PKG_MAXPATH + 64], line[80], want[40];
+    char cand[5][PKG_MAXPATH], why[80];
     int i;
-    snprintf(want, sizeof want, "arospkg-self-update %d", SU_PROTOCOL);
     /* After an interruption the drawer's apkg may be missing, as .new or
        .old beside it; any of them, or C:apkg, will do if it reads this
        hand-off. */
@@ -1794,15 +1918,12 @@ static int su_helper(char *out, size_t n)
     snprintf(cand[4], PKG_MAXPATH, "C:apkg");
     for (i = 0; i < 5; i++) {
         if (!sujob.st.dir[0] && i == 1) continue;
-        char q[PKG_MAXPATH + 8];
         if (!u_exists(cand[i])) continue;
-        su_quote(q, sizeof q, cand[i]);
-        snprintf(cmd, sizeof cmd, "%s self-update --protocol", q);
-        if (su_first_line(cmd, line, sizeof line) == 0 && !strcmp(line, want)) {
+        if (su_speaks(cand[i], why, sizeof why)) {
             snprintf(out, n, "%s", cand[i]);
             return 0;
         }
-        logline("self-update: %s does not read this hand-off (%s)", cand[i], line);
+        logline("self-update: %s does not read this hand-off (%s)", cand[i], why);
     }
     return -1;
 }
@@ -1972,7 +2093,7 @@ static void su_done(job_kind kind, pm_msg *m, const char *why)
         SetAttrs(gauge, MUIA_Gauge_InfoText, (IPTR)"waiting for your decision", TAG_DONE);
         if (auto_yes) { su_proceed(); return; }
         SetAttrs(win_confirm, MUIA_Window_Open, TRUE, TAG_DONE);
-        SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)text, TAG_DONE);
+        confirm_text(text);
     }
 #endif
 }
@@ -2052,7 +2173,8 @@ static void su_at_start(void)
         logline("self-update result: ok=%d changed=%d %s -> %s: %s | %s", r.ok, r.changed, r.from, r.to, r.summary, r.detail);
         snprintf(line, sizeof line, "%s", r.summary);
         status(line);
-        SetAttrs(txt_release, MUIA_Text_Contents, (IPTR)line, TAG_DONE);
+        about_text(line);
+        about_links(r.summary, r.detail);
         if (!auto_yes)
             MUI_Request(app, win, 0, (STRPTR)"arospkg update", (STRPTR)"OK", (STRPTR)"%s\n\n%s",
                         (IPTR)r.summary, (IPTR)r.detail);
@@ -2141,7 +2263,7 @@ static int on_message(pm_msg *m)
         /* Zune Floattext lays out text only with an open window. On reuse
          * at the same width, opening does not trigger another layout: setting
          * text while closed can leave the next approved plan invisible. */
-        SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)common_preview_text, TAG_DONE);
+        confirm_text(common_preview_text);
         status("Review every signed package effect, then confirm or decline");
         return 0;
     }
@@ -2167,6 +2289,7 @@ static int on_message(pm_msg *m)
             SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)"", TAG_DONE);
             FreeVec(common_verify_text); common_verify_text = m->common_record; m->common_record = NULL;
             SetAttrs(txt_detail, MUIA_Floattext_Text, (IPTR)common_verify_text, TAG_DONE);
+            lk_show1(LK_DETAIL, common_verify_text);
         }
         status(m->common_status == APKG_OK ? "Verification report ready; inspect changed, missing and unknown paths" : m->err.summary);
         FreeVec(m->common_record); m->common_record = NULL;
@@ -2421,7 +2544,7 @@ static int on_message(pm_msg *m)
             /* Open first: Floattext lays its text out only when it has a
                window, and text set before that stays blank. */
             SetAttrs(win_confirm, MUIA_Window_Open, TRUE, TAG_DONE);
-            SetAttrs(txt_confirm, MUIA_Floattext_Text, (IPTR)text, TAG_DONE);
+            confirm_text(text);
             return 0;
         }
         if (j) {
@@ -3108,10 +3231,16 @@ static int real_main(int argc, char **argv)
     if (logf) logline("start PkgManager %s sha256 %s root %s: %s", PM_VERSION, self_sha(), root, rexx_state());
     snprintf(title, sizeof title, "%s", rexx_active() ? "PkgManager" : "PkgManager (no ARexx port)");
 
+    {
+        lk_setup ls;
+        ls.status = status_plain;
+        ls.log = logline;
+        lk_init(&ls);
+    }
     app = ApplicationObject,
         MUIA_Application_Title,       (IPTR)"PkgManager",
         MUIA_Application_Author,      (IPTR)AROSPKG_AUTHOR,
-        MUIA_Application_Version,     (IPTR)"$VER: PkgManager " PM_VERSION " (12.10.2026)",
+        MUIA_Application_Version,     (IPTR)"$VER: PkgManager " PM_VERSION " (30.10.2026)",
         MUIA_Application_Description, (IPTR)"Install software from AROS Archives",
         MUIA_Application_Base,        (IPTR)"PKGMANAGER",
         SubWindow, (win = WindowObject,
@@ -3183,6 +3312,7 @@ static int real_main(int argc, char **argv)
                             MUIA_Frame, MUIV_Frame_ReadList,
                             MUIA_Floattext_Text, (IPTR)"",
                         End),
+                        Child, lk_area(LK_DETAIL, 56),
                     End),
                     Child, (grp_media = VGroup,
                         MUIA_ShowMe, FALSE,
@@ -3256,9 +3386,14 @@ static int real_main(int argc, char **argv)
                     MUIA_Gauge_Current, 0,
                     MUIA_Gauge_InfoText, (IPTR)"",
                 End),
-                Child, (txt_status = TextObject,
-                    MUIA_Frame, MUIV_Frame_Text,
-                    MUIA_Text_Contents, (IPTR)"",
+                Child, (HGroup,
+                    Child, (txt_status = TextObject,
+                        MUIA_Frame, MUIV_Frame_Text,
+                        MUIA_Text_Contents, (IPTR)"",
+                    End),
+                    Child, (VGroup, MUIA_HorizWeight, 0,
+                        Child, lk_area(LK_STATUS, 32),
+                    End),
                 End),
             End),
         End),
@@ -3311,6 +3446,7 @@ static int real_main(int argc, char **argv)
                 Child, (txt_channel_detail = FloattextObject,
                     MUIA_FixHeightTxt, (IPTR)"\n\n\n\n\n\n\n\n",
                     MUIA_Floattext_Text, (IPTR)"Load a signed catalogue. Browsing changes no managed files.", End),
+                Child, lk_area(LK_CHANNEL, 56),
                 Child, (btn_channel_review = SimpleButton("Review selected install/update")),
             End),
         End),
@@ -3320,7 +3456,11 @@ static int real_main(int argc, char **argv)
             MUIA_Window_ID, MAKE_ID('P','K','G','A'),
             WindowContents, (VGroup,
                 Child, (TextObject,
-                    MUIA_Text_Contents, (IPTR)("PkgManager " PM_VERSION "\n\n" AROSPKG_ABOUT),
+                    MUIA_Text_Contents, (IPTR)("PkgManager " PM_VERSION "\n\n" AROSPKG_ABOUT_HEAD),
+                End),
+                Child, lk_area(LK_HOME, 50),
+                Child, (TextObject,
+                    MUIA_Text_Contents, (IPTR)("\n" AROSPKG_ABOUT_TAIL),
                 End),
                 Child, (txt_release = TextObject,
                     MUIA_Frame, MUIV_Frame_Text,
@@ -3328,6 +3468,7 @@ static int real_main(int argc, char **argv)
                     MUIA_Text_Contents, (IPTR)"Check for a newer version, then Update arospkg\n"
                                               "updates PkgManager and apkg together.\n\n\n",
                 End),
+                Child, lk_area(LK_RELEASE, 50),
                 Child, (HGroup,
                     Child, (btn_check = SimpleButton("Check for a newer version")),
                     Child, (btn_selfupdate = SimpleButton("Update arospkg")),
@@ -3348,6 +3489,7 @@ static int real_main(int argc, char **argv)
                     MUIA_FixHeightTxt, (IPTR)"\n\n\n\n\n\n\n\n\n\n\n",
                     MUIA_Floattext_Text, (IPTR)"",
                 End),
+                Child, lk_area(LK_CONFIRM, 48),
                 Child, (HGroup,
                     Child, (btn_proceed = SimpleButton("Proceed")),
                     Child, (btn_decline = SimpleButton("Cancel")),
@@ -3356,8 +3498,16 @@ static int real_main(int argc, char **argv)
         End),
     End;
 
-    if (!app) { rexx_close("CLOSING PkgManager could not open its window"); DeleteMsgPort(port); su_announce_stop(); return RETURN_FAIL; }
+    if (!app) { rexx_close("CLOSING PkgManager could not open its window"); lk_finish(); lk_free(); DeleteMsgPort(port); su_announce_stop(); return RETURN_FAIL; }
 
+    lk_connect(app);
+    lk_owner(LK_HOME, win_about); lk_owner(LK_RELEASE, win_about);
+    lk_owner(LK_DETAIL, win); lk_owner(LK_STATUS, win); lk_owner(LK_CONFIRM, win_confirm);
+#ifdef APKG_FUSION
+    lk_owner(LK_CHANNEL, win_common_catalogue);
+#endif
+    lk_begin(LK_HOME); lk_url(LK_HOME, AROSPKG_HOMEPAGE); lk_end(LK_HOME);
+    about_links(NULL, NULL);
     DoMethod(win, MUIM_Notify, MUIA_Window_CloseRequest, TRUE,
              (IPTR)app, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit);
     DoMethod(str_search, MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
@@ -3540,10 +3690,10 @@ static int real_main(int argc, char **argv)
                            if (o && demo_is_offer(e)) buy_preview(o); } break;
         case ID_THUMB0: case ID_THUMB1: case ID_THUMB2: case ID_THUMB3:
             show_shot((int)(ret - ID_THUMB0)); break;
-        default: break;
+        default: lk_event((unsigned long)ret); break;
         }
         if (sigs) {
-            sigs = Wait(sigs | portsig | rxsig | SIGBREAKF_CTRL_C);
+            sigs = Wait(sigs | portsig | rxsig | lk_signal() | SIGBREAKF_CTRL_C);
             if (sigs & SIGBREAKF_CTRL_C) {
                 if (confirming) { decline("declined (break)"); if(in_flight)close_requested(); else break; }
                 if (in_flight) close_requested(); else break;
@@ -3553,6 +3703,7 @@ static int real_main(int argc, char **argv)
                 while ((m = (pm_msg *)GetMsg(port))) { if (on_message(m)) quit = 1; FreeVec(m); }
             }
             if (sigs & rxsig) rexx_poll(rexx_command);
+            if (sigs & lk_signal()) lk_poll();
         }
         if (rexx_quit && !busy_now()) break;
         if (su_handed_off) break;
@@ -3588,6 +3739,9 @@ static int real_main(int argc, char **argv)
     FreeVec(common_installed);
     apkg_client_text_free(common_info_text);
 #endif
+    /* A link still being opened runs this program's code. */
+    lk_finish();
+    lk_free();
     pkg_entries_free(&rows);
     pkg_updates_free(&upd);
     DeleteMsgPort(port);
