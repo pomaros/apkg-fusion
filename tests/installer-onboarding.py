@@ -11,7 +11,7 @@ printf '%s\\n' "$@" >> "$CALL_LOG"
  curl=p/'bin/curl';curl.write_text('#!/bin/sh\n[ "$1" = -fsSL ] && [ "$2" = -o ] || exit 1\ncp "$FAKE_PKG" "$3"\n');curl.chmod(0o755)
  base={**os.environ,'HOME':str(p),'PATH':str(p/'bin')+':'+os.environ['PATH'],'PKG_INSTALL_DIR':str(p/'install'),'PKG_SKIP_VERIFY':'1','PKG_NO_MODIFY_PATH':'1','PKG_NO_AROS':'1','FAKE_PKG':str(fake),'CALL_LOG':str(p/'calls')}
  for k in ('PKG_ENV_NAME','PKG_ENV_ROOT','PKG_ENV_DEFAULT','PKG_NO_ENV'):base.pop(k,None)
- script=str(repo/'portal/src/Portal/Install/install.sh')
+ script=str(repo/'tests/fixtures/pkg-installers/install.sh')
  r=subprocess.run(['sh',script],env=base,capture_output=True,text=True);assert r.returncode==0,r.stderr;assert not (p/'calls').exists();print('PASS unattended no registration')
  r=subprocess.run(['sh',script],env={**base,'PKG_ENV_NAME':'native','PKG_ENV_ROOT':str(p/'root with spaces'),'PKG_ENV_DEFAULT':'1'},capture_output=True,text=True);assert r.returncode==0,r.stderr;assert (p/'calls').read_text().splitlines()==['ENV','ADD','native','ROOT',str(p/'root with spaces'),'ENV','DEFAULT','native'];assert 'environments.conf' in r.stdout;print('PASS explicit registration preserves spaces and default')
  (p/'calls').unlink()
@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory(prefix='pkg-existing-install-check-') as d:
  env={**os.environ,'HOME':str(p),'PATH':str(p/'bin')+':'+os.environ['PATH'],'PKG_SKIP_VERIFY':'1','PKG_NO_MODIFY_PATH':'1','PKG_NO_AROS':'1','PKG_NO_ENV':'1','FAKE_PKG':str(fake)}
  env.pop('PKG_INSTALL_DIR',None)
  for k in ('PKG_ENV_NAME','PKG_ENV_ROOT','PKG_ENV_DEFAULT'):env.pop(k,None)
- r=subprocess.run(['sh',str(repo/'portal/src/Portal/Install/install.sh')],env=env,capture_output=True,text=True);assert r.returncode==0,r.stderr;assert '1.7.5' in existing.read_text();print('PASS lowercase pkg existing installation reused')
+ r=subprocess.run(['sh',str(repo/'tests/fixtures/pkg-installers/install.sh')],env=env,capture_output=True,text=True);assert r.returncode==0,r.stderr;assert '1.7.5' in existing.read_text();print('PASS lowercase pkg existing installation reused')
 
 # The installer is normally piped to sh; prompts read the controlling terminal.
 import pty, select, time
@@ -41,7 +41,7 @@ printf '%s\\n' "$@" >> "$CALL_LOG"
  for k in ('PKG_ENV_NAME','PKG_ENV_ROOT','PKG_ENV_DEFAULT','PKG_ENV_REUSE','PKG_NO_ENV'):env.pop(k,None)
  def interact(answers):
   pid,fd=pty.fork()
-  if pid==0: os.execve('/bin/sh',['sh',str(repo/'portal/src/Portal/Install/install.sh')],env)
+  if pid==0: os.execve('/bin/sh',['sh',str(repo/'tests/fixtures/pkg-installers/install.sh')],env)
   output=b''; pending=b''; index=0; deadline=time.monotonic()+30
   try:
    while time.monotonic()<deadline:
@@ -73,7 +73,7 @@ printf '%s\\n' "$@" >> "$CALL_LOG"
  assert (occupied/'.hidden').read_text()=='keep'
  print('PASS confirmed reuse preserves existing files')
  for reuse,code in [('0',1),('1',0)]:
-  r=subprocess.run(['sh',str(repo/'portal/src/Portal/Install/install.sh')],env={**env,'PKG_ENV_NAME':'auto','PKG_ENV_ROOT':str(occupied),'PKG_ENV_REUSE':reuse},capture_output=True,text=True)
+  r=subprocess.run(['sh',str(repo/'tests/fixtures/pkg-installers/install.sh')],env={**env,'PKG_ENV_NAME':'auto','PKG_ENV_ROOT':str(occupied),'PKG_ENV_REUSE':reuse},capture_output=True,text=True)
   assert r.returncode==code,(r.stdout,r.stderr)
  print('PASS unattended reuse needs explicit opt-in')
 
