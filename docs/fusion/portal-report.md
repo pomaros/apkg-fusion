@@ -103,9 +103,9 @@ This is a host staging qualification, not a production cutover, live GitHub
 OAuth check, Azure slot swap or power-loss test. Synthetic publisher registry
 fixtures do not establish live OAuth readiness. Host Python payload execution
 does not qualify an AROS runtime. Native network/UI testing and broader platform
-claims remain separate. The installed M1 updater was not modified.
+claims remain separate.
 
 Compatibility
-with released Coffeecat APKG remains deferred to joint discussion, as do official
+with released APKG installations remains deferred to joint discussion, as do official
 key custody, shared governance and the first joint release scope. Development
 evidence is not agreement by both maintainers.

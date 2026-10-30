@@ -55,11 +55,9 @@ portal cutover is included.
 
 ## Clean common portal local qualification
 
-The operator removed deployed pkg API/UI/data compatibility and conversion.
-The implementation replaces the old portal verifier/catalogue/push backend with
-the common engine. Existing pkg-specific portal tests were retired with those
-routes, rather than retained as an implied compatibility obligation. Common
-security, publication and lifecycle regressions remain and are expanded.
+The common engine handles portal verification, browsing and publication.
+Old pkg APIs, formats and deployed-data conversion are unsupported. Qualification
+covers the common portal security, publishing and application lifecycle.
 
 Measured locally: all 65 common portal tests pass. Three data-tool tests
 cover command-line backup/restore, exact contents/modes, private archives,

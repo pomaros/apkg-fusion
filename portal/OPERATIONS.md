@@ -5,7 +5,7 @@
 
 This describes the new common-only service. There is no conversion of deployed
 pkg data. Keep the old deployment and its data separately until production
-cutover is reviewed. The installed M1 updater is outside this work.
+cutover is reviewed.
 
 ## Artifact and host
 
@@ -80,8 +80,7 @@ persistence, distributed coordination or native AROS filesystem behavior.
 
 Before a live cutover, review the exact-source Linux artifact, checksums,
 configuration, HTTPS/OAuth callback, storage permissions, quotas and a private
-backup/restore receipt. The current local rehearsal authorizes no production
-switch. Keep the warning enabled on the candidate and after deployment.
+backup/restore receipt. Keep the warning enabled on the candidate and after deployment.
 
 For an approved cutover, stop writers, record the old application/data/config
 identity, take a private baseline backup, and point the service to the reviewed

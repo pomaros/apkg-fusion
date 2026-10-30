@@ -5,25 +5,19 @@
 
 ## Current operator scope
 
-The operator explicitly removed all compatibility and data-migration obligations
-for the deployed pkg portal. Finish a clean common-engine portal and prove the
-complete test-application cycle on a disposable deployment. No old pkg API,
-UI, manifest, installer or deployed-data conversion is a product requirement.
-Compatibility with Coffeecat's released APKG is deferred until joint discussion.
-Backup/restore and rollback cover new common-portal data only.
+The portal supports common signed channels and new-data backup/restore.
+Old pkg APIs, manifests, installers and deployed-data conversion are unsupported.
+Compatibility with released APKG installations remains subject to joint design.
 
-The operator also requires a prominent English deployment notice asking people
-not to use the portal or its packages until further notice while the system is
-merged with APKG, with an apology for the inconvenience. The global notice is
-on by default and remains part of deployment acceptance until explicitly cleared.
+Every page displays an English notice asking people not to use the portal or
+its packages during the APKG merge, with an apology for the inconvenience.
+The notice is enabled by default and must remain enabled for deployment until
+explicitly cleared by the operator.
 
-The active goal spans publishing (stored files and external links), common
-signed-request authentication, independent qualification evidence, a clean
-default UI, deployable artifacts, and publication/installation/upgrade/repair/
-rollback/uninstallation with exact retained-file inspection. Evaluate each
-stage and continue through this sequence; the operator authorized finishing
-the portal and validate the complete application lifecycle.
-
+Qualification covers stored and externally linked publication, signed requests,
+independent qualification evidence, browsing, deployable artifacts and the
+application lifecycle: install, upgrade, offline rollback/repair, uninstall and
+exact retained-file inspection.
 
 ## Authenticated publication
 
