@@ -117,10 +117,12 @@ def validate_archive(engine, endpoint, staging, entry, downloaded=None, scratch=
 
 
 def commit(args):
-    for name, default in dict(links=None, scratch=None, link_hosts='', link_only=False,
-                              allow_loopback_links=False, max_link_bytes=128*1024*1024,
-                              max_validation_bytes=512*1024*1024).items():
-        if not hasattr(args, name):setattr(args, name, default)
+    defaults = dict(links=None, scratch=None, link_hosts='', link_only=False,
+                    allow_loopback_links=False, max_link_bytes=128*1024*1024,
+                    max_validation_bytes=512*1024*1024)
+    # Library callers retain their input namespace, including when retrying an
+    # interrupted commit or assembling a subsequent command-line invocation.
+    args = argparse.Namespace(**(defaults | vars(args)))
     if not re.fullmatch('[0-9a-f]{64}', args.snapshot):
         refuse('invalid', 'snapshot must be a lowercase SHA-256')
     if args.expected != '-' and not re.fullmatch('[0-9a-f]{64}', args.expected):

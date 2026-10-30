@@ -76,6 +76,7 @@ module['commit'](SimpleNamespace(**json.loads(sys.argv[2])))
                     endpoint = temporary / ('live-' + boundary)
                     args = SimpleNamespace(engine=str(clients.CLI), endpoint=str(endpoint), staging=str(source),
                                            publisher='synthetic-publisher', snapshot=digest, expected='-')
+                    original_arguments = vars(args).copy()
                     if boundary == 'archive':
                         def fail_archive(*unused):
                             raise OSError('injected archive write failure')
@@ -102,6 +103,7 @@ module['commit'](SimpleNamespace(**json.loads(sys.argv[2])))
                                 helper['main']()
                             self.assertEqual(json.loads(output.getvalue())['result'], 'uncertain')
                         self.assertEqual(head(endpoint), digest)
+                    self.assertEqual(vars(args), original_arguments, 'a failed commit must not mutate caller arguments')
                     answer = helper['commit'](args)
                     self.assertEqual(answer['result'], 'published' if boundary == 'archive' else 'unchanged')
                     self.assertEqual(head(endpoint), digest)
