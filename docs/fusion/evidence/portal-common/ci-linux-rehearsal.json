@@ -1,0 +1,23 @@
+{
+  "checks": [
+    "published artifact health and warning",
+    "registered signed stored and link-only publishers",
+    "chunked publication and idempotent retry",
+    "CLI and actual worker install and upgrade",
+    "host Python payload execution v1 and v2",
+    "configuration preservation",
+    "offline CLI and worker rollback and repair",
+    "offline uninstall exact retained files and no pending transaction",
+    "quiesced private backup and exact restore",
+    "restored deployment health, identities, owner pins and baseline URLs"
+  ],
+  "deployment_manifest_sha256": "9784f95ceaf7631d5f3f93c6a7dc228e3ba12e2f487d61377ca257c4389b1c75",
+  "dirty_source": false,
+  "limitations": [
+    "synthetic publisher registration; live GitHub OAuth not exercised",
+    "host payload execution does not qualify AROS runtime",
+    "local process/data rollback; no production cutover or power-loss claim"
+  ],
+  "result": "passed",
+  "source_revision": "c414d4f0305c6f8b3b83d6d05ce8070ac9f4b12f"
+}

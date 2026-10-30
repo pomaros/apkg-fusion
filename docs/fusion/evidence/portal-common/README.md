@@ -6,7 +6,11 @@
 The [local rehearsal receipt](local-rehearsal.json) records the first successful
 published-artifact cycle from the development worktree. Its dirty flag is
 explicit: the parent revision does not identify these uncommitted changes. The
-final exact-source CI receipt will be linked from the [report](../../portal-report.md).
+later [clean local receipt](clean-local-rehearsal.json),
+[Linux CI receipt](ci-linux-rehearsal.json) and
+[macOS CI receipt](ci-macos-rehearsal.json) identify exact source `c414d4f`.
+[Artifact identities and hashes](deployment-artifacts.json) bind the downloaded
+archives to those successful rehearsals. See the [report](../../portal-report.md).
 All identities and packages are synthetic. No private publisher key, account,
 server configuration, authentication keyring or data backup is published here.
 
