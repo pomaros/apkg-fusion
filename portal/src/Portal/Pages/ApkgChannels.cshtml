@@ -1,6 +1,6 @@
 @* SPDX-License-Identifier: MIT
    Copyright (c) 2026 John Knipper *@
-@page "/packages/apkg"
+@page "/"
 @using Portal.Channels
 @inject CommonCatalogue CommonCatalogue
 @{
@@ -17,8 +17,8 @@
 @foreach (var channel in channels)
 {
     <section class="channel">
-        <h2><a href="/packages/apkg/channels/@channel">@channel</a></h2>
+        <h2><a href="/channels/@channel">@channel</a></h2>
         <p>Browse packages and exact builds in this channel.</p>
     </section>
 }
-<p><a href="/search">Browse the existing Pkg catalogue</a>.</p>
+<p><a href="/account">Publish a package</a> · <a href="/docs">Using APKG</a></p>

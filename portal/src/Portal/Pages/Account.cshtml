@@ -17,15 +17,6 @@
 
     bool Maintainer(string login) => Options.Value.Admins.Split(';', ',').Any(x => string.Equals(x.Trim(), login, StringComparison.OrdinalIgnoreCase));
 
-    public IActionResult OnPostAdopt(string key)
-    {
-        if (Me() is not { } me) return Redirect("/signin");
-        if (!Maintainer(me.Login)) return NotFound();
-        Problem = Registry.Adopt(me.Id, me.Login, key);
-        Saved = false;
-        return Page();
-    }
-
     public IActionResult OnPost()
     {
         if (Me() is not { } me) return Redirect("/signin");
@@ -43,7 +34,7 @@
 <h1>Your publisher account</h1>
 @if (!Options.Value.GitHub.On)
 {
-    <p class="lead">This portal has no sign-in: its maintainer registers publishers by hand. <a href="/publishers#publish">How to ask</a>.</p>
+    <p class="lead">This portal has no sign-in: its maintainer registers publishers by hand. See the <a href="/docs">publishing guide</a>.</p>
     return;
 }
 @if (me is null)
@@ -54,18 +45,11 @@
     return;
 }
 <p class="lead">Signed in as <strong>@me.Value.Login</strong> on GitHub.</p>
-<form method="post" action="/signout"><button class="linklike" type="submit">Sign out</button></form>
+<form method="post" action="/signout">@Html.AntiForgeryToken()<button class="linklike" type="submit">Sign out</button></form>
 @if (Maintainer(me.Value.Login))
 {
     <p class="notice">You are a maintainer of this portal. <a href="/admin">Maintainers' page</a></p>
-    @foreach (var k in Registry.SettingsKeys().Where(k => Registry.ByKey(k.Key) is null))
-    {
-        <form method="post" asp-page-handler="Adopt" class="form">
-            <p>The portal's settings name the key <code>@k.Key[..16]</code> (<strong>@k.Name</strong>, channels @string.Join(", ", k.Channels), @(k.Files ? "with files" : "links only")). Put it under this GitHub account, as it is: nothing published changes.</p>
-            <input type="hidden" name="key" value="@k.Key" />
-            <button class="button" type="submit">Take this publisher under my account</button>
-        </form>
-    }
+
 }
 
 @if (mine is { Suspended: true })
@@ -89,13 +73,14 @@
             <tr><th>Publisher</th><td>@mine.Name</td></tr>
             <tr><th>Signing key</th><td><code>@mine.Key</code></td></tr>
             <tr><th>Channels</th><td>@(mine.Channels.Contains("*") ? "every channel" : string.Join(", ", mine.Channels))</td></tr>
-            <tr><th>Your push carries</th><td>@(mine.Files ? "your files: the portal stores them" : "signed descriptions only: your files stay at an https address, such as a GitHub release (UPSTREAM)")</td></tr>
+            <tr><th>Your push carries</th><td>@(mine.Files ? "your files: the portal stores them" : "signed metadata and links: archives stay on an HTTPS server")</td></tr>
         </tbody>
     </table>
     <h2 class="label">Publish</h2>
-    <div class="cmd lines"><code>pkg PUBLISH "release/mytool-1.0.tar.bz2!/MyTool" CHANNEL @(mine.Channels[0] == "*" ? "mychannel" : mine.Channels[0]) KIND application UPSTREAM https://github.com/@me.Value.Login/mytool/releases/download/v1.0/mytool-1.0.tar.bz2 SIGN my.key
-pkg PUSH CHANNEL @(mine.Channels[0] == "*" ? "mychannel" : mine.Channels[0]) TO @site/@(mine.Channels[0] == "*" ? "mychannel" : mine.Channels[0]) SIGN my.key</code></div>
-    <p class="muted"><a href="/docs/publishing">Publishing packages</a> says the rest.</p>
+    <div class="cmd lines"><code>python3 tools/apkg-build MyTool --output mytool.pkg --sign author.key --authority AUTHOR-ID --runtime native
+python3 tools/apkg-channel mytool.pkg --directory channel --id CHANNEL-ID --sign channel.key
+python3 tools/apkg-portal-push channel @site/@(mine.Channels[0] == "*" ? "mychannel" : mine.Channels[0]) --sign channel.key</code></div>
+    <p class="muted">Link-only publishers add <code>--links links.json</code>, mapping each new archive digest to its public HTTPS address. <a href="/docs">Publishing guide</a>.</p>
 }
 
 @if (mine is { } && mine.Channels.Contains("*")) { return; }
@@ -103,7 +88,7 @@ pkg PUSH CHANNEL @(mine.Channels[0] == "*" ? "mychannel" : mine.Channels[0]) TO 
 <form method="post" class="form">
     <label><span>Publisher name, as people will see it</span>
         <input name="PublisherName" maxlength="60" required value="@(mine?.Name ?? me.Value.Login)" /></label>
-    <label><span>Your public key: what <code>pkg KEYINFO FILE my.key</code> prints, 64 hexadecimal digits. Never the key file.</span>
+    <label><span>Your public key: what <code>apkg key-public my.key</code> prints, 64 hexadecimal digits. Never the key file.</span>
         <input name="PublicKey" maxlength="64" minlength="64" pattern="[0-9a-fA-F]{64}" required value="@(mine?.Key ?? "")" spellcheck="false" autocomplete="off" /></label>
     <label><span>Channel: lowercase letters, digits and <code>-</code>, such as <code>@(me.Value.Login.ToLowerInvariant())-tools</code></span>
         <input name="Channel" maxlength="40" pattern="[a-z0-9][a-z0-9-]*" required value="@(mine?.Channels.FirstOrDefault() ?? "")" spellcheck="false" /></label>

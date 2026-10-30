@@ -27,11 +27,11 @@ public class RegistryTests
         Assert.Matches("^[0-9a-f]{64}$", renamed.StagingId);
     }
 
-    static (Registry, Catalogue, string) New(string signedKeys = "")
+    static (Registry, CommonVisibility, string) New(string signedKeys = "")
     {
         var data = Directory.CreateTempSubdirectory("portal-registry-").FullName;
         var o = Options.Create(new PortalOptions { DataDir = data, SignedKeys = signedKeys });
-        var c = new Catalogue(o);
+        var c = new CommonVisibility(o);
         return (new Registry(o, c), c, data);
     }
     static readonly string K1 = new('1', 64), K2 = new('2', 64);
@@ -51,7 +51,7 @@ public class RegistryTests
     }
 
     [Theory]
-    [InlineData("pkg"), InlineData("aros-core"), InlineData("contrib-nightly"), InlineData("afsplus-alpha"), InlineData("Bad Name"), InlineData("api")]
+    [InlineData("apkg"), InlineData("aros-core"), InlineData("official"), InlineData("apkg-alpha"), InlineData("Bad Name"), InlineData("api")]
     public void Names_kept_for_the_project_or_the_site_are_refused(string channel) =>
         Assert.NotNull(New().Item1.Register(7, "jane", "Jane", K1, channel));
 
@@ -77,15 +77,4 @@ public class RegistryTests
         Assert.Contains("suspended", r.Register(7, "jane", "Jane", K1, "a1"));
     }
 
-    [Fact]
-    public void A_maintainer_takes_a_settings_key_under_their_account_as_it_is()
-    {
-        var (r, _, _) = New($"owner:{K2}:*:files");
-        Assert.Contains("not one of", r.Adopt(1, "jonx", K1));
-        Assert.Null(r.Adopt(1, "jonx", K2.ToUpperInvariant()));
-        var p = r.PublisherFor(K2)!;
-        Assert.True(p.Name == "owner" && p.Files && p.MayPush("anything"));
-        Assert.Equal("jonx", r.ByAccount(1)!.Login);
-        Assert.Contains("another account", r.Adopt(2, "other", K2));
-    }
 }

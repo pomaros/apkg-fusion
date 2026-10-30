@@ -1,63 +1,26 @@
-@page "/docs/{**slug}"
-@using Portal.Docs
-@{
-    var slug = (string?)RouteData.Values["slug"] ?? "";
-    var q = Request.Query["q"].ToString().Trim();
-    var doc = UserDocs.Render(slug);
-    if (doc is null) { Response.StatusCode = 404; ViewData["Title"] = "No such page"; }
-    else ViewData["Title"] = doc.Title;
-    string Href(string s) => "/docs" + (s.Length > 0 ? "/" + s : "");
-}
-@if (doc is null)
-{
-    <h1>No such page</h1>
-    <p><a href="/docs">The documentation starts here.</a></p>
-    return;
-}
-<div class="docs">
-<nav class="toc" aria-label="Documentation">
-    <form action="@("/docs" + (slug.Length > 0 ? "/" + slug : ""))" method="get" role="search" class="docsearch">
-        <input type="search" name="q" value="@q" placeholder="Search the guides" aria-label="Search the guides" />
-    </form>
-    @foreach (var p in UserDocs.Pages.Where(p => p.InMenu))
-    {
-        // A command's page sits under Commands in the menu.
-        var current = p.Slug == slug || (p.Slug.Length > 0 && slug.StartsWith(p.Slug + "/", StringComparison.Ordinal));
-        <a class="@(current ? "on" : "")" href="@Href(p.Slug)">@p.Title</a>
-        @if (current && q.Length == 0)
-        {
-            @foreach (var h in doc.Headings.Where(h => h.Level == 2))
-            {
-                <a class="sub" href="#@h.Id">@h.Text</a>
-            }
-        }
-    }
-</nav>
-<article class="prose">
-@if (q.Length > 0)
-{
-    var hits = UserDocs.Search(q);
-    <h1>@hits.Count result@(hits.Count == 1 ? "" : "s") for “@q”</h1>
-    @if (hits.Count == 0)
-    {
-        <p class="muted">Nothing in the guides holds that. <a href="@("/docs" + (slug.Length > 0 ? "/" + slug : ""))">Back to @doc.Title</a>, or search the <a href="/search?q=@Uri.EscapeDataString(q)">packages</a>.</p>
-    }
-    <ul class="rows">
-    @foreach (var h in hits)
-    {
-        var to = "/docs" + (h.Page.Slug.Length > 0 ? "/" + h.Page.Slug : "") + (h.Anchor is null ? "" : "#" + h.Anchor);
-        <li>
-            <span><a class="n" href="@to">@h.Page.Title</a></span>
-            <span class="d">@Site.Mark(h.Snippet, q)</span>
-        </li>
-    }
-    </ul>
-    <p class="muted small">Choose a result to open its guide at the matching section. <a href="@("/docs" + (slug.Length > 0 ? "/" + slug : ""))">Clear the search</a>.</p>
-}
-else
-{
-    <h1>@doc.Title</h1>
-    @Html.Raw(doc.Html)
-}
-</article>
-</div>
+@* SPDX-License-Identifier: MIT
+   Copyright (c) 2026 John Knipper *@
+@page "/docs"
+@{ ViewData["Title"]="Using APKG"; }
+<h1>Using APKG</h1>
+<p>Authors publish signed packages. Publication is independent of review and runtime testing. Clients choose which author, channel, reviewer and tester keys they trust.</p>
+<h2>Build and publish</h2>
+<p>Describe your application in a sibling <code>MyTool.arospkg.toml</code>. Keep signing keys outside its drawer.</p>
+<pre>apkg keygen author.key
+apkg keygen channel.key
+python3 tools/apkg-build MyTool --output mytool.pkg --sign author.key --authority AUTHOR-ID --runtime native
+python3 tools/apkg-channel mytool.pkg --directory channel --id CHANNEL-ID --sign channel.key
+python3 tools/apkg-portal-push channel https://PORTAL/CHANNEL --sign channel.key</pre>
+<p>Author and channel IDs are independently chosen 32-digit lowercase hexadecimal identities. Register the channel public key through <a href="/account">your account</a>. The portal never needs your private signing keys.</p>
+<p>New accounts publish metadata and external archive links. Supply <code>--links links.json</code>, a JSON object mapping each new archive SHA-256 to its public HTTPS URL. The portal checks the signed size, hash and complete package before publishing a redirect. Operators may grant binary storage separately.</p>
+<h2>Install and remove</h2>
+<p>Open an exact build page for its installation preview command. Initialize the destination root with your own trust policy, review the effects, and confirm the exact plan digest. Installation never grants trust automatically.</p>
+<pre>apkg verify ROOT PACKAGE
+apkg remove ROOT PACKAGE
+apkg remove ROOT PACKAGE --confirm PLAN-DIGEST</pre>
+<p>Edited configuration and unowned personal files are preserved. Review the remaining files after removal before explicitly deleting a test root.</p>
+<h2>JSON API</h2>
+<pre>GET /api/channels/CHANNEL
+GET /api/channels/CHANNEL/packages?q=TEXT&amp;authority=AUTHOR-ID&amp;target=TARGET&amp;skip=0&amp;take=100
+GET /api/policy</pre>
+<p>Package pages pin an exact signed snapshot. JSON responses are observations; use immutable channel files for signed bytes. Signature verification, trust, independent review and target-specific runtime evidence are separate facts.</p>

@@ -20,8 +20,9 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
     *out = NULL;
     b.max = 16384;
     int keygen = !strcmp(argv[1], "keygen"),
-        pub = !strcmp(argv[1], "key-public");
-    if ((keygen || pub) ? argc != 3 : argc != 5)
+        pub = !strcmp(argv[1], "key-public"),
+        push = !strcmp(argv[1], "push-sign");
+    if ((keygen || pub) ? argc != 3 : push ? argc != 4 : argc != 5)
         return APKG_INVALID;
     if (keygen) {
         if (pkg_fs_random(seed, sizeof seed)) {
@@ -63,6 +64,23 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
     }
     if (keygen || pub) {
         ak_buf_add(&b, "{\"public_key\":\"%s\"}", publichex);
+        goto output;
+    }
+    if (push) {
+        if (ak_read(argv[3], &bytes, &size, 8192)) {
+            code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+            goto done;
+        }
+        /* Separate wire domain: these signatures cannot authorize an APKG
+         * descriptor/channel/attestation, nor arbitrary unframed bytes. */
+        if (size < 12 || memcmp(bytes, "pkg-push-1\n", 11) ||
+            memchr(bytes, 0, size) || bytes[size - 1] != '\n') {
+            code = APKG_INVALID;
+            goto done;
+        }
+        pkg_ed25519_sign(signature, bytes, size, sk);
+        ak_tohex(signature, 64, sighex);
+        ak_buf_add(&b, "{\"public_key\":\"%s\",\"signature\":\"%s\"}", publichex, sighex);
         goto output;
     }
     int channel = !strcmp(argv[3], "channel");
@@ -139,6 +157,26 @@ done:
     free(b.data);
     ak_json_free(&j);
     return code;
+}
+
+apkg_status ak_push_verify_command(int argc, char **argv, char **out) {
+    unsigned char key[32], signature[64], *message = NULL;
+    size_t size = 0;
+    *out = NULL;
+    if (argc != 5 || ak_hex(argv[2], key, 32) || ak_hex(argv[3], signature, 64))
+        return APKG_INVALID;
+    if (ak_read(argv[4], &message, &size, 8192))
+        return errno == ENOMEM ? APKG_NOMEM : APKG_IO;
+    int valid = size >= 12 && !memcmp(message, "pkg-push-1\n", 11) &&
+        !memchr(message, 0, size) && message[size - 1] == '\n';
+    int verified = valid && pkg_ed25519_verify(signature, message, size, key) == 0;
+    free(message);
+    if (!verified)
+        return APKG_SIGNATURE;
+    const char answer[] = "{\"verified\":true}";
+    *out = malloc(sizeof answer);
+    if (*out) memcpy(*out, answer, sizeof answer);
+    return *out ? APKG_OK : APKG_NOMEM;
 }
 /* Cryptographic metadata verification for publishers. This does not grant any
  * role to the signer or assert archive contents/review/runtime qualifications.

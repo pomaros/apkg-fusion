@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Project common-engine qualification facts under an explicit portal policy.
+
+No server signatures, client trust grants, latest-review badge or runtime claim.
+The complete signed observations remain in their immutable channel snapshot.
+"""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import runpy
+
+producer=runpy.run_path(str(Path(__file__).with_name('apkg-channel')))
+
+def evaluate(args):
+    if not re.fullmatch('[0-9a-f]{64}',args.snapshot) or not re.fullmatch('[0-9a-f]{64}',args.descriptor):
+        raise ValueError('exact digests required')
+    source=Path(args.endpoint)/'snapshots'/args.snapshot
+    document=producer['read_small'](source/'channel.json',producer['META_MAX'])
+    signature=producer['read_small'](source/'channel.signature.json',16384)
+    if hashlib.sha256(document).hexdigest()!=args.snapshot:
+        raise ValueError('snapshot changed')
+    policy=producer['read_small'](Path(args.policy),producer['META_MAX'])
+    scratch=Path(args.scratch)
+    metadata=scratch/'channel'/'snapshots'/args.snapshot;metadata.mkdir(parents=True)
+    (metadata/'channel.json').write_bytes(document);(metadata/'channel.signature.json').write_bytes(signature)
+    (scratch/'channel'/'current').write_text(args.snapshot+'\n')
+    # Verify the captured snapshot before admitting its transport key in this
+    # disposable query context. This grants no author/reviewer/tester role and
+    # never changes a client root or the configured portal policy.
+    verified=json.loads(producer['engine_run'](args.engine,'verify-object','channel',metadata/'channel.json',metadata/'channel.signature.json'))
+    if verified['sha256']!=args.snapshot:raise ValueError('verified snapshot identity differs')
+    parsed=json.loads(document)
+    evaluation=json.loads(policy)
+    evaluation['body']['channels']=[dict(id=parsed['body']['id'],keys=[dict(algorithm='ed25519',public_key=verified['public_key'])])]
+    seed=scratch/'policy.json';seed.write_bytes(producer['encode'](evaluation))
+    selected=[entry for entry in parsed['body']['entries'] if hashlib.sha256(producer['encode'](entry['descriptor'])).hexdigest()==args.descriptor]
+    if len(selected)!=1:raise ValueError('build is not in the selected snapshot')
+    root=scratch/'root'
+    producer['engine_run'](args.engine,'init',root,selected[0]['descriptor']['body']['target'],seed,'--yes')
+    view=json.loads(producer['engine_run'](args.engine,'channel-updates',root,scratch/'channel',parsed['body']['id']))
+    row=next(entry for entry in view['entries'] if entry['selection'].split('/')[-1]==args.descriptor)
+    claims=[]
+    for observation in row['attestations']:
+        body=observation['record']['body']
+        claims.append(dict(record_sha256=observation['record_sha256'],kind=body['kind'],result=body['result'],
+            issuer=body['issuer'],sequence=body['sequence'],issuer_trust=observation['issuer_trust'],
+            independent=observation['independent'],history=observation['history'],
+            target_matches=observation['target_matches'],freshness=observation['freshness']))
+    return dict(status='evaluated',policy_sha256=hashlib.sha256(policy).hexdigest(),observations=claims,
+                current_approval='not-asserted',client_trust='not-granted',freshness='unknown')
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser(description=__doc__)
+    for name in ('engine','endpoint','snapshot','descriptor','policy','scratch'):parser.add_argument('--'+name,required=True)
+    print(json.dumps(evaluate(parser.parse_args()),sort_keys=True,separators=(',',':')))

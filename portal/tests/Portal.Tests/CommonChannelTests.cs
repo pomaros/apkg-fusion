@@ -14,7 +14,7 @@ namespace Portal.Tests;
 
 public sealed class CommonChannelTests
 {
-    internal sealed class Fixture : WebApplicationFactory<Program>
+    internal class Fixture : WebApplicationFactory<Program>
     {
         public readonly string Data = Directory.CreateTempSubdirectory("portal-common-").FullName;
         public readonly string Repository;
@@ -55,7 +55,6 @@ public sealed class CommonChannelTests
         {
             builder.UseSetting("Portal:DataDir", Data);
             builder.UseSetting("Portal:ApkgPath", Engine);
-            builder.UseSetting("Portal:PkgPath", Path.Combine(Data, "legacy-must-not-run"));
             foreach (var setting in Settings) builder.UseSetting(setting.Key, setting.Value);
         }
         public void Rewrite(JsonNode document)
@@ -88,7 +87,7 @@ public sealed class CommonChannelTests
         using var client = fixture.CreateClient();
         var before = Directory.GetFiles(fixture.Channel, "*", SearchOption.AllDirectories)
             .ToDictionary(p => p, p => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))));
-        var response = await client.GetAsync("/api/common/channels/common");
+        var response = await client.GetAsync("/api/channels/common");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var view = doc.RootElement;
@@ -141,7 +140,7 @@ public sealed class CommonChannelTests
         if (failure == "reference") File.AppendAllText(Path.Combine(fixture.Channel, "current"), "\n");
         if (failure == "size") File.WriteAllBytes(Path.Combine(fixture.Snapshot, "channel.signature.json"), new byte[16385]);
         using var client = fixture.CreateClient();
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await client.GetAsync("/api/common/channels/common")).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await client.GetAsync("/api/channels/common")).StatusCode);
     }
 
     [Fact]
@@ -150,9 +149,9 @@ public sealed class CommonChannelTests
         using var fixture = new Fixture();
         fixture.Engine = Path.Combine(fixture.Data, "missing-engine");
         using var client = fixture.CreateClient();
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.GetAsync("/api/common/channels/common")).StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await client.GetAsync("/api/channels/common")).StatusCode);
         File.Delete(Path.Combine(fixture.Channel, "current"));
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/common/channels/common")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/channels/common")).StatusCode);
     }
 
     [Fact]
@@ -164,7 +163,7 @@ public sealed class CommonChannelTests
         File.Move(file, outside);
         File.CreateSymbolicLink(file, outside);
         using var client = fixture.CreateClient();
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await client.GetAsync("/api/common/channels/common")).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await client.GetAsync("/api/channels/common")).StatusCode);
     }
 
     [Theory]

@@ -470,3 +470,7 @@ form.inline { display: inline; margin-right: .6rem; }
   .apkg-filters label { display: grid; grid-template-columns: 1fr; }
   .apkg-builds th, .apkg-builds td { padding-left: 4px; padding-right: 4px; }
 }
+
+.migration-notice { width: calc(100% - 32px); margin: 18px auto 0; padding: 16px;
+  border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface-2); }
+.migration-notice p { margin: 6px 0 0; }

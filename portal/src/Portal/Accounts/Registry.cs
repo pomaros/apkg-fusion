@@ -24,7 +24,7 @@ public sealed record Registered(
 public sealed partial class Registry
 {
     readonly PortalOptions o;
-    readonly Catalogue catalogue;
+    readonly CommonVisibility catalogue;
     readonly object gate = new();
     List<Registered> all;
     string File1 => Path.Combine(o.StateDir, "publishers.json");
@@ -32,7 +32,7 @@ public sealed partial class Registry
 
     public const int MaxChannels = 3;
 
-    public Registry(IOptions<PortalOptions> options, Catalogue catalogue)
+    public Registry(IOptions<PortalOptions> options, CommonVisibility catalogue)
     {
         o = options.Value;
         this.catalogue = catalogue;
@@ -51,9 +51,8 @@ public sealed partial class Registry
 
     /// Names nobody takes by registering: the project's own, and what reads like it.
     public static bool ReservedName(string channel) =>
-        channel is "pkg" or "aros" or "contrib" or "contrib-nightly" or "system" or "official" or "core" or "main" or "test" or "admin"
-        || channel.StartsWith("aros-", StringComparison.Ordinal) || channel.StartsWith("pkg-", StringComparison.Ordinal)
-        || channel.StartsWith("contrib-", StringComparison.Ordinal) || channel.StartsWith("afsplus", StringComparison.Ordinal);
+        channel is "apkg" or "aros" or "system" or "official" or "core" or "main" or "test" or "admin"
+        || channel.StartsWith("aros-", StringComparison.Ordinal) || channel.StartsWith("apkg-", StringComparison.Ordinal);
 
     /// Registers, or updates, what an account declares. Null when done; else what is wrong, in words for the form.
     public string? Register(long id, string login, string name, string key, string channel)
@@ -62,7 +61,7 @@ public sealed partial class Registry
         if (name.Length is < 2 or > 60 || name.Any(char.IsControl) || name.Contains(':') || name.Contains(';'))
             return "The publisher name is 2 to 60 characters, without ':' or ';'.";
         if (!Hex64().IsMatch(key))
-            return "The public key is the 64 hexadecimal digits that pkg KEYINFO FILE <keyfile> prints. Never paste the key file itself.";
+            return "The public key is the 64 hexadecimal digits that apkg key-public <keyfile> prints. Never paste the key file itself.";
         if (!ChannelPaths.IsChannelName(channel))
             return "A channel name is lowercase letters, digits and '-', and not a word the site uses.";
         if (ReservedName(channel))
@@ -76,17 +75,17 @@ public sealed partial class Registry
             if (all.Any(r => r.GitHubId != id && r.Channels.Contains(channel)))
                 return $"The channel {channel} belongs to another publisher.";
             var mine = all.FirstOrDefault(r => r.GitHubId == id);
-            if (mine is null && catalogue.Get(channel) is not null)
+            if (mine is null && catalogue.Exists(channel))
                 return $"The channel {channel} exists already; ask the maintainer if it is yours.";
             if (mine is { Suspended: true })
                 return "This account is suspended; ask the maintainer.";
             if (mine is not null && !mine.Channels.Contains(channel))
             {
-                if (catalogue.Get(channel) is not null) return $"The channel {channel} exists already; ask the maintainer if it is yours.";
+                if (catalogue.Exists(channel)) return $"The channel {channel} exists already; ask the maintainer if it is yours.";
                 if (mine.Channels.Count >= MaxChannels) return $"An account has {MaxChannels} channels at most; ask the maintainer for more.";
             }
             if (mine is not null && !string.Equals(mine.Key, key, StringComparison.OrdinalIgnoreCase)
-                && mine.Channels.Any(c => catalogue.Get(c) is { Packages.Count: > 0 }))
+                && mine.Channels.Any(c => catalogue.HasPublication(c)))
                 return "You have published with your registered key, and every package stays with the key of its first version: a key change goes through the maintainer.";
             var channels = mine?.Channels.ToList() ?? [];
             if (!channels.Contains(channel)) channels.Add(channel);
@@ -119,30 +118,6 @@ public sealed partial class Registry
             Save();
         }
         return true;
-    }
-
-    /// The keys the settings name (Portal:SignedKeys), which a maintainer may take under their account.
-    public IEnumerable<(string Name, string Key, List<string> Channels, bool Files)> SettingsKeys() =>
-        o.SignedKeys.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(e => e.Split(':')).Where(f => f.Length is 3 or 4 && Hex64().IsMatch(f[1]))
-            .Select(f => (f[0], f[1].ToLowerInvariant(), f[2].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(), f.Length == 4 && f[3] == "files"));
-
-    /// A maintainer puts a key of the settings under their GitHub account, as it is:
-    /// same name, channels and rights, so nothing published changes hands or name.
-    public string? Adopt(long id, string login, string key)
-    {
-        var k = SettingsKeys().FirstOrDefault(x => string.Equals(x.Key, key, StringComparison.OrdinalIgnoreCase));
-        if (k.Key is null) return "That key is not one of the portal's settings.";
-        lock (gate)
-        {
-            if (all.Any(r => r.GitHubId != id && string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase)))
-                return "That key is under another account already.";
-            if (all.Any(r => r.GitHubId == id && !string.Equals(r.Key, key, StringComparison.OrdinalIgnoreCase)))
-                return "This account has another key registered; one account, one key.";
-            all = all.Where(r => r.GitHubId != id).Append(new Registered(id, login, k.Name, k.Key, k.Channels, k.Files, false, DateTime.UtcNow)).ToList();
-            Save();
-        }
-        return null;
     }
 
     public bool Change(long id, Func<Registered, Registered> how)

@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Push a signed common channel: plan, resumable immutable files, exact commit.
+
+Signing stays in the common executable. Private keys/tokens never leave this
+machine. A refused or uncertain commit never rolls the remote head backwards.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
+
+HERE = Path(__file__).resolve().parents[1]
+
+class Refusal(ValueError):
+    pass
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+def regular(path, maximum):
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > maximum:
+        raise Refusal('input must be a bounded ordinary file: ' + path.name)
+    return path.read_bytes()
+
+def engine_run(engine, *args):
+    result = subprocess.run([str(engine), *map(str, args)], capture_output=True, text=True, timeout=60)
+    if result.returncode:
+        raise Refusal('common engine refused the publication input')
+    return json.loads(result.stdout)
+
+def records(data):
+    result = {}
+    for line in data.decode('utf-8').splitlines():
+        key, separator, value = line.partition(': ')
+        if separator:
+            result.setdefault(key, []).append(value)
+    if result.get('result', [''])[0] == 'refused' or result.get('refused'):
+        raise Refusal(result.get('reason', result.get('refused', ['portal refused the request']))[0])
+    return result
+
+def push(args):
+    parsed = urllib.parse.urlsplit(args.url)
+    local = parsed.hostname in ('127.0.0.1', '::1') and args.allow_loopback
+    if parsed.scheme not in ('https', 'http') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise Refusal('provide a complete portal channel URL without credentials or query parameters')
+    if parsed.scheme != 'https' and not (args.sign or local):
+        raise Refusal('bearer publication requires HTTPS; HTTP is allowed for signed requests')
+    endpoint = args.url.rstrip('/')
+    if not re.fullmatch('[a-z0-9][a-z0-9-]{0,39}', parsed.path.rstrip('/').split('/')[-1]):
+        raise Refusal('the URL must end in the channel name')
+    directory = Path(args.directory).resolve()
+    head = regular(directory / 'current', 65)
+    if not re.fullmatch(b'[0-9a-f]{64}\n', head):
+        raise Refusal('invalid local current reference')
+    digest = head[:64].decode()
+    folder = directory / 'snapshots' / digest
+    document = regular(folder / 'channel.json', 2*1024*1024)
+    signature = regular(folder / 'channel.signature.json', 16384)
+    if hashlib.sha256(document).hexdigest() != digest:
+        raise Refusal('local snapshot differs from current')
+    engine_run(args.engine, 'verify-object', 'channel', folder/'channel.json', folder/'channel.signature.json')
+    snapshot = json.loads(document)
+    links = json.loads(regular(Path(args.links), 65536)) if args.links else {}
+    if not isinstance(links, dict):
+        raise Refusal('links must map exact archive digests to public URLs')
+    references = {entry['archive']['sha256']: int(entry['archive']['size']) for entry in snapshot['body']['entries']}
+    if any(sha not in references or not isinstance(url, str) for sha, url in links.items()):
+        raise Refusal('links name an archive outside the signed snapshot')
+    files = {f'snapshots/{digest}/channel.json': (folder/'channel.json', digest, len(document)),
+             f'snapshots/{digest}/channel.signature.json': (folder/'channel.signature.json', hashlib.sha256(signature).hexdigest(), len(signature))}
+    opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler({}))
+    token = None
+    if args.token_file:
+        token = regular(Path(args.token_file), 4096).decode().strip()
+        if not token or any(ord(c) <= 32 or ord(c) >= 127 for c in token):
+            raise Refusal('invalid bearer token file')
+    sequence, session, public = 0, None, None
+    with tempfile.TemporaryDirectory(prefix='apkg-push-') as temporary:
+        message = Path(temporary) / 'request'
+        def request(method, suffix, body=b'', content_range=None, anonymous=False):
+            nonlocal sequence
+            url = endpoint + suffix
+            headers = {'User-Agent': 'APKG-tools/1', 'Content-Type': 'application/octet-stream'}
+            if content_range:
+                headers['Content-Range'] = content_range
+            if not anonymous:
+                if args.sign:
+                    sequence += 1
+                    path = urllib.parse.urlsplit(url).path
+                    transcript = f'pkg-push-1\n{method}\n{path}\n{session}\n{sequence}\n{hashlib.sha256(body).hexdigest()}\n{content_range or "-"}\n'
+                    message.write_text(transcript)
+                    signed = engine_run(args.engine, 'push-sign', args.sign, message)
+                    headers['Authorization'] = f'Pkg-Signature key={public},session={session},seq={sequence},sha256={hashlib.sha256(body).hexdigest()},sig={signed["signature"]}'
+                else:
+                    headers['Authorization'] = 'Bearer ' + token
+            try:
+                with opener.open(urllib.request.Request(url, data=None if method == 'GET' else body, headers=headers, method=method), timeout=160) as response:
+                    data = response.read(2*1024*1024+1)
+                    if len(data) > 2*1024*1024:
+                        raise Refusal('portal response exceeds bound')
+                    return data
+            except urllib.error.HTTPError as error:
+                data = error.read(65536)
+                try:
+                    answer = records(data)
+                    reason = answer.get('summary', ['portal refused the request'])[0]
+                except Refusal as refusal:
+                    reason = str(refusal)
+                raise Refusal(f'HTTP {error.code}: {reason}') from None
+        if args.sign:
+            public = engine_run(args.engine, 'key-public', args.sign)['public_key']
+            opened = records(request('POST', '/_push/session', f'key: {public}\n'.encode(), anonymous=True))
+            session = opened.get('session', [None])[0]
+            if not session or not re.fullmatch('[0-9a-f]{32}', session):
+                raise Refusal('portal did not establish a signed session')
+        try:
+            remote = request('GET', '/current', anonymous=True)
+            if not re.fullmatch(b'[0-9a-f]{64}\n', remote):
+                raise Refusal('invalid remote current reference')
+            expected = remote[:64].decode()
+        except Refusal as error:
+            if not str(error).startswith('HTTP 404:'):
+                raise
+            expected = None
+        known = set()
+        if expected is not None:
+            previous = request('GET', '/snapshots/' + expected + '/channel.json', anonymous=True)
+            previous_signature = request('GET', '/snapshots/' + expected + '/channel.signature.json', anonymous=True)
+            if hashlib.sha256(previous).hexdigest() != expected:
+                raise Refusal('remote current does not identify its signed snapshot')
+            doc, sig = Path(temporary)/'remote.json', Path(temporary)/'remote.signature.json'
+            doc.write_bytes(previous); sig.write_bytes(previous_signature)
+            verified = engine_run(args.engine, 'verify-object', 'channel', doc, sig)
+            remote_document = json.loads(previous)
+            if verified['public_key'] != json.loads(signature)['public_key'] or remote_document['body']['id'] != snapshot['body']['id']:
+                raise Refusal('remote channel key or identity differs from the local publication')
+            known = {entry['archive']['sha256'] for entry in remote_document['body']['entries']}
+        for sha, size in references.items():
+            if sha in known:
+                continue
+            if sha in links:
+                continue
+            path = directory / 'archives' / (sha + '.pkg')
+            if path.is_symlink() or not path.is_file() or path.stat().st_size != size:
+                raise Refusal('missing local archive; supply its external URL in --links: ' + sha)
+            checksum = hashlib.sha256()
+            with path.open('rb') as stream:
+                for chunk in iter(lambda: stream.read(65536), b''):
+                    checksum.update(chunk)
+            if checksum.hexdigest() != sha:
+                raise Refusal('local archive digest differs')
+            files['archives/' + sha + '.pkg'] = (path, sha, size)
+        plan = ''.join(f'{name} {sha} {size}\n' for name, (_, sha, size) in files.items()).encode()
+        answer = records(request('POST', '/_push/plan', plan))
+        needed = answer.get('need', [])
+        if any(name not in files for name in needed):
+            raise Refusal('portal requested an unplanned file')
+        for name in needed:
+            path, sha, size = files[name]
+            offset = 0
+            with path.open('rb') as stream:
+                while offset < size:
+                    stream.seek(offset)
+                    chunk = stream.read(min(args.part_bytes, size-offset))
+                    if not chunk:
+                        raise Refusal('local publication changed during transfer')
+                    content_range = f'bytes {offset}-{offset+len(chunk)-1}/{size}'
+                    received = records(request('PUT', '/_push/files/' + name, chunk, content_range))
+                    following = int(received.get('received', [str(size)])[0])
+                    if not offset < following <= size:
+                        raise Refusal('portal upload made no forward progress')
+                    offset = following
+        if args.stage_only:
+            return dict(result='staged', snapshot=digest, files_sent=len(needed), trust='not-granted', review='not-granted')
+        if regular(directory/'current', 65) != head:
+            raise Refusal('local head changed; rebuild and retry explicitly')
+        commit = dict(snapshot=digest, expectedCurrent=expected)
+        if links:
+            commit['links'] = {sha: url for sha, url in links.items() if sha not in known}
+        answer = records(request('POST', '/_push/common-commit', json.dumps(commit, separators=(',', ':')).encode()))
+        result = answer.get('result', [''])[0]
+        if result not in ('published', 'unchanged'):
+            raise Refusal('publication outcome is uncertain; inspect current and retry the same snapshot')
+        return dict(result=result, snapshot=digest, files_sent=len(needed), trust='not-granted', review='not-granted')
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('directory'); parser.add_argument('url')
+    auth = parser.add_mutually_exclusive_group(required=True)
+    auth.add_argument('--sign'); auth.add_argument('--token-file')
+    parser.add_argument('--links'); parser.add_argument('--allow-loopback', action='store_true')
+    parser.add_argument('--stage-only', action='store_true')
+    parser.add_argument('--engine', default=str(HERE/'build/apkg'))
+    parser.add_argument('--part-bytes', type=int, default=32*1024*1024)
+    args = parser.parse_args()
+    if not 1 <= args.part_bytes <= 32*1024*1024:
+        parser.error('part size must be 1..33554432 bytes')
+    try:
+        print(json.dumps(push(args), sort_keys=True)); return 0
+    except (Refusal, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        print('apkg-portal-push: ' + str(error), file=__import__('sys').stderr); return 1
+
+if __name__ == '__main__':
+    raise SystemExit(main())

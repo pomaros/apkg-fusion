@@ -32,7 +32,9 @@ report have been completed in the requested order.
 The [non-portal checklist](non-portal-checklist.md) records the completed earlier
 sequence. Portal work has now resumed provisionally in the
 [portal execution batches](portal.md#portal-execution-batches); joint maintainer
-decisions, live data inventory and production cutover remain separate work.
+decisions and production cutover remain separate work. Deployed pkg data
+compatibility/conversion was explicitly removed by the operator; see the
+[current portal scope](portal.md#current-operator-scope).
 
 | Workstream | Current position | Work still required |
 |---|---|---|
@@ -42,7 +44,7 @@ decisions, live data inventory and production cutover remain separate work.
 | Clients/default product | Shared CLI/worker, explicit source settings, persistent current/previous observations, last-refresh comparison, combined typed rows, recent publications and installed/catalogue INFO/SHOW; default CLI/library/tools use the common engine | Broader native desktop/platform qualification; historical continuity is deferred |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Deferred: placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification; see support choices above |
-| Portal | Common HTTP metadata/publication plus a verified browsable common catalogue, exact-build pages and a real HTTP client lifecycle; existing service retained | Self-service link-only publication, publishing client, authorized qualification display and migration/backup/restore/rollback rehearsal; no live cutover |
+| Portal | Clean common-only catalogue, signed stored/link-only publication, resumable publisher client, optional policy-based independent qualification and private backup/restore tools implemented | Published-artifact lifecycle and browser checks pass locally; exact-source CI pending; no production cutover |
 
 The earlier pre-portal stop boundary was reached: the frozen product candidate passes the
 clean-workspace scenario and exact-source Linux/macOS CI, the scoped M1 lifecycle
@@ -50,6 +52,38 @@ and native regressions pass, and the [merge report](merge-report.md) is delivere
 This does not complete every release obligation in the table. Legacy completion
 is deferred and the resumed portal adaptation remains provisional. No live
 portal cutover is included.
+
+## Clean common portal local qualification
+
+The operator removed deployed pkg API/UI/data compatibility and conversion.
+The implementation replaces the old portal verifier/catalogue/push backend with
+the common engine. Existing pkg-specific portal tests were retired with those
+routes, rather than retained as an implied compatibility obligation. Common
+security, publication and lifecycle regressions remain and are expanded.
+
+Measured locally: all 65 common portal tests pass. Three data-tool tests
+cover command-line backup/restore, exact contents/modes, private archives,
+stopped-writer preconditions, corrupt bytes and unsafe paths. Common request
+signing and external-link transfer tests pass. The global migration warning is
+default on and tested across pages and API policy.
+
+Qualification display queries the common engine under a captured operator role
+policy. Tests preserve linked revocation history, distinguish authorized
+self-review from independent review, retain failed runtime observations, recheck
+withdrawn grants and keep browsing available after a policy failure. Synthetic
+runtime records are explicitly not AROS execution evidence. No current approval,
+online freshness, official keys or client trust grant is invented.
+
+A host-native published artifact and a quiesced new-data backup/restore tool
+exist. The complete published-artifact loop passes: both clients install and upgrade,
+the host executes payload v1/v2, both clients roll back/repair/remove offline,
+exact leftovers are inspected, and a restored baseline serves the correct signed
+URLs and owner/account identities. Browser checks pass at 390/1280 pixels.
+The [portal report](portal-report.md) records receipts, scope and remaining
+exact-source CI; [operations](../../portal/OPERATIONS.md) records deployment inputs.
+An initial full regression attempt was invalidated by host disk exhaustion;
+only a completed rerun will qualify the candidate. Abandoned synthetic big-push
+test directories were removed to free space, without touching production data.
 
 ## Final host qualification and M1 lifecycle passed
 

@@ -1,191 +1,38 @@
+@* SPDX-License-Identifier: MIT
+   Copyright (c) 2026 John Knipper *@
 @page "/admin"
-@using System.Security.Claims
 @using Microsoft.Extensions.Options
-@using Portal.Accounts
-@using Portal.Channels
-@inject Registry Registry
-@inject Catalogue Catalogue
-@inject Portal.Admin.AdminService Service
-@inject Portal.Admin.Space Space
 @inject IOptions<PortalOptions> Options
+@inject Portal.Accounts.Registry Registry
+@inject Portal.Channels.CommonVisibility Visibility
 @functions {
-    public string? Done { get; set; }
-
-    string? Maintainer() =>
-        User.Identity?.IsAuthenticated == true && User.FindFirstValue(ClaimTypes.Name) is { Length: > 0 } login
-        && Options.Value.Admins.Split(';', ',').Any(a => string.Equals(a.Trim(), login, StringComparison.OrdinalIgnoreCase)) ? login : null;
-
-    public IActionResult OnGet() => Maintainer() is null ? NotFound() : Page();
-
-    public async Task<IActionResult> OnPostAsync(string what, long account, string? channel)
+    bool Allowed()=>Options.Value.Policy.Admin && User.Identity?.IsAuthenticated==true && Options.Value.Admins.Split(';',',').Any(name=>name.Trim().Equals(User.Identity.Name,StringComparison.OrdinalIgnoreCase));
+    public IActionResult OnPostRights(long id,bool files,bool suspended)
     {
-        if (Maintainer() is not { } who) return NotFound();
-        // A maintainer never shuts themselves out: that is for another maintainer to do.
-        if (what is "suspend" or "remove" && Registry.ByAccount(account) is { } self
-            && string.Equals(self.Login, who, StringComparison.OrdinalIgnoreCase))
-        {
-            Done = $"You cannot {what} your own account. Another maintainer can.";
-            return Page();
-        }
-        switch (what)
-        {
-            case "suspend":   Registry.Change(account, r => r with { Suspended = true });  Done = "Suspended: that account's pushes are refused from now on."; break;
-            case "resume":    Registry.Change(account, r => r with { Suspended = false }); Done = "Resumed."; break;
-            case "files-on":  Registry.Change(account, r => r with { Files = true });      Done = "That publisher may upload files."; break;
-            case "files-off": Registry.Change(account, r => r with { Files = false });     Done = "That publisher publishes by link only."; break;
-            case "remove":
-                var gone = Registry.ByAccount(account)?.Name;
-                Done = Registry.Remove(account)
-                       ? $"Removed the registration of {gone}. What it published stays, signed as it was; it may push nothing more, and it may register again."
-                       : "There is no such registration.";
-                break;
-            case "list" when channel is not null && ChannelPaths.IsChannelName(channel):
-                Done = (await Service.SetListed("github:" + who, channel, true, HttpContext.RequestAborted)).Get("summary"); break;
-            case "unlist" when channel is not null && ChannelPaths.IsChannelName(channel):
-                Done = (await Service.SetListed("github:" + who, channel, false, HttpContext.RequestAborted)).Get("summary"); break;
-        }
-        return Page();
+        if(!Allowed())return NotFound();
+        Registry.Change(id,record=>record with { Files=files,Suspended=suspended });return Redirect("/admin");
+    }
+    public IActionResult OnPostVisibility(string channel,bool listed)
+    {
+        if(!Allowed() || !Portal.Channels.ChannelPaths.IsChannelName(channel))return NotFound();
+        Visibility.SetListed(channel,listed);return Redirect("/admin");
     }
 }
-@{
-    ViewData["Title"] = "Maintainers";
-    var publishers = Registry.All().OrderByDescending(r => r.Since).ToList();
-}
-<h1>Maintainers</h1>
-@if (Done is not null)
+@{ ViewData["Title"]="Administration"; }
+@if(!Allowed()){ Response.StatusCode=404; <h1>Not found</h1> return; }
+<h1>Administration</h1>
+<p>Publishing rights and channel visibility do not grant package review or client trust.</p>
+@foreach(var publisher in Registry.All())
 {
-    <p class="notice">@Done</p>
-}
-<h2 class="label">Registered publishers</h2>
-@if (publishers.Count == 0)
-{
-    <p class="muted">Nobody has registered yet.</p>
-}
-else
-{
-    <table class="list">
-        <thead><tr><th>Publisher</th><th>GitHub</th><th>Key</th><th>Channels</th><th>Push carries</th><th>State</th><th></th></tr></thead>
-        <tbody>
-        @foreach (var r in publishers)
-        {
-            <tr>
-                <td>@r.Name</td>
-                <td><a href="https://github.com/@r.Login" rel="noopener">@r.Login</a></td>
-                <td><a href="/publishers/@r.Key"><code>@r.Key[..16]</code></a></td>
-                <td>
-                    @if (r.Channels.Contains("*"))
-                    {
-                        <span>every channel</span>
-                    }
-                    @foreach (var c in r.Channels.Where(c => c != "*"))
-                    {
-                        var hidden = Catalogue.IsUnlisted(c);
-                        var exists = Catalogue.Get(c) is not null;
-                        <form method="post" class="inline">
-                            @if (exists) { <a href="/channels/@c">@c</a> } else { <span>@c</span> }
-                            <span class="muted small">@(!exists ? "nothing published yet" : hidden ? "unlisted" : "listed")</span>
-                            <input type="hidden" name="account" value="@r.GitHubId" /><input type="hidden" name="channel" value="@c" />
-                            <button class="linklike" name="what" value="@(hidden ? "list" : "unlist")">@(hidden ? "list" : "unlist")</button>
-                        </form>
-                    }
-                </td>
-                <td>@(r.Files ? "files" : "links")</td>
-                <td>@(r.Suspended ? "suspended" : "active")</td>
-                <td>
-                    <form method="post" class="inline">
-                        <input type="hidden" name="account" value="@r.GitHubId" />
-                        @if (string.Equals(r.Login, Maintainer(), StringComparison.OrdinalIgnoreCase))
-                        {
-                            <span class="muted small">you</span>
-                        }
-                        else
-                        {
-                            <button class="linklike" name="what" value="@(r.Suspended ? "resume" : "suspend")">@(r.Suspended ? "resume" : "suspend")</button>
-                            <button class="linklike danger" name="what" value="remove"
-                                    onclick="return confirm('Remove the registration of @r.Name? What it published stays where it is. It may register again.')">remove</button>
-                        }
-                        <button class="linklike" name="what" value="@(r.Files ? "files-off" : "files-on")">@(r.Files ? "links only" : "allow files")</button>
-                    </form>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
-}
-<h2 class="label">Every channel</h2>
-<table class="list">
-    <thead><tr><th>Channel</th><th class="num">Packages</th><th>Shown</th><th></th></tr></thead>
-    <tbody>
-    @foreach (var c in Catalogue.Channels())
+    <section class="channel"><h2>@publisher.Name</h2>
+    <form method="post" asp-page-handler="Rights"><input type="hidden" name="id" value="@publisher.GitHubId" />
+    <label><input type="checkbox" name="files" value="true" checked="@publisher.Files" /> Binary storage</label>
+    <label><input type="checkbox" name="suspended" value="true" checked="@publisher.Suspended" /> Suspended</label>
+    <button type="submit">Save publishing rights</button></form>
+    @foreach(var channel in publisher.Channels.Where(Portal.Channels.ChannelPaths.IsChannelName))
     {
-        var hidden = Catalogue.IsUnlisted(c.Name);
-        <tr>
-            <td><a href="/channels/@c.Name">@c.Name</a></td>
-            <td class="num">@c.Packages.Count</td>
-            <td>@(hidden ? "unlisted" : "listed")</td>
-            <td><form method="post" class="inline"><input type="hidden" name="channel" value="@c.Name" /><input type="hidden" name="account" value="0" />
-                <button class="linklike" name="what" value="@(hidden ? "list" : "unlist")">@(hidden ? "list" : "unlist")</button></form></td>
-        </tr>
+        <form method="post" asp-page-handler="Visibility"><input type="hidden" name="channel" value="@channel" />
+        <label>@channel <input type="checkbox" name="listed" value="true" checked="@(!Visibility.IsUnlisted(channel))" /> Listed</label><button type="submit">Save visibility</button></form>
     }
-    </tbody>
-</table>
-@{
-    var fresh = Request.Query["space"] == "fresh";
-    var space = await Space.Get(fresh, HttpContext.RequestAborted);
+    </section>
 }
-<h2 class="label">Space</h2>
-<p class="muted small">What the portal takes on the machine it runs on and in R2, read @Site.Ago(space.Taken) and kept for @((int)Portal.Admin.Space.Keep.TotalMinutes) minutes, because counting walks every file. <a href="/admin?space=fresh">Read it again now</a>.</p>
-<table class="list">
-    <thead><tr><th>Where</th><th class="num">Size</th><th class="num hide-s">Files</th><th class="num hide-s">30 days</th><th class="hide-s">Of which</th></tr></thead>
-    <tbody>
-    @foreach (var c in space.Channels)
-    {
-        <tr>
-            <td><a href="/channels/@c.Name">@c.Name</a></td>
-            <td class="num">@Site.Size(c.All.Bytes)</td>
-            <td class="num hide-s">@c.All.Files</td>
-            <td class="num hide-s">@(c.Month.Bytes > 0 ? "+" + Site.Size(c.Month.Bytes) : "-")</td>
-            <td class="hide-s muted small">packages @Site.Size(c.Objects.Bytes)@(c.Archives.Bytes > 0 ? $", archives {Site.Size(c.Archives.Bytes)}" : "")@(c.Bootstraps.Bytes > 0 ? $", pkg itself {Site.Size(c.Bootstraps.Bytes)}" : "")@(c.ArchivesElsewhere > 0 ? $", {c.ArchivesElsewhere} archive{(c.ArchivesElsewhere == 1 ? "" : "s")} already in R2" : "")</td>
-        </tr>
-    }
-        <tr>
-            <td>What the portal keeps for itself</td>
-            <td class="num">@Site.Size(space.State.Bytes + space.Staging.Bytes)</td>
-            <td class="num hide-s">@(space.State.Files + space.Staging.Files)</td>
-            <td class="num hide-s">-</td>
-            <td class="hide-s muted small">counts, accounts, failures, and a push in flight</td>
-        </tr>
-        <tr>
-            <th>On this machine</th>
-            <td class="num"><strong>@Site.Size(space.OnDisk.Bytes)</strong></td>
-            <td class="num hide-s">@space.OnDisk.Files</td>
-            <td class="num hide-s">@(space.Grew.Bytes > 0 ? "+" + Site.Size(space.Grew.Bytes) : "-")</td>
-            <td class="hide-s muted small">@(space.VolumeTotal > 0 ? $"{Site.Size(space.VolumeFree)} free of {Site.Size(space.VolumeTotal)} on the volume" : "the volume does not say how large it is")</td>
-        </tr>
-        <tr>
-            <th>In R2</th>
-            <td class="num"><strong>@(space.R2 is { } two ? Site.Size(two.Bytes) : "-")</strong></td>
-            <td class="num hide-s">@(space.R2?.Objects.ToString() ?? "-")</td>
-            <td class="num hide-s">-</td>
-            <td class="hide-s muted small">@(space.R2 is { } t ? $"bucket {t.Bucket}{(t.Prefix.Length > 0 ? ", prefix " + t.Prefix : "")}. {space.R2Note}" : space.R2Note)</td>
-        </tr>
-    </tbody>
-</table>
-<p class="muted small">The channels grew by @Site.Size(space.Grew.Bytes) in the last thirty days and @Site.Size(space.GrewWeek.Bytes) in the last seven, counted from the dates on the files themselves. A channel republished every night grows for ever, because a nightly build gives each package a version of its own: the index every command downloads first is @Site.Size(space.Channels.Sum(c => c.Index)) across the channels today.</p>
-<p class="muted small">What R2 takes today is source archives: @Site.Size(space.Movable.Bytes) in @space.Movable.Files file@(space.Movable.Files == 1 ? "" : "s"). The signed package files are @Site.Size(space.Payloads.Bytes) in @space.Payloads.Files file@(space.Payloads.Files == 1 ? "" : "s"), and they stay on this machine until R2 holds those too: that is the number to watch before the volume fills.</p>
-@{
-    var failures = Portal.Push.Failures.Read(Options.Value.StateDir).ToString().Split('\n')
-        .Where(l => l.StartsWith("failure: ")).Select(l => l[9..]).Take(20).ToList();
-}
-<h2 class="label">When the portal could not answer</h2>
-@if (failures.Count == 0)
-{
-    <p class="muted small">Nothing since this list was last cleared.</p>
-}
-else
-{
-    <p class="muted small">Newest first: when, what was asked, the request the error page showed whoever asked, and what went wrong. Nothing about who asked.</p>
-    <pre class="small">@string.Join("\n", failures)</pre>
-}
-<h2 class="label">Log</h2>
-<pre class="small">@string.Join("\n", Service.ReadLog().ToString().Split('\n').Where(l => l.StartsWith("action: ")).Select(l => l[8..]).Reverse().Take(30))</pre>

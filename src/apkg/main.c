@@ -62,6 +62,10 @@ static int apkg_main(int argc, char **argv) {
         puts("apkg-fusion 0.1.0-alpha (common engine, contract 1)");
         return APKG_OK;
     }
+    if (argc == 2 && !strcmp(argv[1], "engine-info")) {
+        puts("{\"contract\":\"1\",\"engine\":\"apkg-common\",\"version\":\"0.1.0-alpha\"}");
+        return APKG_OK;
+    }
     if (argc < 3) {
         fprintf(
             argc == 2 && !strcmp(argv[1], "--help") ? stdout : stderr,
@@ -82,7 +86,7 @@ static int apkg_main(int argc, char **argv) {
             "channel-validate JSONFILE\nattestation-check ROOT FOLDER\nsource-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel|attestation "
-            "JSONFILE\nverify-object descriptor|channel|attestation JSONFILE SIGNATURE\n"
+            "JSONFILE\npush-sign KEYFILE REQUESTFILE | push-verify PUBLIC-KEY SIGNATURE REQUESTFILE\nverify-object descriptor|channel|attestation JSONFILE SIGNATURE\n"
             "archive-check ROOT ARCHIVE\nchannel-fetch ROOT ENDPOINT "
             "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-install ROOT ENDPOINT "
             "CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256 [--recommends] "
@@ -299,8 +303,8 @@ static int apkg_main(int argc, char **argv) {
         apkg_close(c);
         return (int)code;
     }
-    if (!strcmp(argv[1], "verify-object")) {
-        code = ak_verify_command(argc, argv, &text);
+    if (!strcmp(argv[1], "verify-object") || !strcmp(argv[1], "push-verify")) {
+        code = !strcmp(argv[1], "push-verify") ? ak_push_verify_command(argc, argv, &text) : ak_verify_command(argc, argv, &text);
         if (!code)
             puts(text);
         else
@@ -471,7 +475,7 @@ static int apkg_main(int argc, char **argv) {
         return (int)code;
     }
     if (!strcmp(argv[1], "keygen") || !strcmp(argv[1], "key-public") ||
-        !strcmp(argv[1], "sign-object")) {
+        !strcmp(argv[1], "sign-object") || !strcmp(argv[1], "push-sign")) {
         code = ak_author_command(argc, argv, &text);
         if (!code)
             puts(text);

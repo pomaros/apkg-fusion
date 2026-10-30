@@ -8,7 +8,7 @@ namespace Portal;
 /// <summary>
 /// What this portal instance accepts, set by its operators (Portal:Policy:*).
 /// Every refusal a rule causes names the rule, its value and the operators'
-/// note, so a publisher reads why and whom to ask; /api/policy and /trust show
+/// note, so a publisher reads why and whom to ask; /api/policy and documentation show
 /// the same rules to everyone.
 /// </summary>
 public sealed class PortalPolicy
@@ -20,7 +20,7 @@ public sealed class PortalPolicy
     /// the files right. "off": from nobody; every publisher links to its files.
     public string Binaries { get; set; } = "keys";
 
-    /// Hosts an Archive: address may name, comma-separated; empty: any https host.
+    /// Hosts an external archive address may name, comma-separated; empty: any https host.
     /// A host matches itself and its subdomains (github.com covers objects.github.com).
     public string LinkHosts { get; set; } = "";
 
@@ -30,30 +30,11 @@ public sealed class PortalPolicy
     /// The maintainers' API, /_admin.
     public bool Admin { get; set; } = true;
 
-    /// Plain http answers for the channel Pkg comes from and the scripts that
-    /// install it: the way a Pkg older than 1.6, which has no TLS, reaches one
-    /// that has. Everything else on http goes to https, or is told to upgrade.
-    /// Off: https only, and such a Pkg can no longer update itself from here.
-    /// Off: every http request is sent to https.
-    public bool PlainHttp { get; set; } = true;
-
-    /// The oldest Pkg this portal still works with, "1.5"; empty: any. A push from
-    /// an older Pkg, or from a program that does not say it is Pkg, is refused
-    /// (426) with the version to update to. Pkg names itself in User-Agent,
-    /// "Pkg/1.5", since 1.5; an older one says "Pkg" or nothing and counts as older.
-    public string MinPkg { get; set; } = "";
-
-    /// With MinPkg: channel reads from an older Pkg are refused too. Never the
-    /// channel Pkg itself comes from, its bootstraps or the installers, so that
-    /// an old Pkg can always update; and never a browser or another tool, which
-    /// the portal cannot tell from an old Pkg over https (it fetched with curl).
-    public bool MinPkgReads { get; set; }
-
     /// Signed pushes: requests signed with the publisher's key, which may come
     /// over plain http since nothing secret travels. Off: https and a push key only.
     public bool SignedPush { get; set; } = true;
 
-    /// The operators' own sentence, added to every refusal and shown on /trust.
+    /// The operators' own sentence, added to every refusal and shown through /api/policy.
     public string Note { get; set; } = "";
 
     /// Whom to ask about the rules: an address or a web page.

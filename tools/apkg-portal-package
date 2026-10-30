@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Build a host-native, framework-dependent common portal deployment directory."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import sys
+import tempfile
+
+ROOT=Path(__file__).resolve().parent.parent
+
+def run(*args):
+    subprocess.run(list(map(str,args)),cwd=ROOT,check=True,stdout=sys.stderr)
+
+def package(output,engine):
+    output=output.absolute()
+    if output.exists():raise ValueError('output must not exist')
+    output.parent.mkdir(parents=True,exist_ok=True)
+    info=json.loads(subprocess.check_output([str(engine),'engine-info'],text=True))
+    if info.get('engine')!='apkg-common' or info.get('contract')!='1':raise ValueError('common engine contract required')
+    with tempfile.TemporaryDirectory(prefix='.apkg-portal-package-',dir=output.parent) as temporary:
+        destination=Path(temporary)/'app'
+        run('dotnet','publish',ROOT/'portal/src/Portal/Portal.csproj','-c','Release','--self-contained','false','-o',destination)
+        shutil.copy2(engine,destination/'apkg');(destination/'apkg').chmod(0o755)
+        for name in ('apkg-portal-push','apkg-portal-data'):
+            shutil.copy2(ROOT/'tools'/name,destination/name)
+        files={file.relative_to(destination).as_posix():hashlib.sha256(file.read_bytes()).hexdigest()
+               for file in sorted(destination.rglob('*')) if file.is_file()}
+        revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+        dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT))
+        manifest=dict(format='apkg-portal-deployment-1',revision=revision,dirty=dirty,
+                      host=dict(system=platform.system(),machine=platform.machine()),engine=info,
+                      requirements=['.NET 10 ASP.NET Core runtime','Python 3.11 or newer'],files=files)
+        (destination/'deployment.json').write_text(json.dumps(manifest,sort_keys=True,indent=2)+'\n')
+        os.rename(destination,output)
+    return dict(output=str(output),files=len(files),revision=revision,dirty=dirty)
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output',required=True,type=Path)
+    parser.add_argument('--engine',type=Path,default=ROOT/'build/apkg')
+    args=parser.parse_args()
+    print(json.dumps(package(args.output,args.engine.resolve()),sort_keys=True))

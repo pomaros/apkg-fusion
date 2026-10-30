@@ -13,6 +13,7 @@ public sealed record CommonCommitRequest
 {
     [JsonRequired] public string? Snapshot { get; init; }
     [JsonRequired] public string? ExpectedCurrent { get; init; }
+    public Dictionary<string, string>? Links { get; init; }
 }
 
 public sealed partial class PushService
@@ -24,7 +25,8 @@ public sealed partial class PushService
     private static partial Regex CommonDigest();
 
     public async Task<(Record Answer, int Status)> CommitCommon(Publisher who, string channel,
-                                                               CommonCommitRequest request, CancellationToken ct)
+                                                               CommonCommitRequest request, CancellationToken ct,
+                                                               bool allowLoopbackLinks = false)
     {
         if (request.Snapshot is null || !CommonDigest().IsMatch(request.Snapshot) ||
             (request.ExpectedCurrent is not null && !CommonDigest().IsMatch(request.ExpectedCurrent)))
@@ -40,18 +42,28 @@ public sealed partial class PushService
                 var staging = Staging(who, channel);
                 Directory.CreateDirectory(staging);
                 JsonElement result;
+                var scratch = Directory.CreateTempSubdirectory("apkg-portal-commit-");
                 try
                 {
-                    result = await common.Run(o.PythonPath,
-                        [Path.Combine(AppContext.BaseDirectory, "CommonTools", "apkg-portal-commit"),
+                    var links = Path.Combine(scratch.FullName, "links.json");
+                    await File.WriteAllTextAsync(links, JsonSerializer.Serialize(request.Links ?? []), ct);
+                    var arguments = new List<string>
+                        { Path.Combine(AppContext.BaseDirectory, "CommonTools", "apkg-portal-commit"),
                          "--engine", o.ApkgPath, "--endpoint", Live(channel), "--staging", staging,
                          "--publisher", who.Identity, "--snapshot", request.Snapshot,
-                         "--expected", request.ExpectedCurrent ?? "-"], ct);
+                         "--expected", request.ExpectedCurrent ?? "-", "--links", links,
+                         "--scratch", scratch.FullName, "--link-hosts", o.Policy.LinkHosts,
+                         "--max-link-bytes", o.MaxCommonLinkBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                         "--max-validation-bytes", o.MaxCommonValidationBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+                    if (!who.Files || !o.Policy.BinariesAllowed) arguments.Add("--link-only");
+                    if (allowLoopbackLinks) arguments.Add("--allow-loopback-links");
+                    result = await common.Run(o.PythonPath, arguments, ct);
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 { return (UncertainCommonCommit("common commit timed out"), 504); }
-                catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or JsonException)
+                catch (Exception error) when (error is IOException or InvalidDataException or System.ComponentModel.Win32Exception or JsonException)
                 { return (UncertainCommonCommit("common commit verifier unavailable"), 503); }
+                finally { scratch.Delete(recursive: true); }
                 if (result.GetProperty("result").GetString() == "uncertain")
                     return (UncertainCommonCommit(result.GetProperty("reason").GetString()!), 503);
                 if (result.GetProperty("result").GetString() == "refused")
@@ -61,7 +73,6 @@ public sealed partial class PushService
                         result.GetProperty("reason").GetString()!, "inspect current and rebuild the signed snapshot if it changed"),
                         code == "owner" ? 403 : code == "conflict" ? 409 : 422);
                 }
-                catalogue.Invalidate(channel);
                 // Retain unrelated uploads and remove only exact files now durably published.
                 foreach (var item in ReadPlan(staging).Values)
                 {

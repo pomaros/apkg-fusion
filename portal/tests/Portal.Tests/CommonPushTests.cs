@@ -23,6 +23,7 @@ public sealed class CommonPushTests
         public readonly string Data = Directory.CreateTempSubdirectory("portal-common-push-").FullName;
         public readonly string Key, OtherKey, LinkKey;
         readonly string configuration;
+        public readonly Dictionary<string,string> Settings = [];
         public string Live => Path.Combine(Data, "channels", "common");
         public Site(bool rich = false)
         {
@@ -37,9 +38,9 @@ public sealed class CommonPushTests
         {
             builder.UseSetting("Portal:DataDir", Data);
             builder.UseSetting("Portal:ApkgPath", Source.Engine);
-            builder.UseSetting("Portal:PkgPath", Path.Combine(Data, "legacy-must-not-run"));
             builder.UseSetting("Portal:Keys", configuration);
             builder.UseSetting("Portal:AllowLoopbackHttpPush", Loopback.ToString());
+            foreach(var setting in Settings)builder.UseSetting(setting.Key,setting.Value);
         }
         public HttpClient Client(string? key = null)
         {
@@ -138,7 +139,7 @@ public sealed class CommonPushTests
         Assert.Contains("result: unchanged", await retry.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Conflict, (await site.Commit(client, first, second)).StatusCode);
         Assert.Equal(second + "\n", File.ReadAllText(Path.Combine(site.Live, "current")));
-        using var observation = JsonDocument.Parse(await client.GetStringAsync("/api/common/channels/common"));
+        using var observation = JsonDocument.Parse(await client.GetStringAsync("/api/channels/common"));
         Assert.Equal(2, observation.RootElement.GetProperty("document").GetProperty("body").GetProperty("entries").GetArrayLength());
         foreach (var file in site.Files(second))
             Assert.Equal(file.Value, await client.GetByteArrayAsync("/common/" + file.Key));
@@ -158,7 +159,6 @@ public sealed class CommonPushTests
         var files = site.Files(snapshot);
         var archive = files.Keys.Single(k => k.StartsWith("archives/", StringComparison.Ordinal));
         if (failure == "missing") files.Remove(archive);
-        if (failure == "corrupt") files[archive][^1] ^= 1;
         // Correct outer signature and archive hash are insufficient: embedded package identity must match.
         if (failure is "wrong-signed-package" or "content")
         {
@@ -178,6 +178,11 @@ public sealed class CommonPushTests
             };
         }
         await site.Upload(client, files);
+        if(failure=="corrupt")
+        {
+            var staged=Directory.GetFiles(Path.Combine(site.Data,"staging"),"*.pkg",SearchOption.AllDirectories).Single();
+            var bytes=File.ReadAllBytes(staged);bytes[^1]^=1;File.WriteAllBytes(staged,bytes);
+        }
         var response = await site.Commit(client, snapshot);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         Assert.False(File.Exists(Path.Combine(site.Live, "current")));
@@ -210,7 +215,7 @@ public sealed class CommonPushTests
     }
 
     [Fact]
-    public async Task Legacy_commit_cannot_publish_common_metadata_or_current()
+    public async Task Unsupported_commit_route_cannot_publish_metadata_or_current()
     {
         using var site = new Site();
         using var client = site.Client();

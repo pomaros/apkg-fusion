@@ -1,9 +1,10 @@
 @* SPDX-License-Identifier: MIT
    Copyright (c) 2026 John Knipper *@
-@page "/packages/apkg/builds/{channel}/{digest}"
+@page "/builds/{channel}/{digest}"
 @using Portal.Channels
 @using Microsoft.Extensions.Options
 @inject CommonCatalogue CommonCatalogue
+@inject CommonQualifications Qualifications
 @inject IOptions<PortalOptions> Options
 @{
     ViewData["Title"] = "APKG build";
@@ -16,7 +17,7 @@
     var build = view?.Builds.SingleOrDefault(b => b.Digest == digest);
     Response.StatusCode = view is null ? result.Status : build is null ? 404 : 200;
 }
-<p class="crumbs"><a href="/packages/apkg">APKG packages</a> / <a href="/packages/apkg/channels/@channel">@channel</a></p>
+<p class="crumbs"><a href="/">APKG packages</a> / <a href="/channels/@channel">@channel</a></p>
 @if (build is null || view is null)
 {
     <h1>Build unavailable</h1>
@@ -41,13 +42,30 @@
 </dl>
 <h2>Signatures and review</h2>
 <p>The channel and package signatures have been checked. Your client must authorize the channel and author keys before installation. Publication does not mean this build has been reviewed or tested on your system.</p>
-<p>@build.Attestations.GetArrayLength() signed observation(s) attached; reviewer and tester authorization have not been evaluated here. Payload contents have not been checked by this page.</p>
+<p>@build.Attestations.GetArrayLength() signed observation(s) attached; reviewer and tester authorization are evaluated below only when a portal policy is configured. Payload contents have not been checked by this page.</p>
 <dl class="facts">
     <dt>Author public key</dt><dd><code class="digest">@build.AuthorSignature.GetProperty("public_key").GetString()</code></dd>
     <dt>Channel public key</dt><dd><code class="digest">@view.ChannelPublicKey</code></dd>
     <dt>Exact build</dt><dd><code class="digest">@build.Digest</code></dd>
     <dt>Signed snapshot</dt><dd><code class="digest">@view.Snapshot</code></dd>
 </dl>
+@{
+    var qualification=await Qualifications.Evaluate(view,build,Request.HttpContext.RequestAborted);
+}
+<h2>Signed observation policy</h2>
+<p>Portal policy evaluation: <strong>@qualification.GetProperty("status").GetString()</strong>. No current approval is asserted; online freshness remains unknown. The portal does not run the application when displaying an observation.</p>
+@if(qualification.GetProperty("status").GetString()=="evaluated")
+{
+    <p>Policy digest: <code class="digest">@qualification.GetProperty("policy_sha256").GetString()</code></p>
+    <table class="list"><thead><tr><th>Kind / signed result</th><th>Issuer authorization</th><th>Independent</th><th>History / sequence</th></tr></thead><tbody>
+    @foreach(var observation in qualification.GetProperty("observations").EnumerateArray())
+    {
+        <tr><td>@observation.GetProperty("kind").GetString() / @observation.GetProperty("result").GetString()</td>
+        <td>@observation.GetProperty("issuer_trust").GetString()</td><td>@observation.GetProperty("independent").GetBoolean()</td>
+        <td>@observation.GetProperty("history").GetString() / @observation.GetProperty("sequence").GetString()</td></tr>
+    }
+    </tbody></table>
+}
 <h2>Preview installation</h2>
 <p>Replace <code>ROOT</code> with an initialized package root whose trust policy you have configured. This command previews the exact build and its dependencies. Review the effects before confirming the plan digest it returns.</p>
 <div class="cmd wrapcode"><code>@command</code><button class="copy" data-copy="@command">Copy</button></div>

@@ -8,6 +8,7 @@ Uses the file producer's checked POSIX publication primitives and the common eng
 """
 import argparse
 import hashlib
+import http.client
 import json
 from pathlib import Path
 import re
@@ -16,6 +17,7 @@ import subprocess
 import tempfile
 
 producer = runpy.run_path(str(Path(__file__).with_name('apkg-channel')))
+linked = runpy.run_path(str(Path(__file__).with_name('apkg-portal-links')))
 encode = producer['encode']
 read_small = producer['read_small']
 directory = producer['directory']
@@ -49,14 +51,14 @@ def find(endpoint, staging, relative):
     refuse('invalid', 'a referenced immutable member was not uploaded')
 
 
-def snapshot(engine, endpoint, staging, digest):
+def snapshot(engine, endpoint, staging, digest, scratch=None):
     folder = 'snapshots/' + digest + '/'
     document = read_small(find(endpoint, staging, folder + 'channel.json'), producer['META_MAX'])
     signature = read_small(find(endpoint, staging, folder + 'channel.signature.json'), 16384)
     if hashlib.sha256(document).hexdigest() != digest:
         refuse('invalid', 'snapshot digest does not match its name')
     # Verify the captured bytes, not paths which can subsequently change.
-    with tempfile.TemporaryDirectory(prefix='apkg-portal-metadata-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='apkg-portal-metadata-', dir=scratch) as temporary:
         doc, sig = Path(temporary) / 'channel.json', Path(temporary) / 'signature.json'
         doc.write_bytes(document)
         sig.write_bytes(signature)
@@ -93,9 +95,9 @@ def monotonic(previous, proposed):
     return [entry for digest, entry in new.items() if digest not in old]
 
 
-def validate_archive(engine, endpoint, staging, entry):
+def validate_archive(engine, endpoint, staging, entry, downloaded=None, scratch=None):
     archive = entry['archive']
-    source = find(endpoint, staging, 'archives/' + archive['sha256'] + '.pkg')
+    source = downloaded or find(endpoint, staging, 'archives/' + archive['sha256'] + '.pkg')
     expected = archive['sha256'], int(archive['size'])
     if producer['hash_file'](source) != expected:
         refuse('invalid', 'archive bytes differ from the signed reference')
@@ -103,7 +105,7 @@ def validate_archive(engine, endpoint, staging, entry):
     policy = dict(body=dict(authorities=[dict(id=body['authority'], keys=[dict(
         algorithm='ed25519', public_key=entry['signature']['public_key'])])]),
         format='apkg-json-1', requires=[], schema='1', type='policy')
-    with tempfile.TemporaryDirectory(prefix='apkg-portal-archive-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='apkg-portal-archive-', dir=scratch) as temporary:
         temporary = Path(temporary)
         seed, root = temporary / 'policy.json', temporary / 'root'
         seed.write_bytes(encode(policy))
@@ -115,6 +117,10 @@ def validate_archive(engine, endpoint, staging, entry):
 
 
 def commit(args):
+    for name, default in dict(links=None, scratch=None, link_hosts='', link_only=False,
+                              allow_loopback_links=False, max_link_bytes=128*1024*1024,
+                              max_validation_bytes=512*1024*1024).items():
+        if not hasattr(args, name):setattr(args, name, default)
     if not re.fullmatch('[0-9a-f]{64}', args.snapshot):
         refuse('invalid', 'snapshot must be a lowercase SHA-256')
     if args.expected != '-' and not re.fullmatch('[0-9a-f]{64}', args.expected):
@@ -131,7 +137,7 @@ def commit(args):
         expected = None if args.expected == '-' else args.expected
         if digest != args.snapshot and digest != expected:
             refuse('conflict', 'current changed; rebuild the signed snapshot before retrying')
-        proposed, key, document, signature = snapshot(args.engine, endpoint, staging, args.snapshot)
+        proposed, key, document, signature = snapshot(args.engine, endpoint, staging, args.snapshot, args.scratch)
         owner = dict(format='apkg-portal-owner-1', publisher=args.publisher,
                      channel_id=proposed['body']['id'], public_key=key)
         owner_file = endpoint / '.portal-owner.json'
@@ -142,7 +148,7 @@ def commit(args):
             refuse('conflict', 'existing common channels require explicit migration registration')
         previous = []
         if before is not None:
-            current, old_key, _, _ = snapshot(args.engine, endpoint, endpoint, digest)
+            current, old_key, _, _ = snapshot(args.engine, endpoint, endpoint, digest, args.scratch)
             if old_key != key or current['body']['id'] != proposed['body']['id']:
                 refuse('conflict', 'channel identity or signing key changed')
             previous = current['body']['entries']
@@ -151,13 +157,41 @@ def commit(args):
         elif proposed['body']['sequence'] != '1':
             refuse('conflict', 'a new channel must begin at sequence one')
         added = monotonic(previous, proposed['body']['entries'])
+        links = json.loads(read_small(Path(args.links), 65536)) if args.links else {}
+        if not isinstance(links, dict) or len(links) > 32:
+            refuse('invalid', 'at most 32 archive links may be submitted per commit')
+        references = {entry['archive']['sha256']: entry['archive'] for entry in proposed['body']['entries']}
+        if any(digest not in references or not isinstance(url, str) for digest, url in links.items()):
+            refuse('invalid', 'archive links must name an exact archive in the signed snapshot')
+        incoming = {entry['archive']['sha256']: entry['archive'] for entry in added}
+        linked_bytes = sum(int(incoming[digest]['size']) for digest in incoming if digest in links)
+        if linked_bytes > args.max_validation_bytes or any(int(incoming[digest]['size']) > args.max_link_bytes
+                                                       for digest in incoming if digest in links):
+            refuse('invalid', 'linked archive validation exceeds this portal byte limit')
+        if args.link_only and any(digest not in links for digest in incoming):
+            refuse('owner', 'this publisher must provide an external link for every new archive')
+        hosts = [host.strip().lower() for host in args.link_hosts.split(',') if host.strip()]
+        downloaded = {}
+        for digest, archive in incoming.items():
+            if digest not in links:
+                continue
+            if not args.scratch:
+                refuse('invalid', 'linked validation needs a private scratch directory')
+            path = Path(args.scratch) / (digest + '.pkg')
+            linked['download'](links[digest], path, (digest, int(archive['size'])), hosts, args.allow_loopback_links)
+            downloaded[digest] = path
         # Retained entries were already archive-verified at the common commit that admitted them.
         # Only newly introduced descriptors need another full content import.
-        archives = [validate_archive(args.engine, endpoint, staging, entry) for entry in added]
+        archives = [validate_archive(args.engine, endpoint, staging, entry,
+                                    downloaded.get(entry['archive']['sha256']), args.scratch) for entry in added]
         for name in ('archives', 'snapshots'):
             directory(endpoint / name)
         for source, expected_archive in archives:
-            producer['retain_archive'](endpoint / 'archives' / (expected_archive[0] + '.pkg'), source, expected_archive)
+            destination = endpoint / 'archives' / (expected_archive[0] + '.pkg')
+            if expected_archive[0] in links:
+                producer['immutable_bytes'](Path(str(destination) + '.url'), links[expected_archive[0]].encode())
+            else:
+                producer['retain_archive'](destination, source, expected_archive)
         destination = endpoint / 'snapshots' / args.snapshot
         directory(destination)
         producer['immutable_bytes'](destination / 'channel.json', document)
@@ -175,12 +209,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('engine', 'endpoint', 'staging', 'publisher', 'snapshot', 'expected'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--links')
+    parser.add_argument('--scratch')
+    parser.add_argument('--link-hosts', default='')
+    parser.add_argument('--link-only', action='store_true')
+    parser.add_argument('--allow-loopback-links', action='store_true')
+    parser.add_argument('--max-link-bytes', type=int, default=128*1024*1024)
+    parser.add_argument('--max-validation-bytes', type=int, default=512*1024*1024)
     args = parser.parse_args()
     try:
         result = commit(args)
     except Refusal as error:
         result = dict(result='refused', code=error.code, reason=str(error))
-    except (producer['Refusal'], OSError, ValueError, KeyError, subprocess.SubprocessError):
+    except (producer['Refusal'], OSError, ValueError, KeyError, http.client.HTTPException, subprocess.SubprocessError):
         # A failed final flush or lost completion must not claim the reference stayed old.
         try:
             visible = producer['current'](Path(args.endpoint)) == (args.snapshot + '\n').encode()

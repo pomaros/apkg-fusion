@@ -55,6 +55,7 @@ apkg_status ak_source_inventory(const char *, char **, apkg_error **);
 int ak_legacy_main(int, char **);
 apkg_status ak_verify_command(int, char **, char **);
 apkg_status ak_author_command(int, char **, char **);
+apkg_status ak_push_verify_command(int, char **, char **);
 apkg_status ak_signature_check(apkg_bytes, apkg_bytes, const char *,
                                unsigned char[32], apkg_digest *);
 int ak_channel_policy(const ak_json *, const char *, const char *);

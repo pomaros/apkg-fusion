@@ -18,7 +18,7 @@ public sealed class CommonPortalLifecycleTests
         var first = site.Snapshot(1);
         await site.Upload(client, site.Files(first), parts: true);
         Assert.Equal(HttpStatusCode.OK, (await site.Commit(client, first)).StatusCode);
-        using var catalogue = JsonDocument.Parse(await client.GetStringAsync("/api/common/channels/common/packages"));
+        using var catalogue = JsonDocument.Parse(await client.GetStringAsync("/api/channels/common/packages"));
         Assert.Equal(1, catalogue.RootElement.GetProperty("total").GetInt32());
         var item = catalogue.RootElement.GetProperty("builds")[0];
         var link = item.GetProperty("page").GetString()!;
@@ -37,7 +37,7 @@ public sealed class CommonPortalLifecycleTests
             var second = site.Snapshot(2);
             await site.Upload(client, site.Files(second));
             Assert.Equal(HttpStatusCode.OK, (await site.Commit(client, second, first)).StatusCode);
-            using var updated = JsonDocument.Parse(await client.GetStringAsync("/api/common/channels/common/packages"));
+            using var updated = JsonDocument.Parse(await client.GetStringAsync("/api/channels/common/packages"));
             Assert.Equal(2, updated.RootElement.GetProperty("total").GetInt32());
             Assert.Contains(first, await client.GetStringAsync(link));
             // Stop the actual socket listener before testing offline removal.

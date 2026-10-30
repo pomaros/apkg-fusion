@@ -8,8 +8,8 @@ using Microsoft.Extensions.Options;
 namespace Portal.Push;
 
 /// A push key's rights. Files: may upload binaries (payloads, archives, the
-/// bootstrap programs). Without it a key publishes by link only: signed
-/// manifests whose files stay in an archive on an https server (Archive:).
+/// common archives). Without it a key publishes signed common snapshots with
+/// archives hosted on public HTTPS servers.
 public sealed record Publisher(string Name, IReadOnlySet<string> Channels, bool Files = false, string? AccountId = null)
 {
     public bool MayPush(string channel) => Channels.Contains("*") || Channels.Contains(channel);

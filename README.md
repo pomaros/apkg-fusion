@@ -11,10 +11,10 @@ author channels and independent review/runtime evidence.
 use the common context engine. CLI and the PkgManager worker share signed
 selection, dependency plans and transaction recovery. The native catalogue and
 automation use the common engine; broader qualification, existing-user migration
-and portal adaptation remain work. The [status overview](docs/fusion/status.md#alpha-progress-at-a-glance)
+remain release work. The clean common-only portal is under qualification. The [status overview](docs/fusion/status.md#alpha-progress-at-a-glance)
 separates host qualification, the isolated M1 application trial and remaining
 release gates. The [merge report](docs/fusion/merge-report.md) compares inherited
-capabilities and fusion changes. Portal work is outside the current stop boundary.
+capabilities and fusion changes. The [portal guide](portal/README.md) describes the resumed publishing and deployment work.
 
 The common engine in `src/apkg/` follows APKG's context model and links pkg's
 portable services, cryptography, ownership and publishing code. The

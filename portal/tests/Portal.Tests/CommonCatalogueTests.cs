@@ -11,8 +11,8 @@ namespace Portal.Tests;
 
 public sealed class CommonCatalogueTests
 {
-    const string Packages = "/api/common/channels/common/packages";
-    const string Browse = "/packages/apkg/channels/common";
+    const string Packages = "/api/channels/common/packages";
+    const string Browse = "/channels/common";
 
     [Fact]
     public async Task Common_builds_are_browsable_without_losing_author_identity_precision_or_escaping()
@@ -21,7 +21,7 @@ public sealed class CommonCatalogueTests
         using var client = site.CreateClient();
         var before = Directory.GetFiles(site.Channel, "*", SearchOption.AllDirectories)
             .ToDictionary(p => p, p => SHA256.HashData(File.ReadAllBytes(p)));
-        var index = await client.GetStringAsync("/packages/apkg");
+        var index = await client.GetStringAsync("/");
         Assert.Contains(Browse, index);
         using var data = JsonDocument.Parse(await client.GetStringAsync(Packages));
         var response = data.RootElement;
@@ -56,7 +56,7 @@ public sealed class CommonCatalogueTests
             Assert.Contains("Empty", detail);
             Assert.Contains("preserve", detail);
             Assert.Contains("apkg channel-install ROOT", detail);
-            Assert.Contains("reviewer and tester authorization have not been evaluated", detail);
+            Assert.Contains("reviewer and tester authorization are evaluated below", detail);
             Assert.DoesNotContain("<script>alert", detail);
         }
         Assert.Equal(before.Count, Directory.GetFiles(site.Channel, "*", SearchOption.AllDirectories).Length);
@@ -113,10 +113,28 @@ public sealed class CommonCatalogueTests
         site.Settings["Portal:Unlisted"] = "common";
         site.Settings["Portal:ViewKeys"] = "viewer:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
         using var client = site.CreateClient();
-        Assert.DoesNotContain(Browse, await client.GetStringAsync("/packages/apkg"));
+        Assert.DoesNotContain(Browse, await client.GetStringAsync("/"));
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync(Browse)).StatusCode);
-        client.DefaultRequestHeaders.Add("Cookie", Portal.Channels.Catalogue.ViewCookie + "=" + key);
-        Assert.Contains(Browse, await client.GetStringAsync("/packages/apkg"));
+        client.DefaultRequestHeaders.Add("Cookie", Portal.Channels.CommonVisibility.ViewCookie + "=" + key);
+        Assert.Contains(Browse, await client.GetStringAsync("/"));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Deployment_notice_is_visible_across_pages_until_explicitly_cleared(bool enabled)
+    {
+        using var site = new CommonChannelTests.Fixture();
+        site.Settings["Portal:ShowMigrationNotice"] = enabled.ToString();
+        using var client = site.CreateClient();
+        foreach(var route in new[]{"/", "/channels/common", "/account", "/docs"})
+        {
+            var page = await client.GetStringAsync(route);
+            Assert.Equal(enabled,page.Contains("Migration in progress — please do not use",StringComparison.Ordinal));
+            Assert.Equal(enabled,page.Contains("until further notice",StringComparison.Ordinal));
+        }
+        using var policy = JsonDocument.Parse(await client.GetStringAsync("/api/policy"));
+        Assert.Equal(enabled,policy.RootElement.GetProperty("migrationNotice").ValueKind == JsonValueKind.String);
     }
 
     [Theory]

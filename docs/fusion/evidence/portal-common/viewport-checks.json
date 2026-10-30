@@ -1,0 +1,44 @@
+[
+  {
+    "name": "channel",
+    "width": 1280,
+    "scroll": 1280,
+    "notice": true,
+    "title": "stored · APKG · APKG Packages"
+  },
+  {
+    "name": "build",
+    "width": 1280,
+    "scroll": 1280,
+    "notice": true,
+    "title": "fusion-loop 1.0 · APKG · APKG Packages"
+  },
+  {
+    "name": "docs",
+    "width": 1280,
+    "scroll": 1280,
+    "notice": true,
+    "title": "Using APKG · APKG Packages"
+  },
+  {
+    "name": "channel",
+    "width": 390,
+    "scroll": 390,
+    "notice": true,
+    "title": "stored · APKG · APKG Packages"
+  },
+  {
+    "name": "build",
+    "width": 390,
+    "scroll": 390,
+    "notice": true,
+    "title": "fusion-loop 1.0 · APKG · APKG Packages"
+  },
+  {
+    "name": "docs",
+    "width": 390,
+    "scroll": 390,
+    "notice": true,
+    "title": "Using APKG · APKG Packages"
+  }
+]

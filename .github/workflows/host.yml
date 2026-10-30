@@ -55,9 +55,25 @@ jobs:
         with:
           python-version: '3.14'
       - name: Build package verifiers and common worker adapter for portal integration tests
-        run: make build/pkg build/apkg-core build/test_pm_common
+        run: make build/apkg build/apkg-core build/test_pm_common
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.1xx'
       - name: Portal regression and qualification tests
         run: dotnet test portal/tests/Portal.Tests/Portal.Tests.csproj --nologo
+      - name: Package and rehearse the published portal
+        run: |
+          python3 tools/apkg-portal-package --output build/portal-deployment
+          python3 portal/tests/deployment_cycle.py --app build/portal-deployment --work build/portal-rehearsal
+      - name: Preserve deployment rehearsal report
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-rehearsal-${{ matrix.os }}
+          path: build/portal-rehearsal/report.json
+      - name: Archive the tested native deployment
+        run: tar -czf build/portal-deployment.tar.gz -C build/portal-deployment .
+      - name: Preserve the tested deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-deployment-${{ matrix.os }}
+          path: build/portal-deployment.tar.gz

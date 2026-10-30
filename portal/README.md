@@ -1,197 +1,73 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2026 John Knipper -->
 
-# The Pkg portal
+# APKG common portal
 
-The common-engine adapter is described in [Common portal contracts](../docs/fusion/portal.md).
-Set `Portal:ApkgPath` to the common `apkg` executable. Common signed channel
-members are served directly, and `/api/common/channels/<channel>` verifies a
-metadata observation without granting client trust. The existing push and Pkg UI
-below remain available during the staged port. Common publication uses the same plan/files
-uploads and an explicit `common-commit` with a client-signed snapshot; Python
-3.11+ and the common executable are required on the POSIX host. Catalogue and
-migration integration are tracked in [fusion status](../docs/fusion/status.md).
+The portal uses the merged common engine for signed metadata, archives and push
+authentication. The default catalogue is `/`, channels are `/channels/<name>`,
+and exact-build URLs include the immutable snapshot digest. This replaces the
+old pkg portal without a compatibility layer or deployed-data conversion.
+Joint maintainer design and official key governance remain provisional.
 
-The **APKG** navigation entry opens `/packages/apkg`: a common-engine-verified
-catalogue with per-channel search and exact-build pages. Same-name authors,
-targets and full revisions remain separate. Build pages retain a signed
-snapshot and expose a preview command; no client trust or review is granted.
-The existing catalogue remains available while common publishing, qualification
-and migration workflows are ported. Joint design decisions are still open.
-See the [portal execution batches](../docs/fusion/portal.md#portal-execution-batches).
+A prominent English migration warning is enabled on every page by default.
+Keep `Portal:ShowMigrationNotice=true` until the operator explicitly clears it.
+The public service and its packages should not be used during this transition.
 
-A small package site in the manner of nuget.org, for Pkg channels. It does two things:
+## Publish
 
-- **It serves channels over HTTP**, file for file as a directory channel:
-  `/{channel}/index`, `/{channel}/objects/…`, `/{channel}/archives/…`,
-  `/{channel}/Bootstrap/<cpu>/Pkg`, `/{channel}/Install-Pkg` and `/{channel}/ReadMe`.
-  `pkg … CHANNEL https://host/{channel}` reads it like a local channel. It
-  answers over plain HTTP too, since 68k machines have no TLS and the
-  signatures carry integrity. There is no HSTS, and Range requests work on
-  archives.
-- **It shows a catalogue** generated from the manifests: search (by name and
-  by the files packages hold), a page per channel with each nightly's
-  statistics, and a page per package with its versions, dependencies, the
-  packages that use it, its files with protection bits and comments, its
-  signer and its source archive.
-
-There is no database. The channel directories are the only state, plus
-`state/<channel>/archive-checks` and the push staging area.
-
-## Publishing: plan, files, commit
-
-Publishers sign on their own machine; the portal never holds a signing key.
-A push has three steps, all under `/{channel}/_push/`, HTTPS only, with
-`Authorization: Bearer <key>`:
-
-1. `POST plan`, with one line per local file: `<path> <sha256> <size>`.
-   The answer lists `need: <path>` for each file the portal lacks.
-2. `PUT files/<path>` for each needed file. Files over 32 MiB go in parts
-   with `Content-Range: bytes <a>-<b>/<size>`. A part that does not start
-   where the portal stopped is answered with `received: <n>`, so an
-   interrupted upload resumes from there.
-3. `POST commit`, with the local index. The portal checks the new entries
-   by running Pkg itself (`SHOW CHANNEL <staging> METADATA`). That covers
-   signatures, digests and withdrawals. The portal enforces one more rule:
-   a package keeps the key of its first version. It then places the files
-   and swaps the index atomically. A published file never changes and a
-   push never removes anything.
-
-Each source archive is then checked once in the background
-(`SHOW … ARCHIVE <name>`); until then its packages say "check pending".
-
-Every answer is a Pkg record, with a plain `summary:` sentence and
-statistics on what was sent and what was not sent again. `pkg PUSH` speaks
-this protocol. Until it exists, `tools/push.sh` does the same with curl:
+Create author and channel keys locally using `apkg keygen`. Register the channel
+public key through the GitHub account page; never send either private key to
+the server. New accounts publish by external link and start unlisted. An
+operator may grant binary storage or list the channel independently of review.
 
 ```sh
-PKG_PUSHKEY=<key> sh portal/tools/push.sh <local channel dir> https://<host>/<channel>
+python3 tools/apkg-build MyTool --output mytool.pkg --sign author.key --authority AUTHOR-ID --runtime native
+python3 tools/apkg-channel mytool.pkg --directory channel --id CHANNEL-ID --sign channel.key
+python3 tools/apkg-portal-push channel https://portal.example/my-channel --sign channel.key
 ```
 
-## The maintainers' API
+Replace AUTHOR-ID and CHANNEL-ID with separate 32-digit lowercase hexadecimal
+identities. `apkg key-public channel.key` returns the public key for registration.
+Link-only accounts add `--links links.json`: a JSON object mapping each new
+archive's SHA-256 to its public HTTPS URL. The portal fetches bounded bytes,
+verifies the exact signed archive, then retains the URL rather than the binary.
+Private addresses, unsafe redirects and digest/size mismatches refuse. Publishers
+must keep their external archives available; backup retains URLs, not remote bytes.
 
-### Open publishing and catalogue review
+The client signs requests with the common executable, sends resumable parts,
+checks the remote signed head, and commits with an expected previous digest.
+Retries of a published identical snapshot are idempotent. After an uncertain
+response, inspect `/<channel>/current` before retrying; do not roll it back blindly.
+HTTPS bearer-token publication is also supported with `--token-file`, a private
+file. Credentials are not command-line arguments or source-controlled settings.
 
-Authors register their publishing key through the account page when GitHub
-sign-in is configured. Publishing and installation work without catalogue
-review. The catalogue's **All published packages** view includes these
-packages; **Reviewed builds** selects exact builds that maintainers reviewed.
-Review, publisher signatures and runtime test results are independent facts.
+## Run and test
 
-The maintainer API accepts JSON over HTTPS with an admin bearer key:
-
-- `POST /_admin/channels/<channel>/qualifications/<manifest-sha256>/review`
-  takes `result` (`reviewed`, `rejected` or `revoked`), `summary` and `evidence`
-  (an HTTPS URL to the review). The authenticated admin key supplies the
-  reviewer identity. A publisher cannot choose it.
-- `POST /_admin/channels/<channel>/qualifications/<manifest-sha256>/runtime`
-  takes `result` (`passed` or `failed`), `summary`, `evidence` and `target` in
-  `CPU-aros-ABI-runtime` form, for example `x86_64-aros-v11-native`. A fully
-  qualified package target must match exactly. For CPU-only manifests only
-  CPU identity can be checked; the response labels their target identity
-  `cpu-only`. The evidence describes the distribution and test environment.
-- `GET /api/qualifications/<channel>/<manifest-sha256>` returns the package
-  identity, review result, latest runtime result per target and observation
-  history. A failed retest replaces the displayed result for that target;
-  the earlier success stays in the history.
-- `/search?review=reviewed` and `/api/search?review=reviewed` select packages
-  whose latest version has a reviewed build. An `arch` filter applies to that
-  same build. The search result links to the reviewed architecture explicitly.
-
-Records bind the channel, manifest digest, package name, version and architecture.
-A new manifest starts unreviewed. Authors' manifest fields and push credentials
-cannot grant review. Withdrawing a review leaves publication and downloads intact.
-Runtime reports name their tested ABI and runtime; a pass on one target says
-nothing about another. Package pages and the JSON package/search APIs expose
-these records separately from signer information.
-
-The history is stored at `state/<channel>/qualifications/<digest>.json`, outside
-publisher-writable channel files. A single portal process owns the state directory.
-Each write flushes a replacement file before renaming it; backup the state tree
-alongside the channels. These records are statements authenticated by this portal
-over HTTPS. They carry no detached signature and clients must not use them as
-package-signature verification or as independently verifiable offline attestations.
-
-### Channel administration
-
-`/_admin/…`, HTTPS only, with an admin key (never a push key):
-
-- `POST /_admin/channels/<channel>/remove` with lines `<name> *`,
-  `<name> <version>`, `<name> <version> <arch>` or index lines; `?dryrun=1`
-  says what would go. The versions leave the index; their files, first-seen
-  dates and download counts move to `state/removed/<stash>/`, nothing is
-  destroyed, and a file another version still needs stays.
-- `POST /_admin/restore/<stash>` puts a removal back.
-- `Portal:Policy:MinPkg` (`1.5`) is the oldest Pkg the portal works with: an older one, or a program that does not say it is Pkg (`User-Agent: Pkg/<version>`, since 1.5; `Pkg-tools/1` for `tools/push.sh`), is refused when it pushes, 426 with the version to update to. `Portal:Policy:MinPkgReads=true` refuses its channel reads too, never the pinned Pkg channel, the bootstraps or the installers. Setting it shuts out every Pkg before 1.5, which say no version.
-- `Portal:ViewKeys` (`name:sha256;...`, made by `Portal viewkey <name>`) lets a person see unlisted channels on the site: opening `/see/<key>` sets a cookie in that browser, `/see/off` removes it. It shows and does nothing else.
-- "Publish on this portal", on the publishers' page (`/publishers`), says how to become one: ask the maintainer (`Portal:Policy:Contact`), what to send, by link or with files, the signed push. Every refusal about who may push names that page, and `/api/policy` gives it as `publish`.
-- `Portal:SignedKeys` (`name:publickey:channels[:files];...`) names publishers by the public half of their signing key, for pushes whose requests are signed instead of carrying a key (`Push/SignedPush.cs` says what is signed and why it may come over plain http). Nothing in it is secret. `Portal:Policy:SignedPush=false` turns it off.
-- `POST /_admin/channels/<channel>/unlist` serves a channel to whoever has its address and shows it nowhere (home page, search, statistics, feeds, publishers); `.../list` shows it again. `Portal:Unlisted` (`a;b`) does the same from the settings. `sh portal/tools/admin.sh <portal> unlist <channel>`.
-- `GET /_admin/log` lists every admin action.
-
-`tools/admin.sh` calls them from a shell.
-
-## Running it
+From the repository root with .NET 10 SDK, Python 3.11+ and a C compiler:
 
 ```sh
-cd portal/src/Portal
-dotnet run                      # Development: data in portal/data, pkg from ../../../build/pkg
+make build/apkg build/apkg-core build/test_pm_common
+DOTNET_ENVIRONMENT=Production dotnet run --project portal/src/Portal
 ```
 
-Settings (environment variables use `__`, e.g. `Portal__DataDir`):
+Set `Portal__DataDir` to an absolute, operator-owned POSIX directory and
+`Portal__ApkgPath` to the common executable's absolute path for source runs.
+The published artifact detects its bundled executable. Set
+`Portal__GitHub__ClientId`, `Portal__GitHub__ClientSecret`, and
+`Portal__PublicUrl` for real sign-in; the GitHub OAuth callback is `/signin-github`.
+Keep secrets outside this repository. Without GitHub configuration the account
+page explains that public registration is unavailable; browsing still works.
 
-| Setting | Meaning |
-|---|---|
-| `Portal:DataDir` | channels, staging, state; `/home/data` on App Service |
-| `Portal:PkgPath` | the Pkg that checks pushes; the deployment puts the static Linux build beside the app |
-| `Portal:Keys` | `name:sha256-of-key:channel,channel[:files];…`, one entry per publisher. Without `files` a key publishes by link only: signed manifests and signatures, whose files stay in an archive on an https server named by an `Archive:` line; payloads, archives and bootstrap programs are refused |
-| `Portal:MaxStagingBytes`, `Portal:MaxLinkOnlyStagingBytes` | what one key may hold in staging at once (2 GiB, 16 MiB) |
-| `Portal:PublicUrl` | the address shown in commands |
-| `Portal:Publishers` | publisher profiles, `key|name|url|contact;…` (url and contact optional); they win over SignerNames |
-| `Portal:Owners` | packages moved to another key by the maintainers, `channel/name=key;…`; from then on a push of that package must be signed by that key |
-| `Portal:SignerNames` | names for signing keys, `hex=Name;…`; keys are otherwise named after the publisher whose push first used them |
-| `Portal:Pinned` | packages shown first, `channel/name` separated by commas; `pkg/pkg` by default |
-| `Portal:AdminKeys` | maintainers' keys for `/_admin`, `name:sha256-of-key;…`; `dotnet Portal.dll adminkey <name>` makes one |
-| `Portal:Policy:Push` | uploads at all (`true`); `false` makes a read-only mirror |
-| `Portal:Policy:Binaries` | `keys`: binaries from keys with the `files` right; `off`: from nobody, every publisher links |
-| `Portal:Policy:LinkHosts` | hosts an `Archive:` address may name, comma-separated; empty: any https host (subdomains match) |
-| `Portal:Policy:NewChannels` | whether a push may create a channel (`true`) |
-| `Portal:Policy:Admin` | the maintainers' API (`true`) |
-| `Portal:Policy:PlainHttp` | channels also over plain http (`true`); `false` sends every http request to https |
-| `Portal:Policy:Note`, `Portal:Policy:Contact` | the operators' sentence and contact, added to every refusal a rule causes and shown on `/trust` |
-| `Portal:BootstrapKey` | the OpenSSH public key (`ssh-ed25519 …`) that signs the pkg channel's `Bootstrap/SHA256SUMS`; set, `/install` and `/install.ps1` check what they download with `ssh-keygen -Y verify` before installing it |
-| `Portal:AllowLoopbackHttpPush` | pushes over http from 127.0.0.1, for a local instance only |
+```sh
+dotnet test portal/tests/Portal.Tests
+python3 tools/apkg-portal-package --output build/portal-deployment
+python3 portal/tests/deployment_cycle.py --app build/portal-deployment --work build/portal-rehearsal
+```
 
-A key: `dotnet Portal.dll key <publisher> <channel,channel|*> [files]` prints the
-key, which goes to the publisher once, and the line for `Portal:Keys`,
-which holds only its SHA-256.
-
-## Deploying
-
-`sh portal/tools/deploy-azure.sh [app] [resource group]` builds the static
-Pkg for Linux and the portal for linux-x64, then zip-deploys both to the web
-app (`aros-pkg` in `rg-aros`, on the Linux B1 plan `asp-aros-linux`).
-
-`global.json` pins the SDK to the 10.0.1xx band. The Razor compiler in SDK
-10.0.401 refuses valid markup: `<text>`, `<details>` and `<section>` inside
-a code block, and one-line `@if (…) { <tag> }` blocks.
-
-## Tests
-
-Build prerequisites with `make build/pkg build/apkg-core build/test_pm_common`.
-`dotnet test portal/tests/Portal.Tests` includes a real loopback portal test:
-authenticated resumable common publication, catalogue browsing, exact CLI and
-actual PkgManager worker-adapter installation, trust refusal and offline removal
-with independently checked preserved files and empty registry. It also covers the version order (the same
-as Pkg's), which paths a channel serves, manifest attributes, and the push
-gate (HTTPS, key, channel scope, no indexing).
-
-## Seeing the portal
-
-`sh portal/tools/shot.sh [--as jane|mallory|<login>] [--admin] [--dark] [--phone] [--live] <path>...`
-renders pages in headless Chrome and writes `portal/captures/<time>_<page>.png`.
-Local runs start the portal in Development on sample data (a listed and an
-unlisted channel, a registered and a suspended account) and stop it afterwards;
-`--as` makes each request a signed-in one through `?dev-as=&dev-id=`, which exists
-in Development and from this machine only. Look before saying a page is right:
-markup that passes its tests can still render wrongly.
+Both output paths must be new. The rehearsal runs a real published portal with
+synthetic identities and a host Python test payload, both common clients,
+publication, upgrade, offline rollback/repair/removal, exact retained-file checks
+and backup/restore. Host execution is not AROS runtime qualification. CI runs
+this on Linux and macOS. See [operations](OPERATIONS.md) for deployment and
+backup instructions, [contracts](../docs/fusion/portal.md) for limits and
+[status](../docs/fusion/status.md) for measured evidence.

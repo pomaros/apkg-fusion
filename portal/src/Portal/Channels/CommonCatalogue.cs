@@ -49,17 +49,17 @@ public sealed record CommonCatalogueView(string Channel, string Snapshot, string
             .ThenBy(b => b.Target, StringComparer.Ordinal).ThenBy(b => b.Digest, StringComparer.Ordinal);
 
     public string BuildUrl(CommonBuild build) =>
-        $"/packages/apkg/builds/{Channel}/{build.Digest}?snapshot={Snapshot}";
+        $"/builds/{Channel}/{build.Digest}?snapshot={Snapshot}";
 }
 
 public sealed record CommonCatalogueResult(int Status, string? Error, CommonCatalogueView? View);
 
 /// Presentation over common-engine-verified bytes, with no second schema/crypto engine,
 /// version ordering or interpretation of reviewer/tester authorization in the portal.
-public sealed class CommonCatalogue(CommonChannels channels, Catalogue legacy)
+public sealed class CommonCatalogue(CommonChannels channels, CommonVisibility visibility)
 {
-    public IEnumerable<string> ChannelNames() => legacy.ChannelNames()
-        .Where(name => legacy.SeesUnlisted() || !legacy.IsUnlisted(name))
+    public IEnumerable<string> ChannelNames() => visibility.ChannelNames()
+        .Where(name => visibility.SeesUnlisted() || !visibility.IsUnlisted(name))
         .Where(channels.HasReference);
 
     public async Task<CommonCatalogueResult> Read(string channel, string? snapshot = null,

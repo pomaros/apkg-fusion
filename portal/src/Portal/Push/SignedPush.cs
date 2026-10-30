@@ -27,7 +27,7 @@ public sealed partial class SignedPush
 {
     readonly Dictionary<string, Publisher> byKey = new(StringComparer.OrdinalIgnoreCase);
     readonly ConcurrentDictionary<string, Session> sessions = new();
-    readonly PkgRunner pkg;
+    readonly CommonEngine common;
     readonly PortalOptions o;
     static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(30);
 
@@ -35,9 +35,9 @@ public sealed partial class SignedPush
 
     readonly Portal.Accounts.Registry registry;
 
-    public SignedPush(IOptions<PortalOptions> options, PkgRunner pkg, Portal.Accounts.Registry registry)
+    public SignedPush(IOptions<PortalOptions> options, CommonEngine common, Portal.Accounts.Registry registry)
     {
-        this.pkg = pkg;
+        this.common = common;
         this.registry = registry;
         o = options.Value;
         foreach (var entry in o.SignedKeys.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -137,9 +137,13 @@ public sealed partial class SignedPush
         {
             var msg = Path.Combine(dir, "request");
             await File.WriteAllTextAsync(msg, text, new UTF8Encoding(false), ct);
-            await File.WriteAllTextAsync(msg + ".sig", $"Signer: {key.ToLowerInvariant()}\nSignature: {sig.ToLowerInvariant()}\n", ct);
-            var a = await pkg.Run(["CHECKSIG", msg, "FILE", msg + ".sig", "KEY", key.ToLowerInvariant(), "MACHINE"], TimeSpan.FromSeconds(10), ct);
-            return a.Exit == 0 && a.One("result") == "good";
+            try
+            {
+                var answer = await common.Run(o.ApkgPath,
+                    ["push-verify", key.ToLowerInvariant(), sig.ToLowerInvariant(), msg], ct);
+                return answer.GetProperty("verified").GetBoolean();
+            }
+            catch (InvalidDataException) { return false; }
         }
         finally { try { Directory.Delete(dir, true); } catch (IOException) { } }
     }
