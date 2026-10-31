@@ -77,45 +77,64 @@ printf '%s\\n' "$@" >> "$CALL_LOG"
   assert r.returncode==code,(r.stdout,r.stderr)
  print('PASS unattended reuse needs explicit opt-in')
 
+# The administrator prompt uses a signed local offer, independent of any live service.
+from contextlib import contextmanager
+import functools, hashlib, http.server, platform, threading
+from http_fixture import ThreadingHTTPServer
+
+@contextmanager
+def bootstrap_offer(work):
+ channel=work/'channel';channel.mkdir()
+ key=work/'bootstrap.key';pkg=str(repo/'build/pkg')
+ subprocess.run([pkg,'KEYGEN','FILE',str(key)],check=True,capture_output=True)
+ public=next(line.split(': ',1)[1] for line in key.read_text().splitlines() if line.startswith('Public:'))
+ cpu='arm64' if platform.machine() in ('arm64','aarch64') else 'x86_64'
+ system='macos' if platform.system()=='Darwin' else 'linux'
+ offered=channel/'Bootstrap'/f'{system}-{cpu}'/'pkg';offered.parent.mkdir(parents=True)
+ offered.write_bytes((repo/'build/pkg').read_bytes())
+ sums=channel/'Bootstrap/SHA256SUMS';signature=channel/'Bootstrap/SHA256SUMS.sig'
+ sums.write_text(hashlib.sha256(offered.read_bytes()).hexdigest()+'  '+offered.relative_to(channel).as_posix()+'\n')
+ subprocess.run([pkg,'SIGN',str(sums),'KEY',str(key),'OUT',str(signature),'SSH','NAMESPACE','aros-pkg-bootstrap'],check=True,capture_output=True)
+ class Quiet(http.server.SimpleHTTPRequestHandler):
+  def log_message(self,*args):pass
+ server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Quiet,directory=str(channel)))
+ thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+ try:yield f'http://127.0.0.1:{server.server_port}',public
+ finally:server.shutdown();server.server_close();thread.join()
+
 # A protected installation asks visibly before escalating; answering no leaves it intact.
 if os.geteuid() != 0:
  import shutil
  with tempfile.TemporaryDirectory(prefix='pkg-prompt-contrast-') as d:
   directory=pathlib.Path(d)/'protected';directory.mkdir()
-  # A build older than anything the channel offers: the question is asked
-  # only when there is something to install, never before, so the binary
-  # under test must be behind. Built here rather than taken as is, so the
-  # check does not depend on which version the live channel holds today.
-  binary=directory/'pkg'
-  srcs=subprocess.run(['make','-s','print-sources'],cwd=repo,capture_output=True,text=True,check=True).stdout.split()
-  subprocess.run(['cc','-std=c99','-O1','-Iinclude','-Ithird_party/bzip2','-DPKG_VERSION_RELEASE="0.1"','-DPKG_VERSION_PATCH="0"','-DPKG_BUILD="20260101"','-DPKG_BUILD_DAY="01.01.2026"','-o',str(binary)]+srcs,cwd=repo,check=True)
-  before=binary.read_bytes()
-  directory.chmod(0o500)
-  pid,fd=pty.fork()
-  if pid==0: os.execve(str(binary),[str(binary),'UPGRADE'],{**os.environ,'PKG_COLOR':'always'})
-  output=b'';sent=False;deadline=time.monotonic()+20
-  try:
-   while time.monotonic()<deadline:
-    if not select.select([fd],[],[],0.2)[0]:continue
-    try:chunk=os.read(fd,8192)
-    except OSError:break
-    if not chunk:break
-    output+=chunk
-    if b'[y/N]' in output and not sent:os.write(fd,b'n\n');sent=True
-   else:raise AssertionError(output)
-   _,status=os.waitpid(pid,0)
-   # Declining is a choice, not a failure: exit 0, and the sentence says
-   # what stays on offer.
-   assert os.waitstatus_to_exitcode(status)==0,output
-   # The question is a question now, not a record: it carries the question
-   # role, which is the brightest thing on the screen. What this check is
-   # for is that it is never the dim ink of a figure, which is how it read
-   # when it went out as "permissions: ..." under the detail role.
-   question=next(line for line in output.splitlines() if b'[y/N]' in line)
-   assert b'\x1b[2m' not in question,question
-   assert b'needs administrator access' in question and b'is offered' in question,question
-   assert b'not updated' in output,output
-   assert sent and binary.read_bytes()==before
-   print('PASS administrator question has normal contrast and declining preserves pkg')
-  finally:
-   directory.chmod(0o700);os.close(fd)
+  with bootstrap_offer(pathlib.Path(d)) as (endpoint,public):
+   # The protected executable is older than the local signed offer.
+   binary=directory/'pkg'
+   srcs=subprocess.run(['make','-s','print-sources'],cwd=repo,capture_output=True,text=True,check=True).stdout.split()
+   subprocess.run(['cc','-std=c99','-O1','-Iinclude','-Ithird_party/bzip2','-DPKG_SELFUPDATE_KEY="'+public+'"','-DPKG_SELFUPDATE_CHANNEL="'+endpoint+'"','-DPKG_VERSION_RELEASE="0.1"','-DPKG_VERSION_PATCH="0"','-DPKG_BUILD="20260101"','-DPKG_BUILD_DAY="01.01.2026"','-o',str(binary)]+srcs,cwd=repo,check=True)
+   before=binary.read_bytes()
+   directory.chmod(0o500)
+   pid,fd=pty.fork()
+   if pid==0: os.execve(str(binary),[str(binary),'UPGRADE'],{**os.environ,'PKG_COLOR':'always'})
+   output=b'';sent=False;deadline=time.monotonic()+20
+   try:
+    while time.monotonic()<deadline:
+     if not select.select([fd],[],[],0.2)[0]:continue
+     try:chunk=os.read(fd,8192)
+     except OSError:break
+     if not chunk:break
+     output+=chunk
+     if b'[y/N]' in output and not sent:os.write(fd,b'n\n');sent=True
+    else:raise AssertionError(output)
+    _,status=os.waitpid(pid,0)
+    # Declining preserves the executable and reports success.
+    assert os.waitstatus_to_exitcode(status)==0,output
+    # Questions use normal contrast, independently of dim detail lines.
+    question=next(line for line in output.splitlines() if b'[y/N]' in line)
+    assert b'\x1b[2m' not in question,question
+    assert b'needs administrator access' in question and b'is offered' in question,question
+    assert b'not updated' in output,output
+    assert sent and binary.read_bytes()==before
+    print('PASS administrator question has normal contrast and declining preserves pkg')
+   finally:
+    directory.chmod(0o700);os.close(fd)
