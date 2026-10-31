@@ -5,7 +5,6 @@ public sealed class PortalOptions
 {
     public string DataDir { get; set; } = "data";
     public string ApkgPath { get; set; } = "apkg";
-    public string PythonPath { get; set; } = "python3";
     public string Keys { get; set; } = "";
     public string SignedKeys { get; set; } = "";
     public string AdminKeys { get; set; } = "";

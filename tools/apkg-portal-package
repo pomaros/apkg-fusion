@@ -28,15 +28,13 @@ def package(output,engine):
         destination=Path(temporary)/'app'
         run('dotnet','publish',ROOT/'portal/src/Portal/Portal.csproj','-c','Release','--self-contained','false','-o',destination)
         shutil.copy2(engine,destination/'apkg');(destination/'apkg').chmod(0o755)
-        for name in ('apkg-portal-push','apkg-portal-data'):
-            shutil.copy2(ROOT/'tools'/name,destination/name)
         files={file.relative_to(destination).as_posix():hashlib.sha256(file.read_bytes()).hexdigest()
                for file in sorted(destination.rglob('*')) if file.is_file()}
         revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
         dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT))
         manifest=dict(format='apkg-portal-deployment-1',revision=revision,dirty=dirty,
                       host=dict(system=platform.system(),machine=platform.machine()),engine=info,
-                      requirements=['.NET 10 ASP.NET Core runtime','Python 3.11 or newer'],files=files)
+                      requirements=['.NET 10 ASP.NET Core runtime'],files=files)
         (destination/'deployment.json').write_text(json.dumps(manifest,sort_keys=True,indent=2)+'\n')
         os.rename(destination,output)
     return dict(output=str(output),files=len(files),revision=revision,dirty=dirty)

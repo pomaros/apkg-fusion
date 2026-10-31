@@ -3,8 +3,9 @@
 
 # APKG common portal
 
-The portal uses the merged common engine for signed metadata, archives and push
-authentication. The default catalogue is `/`, channels are `/channels/<name>`,
+The .NET portal calls the common `apkg` executable for signed metadata, archives
+and push authentication. The server requires .NET 10 and the bundled native
+engine; it has no Python runtime dependency. The default catalogue is `/`, channels are `/channels/<name>`,
 and exact-build URLs include the immutable snapshot digest. This replaces the
 old pkg portal without a compatibility layer or deployed-data conversion.
 Joint maintainer design and official key governance remain provisional.
@@ -27,7 +28,8 @@ python3 tools/apkg-portal-push channel https://portal.example/my-channel --sign 
 ```
 
 Replace AUTHOR-ID and CHANNEL-ID with separate 32-digit lowercase hexadecimal
-identities. `apkg key-public channel.key` returns the public key for registration.
+identities. `apkg key-public channel.key` returns JSON; copy its `public_key` value into
+the registration form.
 Link-only accounts add `--links links.json`: a JSON object mapping each new
 archive's SHA-256 to its public HTTPS URL. The portal fetches bounded bytes,
 verifies the exact signed archive, then retains the URL rather than the binary.
@@ -43,7 +45,9 @@ file. Credentials are not command-line arguments or source-controlled settings.
 
 ## Run and test
 
-From the repository root with .NET 10 SDK, Python 3.11+ and a C compiler:
+Building and running the server needs the .NET 10 SDK and a C compiler.
+Publishing, packaging and test drivers use Python 3.11+ on the developer machine.
+From the repository root:
 
 ```sh
 make build/apkg build/apkg-core build/test_pm_common
@@ -62,6 +66,7 @@ page explains that public registration is unavailable; browsing still works.
 dotnet test portal/tests/Portal.Tests
 python3 tools/apkg-portal-package --output build/portal-deployment
 python3 portal/tests/deployment_cycle.py --app build/portal-deployment --work build/portal-rehearsal
+python3 portal/tests/publication_recovery.py --app build/portal-deployment --work build/portal-recovery
 ```
 
 Both output paths must be new. The rehearsal runs a real published portal with

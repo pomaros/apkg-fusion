@@ -48,13 +48,14 @@ def history(root):
     return next(path for path in root.parent.glob(root.name+'.apkg-history.*') if (path/'decision').exists() and (path/'new-state').read_bytes()==current)
 
 @contextmanager
-def server(app,data,work,label):
+def server(app,data,work,label,process_sink=None):
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     endpoint=f'http://127.0.0.1:{port}'
     settings=dict(os.environ,ASPNETCORE_ENVIRONMENT='Production',Portal__DataDir=str(data),
                   Portal__AllowLoopbackHttpPush='true',Portal__ApkgPath=str(app/'apkg'))
     with (work/(label+'.log')).open('w') as log:
         process=subprocess.Popen(['dotnet',str(app/'Portal.dll'),'--urls',endpoint],cwd=app,env=settings,stdout=log,stderr=subprocess.STDOUT)
+        if process_sink is not None:process_sink(process)
         try:
             deadline=time.monotonic()+30
             while True:
@@ -113,7 +114,7 @@ def cycle(app,work):
     def publish(channel,version,endpoint,external):
         local=work/('publisher-'+channel)
         run(sys.executable,ROOT/'tools/apkg-channel',archives[version-1],'--engine',engine,'--directory',local,'--id',channelids[channel],'--sign',channelkeys[channel])
-        args=[sys.executable,app/'apkg-portal-push',local,endpoint+'/'+channel,'--engine',engine,'--sign',channelkeys[channel],'--part-bytes','1024']
+        args=[sys.executable,ROOT/'tools/apkg-portal-push',local,endpoint+'/'+channel,'--engine',engine,'--sign',channelkeys[channel],'--part-bytes','1024']
         if channel=='linked':
             head=(local/'current').read_text().strip()
             document=json.loads((local/'snapshots'/head/'channel.json').read_bytes())
@@ -150,7 +151,7 @@ def cycle(app,work):
             assert state(roots[0])['installed']==state(roots[1])['installed']
         # Actual process has exited: this is a quiesced backup, not a live copy.
         backup=work/'baseline.zip'
-        run(sys.executable,app/'apkg-portal-data','backup','--data',data,'--archive',backup,'--stopped')
+        run(sys.executable,ROOT/'tools/apkg-portal-data','backup','--data',data,'--archive',backup,'--stopped')
         with server(app,data,work,'deployment-upgrade') as endpoint:
             stored=publish('stored',2,endpoint,external_url);publish('linked',2,endpoint,external_url)
             # The public catalogue wraps full descriptor facts; select via the
@@ -195,7 +196,7 @@ def cycle(app,work):
             assert not Path(str(root)+'.apkg-transaction').exists()
             assert not list(root.parent.glob(root.name+'.apkg-prepare.*'))
         restored=work/'restored-data'
-        run(sys.executable,app/'apkg-portal-data','restore','--data',restored,'--archive',backup,'--stopped')
+        run(sys.executable,ROOT/'tools/apkg-portal-data','restore','--data',restored,'--archive',backup,'--stopped')
         with server(app,restored,work,'deployment-restored') as endpoint:
             response=json.loads(get(endpoint+'/api/channels/stored/packages'))
             assert response['snapshot']==baseline and response['total']==1,response

@@ -56,7 +56,7 @@ setting permits literal loopback HTTP. Linked archives retain `.pkg.url`
 references rather than payloads; raw downloads redirect there. Publishers
 remain responsible for external availability.
 
-`apkg-portal-commit` coordinates local file locking, immutable retention and
+The .NET publication service coordinates local file locking, immutable retention and
 atomic head replacement. Retained builds need no repeated full import.
 Conflicting heads/history return 409, owner/right mismatch 403, invalid content
 422. An identical visible snapshot is idempotent. Failure after visibility may
@@ -99,7 +99,7 @@ unsigned indexes or a second verifier.
 
 Signed review/runtime records remain in immutable snapshots. Without
 `Portal:QualificationPolicyPath` they remain explicitly unevaluated. Otherwise
-`apkg-portal-qualify` captures the common policy and queries the common engine in
+the .NET qualification service captures the common policy and queries the common engine in
 a disposable root. Only the already verified transport key is added there;
 configured author/reviewer/tester grants are unchanged and no client root is
 modified. Results identify the captured policy digest and each observation's

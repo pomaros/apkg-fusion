@@ -59,7 +59,8 @@ The common engine handles portal verification, browsing and publication.
 Old pkg APIs, formats and deployed-data conversion are unsupported. Qualification
 covers the common portal security, publishing and application lifecycle.
 
-Measured locally: all 65 common portal tests pass. Three data-tool tests
+The server uses .NET with direct common-CLI calls and no Python runtime
+dependency. Measured locally: all 106 common portal tests pass. Three data-tool tests
 cover command-line backup/restore, exact contents/modes, private archives,
 stopped-writer preconditions, corrupt bytes and unsafe paths. Common request
 signing and external-link transfer tests pass. The global migration warning is
@@ -78,7 +79,7 @@ the host executes payload v1/v2, both clients roll back/repair/remove offline,
 exact leftovers are inspected, and a restored baseline serves the correct signed
 URLs and owner/account identities. Browser checks pass at 390/1280 pixels.
 The [portal report](portal-report.md) records receipts, scope and remaining
-exact-source CI; [operations](../../portal/OPERATIONS.md) records deployment inputs.
+exact-source deployment qualification; [operations](../../portal/OPERATIONS.md) records deployment inputs.
 
 
 ## Final host qualification and M1 lifecycle passed

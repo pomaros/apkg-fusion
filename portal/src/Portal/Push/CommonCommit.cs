@@ -42,37 +42,34 @@ public sealed partial class PushService
                 var staging = Staging(who, channel);
                 Directory.CreateDirectory(staging);
                 JsonElement result;
-                var scratch = Directory.CreateTempSubdirectory("apkg-portal-commit-");
+                var scratch = Directory.CreateTempSubdirectory("apkg-publication-");
                 try
                 {
-                    var links = Path.Combine(scratch.FullName, "links.json");
-                    await File.WriteAllTextAsync(links, JsonSerializer.Serialize(request.Links ?? []), ct);
-                    var arguments = new List<string>
-                        { Path.Combine(AppContext.BaseDirectory, "CommonTools", "apkg-portal-commit"),
-                         "--engine", o.ApkgPath, "--endpoint", Live(channel), "--staging", staging,
-                         "--publisher", who.Identity, "--snapshot", request.Snapshot,
-                         "--expected", request.ExpectedCurrent ?? "-", "--links", links,
-                         "--scratch", scratch.FullName, "--link-hosts", o.Policy.LinkHosts,
-                         "--max-link-bytes", o.MaxCommonLinkBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                         "--max-validation-bytes", o.MaxCommonValidationBytes.ToString(System.Globalization.CultureInfo.InvariantCulture) };
-                    if (!who.Files || !o.Policy.BinariesAllowed) arguments.Add("--link-only");
-                    if (allowLoopbackLinks) arguments.Add("--allow-loopback-links");
-                    result = await common.Run(o.PythonPath, arguments, ct);
+                    using var stop=CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    stop.CancelAfter(o.CheckTimeout);
+                    result=await new CommonPublication(o,common,files).Commit(who,channel,staging,request,scratch.FullName,allowLoopbackLinks,stop.Token);
+                }
+                catch(PublicationRefusal refusal)
+                {
+                    return (Record.Refused(refusal.Code=="owner"?14:refusal.Code=="conflict"?15:12,refusal.Message,
+                        "inspect current and rebuild the signed snapshot if it changed"),refusal.Code=="owner"?403:refusal.Code=="conflict"?409:422);
                 }
                 catch (OperationCanceledException) when (!ct.IsCancellationRequested)
                 { return (UncertainCommonCommit("common commit timed out"), 504); }
-                catch (Exception error) when (error is IOException or InvalidDataException or System.ComponentModel.Win32Exception or JsonException)
-                { return (UncertainCommonCommit("common commit verifier unavailable"), 503); }
-                finally { scratch.Delete(recursive: true); }
-                if (result.GetProperty("result").GetString() == "uncertain")
-                    return (UncertainCommonCommit(result.GetProperty("reason").GetString()!), 503);
-                if (result.GetProperty("result").GetString() == "refused")
+                catch (System.ComponentModel.Win32Exception)
+                { return (UncertainCommonCommit("common commit verifier unavailable"),503); }
+                catch (Exception error) when (error is IOException or InvalidDataException or JsonException or HttpRequestException or OverflowException)
                 {
-                    var code = result.GetProperty("code").GetString();
-                    return (Record.Refused(code == "owner" ? 14 : code == "conflict" ? 15 : 12,
-                        result.GetProperty("reason").GetString()!, "inspect current and rebuild the signed snapshot if it changed"),
-                        code == "owner" ? 403 : code == "conflict" ? 409 : 422);
+                    log.LogWarning(error,"Common publication could not finish for channel {Channel}",channel);
+                    try
+                    {
+                        if(await files.Current(Live(channel),o.DataDir,CancellationToken.None)!=request.Snapshot)
+                            return (Record.Refused(12,"common publication verification failed","check the signed snapshot and archives"),422);
+                    }
+                    catch(Exception readError) when(readError is IOException or InvalidDataException){}
+                    return (UncertainCommonCommit("inspect current and retry the same signed snapshot"),503);
                 }
+                finally { scratch.Delete(recursive: true); }
                 // Retain unrelated uploads and remove only exact files now durably published.
                 foreach (var item in ReadPlan(staging).Values)
                 {

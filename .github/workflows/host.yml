@@ -65,11 +65,14 @@ jobs:
         run: |
           python3 tools/apkg-portal-package --output build/portal-deployment
           python3 portal/tests/deployment_cycle.py --app build/portal-deployment --work build/portal-rehearsal
+          python3 portal/tests/publication_recovery.py --app build/portal-deployment --work build/portal-publication-recovery
       - name: Preserve deployment rehearsal report
         uses: actions/upload-artifact@v4
         with:
           name: portal-rehearsal-${{ matrix.os }}
-          path: build/portal-rehearsal/report.json
+          path: |
+            build/portal-rehearsal/report.json
+            build/portal-publication-recovery/report.json
       - name: Archive the tested native deployment
         run: tar -czf build/portal-deployment.tar.gz -C build/portal-deployment .
       - name: Preserve the tested deployment artifact

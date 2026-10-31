@@ -29,7 +29,10 @@ is deferred to joint discussion. The effective scope is
 and supersedes older portal-baseline/migration requirements below. The active
 sequence is publishing, qualification handling, clean default UI, deployment
 artifacts and new-data backup/restore, then the full deployed application
-lifecycle. All shared design/governance choices remain provisional.
+lifecycle. The server uses .NET with direct common-CLI calls and no Python
+runtime dependency. Public portal deployment is authorized after qualification,
+with a rollback baseline and the migration notice enabled. All shared
+design/governance choices remain provisional.
 
 ## Current follow-up order
 

@@ -41,6 +41,7 @@ builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(P
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<CommonVisibility>();
 builder.Services.AddSingleton<CommonEngine>();
+builder.Services.AddSingleton<CommonPublicationFiles>();
 builder.Services.AddSingleton<CommonChannels>();
 builder.Services.AddSingleton<CommonCatalogue>();
 builder.Services.AddSingleton<CommonQualifications>();

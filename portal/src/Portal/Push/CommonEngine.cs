@@ -16,7 +16,14 @@ public sealed class CommonEngine(IOptions<PortalOptions> options)
         Run(options.Value.ApkgPath, ["verify-object", domain, document, signature], ct);
 
     public async Task<JsonElement> Run(string executable, IEnumerable<string> arguments,
-                                      CancellationToken ct = default)
+                                      CancellationToken ct = default,int outputLimit=65536)
+    {
+        using var json=JsonDocument.Parse(await RunText(executable,arguments,ct,outputLimit));
+        return json.RootElement.Clone();
+    }
+
+    public async Task<string> RunText(string executable,IEnumerable<string> arguments,
+                                     CancellationToken ct=default,int outputLimit=65536)
     {
         var start = new ProcessStartInfo(executable)
         {
@@ -26,7 +33,7 @@ public sealed class CommonEngine(IOptions<PortalOptions> options)
         using var process = Process.Start(start) ?? throw new IOException("common verifier did not start");
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         stop.CancelAfter(options.Value.CheckTimeout);
-        async Task<string> Read(StreamReader reader)
+        async Task<string> Read(StreamReader reader,int limit)
         {
             try
             {
@@ -35,21 +42,20 @@ public sealed class CommonEngine(IOptions<PortalOptions> options)
                 int count;
                 while ((count = await reader.ReadAsync(buffer.AsMemory(), stop.Token)) != 0)
                 {
-                    if (result.Length + count > 65536) throw new InvalidDataException("verifier output exceeds bound");
+                    if (result.Length + count > limit) throw new InvalidDataException("verifier output exceeds bound");
                     result.Append(buffer, 0, count);
                 }
                 return result.ToString();
             }
             catch { stop.Cancel(); throw; }
         }
-        var stdout = Read(process.StandardOutput);
-        var stderr = Read(process.StandardError);
+        var stdout = Read(process.StandardOutput,outputLimit);
+        var stderr = Read(process.StandardError,65536);
         try
         {
             await Task.WhenAll(stdout, stderr, process.WaitForExitAsync(stop.Token));
-            if (process.ExitCode != 0) throw new InvalidDataException("common channel verification refused");
-            using var json = JsonDocument.Parse(await stdout);
-            return json.RootElement.Clone();
+            if (process.ExitCode != 0) throw new InvalidDataException("Common engine refused (status "+process.ExitCode+"): "+await stderr);
+            return await stdout;
         }
         finally
         {

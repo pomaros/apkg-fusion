@@ -38,9 +38,12 @@ public sealed class CommonQualificationTests
         using var withdrawn=JsonDocument.Parse(await client.GetStringAsync(endpoint));
         Assert.NotEqual(evaluation.GetProperty("policy_sha256").GetString(),withdrawn.RootElement.GetProperty("qualification").GetProperty("policy_sha256").GetString());
         Assert.All(withdrawn.RootElement.GetProperty("qualification").GetProperty("observations").EnumerateArray(),claim=>Assert.Equal("rejected",claim.GetProperty("issuer_trust").GetString()));
-        File.WriteAllText(policy,"{}");
-        using var invalid=JsonDocument.Parse(await client.GetStringAsync(endpoint));
-        Assert.Equal("unavailable",invalid.RootElement.GetProperty("qualification").GetProperty("status").GetString());
+        foreach(var malformed in new[]{"{}","[]","{\"body\":[]}","{\"body\":\"invalid\"}"})
+        {
+            File.WriteAllText(policy,malformed);
+            using var invalid=JsonDocument.Parse(await client.GetStringAsync(endpoint));
+            Assert.Equal("unavailable",invalid.RootElement.GetProperty("qualification").GetProperty("status").GetString());
+        }
         Assert.Equal(HttpStatusCode.OK,(await client.GetAsync("/api/channels/common/packages")).StatusCode); // publication stays independent
     }
 }

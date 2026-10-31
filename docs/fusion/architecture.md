@@ -181,3 +181,18 @@ common model owns the resulting installation. Old index URLs remain available
 through the upgrade path; this workspace does not unilaterally retire upstream
 endpoints. The [acceptance matrix](acceptance.md) defines evidence for these
 contracts; [provenance](provenance.md) records source ancestry and licences.
+
+
+## Portal engine boundary
+
+The ASP.NET portal invokes the common `apkg` executable directly. Arguments are
+passed without a shell; JSON output, exit status, subprocess lifetime and
+cancellation are bounded. Package schemas, signatures, archive verification and
+qualification semantics remain in that engine. The portal owns authentication,
+network policy and atomic publication of verified channel members.
+
+The server requires .NET and the native common executable, with no Python
+runtime or native `libapkg` binding. Python remains a developer/operator tool
+for authoring, publishing, packaging and test drivers. The portal's POSIX store
+uses the same `.publish.lock` as cooperative file-channel producers; visibility
+changes only after verified immutable members are retained and flushed.

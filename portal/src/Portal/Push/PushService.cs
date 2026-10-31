@@ -10,13 +10,8 @@ using Portal.Channels;
 
 namespace Portal.Push;
 
-/// <summary>
-/// The push protocol agreed with the Pkg client:
-/// plan, then files (large ones in parts), then commit. Nothing a push sends
-/// is visible until the commit, and the commit publishes only what Pkg's own
-/// check accepts. Published files never change and a push never deletes.
-/// </summary>
-public sealed partial class PushService(IOptions<PortalOptions> options, ILogger<PushService> log, CommonEngine common)
+/// Authenticated resumable staging and common-engine-verified immutable publication.
+public sealed partial class PushService(IOptions<PortalOptions> options, ILogger<PushService> log, CommonEngine common, CommonPublicationFiles files)
 {
     readonly PortalOptions o = options.Value;
     static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new();

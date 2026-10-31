@@ -7,8 +7,8 @@ The portal uses the merged APKG engine for publishing and discovery. It supports
 common signed channels, self-service publishing, independent qualifications and
 new-data backup/restore. Old pkg portal formats and deployed-data conversion
 are not supported.
-The qualified portal candidate is `457b598`. Its Linux and macOS portal jobs pass;
-the broader fusion CI gates are still running.
+The server runs on .NET 10 and the native `apkg` executable, with no Python
+runtime dependency. Qualification of this server profile is in progress.
 The existing public Azure portal has not been switched.
 
 ## What changed
@@ -35,7 +35,7 @@ The existing public Azure portal has not been switched.
 
 ## Completed local evidence
 
-The portal suite passes **65 tests**, including real socket publication and
+The portal suite passes **106 tests**, including real socket publication and
 common CLI/worker consumption, authentication/replay/refusals, account/admin
 CSRF and role separation, exact historical browsing, qualification withdrawal
 and the warning.
@@ -85,17 +85,12 @@ remotely hosted payloads need their own retention. Restore only to a new tree.
 The operations guide records cutover checks and matching artifact/data/config
 rollback, including accounting for writes after the baseline.
 
-## Exact-source portal artifacts
+## Deployment evidence
 
-[Portal CI run](https://github.com/pomaros/apkg-fusion/actions/runs/41143362898)
-for `457b598b4db1b8256ca53f62b23a75ff165c70b2` passes the 65-test portal suite
-and full published-artifact loop on Linux x86_64 and macOS arm64. Both native
-archives were downloaded and every packaged file and manifest/receipt binding
-was verified. [Artifact identities](evidence/portal-common/final-deployment-artifacts.json),
-[archive hashes](evidence/portal-common/final-artifact-validation.json),
-[Linux receipt](evidence/portal-common/final-ci-linux-rehearsal.json) and
-[macOS receipt](evidence/portal-common/final-ci-macos-rehearsal.json) are retained.
-CI artifacts expire under repository retention; the source and receipts remain.
+The [evidence index](evidence/portal-common/README.md) records the native
+artifacts, file hashes, lifecycle and publication-recovery receipts. The server
+package contains .NET assets and `apkg`; Python authoring, publishing, packaging
+and backup tools run on the developer/operator machine.
 
 ## Remaining boundaries
 

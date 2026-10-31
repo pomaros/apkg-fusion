@@ -11,15 +11,17 @@ cutover is reviewed.
 
 Build `tools/apkg-portal-package --output <new-directory>` on the destination's
 OS/CPU, after `make build/apkg`. It publishes the .NET application and ships
-native `apkg`, Python validation helpers, the publisher client and data tool.
+the native `apkg` executable. Python is used by developer/operator tools only;
+it is not shipped or required by the server.
 `deployment.json` records the source revision, dirty-worktree flag, native host,
-engine contract and SHA-256 of every packaged file. A dirty artifact is a local
+engine contract and SHA-256 of every packaged file. Publisher tools run on the operator machine and accept
+`--engine /absolute/path/to/apkg`; their source-checkout default is `build/apkg`. A dirty artifact is a local
 candidate, not an exact-source release receipt. Do not deploy a macOS executable
 to Linux. The CI Linux artifact is built/tested on Ubuntu 26.04 x86_64; this
 does not prove it loads on an older Azure image. Check the exact destination
 image, libc and runtime dependencies, or build inside that image before cutover.
 
-The host needs the .NET 10 ASP.NET Core runtime and Python 3.11+. Serve the
+The host needs the .NET 10 ASP.NET Core runtime. Serve the
 published folder behind HTTPS; use a service supervisor and one operator-owned
 POSIX data directory. Start with `dotnet /absolute/app/Portal.dll --urls
 http://127.0.0.1:8080` from the published folder. A bundled executable is used
@@ -47,7 +49,7 @@ explicit local rehearsal exception, including private HTTP archive links.
 `Portal__Policy__Push=false` provides a read-only instance. `Binaries=off`
 requires external links; `LinkHosts` restricts their public HTTPS destinations.
 An empty `LinkHosts` permits any public HTTPS host. Size/staging quotas and
-helper timeouts are configurable; see `PortalOptions.cs`.
+engine subprocess timeouts are configurable; see `PortalOptions.cs`.
 
 ## Backup and restore
 
@@ -57,8 +59,8 @@ unrelated writers. Run as the data owner. Keep backups private: they include
 publisher records, staged uploads and authentication cookie encryption keys.
 
 ```sh
-python3 app/apkg-portal-data backup --data /absolute/data --archive /private/baseline.zip --stopped
-python3 app/apkg-portal-data restore --data /absolute/restored-data --archive /private/baseline.zip --stopped
+python3 tools/apkg-portal-data backup --data /absolute/data --archive /private/baseline.zip --stopped
+python3 tools/apkg-portal-data restore --data /absolute/restored-data --archive /private/baseline.zip --stopped
 ```
 
 The archive and restore destination must not already exist. Backup captures all
