@@ -60,7 +60,7 @@ public sealed partial class SignedPush
     {
         var key = body.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("key: ", StringComparison.Ordinal))?[5..].Trim() ?? "";
         if (Known(key) is null)
-            return Record.Refused(14, "this portal does not know that signing key. " + ask, "send the maintainers your public key (pkg KEYINFO FILE <keyfile>), your publisher name and the channel");
+            return Record.Refused(14, "this portal does not know that signing key. " + ask, "register your channel public key at /account; use apkg key-public <keyfile> locally");
         foreach (var (id, s) in sessions) if (s.Expires < DateTime.UtcNow) sessions.TryRemove(id, out _);
         var mine = sessions.Where(x => string.Equals(x.Value.Key, key, StringComparison.OrdinalIgnoreCase)).OrderBy(x => x.Value.Expires).ToList();
         foreach (var old in mine.Take(Math.Max(0, mine.Count - 7))) sessions.TryRemove(old.Key, out _);   // a public key is public: eight at most each
@@ -82,7 +82,7 @@ public sealed partial class SignedPush
         var (key, id, sig) = (m.Groups[1].Value, m.Groups[2].Value, m.Groups[5].Value);
         if (!long.TryParse(m.Groups[3].Value, out var seq)) seq = -1;
         if (Known(key) is not { } who)
-            return (null, Record.Refused(14, "this portal does not know that signing key. " + ask, "send the maintainers your public key (pkg KEYINFO FILE <keyfile>), your publisher name and the channel"), null);
+            return (null, Record.Refused(14, "this portal does not know that signing key. " + ask, "register your channel public key at /account; use apkg key-public <keyfile> locally"), null);
         if (!sessions.TryGetValue(id, out var s) || s.Expires < DateTime.UtcNow || !string.Equals(s.Key, key, StringComparison.OrdinalIgnoreCase))
             return (null, Record.Refused(14, "the session is unknown or over", "push again: Pkg asks for a new one"), null);
 
