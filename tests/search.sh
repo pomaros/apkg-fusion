@@ -16,8 +16,7 @@
 # Short proves the API was asked and its answer used. The other answers
 # /api/search with garbage, and the same search then has to give the
 # manifest's own Short, which proves the fall-back reads the channel itself
-# without a word of complaint. The last check is one read of the live portal,
-# skipped with a message when this machine is offline.
+# without a word of complaint. All requests use the local fixture servers.
 
 set -u
 fixture_dir=$(cd "$(dirname "$0")" && pwd)
@@ -188,6 +187,7 @@ rm -rf "$PKG_CACHE"
 $PKG SEARCH melody CHANNEL "http://127.0.0.1:$P1/ch" MACHINE > "$T/api" 2>&1
 ok $? "SEARCH against a server that answers /api/search"
 has "$T/api" 'ANSWERED BY THE API' ;             ok $? "the API's answer is what is shown"
+has "$T/api" '^package: melody ' ;                ok $? "the API identifies the matching package"
 
 $PKG SEARCH melody CHANNEL "http://127.0.0.1:$P2/ch" MACHINE > "$T/fb" 2>&1
 ok $? "SEARCH against a server whose /api/search is garbage"
@@ -195,15 +195,6 @@ has "$T/fb" 'Plays a tune out loud' ;            ok $? "it falls back to reading
 grep -q 'ANSWERED BY THE API\|no api here' "$T/fb"
 [ $? = 1 ] ;                                     ok $? "nothing of the garbage answer reaches the output"
 
-# ---- one live read of the portal ---------------------------------------
-LIVE=https://aros-pkg.azurewebsites.net/contrib-nightly
-if curl -s -m 20 -o /dev/null "$LIVE/index" 2>/dev/null; then
-    $PKG SEARCH lua CHANNEL "$LIVE" MACHINE > "$T/live" 2>&1
-    ok $? "SEARCH lua against the live portal"
-    has "$T/live" '^package: lua ' ;             ok $? "the live portal answers with lua"
-else
-    echo "  SKIP the live portal: this machine cannot reach $LIVE"
-fi
 
 echo "search: $checks checks, $fails failed"
 [ "$fails" = 0 ]

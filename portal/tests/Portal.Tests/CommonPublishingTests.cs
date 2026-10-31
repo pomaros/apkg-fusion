@@ -6,6 +6,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Portal.Accounts;
 
 namespace Portal.Tests;
@@ -138,4 +144,69 @@ public sealed class CommonPublishingTests
         Assert.Equal(HttpStatusCode.Forbidden,(await client.SendAsync(foreign)).StatusCode);
         Assert.False(File.Exists(Path.Combine(site.Live,"current")));
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Publisher_retains_affinity_and_bounds_session_renewal(bool permanentRefusal)
+    {
+        using var site=new CommonPushTests.Site();site.UseKestrel(0);using var backend=site.CreateClient();
+        Assert.Null(site.Services.GetRequiredService<Registry>().Register(7,"author","Test author",Public(site),"common"));
+        site.Services.GetRequiredService<Registry>().Change(7,record=>record with { Files=true });
+        var snapshot=site.Snapshot(1);File.WriteAllText(Path.Combine(site.Source.Channel,"current"),snapshot+"\n");
+        var builder=WebApplication.CreateSlimBuilder();builder.Logging.ClearProviders();
+        builder.WebHost.UseKestrel(options=>options.Listen(IPAddress.Loopback,0));
+        await using var proxy=builder.Build();int sessions=0,signedRequests=0,missingCookies=0;
+        proxy.Run(async context=>
+        {
+            var opening=context.Request.Path.Value!.EndsWith("/_push/session",StringComparison.Ordinal);
+            if(opening)
+            {
+                Interlocked.Increment(ref sessions);
+                context.Response.Headers.Append("Set-Cookie","apkg-affinity=one; Path=/; HttpOnly");
+            }
+            if(context.Request.Headers.Authorization.ToString().StartsWith("Pkg-Signature ",StringComparison.Ordinal))
+            {
+                if(!context.Request.Headers.Cookie.ToString().Contains("apkg-affinity=one",StringComparison.Ordinal))
+                {Interlocked.Increment(ref missingCookies);context.Response.StatusCode=400;return;}
+                var count=Interlocked.Increment(ref signedRequests);
+                if(permanentRefusal || count==1)
+                {
+                    context.Response.StatusCode=401;
+                    await context.Response.WriteAsync("result: refused\nreason: the session is unknown or over\n");return;
+                }
+            }
+            using var forwarded=new HttpRequestMessage(new HttpMethod(context.Request.Method),context.Request.Path+context.Request.QueryString);
+            if(context.Request.Method!="GET")
+            {
+                using var body=new MemoryStream();await context.Request.Body.CopyToAsync(body);
+                forwarded.Content=new ByteArrayContent(body.ToArray());
+                if(context.Request.Headers.TryGetValue("Content-Range",out var range))
+                    forwarded.Content.Headers.TryAddWithoutValidation("Content-Range",range.ToArray());
+            }
+            if(context.Request.Headers.TryGetValue("Authorization",out var authorization))
+                forwarded.Headers.TryAddWithoutValidation("Authorization",authorization.ToArray());
+            using var response=await backend.SendAsync(forwarded);
+            context.Response.StatusCode=(int)response.StatusCode;
+            await context.Response.Body.WriteAsync(await response.Content.ReadAsByteArrayAsync());
+        });
+        await proxy.StartAsync();
+        try
+        {
+            var endpoint=proxy.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()+"/common";
+            if(permanentRefusal)
+            {
+                Assert.ThrowsAny<Exception>(()=>RunPush(site,endpoint));
+                Assert.Equal(2,signedRequests);Assert.False(File.Exists(Path.Combine(site.Live,"current")));
+            }
+            else
+            {
+                using var result=JsonDocument.Parse(RunPush(site,endpoint));
+                Assert.Equal("published",result.RootElement.GetProperty("result").GetString());
+                Assert.Equal(snapshot+"\n",File.ReadAllText(Path.Combine(site.Live,"current")));
+            }
+            Assert.Equal(2,sessions);Assert.Equal(0,missingCookies);
+        }
+        finally {await proxy.StopAsync();}
+    }
+
 }

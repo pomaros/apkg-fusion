@@ -8,6 +8,7 @@ machine. A refused or uncertain commit never rolls the remote head backwards.
 """
 import argparse
 import hashlib
+import http.cookiejar
 import json
 import os
 from pathlib import Path
@@ -78,7 +79,7 @@ def push(args):
         raise Refusal('links name an archive outside the signed snapshot')
     files = {f'snapshots/{digest}/channel.json': (folder/'channel.json', digest, len(document)),
              f'snapshots/{digest}/channel.signature.json': (folder/'channel.signature.json', hashlib.sha256(signature).hexdigest(), len(signature))}
-    opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler({}))
+    opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     token = None
     if args.token_file:
         token = regular(Path(args.token_file), 4096).decode().strip()
@@ -87,7 +88,7 @@ def push(args):
     sequence, session, public = 0, None, None
     with tempfile.TemporaryDirectory(prefix='apkg-push-') as temporary:
         message = Path(temporary) / 'request'
-        def request(method, suffix, body=b'', content_range=None, anonymous=False):
+        def request(method, suffix, body=b'', content_range=None, anonymous=False, renew=True):
             nonlocal sequence
             url = endpoint + suffix
             headers = {'User-Agent': 'APKG-tools/1', 'Content-Type': 'application/octet-stream'}
@@ -111,18 +112,25 @@ def push(args):
                     return data
             except urllib.error.HTTPError as error:
                 data = error.read(65536)
+                if error.code == 401 and args.sign and not anonymous and renew:
+                    open_session()
+                    return request(method, suffix, body, content_range, renew=False)
                 try:
                     answer = records(data)
                     reason = answer.get('summary', ['portal refused the request'])[0]
                 except Refusal as refusal:
                     reason = str(refusal)
                 raise Refusal(f'HTTP {error.code}: {reason}') from None
-        if args.sign:
-            public = engine_run(args.engine, 'key-public', args.sign)['public_key']
+        def open_session():
+            nonlocal session, sequence
             opened = records(request('POST', '/_push/session', f'key: {public}\n'.encode(), anonymous=True))
             session = opened.get('session', [None])[0]
             if not session or not re.fullmatch('[0-9a-f]{32}', session):
                 raise Refusal('portal did not establish a signed session')
+            sequence = 0
+        if args.sign:
+            public = engine_run(args.engine, 'key-public', args.sign)['public_key']
+            open_session()
         try:
             remote = request('GET', '/current', anonymous=True)
             if not re.fullmatch(b'[0-9a-f]{64}\n', remote):

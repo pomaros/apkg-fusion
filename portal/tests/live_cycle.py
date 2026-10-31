@@ -84,7 +84,7 @@ def exercise(engine,worker,work,base):
                 links={item['archive']['sha256']:base+'/'+CHANNELS['stored'][0]+'/archives/'+item['archive']['sha256']+'.pkg' for item in document['body']['entries']}
                 path=work/'links.json';path.write_bytes(encode(links));command+=['--links',path]
             result=publish(command,base,channel,snapshot,snapshots.get(kind))
-            assert json.loads(run(*command))['result']=='unchanged'
+            assert publish(command,base,channel,snapshot,snapshot)['result']=='unchanged'
             catalogue=json.loads(get(base+'/api/channels/'+channel+'/packages'));assert catalogue['total']==version
             snapshots[kind]=snapshot;digests[kind]=digest
             if kind=='stored' and version==1:first_page=catalogue['builds'][0]['page']
@@ -125,7 +125,7 @@ def exercise(engine,worker,work,base):
     approved(engine,'remove',linked_root,'fusion-live-check');assert state(linked_root)['installed']==[]
     assert not (linked_root/'fusion-live-check').exists()
     assert b'until further notice' in get(base+'/')
-    report=dict(result='passed',endpoint=base,operator_binaries=dict(engine_sha256=hashlib.sha256(engine.read_bytes()).hexdigest(),
+    report=dict(result='passed',endpoint=base,operator_binaries=dict(publisher_sha256=hashlib.sha256((ROOT/'tools/apkg-portal-push').read_bytes()).hexdigest(),engine_sha256=hashlib.sha256(engine.read_bytes()).hexdigest(),
         worker_sha256=hashlib.sha256(worker.read_bytes()).hexdigest(),driver_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()),checks=['HTTPS signed stored and link-only publication v1/v2','resumable upload and idempotent retry','exact historical build URL',
         'CLI and actual worker install/upgrade','external archive redirect consumed by common client','host payload execution v1/v2','configuration preservation',
         'CLI and worker rollback/repair/uninstall','exact retained personal files and no pending transactions','migration notice'],
