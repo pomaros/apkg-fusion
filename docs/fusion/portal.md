@@ -26,7 +26,9 @@ builder signs packages; the channel producer signs complete snapshots.
 `tools/apkg-portal-push` verifies local/remote signed heads using `apkg`, requests
 a session, plans missing members, resumes ordered parts, and submits
 `POST /<channel>/_push/common-commit`. Signed requests use the common engine's
-Ed25519 implementation; HTTPS bearer-token files are optional. There is no
+Ed25519 implementation. The client retains HTTP affinity cookies and permits
+one fresh signed-session renewal after an authentication refusal. Permanent
+refusals stop the push. HTTPS bearer-token files are optional. There is no
 old pkg verifier backend.
 
 A commit accepts bounded JSON (64 KiB) with `snapshot`, nullable
@@ -117,16 +119,17 @@ remain decisions for both maintainers.
 ## Portal execution batches
 
 The [operations guide](../../portal/OPERATIONS.md) defines new-data backup,
-restore and cutover rollback. Production cutover is a separate reviewed
-operation; the installed M1 updater stays with its existing owner.
+restore and cutover rollback. The public common-only service is deployed;
+[the report](portal-report.md) records its qualification. The installed M1
+updater stays with its existing owner.
 
 | Lot | Current state | Evaluation / remaining work |
 |---|---|---|
-| PORTAL-BROWSE | Implemented; host regressions pass | Default common UI, exact historical builds, search, metadata and signer facts; phone/desktop browser check passes locally. |
-| PORTAL-PUBLISH | Implemented; signed stored/link-only workflows pass | Resumable client, stable ownership, external bounds, retry and rights withdrawal tested. |
-| PORTAL-QUALIFY | Implemented; role/history regression passes | Self-review, revocation and policy withdrawal covered; official governance remains joint work. |
-| PORTAL-MIGRATE | Deployed-data conversion removed by operator | New-data backup/restore tools pass; published-artifact restore rehearsal passes locally. |
-| PORTAL-OPERATE | Host-native artifact implemented | Full deployed lifecycle passes locally; final Linux/macOS CI pending; no production cutover. |
+| PORTAL-BROWSE | Complete for current scope | Default common UI, exact historical builds, search, metadata and signer facts; phone/desktop browser check passes locally. |
+| PORTAL-PUBLISH | Complete for current scope | Resumable client, stable ownership, external bounds, retry and rights withdrawal tested. |
+| PORTAL-QUALIFY | Complete for current scope | Self-review, revocation and policy withdrawal covered; official governance remains joint work. |
+| PORTAL-MIGRATE | Complete for new-data scope; old conversion removed | New-data backup/restore and published-artifact restore pass on Linux/macOS; previous live application/configuration and separate data retained for rollback. |
+| PORTAL-OPERATE | Complete for current scope | Python-free artifacts, Linux/macOS lifecycle and process-recovery checks pass; live HTTPS cycle passes; temporary grants/channels removed; warning remains enabled. Real GitHub consent remains manual. |
 
 See [status](status.md) for measured evidence. These batches do not imply joint
 maintainer agreement or a release.

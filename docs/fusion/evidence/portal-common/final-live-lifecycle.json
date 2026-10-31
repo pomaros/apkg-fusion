@@ -1,0 +1,28 @@
+{
+  "checks": [
+    "HTTPS signed stored and link-only publication v1/v2",
+    "resumable upload and idempotent retry",
+    "exact historical build URL",
+    "CLI and actual worker install/upgrade",
+    "external archive redirect consumed by common client",
+    "host payload execution v1/v2",
+    "configuration preservation",
+    "CLI and worker rollback/repair/uninstall",
+    "exact retained personal files and no pending transactions",
+    "migration notice"
+  ],
+  "deployment_manifest_sha256": "b761fe046d2f3fe1effbd84f24a466784aafdbe429cd24a4fdabf1c3946e9188",
+  "endpoint": "https://aros-pkg.azurewebsites.net",
+  "limitations": [
+    "host execution does not qualify AROS runtime",
+    "live GitHub account consent not exercised"
+  ],
+  "operator_binaries": {
+    "driver_sha256": "670e766746160e7579a121859366535149c474cc466357612606d6f2de52c4cd",
+    "engine_sha256": "642ebb2e2f1a0ab919ab172657058db2679a39beac37d4fdc4ed8292a50ad1cb",
+    "publisher_sha256": "94238fdaa3bc4468ff3f00af501379aa91455db4053e3828a172733e50b6fa92",
+    "worker_sha256": "fc0e038af3c18337f060fbccf379691a4878be330f54190d89c4957aea81b640"
+  },
+  "result": "passed",
+  "source_revision": "cd5c2044f52afc9e65d30654e8897a9a8d596f39"
+}

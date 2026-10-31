@@ -32,7 +32,8 @@ report have been completed in the requested order.
 The [non-portal checklist](non-portal-checklist.md) records the completed earlier
 sequence. Portal work has now resumed provisionally in the
 [portal execution batches](portal.md#portal-execution-batches); joint maintainer
-decisions and production cutover remain separate work. Deployed pkg data
+decisions remain open. The public common-only portal is deployed and qualified;
+see the [portal report](portal-report.md). Deployed pkg data
 compatibility/conversion was explicitly removed by the operator; see the
 [current portal scope](portal.md#current-operator-scope).
 
@@ -44,24 +45,33 @@ compatibility/conversion was explicitly removed by the operator; see the
 | Clients/default product | Shared CLI/worker, explicit source settings, persistent current/previous observations, last-refresh comparison, combined typed rows, recent publications and installed/catalogue INFO/SHOW; default CLI/library/tools use the common engine | Broader native desktop/platform qualification; historical continuity is deferred |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Deferred: placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification; see support choices above |
-| Portal | Clean common-only catalogue, signed stored/link-only publication, resumable publisher client, optional policy-based independent qualification and private backup/restore tools implemented | Published-artifact lifecycle and browser checks pass locally; exact-source CI pending; no production cutover |
+| Portal | Clean common-only catalogue, signed stored/link-only publication, resumable publisher client, optional policy-based independent qualification and private backup/restore tools implemented | Linux/macOS published-artifact lifecycle, real-process recovery and live HTTPS application cycle pass; live GitHub consent and joint governance remain open |
 
 The earlier pre-portal stop boundary was reached: the frozen product candidate passes the
 clean-workspace scenario and exact-source Linux/macOS CI, the scoped M1 lifecycle
 and native regressions pass, and the [merge report](merge-report.md) is delivered.
 This does not complete every release obligation in the table. Legacy completion
-is deferred and the resumed portal adaptation remains provisional. No live
-portal cutover is included.
+is deferred. The portal is live as a provisional common-only service with its
+migration warning enabled.
 
-## Clean common portal local qualification
+## Clean common portal qualification and deployment
+
+Source `cd5c2044f52afc9e65d30654e8897a9a8d596f39` passes the complete
+[Linux/macOS CI gate](evidence/portal-common/final-host-ci.json): 409 common tests,
+302 selected tests plus C helpers under ASan/UBSan, both inherited suites,
+415 prefixed public symbols and 108 portal tests on each host. Both native
+published-artifact lifecycle/restore and real-process recovery checks pass.
+The same Linux artifact is deployed on Azure and passes the live application
+cycle and final cleanup checks linked in the portal report.
 
 The common engine handles portal verification, browsing and publication.
 Old pkg APIs, formats and deployed-data conversion are unsupported. Qualification
 covers the common portal security, publishing and application lifecycle.
 
 The server uses .NET with direct common-CLI calls and no Python runtime
-dependency. Measured locally: all 106 common portal tests pass. Three data-tool tests
-cover command-line backup/restore, exact contents/modes, private archives,
+dependency. All 108 common portal tests pass locally and on Linux/macOS CI.
+Published-artifact lifecycle and process recovery also pass on both hosts.
+Three data-tool tests cover command-line backup/restore, exact contents/modes, private archives,
 stopped-writer preconditions, corrupt bytes and unsafe paths. Common request
 signing and external-link transfer tests pass. The global migration warning is
 default on and tested across pages and API policy.
@@ -77,9 +87,15 @@ A host-native published artifact and a quiesced new-data backup/restore tool
 exist. The complete published-artifact loop passes: both clients install and upgrade,
 the host executes payload v1/v2, both clients roll back/repair/remove offline,
 exact leftovers are inspected, and a restored baseline serves the correct signed
-URLs and owner/account identities. Browser checks pass at 390/1280 pixels.
+URLs and owner/account identities. Real-process recovery checks kill the
+published server before and after visibility, then restart and retry safely.
+The live Azure cycle publishes two versions through stored/link-only channels,
+installs/upgrades/rolls back/repairs/removes through both clients, and inspects
+exact personal-file leftovers. Temporary keys and channels are removed; health,
+HTTPS, publishing and the warning remain enabled. The deployed file hashes match
+the tested native Linux artifact. Browser checks pass at 390/1280 pixels.
 The [portal report](portal-report.md) records receipts, scope and remaining
-exact-source deployment qualification; [operations](../../portal/OPERATIONS.md) records deployment inputs.
+live-service limits; [operations](../../portal/OPERATIONS.md) records deployment inputs.
 
 
 ## Final host qualification and M1 lifecycle passed
@@ -2489,7 +2505,7 @@ do not reopen the completed pre-portal trial.
 | Maintainer feedback | ALIGN: collect comments on the selected skeleton, trust administration and release scope when contact is authorized; development continues meanwhile. |
 | M1 qualification | The [scoped RAM lifecycle](evidence/m1-final/README.md) passes. Broader platform, metadata, native network, interrupted recovery, self-update and durability gates remain open. |
 | M1 updater | Existing update integration uses `libpkg`. Another owner will migrate it. Preserve the installed library and update/startup process; fusion runtime tests must not replace them. |
-| Existing portal | PORTAL-MIGRATE: migration of https://aros-pkg.azurewebsites.net/ is requested after fusion. Inventory real data/configuration, rehearse backup/restore and cutover, verify publishing/consumption and URLs, and retain rollback. No live migration has been attempted. |
+| Existing portal | The common-only replacement is live at https://aros-pkg.azurewebsites.net/. Linux/macOS backup/restore and live publishing/consumption loops pass; private rollback inputs are retained. Old pkg conversion is out of scope. Live GitHub consent and broader native qualification remain separate checks. |
 
 Portal migration work keeps credentials and private data outside the public
 repository. Existing author signatures, channel trust and qualification evidence

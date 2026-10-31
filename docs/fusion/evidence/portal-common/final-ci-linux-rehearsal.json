@@ -11,7 +11,7 @@
     "quiesced private backup and exact restore",
     "restored deployment health, identities, owner pins and baseline URLs"
   ],
-  "deployment_manifest_sha256": "661ef5d308970e6f174b60e8058d2bb758e1a2eec11d4b00a98259423a305440",
+  "deployment_manifest_sha256": "b761fe046d2f3fe1effbd84f24a466784aafdbe429cd24a4fdabf1c3946e9188",
   "dirty_source": false,
   "limitations": [
     "synthetic publisher registration; live GitHub OAuth not exercised",
@@ -19,5 +19,5 @@
     "local process/data rollback; no production cutover or power-loss claim"
   ],
   "result": "passed",
-  "source_revision": "457b598b4db1b8256ca53f62b23a75ff165c70b2"
+  "source_revision": "cd5c2044f52afc9e65d30654e8897a9a8d596f39"
 }

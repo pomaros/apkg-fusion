@@ -1,0 +1,29 @@
+{
+  "checks": [
+    "health and final source identity",
+    "HTTPS-only",
+    "migration notice on catalogue, documentation and account pages",
+    "publishing enabled",
+    "temporary signing keys rejected",
+    "synthetic raw and API channels absent",
+    "loopback archive exception disabled",
+    "obsolete backend settings removed",
+    "GitHub provider redirect, HTTPS callback and correlation cookie"
+  ],
+  "deployment_zip_sha256": "a3baab7f6066cd386ac4fb1d76267b9bf817a67076545e1ec19a4bf03e05c15c",
+  "endpoint": "https://aros-pkg.azurewebsites.net",
+  "limitations": [
+    "real GitHub account consent remains a manual check",
+    "no AROS runtime or power-loss claim"
+  ],
+  "result": "passed",
+  "rollback_baseline": "previous application and configuration backed up privately; previous data retained separately",
+  "runtime": {
+    "aspnet": "10.0.14",
+    "container_startup_allowance_seconds": 600,
+    "glibc": "2.39",
+    "machine": "x86_64",
+    "system": "Linux"
+  },
+  "source_revision": "cd5c2044f52afc9e65d30654e8897a9a8d596f39"
+}

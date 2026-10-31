@@ -12,7 +12,9 @@ Joint maintainer design and official key governance remain provisional.
 
 A prominent English migration warning is enabled on every page by default.
 Keep `Portal:ShowMigrationNotice=true` until the operator explicitly clears it.
-The public service and its packages should not be used during this transition.
+The [public service](https://aros-pkg.azurewebsites.net/) and its packages should
+not be used during this transition. The [qualification report](../docs/fusion/portal-report.md)
+records deployed artifacts, the live application cycle and remaining limits.
 
 ## Publish
 
@@ -38,7 +40,9 @@ must keep their external archives available; backup retains URLs, not remote byt
 
 The client signs requests with the common executable, sends resumable parts,
 checks the remote signed head, and commits with an expected previous digest.
-Retries of a published identical snapshot are idempotent. After an uncertain
+The client retains HTTP affinity cookies. A signed-request authentication refusal
+permits one fresh-session renewal and a newly signed request; another refusal
+stops the push. Retries of a published identical snapshot are idempotent. After an uncertain
 response, inspect `/<channel>/current` before retrying; do not roll it back blindly.
 HTTPS bearer-token publication is also supported with `--token-file`, a private
 file. Credentials are not command-line arguments or source-controlled settings.

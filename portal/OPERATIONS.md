@@ -4,8 +4,8 @@
 # Operating the common portal
 
 This describes the new common-only service. There is no conversion of deployed
-pkg data. Keep the old deployment and its data separately until production
-cutover is reviewed.
+pkg data. Retain the previous application, configuration and separate data tree
+as a private rollback baseline.
 
 ## Artifact and host
 
@@ -20,6 +20,10 @@ candidate, not an exact-source release receipt. Do not deploy a macOS executable
 to Linux. The CI Linux artifact is built/tested on Ubuntu 26.04 x86_64; this
 does not prove it loads on an older Azure image. Check the exact destination
 image, libc and runtime dependencies, or build inside that image before cutover.
+
+When creating a deployment ZIP, preserve file modification times, bytes and
+permissions. Incremental hosting deployments may use file metadata to decide
+what to copy. Verify every deployed file against `deployment.json` after cutover.
 
 The host needs the .NET 10 ASP.NET Core runtime. Serve the
 published folder behind HTTPS; use a service supervisor and one operator-owned
@@ -98,3 +102,39 @@ actually stops and restarts the published artifact, takes a quiesced v1 backup,
 advances to v2, restores a separate baseline, then verifies its signed URLs and
 identities. It does not emulate a production reverse proxy, live GitHub login,
 a real Azure slot swap or a downgrade between released server schemas.
+
+
+## Live synthetic lifecycle check
+
+`portal/tests/live_cycle.py` is an operator-side check for an owned HTTPS portal.
+Prepare a fresh local work directory with `prepare --engine <apkg> --work <new-directory>`.
+It creates private synthetic signing keys locally and prints only public publisher
+grants. Temporarily configure those grants for the two named test channels;
+make them unlisted and enable publishing. Refuse to proceed if either channel
+already exists.
+
+Run `run --engine <apkg> --worker <test_pm_common> --work <same-directory>
+--url <https-portal>`. It publishes two versions through stored and link-only
+channels, checks the current head before bounded same-snapshot retries
+after uncertain responses, installs/upgrades through the CLI and actual worker, executes the host
+payload, rolls back, repairs, removes and checks exact remaining files. It writes
+`report.json` without private keys. This checks the deployed HTTPS service; the
+separate published-artifact rehearsal establishes offline recovery and backup/restore.
+
+After the check, withdraw the temporary grants, verify the synthetic owner pins,
+and remove only those test channels, their visibility markers and their staging
+identities. Verify health, the warning and an empty test catalogue. Keep real
+accounts, production data and the rollback baseline intact. A successful sign-in
+redirect does not establish completion of GitHub account consent.
+
+
+## Qualified Azure profile
+
+The 2026-10-31 deployment uses Linux x86_64, .NET/ASP.NET Core 10.0.14 and glibc
+2.39. The tested native engine loads and verifies real publications on that
+image. The container startup allowance is 600 seconds. HTTPS-only hosting and
+the migration notice are enabled; production loopback-link exceptions are off.
+Recheck runtime/image changes against the native artifact and public smoke test.
+The [qualification report](../docs/fusion/portal-report.md) links file and lifecycle
+receipts. Private rollback inputs include the previous application and
+configuration; its separate data directory remains intact.

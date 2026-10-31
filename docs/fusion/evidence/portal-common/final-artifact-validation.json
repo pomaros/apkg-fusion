@@ -1,22 +1,30 @@
 [
   {
-    "platform": "ubuntu",
+    "files": 25,
     "host": {
       "machine": "x86_64",
       "system": "Linux"
     },
-    "files": 31,
-    "tar_sha256": "39e99b26b9bdb8e75761fb447f59bb8b4cee44e73c16092348187ec04282c850",
-    "manifest_sha256": "661ef5d308970e6f174b60e8058d2bb758e1a2eec11d4b00a98259423a305440"
+    "manifest_sha256": "b761fe046d2f3fe1effbd84f24a466784aafdbe429cd24a4fdabf1c3946e9188",
+    "platform": "ubuntu",
+    "server_requires": [
+      ".NET 10",
+      "native apkg"
+    ],
+    "tar_sha256": "e15853b39bb3c4b48e2b66c6a927e4c214f94edd2574637833e767ff5cff58ac"
   },
   {
-    "platform": "macos",
+    "files": 25,
     "host": {
       "machine": "arm64",
       "system": "Darwin"
     },
-    "files": 31,
-    "tar_sha256": "665b5d82b37d4f42936b53af736cd15e438d02f0cf332638bfa7c4cfdd865dac",
-    "manifest_sha256": "ab1bb13025d1ae62c0c1d848bab039de5c8aa7c594aa14705727f0702c37c9eb"
+    "manifest_sha256": "03b412ee8a7c418a47c00219057e79a3bdd14a0f23688698ea9c0a732bba3249",
+    "platform": "macos",
+    "server_requires": [
+      ".NET 10",
+      "native apkg"
+    ],
+    "tar_sha256": "40e48072af92631ae087ed9648919a940fc9a42985c1cf8dc17a4a5457eeca74"
   }
 ]

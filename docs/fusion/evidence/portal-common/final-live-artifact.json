@@ -1,0 +1,7 @@
+{
+  "deployment_manifest_sha256": "b761fe046d2f3fe1effbd84f24a466784aafdbe429cd24a4fdabf1c3946e9188",
+  "endpoint": "https://aros-pkg.azurewebsites.net",
+  "files": 25,
+  "result": "passed",
+  "source_revision": "cd5c2044f52afc9e65d30654e8897a9a8d596f39"
+}

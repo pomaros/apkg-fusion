@@ -1,31 +1,31 @@
 {
-  "source_revision": "457b598b4db1b8256ca53f62b23a75ff165c70b2",
-  "run_url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898",
   "artifacts": [
     {
-      "id": 13020327328,
-      "name": "portal-deployment-macos-latest",
-      "zip_digest": "sha256:99dd0d6776ef94388ea012c992b1c7b1777d96b146e7b6614b9ee5a88b5c15d0",
-      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898/artifacts/13020327328"
-    },
-    {
-      "id": 13020127271,
-      "name": "portal-deployment-ubuntu-latest",
-      "zip_digest": "sha256:fe4525aa976567dacf444b92dd601af99acc0787d872c52512b44a1427be7f96",
-      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898/artifacts/13020127271"
-    },
-    {
-      "id": 13019608181,
+      "id": 13024761028,
       "name": "portal-rehearsal-macos-latest",
-      "zip_digest": "sha256:d5220f086be01d3c7f9ef8f2c40885e5a5474ca514134a2af3809d0256edc6b3",
-      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898/artifacts/13019608181"
+      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41153886332/artifacts/13024761028",
+      "zip_digest": "sha256:947da7163d919a54852f39f846fe8e1eae7b0e18247795b430163705d6d0e162"
     },
     {
-      "id": 13019582980,
+      "id": 13024751023,
+      "name": "portal-deployment-macos-latest",
+      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41153886332/artifacts/13024751023",
+      "zip_digest": "sha256:1a3c9db566c9cbc74393792fdcceeb3033e9bb7805a80e94693cd212ecf66e53"
+    },
+    {
+      "id": 13024671059,
+      "name": "portal-deployment-ubuntu-latest",
+      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41153886332/artifacts/13024671059",
+      "zip_digest": "sha256:31f792ba4ea426beefd849f1ba0f7b16a8f03b7af5666a153653aba52c1b2954"
+    },
+    {
+      "id": 13024326866,
       "name": "portal-rehearsal-ubuntu-latest",
-      "zip_digest": "sha256:6b001f6e5e34ba3d1958b44ddaca3cf395e371f6963954bcd962095a062e20e7",
-      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41143362898/artifacts/13019582980"
+      "url": "https://github.com/pomaros/apkg-fusion/actions/runs/41153886332/artifacts/13024326866",
+      "zip_digest": "sha256:fb751846ea1b90c1dd1cd070ffd07e73eb838ffbdbeff94940c71438d8ed7e68"
     }
   ],
-  "validation": "Both portal CI jobs passed. Downloaded ZIP hashes, archive types, all 31 packaged file hashes, executable permissions and manifest/rehearsal/source bindings verified."
+  "run_url": "https://github.com/pomaros/apkg-fusion/actions/runs/41153886332",
+  "source_revision": "cd5c2044f52afc9e65d30654e8897a9a8d596f39",
+  "validation": "Both portal CI jobs passed. Downloaded ZIP hashes, archive types, all 25 packaged file hashes, executable permissions and manifest/receipt/source bindings verified. No server Python dependency."
 }

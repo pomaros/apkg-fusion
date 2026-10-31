@@ -11,10 +11,12 @@ author channels and independent review/runtime evidence.
 use the common context engine. CLI and the PkgManager worker share signed
 selection, dependency plans and transaction recovery. The native catalogue and
 automation use the common engine; broader qualification, existing-user migration
-remain release work. The clean common-only portal is under qualification. The [status overview](docs/fusion/status.md#alpha-progress-at-a-glance)
+remain release work. The clean common-only portal is deployed and qualified on Linux/macOS and over
+public HTTPS; its migration warning remains active. The [status overview](docs/fusion/status.md#alpha-progress-at-a-glance)
 separates host qualification, the isolated M1 application trial and remaining
 release gates. The [merge report](docs/fusion/merge-report.md) compares inherited
-capabilities and fusion changes. The [portal guide](portal/README.md) describes the resumed publishing and deployment work.
+capabilities and fusion changes. The [portal guide](portal/README.md) describes publishing and deployment. The [portal report](docs/fusion/portal-report.md) records
+the complete application lifecycle and remaining limits.
 
 The common engine in `src/apkg/` follows APKG's context model and links pkg's
 portable services, cryptography, ownership and publishing code. The
@@ -79,7 +81,8 @@ Publication requires no curator approval. Author declarations and trusted
 signatures do not assert independent review or runtime testing. The
 [signed-channel profile](docs/fusion/channels.md) describes separate trust roles,
 replay floors, exact selection and independent qualification observations.
-Portal publishing/discovery and its catalogue review integration remain separate.
+The portal publishes and discovers common channels and evaluates independent
+qualifications under an optional operator role policy.
 
 ## Initialize, discover and operate
 
@@ -127,7 +130,7 @@ real installations; the current fixture rehearsal does not qualify a live upgrad
 
 The portal regression command is `dotnet test portal/tests/Portal.Tests`.
 Host qualification and the isolated M1 application trial are separate evidence;
-neither claims general AROS platform acceptance. No live portal cutover or OS
-source modification is included. The projects' own code is MIT licensed; original and
+neither claims general AROS platform acceptance. The common portal is live with the migration warning enabled. No OS source
+modification is included. The projects' own code is MIT licensed; original and
 third-party notices are preserved. See [LICENSE](LICENSE) and
 [provenance](docs/fusion/provenance.md).
