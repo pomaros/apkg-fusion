@@ -20,6 +20,9 @@ if [ "${APKG_FUSION:-0}" = 1 ]; then
         set -- "$@" "$FUSION_ROOT/$source"
     done
     FUSION_FLAGS="-DAPKG_FUSION -DPKG_FS_LOCAL_ONLY"
+    # Without a system getentropy(), the common engine takes its randomness
+    # from the same jitterentropy collector as TLS.
+    [ "$ENTROPY" = jent ] && FUSION_FLAGS="$FUSION_FLAGS -DPKG_ENTROPY_JENT"
     set -- "$@" "-I$FUSION_ROOT/include" "-I$FUSION_ROOT/src/apkg"
 fi
 
