@@ -12,12 +12,23 @@ OUT=${OUT:-$HERE/../PkgManager-mainline}
 
 CC="$TC/x86_64-aros-gcc"; AR="$TC/x86_64-aros-ar"; TAG=abiv1-x86_64; ENTROPY=getentropy
 . "$HERE/tls/tls.sh"
+# APKG_FUSION=1 builds the common-engine client, as in build-gui.sh.
+set --
+FUSION_FLAGS=""
+if [ "${APKG_FUSION:-0}" = 1 ]; then
+    FUSION_ROOT=$(cd "$HERE/../../.." && pwd)
+    for source in $(make -s -C "$FUSION_ROOT" print-apkg-sources); do
+        set -- "$@" "$FUSION_ROOT/$source"
+    done
+    FUSION_FLAGS="-DAPKG_FUSION -DPKG_FS_LOCAL_ONLY"
+    set -- "$@" "-I$FUSION_ROOT/include" "-I$FUSION_ROOT/src/apkg"
+fi
 BUILD_ID=$(cat "$HERE"/libpkg/*.c "$HERE"/libpkg/*.h $TLS_SRC "$HERE"/pkgmanager/*.c "$HERE"/pkgmanager/*.h \
                "$HERE"/../third_party/zunekit/*.c "$HERE"/../third_party/zunekit/*.h \
            | shasum -a 256 | cut -c1-16)
 echo "build id $BUILD_ID  (PkgManager, ABIv1 / mainline, additional)"
 
-"$CC" -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS \
+"$CC" -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS $FUSION_FLAGS \
     -DPKG_BUILD_ID='"'"$BUILD_ID"'"' \
     -DPKG_TOOLCHAIN='"'"$TC"'"' \
     -DPKG_ABI='"v1"' \
@@ -25,7 +36,7 @@ echo "build id $BUILD_ID  (PkgManager, ABIv1 / mainline, additional)"
     -DPKG_CC="\"$("$CC" -dumpversion)\"" \
     -I"$SDK/include" $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \
     -DLINKTEXT_EMBEDDED -I"$HERE/../third_party/zunekit" \
-    "$HERE"/libpkg/*.c "$HERE"/pkgmanager/*.c "$HERE"/../third_party/zunekit/*.c $TLS_SRC \
+    "$HERE"/libpkg/*.c "$HERE"/pkgmanager/*.c "$HERE"/../third_party/zunekit/*.c "$@" $TLS_SRC \
     "$SDK/lib/libz.static.a" $TLS_LIBS -L"$SDK/lib" \
     -o "$OUT"
 ls -l "$OUT"
