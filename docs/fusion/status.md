@@ -189,6 +189,15 @@ remain deferred. The next shared step is the
 [maintainer alignment handoff](maintainer-agreement.md), with actual joint
 decisions still unrecorded.
 
+## arospkg 0.7.4 links review branch
+
+The [0.7.4 review](upstream-0.7.4.md) records the Linktext port, ABIv11
+randomness, x86_64 build profiles, the rehearsal target option and migration
+fixtures written by released arospkg 0.7.4. `make test-fusion` passes on macOS.
+On x86_64 mainline AROS the common CLI refuses installation plans because the
+SDK has no `ReplaceObject`; the GUI links and clipboard copy work. No maintainer
+agreement is recorded.
+
 ## Portal common catalogue and HTTP lifecycle
 
 The operator resumed portal work while joint design decisions remain open.
