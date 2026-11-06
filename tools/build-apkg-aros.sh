@@ -36,7 +36,7 @@ import hashlib
 import subprocess
 from pathlib import Path
 paths = set()
-for folder in ('src/apkg', 'components/arospkg/src/libpkg', 'components/arospkg/src/pkgmanager', 'components/arospkg/src/tls'):
+for folder in ('src/apkg', 'components/arospkg/src/libpkg', 'components/arospkg/src/pkgmanager', 'components/arospkg/src/tls', 'components/arospkg/third_party/zunekit'):
     for pattern in ('*.c', '*.h'): paths.update(Path(folder).glob(pattern))
 paths.update(Path('include').glob('*.h'))
 paths.update(Path(p) for p in subprocess.check_output(['make', '-s', 'print-apkg-sources'], text=True).split())
@@ -70,7 +70,7 @@ for source in "$mb"/library/*.c; do
 done
 "$ar" rcs "$out/libmbedtls.a" "$out"/mbedtls/*.o
 # shellcheck disable=SC2086
-"$cc" "$@" -DAPKG_FUSION -DPKG_FS_LOCAL_ONLY -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -Icomponents/arospkg/src/tls -I"$mb/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" components/arospkg/src/libpkg/*.c components/arospkg/src/pkgmanager/*.c components/arospkg/src/tls/mbedtls.c components/arospkg/src/tls/platform_aros.c components/arospkg/src/tls/entropy_getentropy.c $sources "$out/libmbedtls.a" "$dev/lib/libz.static.a" -o "$out/PkgManager" -Wl,--allow-multiple-definition -Wl,--start-group -lmui -lmuimaster -lintuition -lgraphics -lworkbench -licon -ldatatypes -lasl -lrexxsyslib -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
+"$cc" "$@" -DAPKG_FUSION -DPKG_FS_LOCAL_ONLY -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -Icomponents/arospkg/src/tls -I"$mb/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" -DLINKTEXT_EMBEDDED -Icomponents/arospkg/third_party/zunekit components/arospkg/src/libpkg/*.c components/arospkg/src/pkgmanager/*.c components/arospkg/third_party/zunekit/*.c components/arospkg/src/tls/mbedtls.c components/arospkg/src/tls/platform_aros.c components/arospkg/src/tls/entropy_getentropy.c $sources "$out/libmbedtls.a" "$dev/lib/libz.static.a" -o "$out/PkgManager" -Wl,--allow-multiple-definition -Wl,--start-group -lmui -lmuimaster -lintuition -lgraphics -lworkbench -licon -ldatatypes -lasl -lrexxsyslib -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
 "$APKG_AROS_TOOLS/bin/llvm-nm" --defined-only "$out/PkgManager" > "$out/gui-symbols.txt"
 for symbol in main __startup_entry pm_common_install apkg_execute; do
     awk -v symbol="$symbol" '$NF==symbol {found=1} END {exit !found}' "$out/gui-symbols.txt" || { echo "missing GUI program symbol $symbol" >&2; exit 1; }

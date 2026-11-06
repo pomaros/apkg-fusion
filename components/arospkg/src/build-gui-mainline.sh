@@ -13,6 +13,7 @@ OUT=${OUT:-$HERE/../PkgManager-mainline}
 CC="$TC/x86_64-aros-gcc"; AR="$TC/x86_64-aros-ar"; TAG=abiv1-x86_64; ENTROPY=getentropy
 . "$HERE/tls/tls.sh"
 BUILD_ID=$(cat "$HERE"/libpkg/*.c "$HERE"/libpkg/*.h $TLS_SRC "$HERE"/pkgmanager/*.c "$HERE"/pkgmanager/*.h \
+               "$HERE"/../third_party/zunekit/*.c "$HERE"/../third_party/zunekit/*.h \
            | shasum -a 256 | cut -c1-16)
 echo "build id $BUILD_ID  (PkgManager, ABIv1 / mainline, additional)"
 
@@ -23,7 +24,8 @@ echo "build id $BUILD_ID  (PkgManager, ABIv1 / mainline, additional)"
     -DPKG_SDK='"'"$SDK"'"' \
     -DPKG_CC="\"$("$CC" -dumpversion)\"" \
     -I"$SDK/include" $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \
-    "$HERE"/libpkg/*.c "$HERE"/pkgmanager/*.c $TLS_SRC \
+    -DLINKTEXT_EMBEDDED -I"$HERE/../third_party/zunekit" \
+    "$HERE"/libpkg/*.c "$HERE"/pkgmanager/*.c "$HERE"/../third_party/zunekit/*.c $TLS_SRC \
     "$SDK/lib/libz.static.a" $TLS_LIBS -L"$SDK/lib" \
     -o "$OUT"
 ls -l "$OUT"

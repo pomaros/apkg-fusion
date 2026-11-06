@@ -11,6 +11,7 @@ OUT=${OUT:-$HERE/../PkgManager-raspi}
 CC="$RPI/bin/aarch64-aros-clang"; AR="$RPI/bin/aarch64-aros-ar"; TAG=raspi-aarch64; ENTROPY=getentropy
 . "$HERE/tls/tls.sh"
 BUILD_ID=$(cat "$HERE"/libpkg/*.c "$HERE"/libpkg/*.h $TLS_SRC "$HERE"/pkgmanager/*.c "$HERE"/pkgmanager/*.h \
+               "$HERE"/../third_party/zunekit/*.c "$HERE"/../third_party/zunekit/*.h \
            | shasum -a 256 | cut -c1-16)
 echo "build id $BUILD_ID  (PkgManager, raspi-aarch64 / ABIv1)"
 
@@ -22,7 +23,8 @@ echo "build id $BUILD_ID  (PkgManager, raspi-aarch64 / ABIv1)"
     -DPKG_SDK='"'"$SDK"'"' \
     -DPKG_CC="\"clang $("$CC" -dumpversion)\"" \
     $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \
-    "$HERE"/libpkg/*.c "$HERE"/pkgmanager/*.c $TLS_SRC \
+    -DLINKTEXT_EMBEDDED -I"$HERE/../third_party/zunekit" \
+    "$HERE"/libpkg/*.c "$HERE"/pkgmanager/*.c "$HERE"/../third_party/zunekit/*.c $TLS_SRC \
     "$SDK/lib/libz.static.a" $TLS_LIBS \
     -o "$OUT"
 ls -l "$OUT"
