@@ -100,6 +100,31 @@ class RehearsalEvidence(unittest.TestCase):
             with self.subTest(field=old), self.assertRaises(ValueError):
                 verify(prepared, report.replace(old, new))
 
+    def test_x86_64_targets_select_the_identity_checked_in_the_report(self):
+        import test_client as clients
+        script = Path(__file__).resolve().parents[1] / 'aros/prepare_rehearsal.py'
+        with tempfile.TemporaryDirectory() as temporary:
+            out = Path(temporary) / 'prepared'
+            command = [sys.executable, str(script), '--output', str(out), '--target', 'x86_64-aros-v11-native']
+            for option in ('--cli', '--gui', '--launch', '--norequesters'):
+                command.extend([option, str(clients.CLI)])
+            result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            prepared = json.loads((out / 'prepared.json').read_text())
+            self.assertEqual(prepared['target'], 'x86_64-aros-v11-native')
+            self.assertIn(' init RAM:APKGFreshRoot x86_64-aros-v11-native ',
+                          (out / 'payload/APKGTrial/Trial').read_text())
+            bad = subprocess.run([sys.executable, str(script), '--output', str(Path(temporary) / 'bad'),
+                                  '--target', 'aarch64-aros-v11-native', *command[5:]],
+                                 capture_output=True, text=True, timeout=120)
+            self.assertNotEqual(bad.returncode, 0)
+        prepared, report = self.fixture()
+        prepared['target'] = 'x86_64-aros-v11-native'
+        with self.assertRaises(ValueError):
+            verify(prepared, report)
+        self.assertEqual(verify(prepared, report.replace('"arch": "aarch64", "abi": "v1"',
+                                                         '"arch": "x86_64", "abi": "v11"'))['result'], 'PASS')
+
 
 if __name__ == '__main__':
     unittest.main()
