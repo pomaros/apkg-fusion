@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "id": "mini",
+  "version": "1.0",
+  "arch": "x86_64",
+  "abi": "v1",
+  "launch": {
+    "executable": "Mini",
+    "mode": "shell"
+  }
+}

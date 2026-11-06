@@ -1,0 +1,15 @@
+Verifying archive
+upgrading mini 1.0-aros2 -> 1.1-aros3
+Installing files
+plan for SYS:MigA/mini: 0 add, 2 replace, 0 remove, 1 kept, 1 unchanged
+  replace    Mini
+  replace    application.json
+  keep (not ours) notes.txt
+note: SYS:MigA/mini.info has changed since it was installed and is kept.
+
+Upgraded mini 1.1-aros3
+  Location: SYS:MigA/mini
+  Open folder: apkg --root "SYS:MigA" open mini
+
+Notes from the package
+  Notes: https://example.org/mini

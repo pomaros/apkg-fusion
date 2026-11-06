@@ -1,0 +1,5 @@
+mini: 2 as installed, 1 changed locally, 0 missing, 1 not the package's; drawer icon changed locally
+ok                 Mini
+changed locally    Mini.cfg
+ok                 application.json
+not the package's  notes.txt

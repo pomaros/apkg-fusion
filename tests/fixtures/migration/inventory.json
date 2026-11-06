@@ -1,37 +1,43 @@
 {
-  "licence": "MIT",
-  "copyright": "Copyright (c) 2026 John Knipper",
-  "upstream_arospkg": "8e6ab1858b32bbf7a80f2f1c885a11af69aeb9f7",
-  "entries": [
-    {
-      "path": "registry-current.json",
-      "provenance": "synthetic",
-      "source": "components/arospkg/src/libpkg/ops.c",
-      "purpose": "schema-1 current writer shape, launch, dependency reason, edited baseline and missing rollback bytes"
-    },
-    {
-      "path": "registry-legacy.json",
-      "provenance": "synthetic",
-      "source": "components/arospkg/src/libpkg/swap.c",
-      "purpose": "omitted fields understood by legacy readers; not an exact historical release capture"
-    },
-    {
-      "path": "self-update.json",
-      "provenance": "synthetic",
-      "source": "components/arospkg/src/libpkg/selfup.c",
-      "purpose": "format-1 journal with old/new file hashes"
-    },
-    {
-      "path": "cases.json",
-      "provenance": "synthetic",
-      "source": "docs/fusion/migration.md",
-      "purpose": "external observations and expected migration classifications"
-    },
-    {
-      "path": "components/arospkg/tests/fixtures/docs-walk-registry.json",
-      "provenance": "upstream documentation fixture; distribution capture unverified",
-      "source": "components/arospkg/docs/guide/metadata.md",
-      "purpose": "full upstream guide registry, referenced in place; preserve upstream notices"
-    }
-  ]
+ "licence": "MIT",
+ "copyright": "Copyright (c) 2026 John Knipper",
+ "upstream_arospkg": "8e6ab1858b32bbf7a80f2f1c885a11af69aeb9f7",
+ "entries": [
+  {
+   "path": "registry-current.json",
+   "provenance": "synthetic",
+   "source": "components/arospkg/src/libpkg/ops.c",
+   "purpose": "schema-1 current writer shape, launch, dependency reason, edited baseline and missing rollback bytes"
+  },
+  {
+   "path": "registry-legacy.json",
+   "provenance": "synthetic",
+   "source": "components/arospkg/src/libpkg/swap.c",
+   "purpose": "omitted fields understood by legacy readers; not an exact historical release capture"
+  },
+  {
+   "path": "self-update.json",
+   "provenance": "synthetic",
+   "source": "components/arospkg/src/libpkg/selfup.c",
+   "purpose": "format-1 journal with old/new file hashes"
+  },
+  {
+   "path": "cases.json",
+   "provenance": "synthetic",
+   "source": "docs/fusion/migration.md",
+   "purpose": "external observations and expected migration classifications"
+  },
+  {
+   "path": "components/arospkg/tests/fixtures/docs-walk-registry.json",
+   "provenance": "upstream documentation fixture; distribution capture unverified",
+   "source": "components/arospkg/docs/guide/metadata.md",
+   "purpose": "full upstream guide registry, referenced in place; preserve upstream notices"
+  },
+  {
+   "path": "captured-0.7.4-v1",
+   "provenance": "written by the released arospkg 0.7.4 x86_64-aros-v1 apkg (binary sha256 c7e3b4525b81ffa98352631453f7525ac4fba716f2fda9ff3c39248b8442a210) on mainline AROS x86_64 nightly 20261105, dos.library 50.86; test packages are synthetic",
+   "source": "captured-0.7.4-v1/README.md",
+   "purpose": "real schema-1 records: dependency reason, upgrade history with retained archive, edited configuration, user file, edited drawer icon, interrupted install transaction"
+  }
+ ]
 }

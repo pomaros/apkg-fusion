@@ -1,0 +1,18 @@
+Plan
+  1. install (needed) minilib 1.0 -- needed by mini, at least 1.0
+  2. install mini 1.0-aros2
+Verifying archive
+Installing files
+Verifying archive
+Installing files
+
+Installed (needed) minilib 1.0
+  Location: SYS:MigA/minilib
+  Open folder: apkg --root "SYS:MigA" open minilib
+
+Installed mini 1.0-aros2
+  Location: SYS:MigA/mini
+  Open folder: apkg --root "SYS:MigA" open mini
+
+Notes from the package
+  Notes: https://example.org/mini

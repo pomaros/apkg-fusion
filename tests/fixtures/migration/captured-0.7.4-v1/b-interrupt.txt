@@ -1,0 +1,6 @@
+Installing mini 1.0-aros2
+Verifying archive
+Installing files
+Could not install mini: stopped on purpose
+  PKG_STOP_AFTER_DIR_MARKER
+rc 10

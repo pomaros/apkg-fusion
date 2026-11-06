@@ -1,0 +1,29 @@
+{
+  "schema":1,
+  "name":"mini",
+  "version":"1.1",
+  "revision":3,
+  "arch":"x86_64",
+  "abi":"v1",
+  "subdir":"Mini",
+  "installed":"2026-11-07T00:36:53Z",
+  "origin":"https://example.invalid/mini-1.1.zip",
+  "archive_sha256":"2cc194b52121626c105f95af3604d4d8ba310f3729aff281676d6b413d030ee5",
+  "archive_size":728,
+  "reason":"explicit",
+  "relations_schema":1,
+  "depends": ["minilib >= 1.0"],
+  "dir":"mini",
+  "requires_system": [
+    { "type":"library", "id":"muimaster.library", "min_version":0, "state":"satisfied", "found_version":19, "checked":"already open, version 19" }
+  ],
+  "icon": { "state":"installed", "sha256":"61697beed5e5aaee900a810119dfc19e5594e2e66a598a5b273de1e3c93c44e0", "size":-1, "member":"Mini.info" },
+  "previous": { "registry":"SYS:MigA/db/previous/mini.json", "archive":"SYS:MigA/cache/previous/mini.zip" },
+  "post_install_notes": ["Notes: https://example.org/mini"],
+  "launch": { "executable":"Mini", "mode":"shell", "working_directory":"." },
+  "contents": [
+    { "path":"application.json", "sha256":"4e9442fff71a4bc0ac485f0545d9578564d056a04e91e8433b47a40c84bbf310", "size":153 },
+    { "path":"Mini.cfg", "sha256":"bc0235967d302a5a18975a1c5f90f86b0dd0118a3affadfb61a8f5c58f44372e", "size":14 },
+    { "path":"Mini", "sha256":"7dd7a9381f4a2515e89f9d04ff2c15e93dc2ef635aca85d41bceb116a9a9d96f", "size":17 }
+  ]
+}
