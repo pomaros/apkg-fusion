@@ -26,10 +26,16 @@ for addresses. `--no-text-view` shows a Floattext fallback.
 - ABIv11 has no `getentropy()`. With `PKG_ENTROPY_JENT` (set by `build-gui.sh`
   when its TLS layer uses jitterentropy) the common engine's `pkg_fs_random`
   reads that collector; a failed health test is a failure.
-- `build-gui-mainline.sh` accepts `APKG_FUSION=1`.
+- `build-gui-mainline.sh` and `build-gui-raspi.sh` accept `APKG_FUSION=1`.
 - The AROS rehearsal takes `--target` for x86_64 ABIv1 and ABIv11.
 - Migration fixtures written by released arospkg 0.7.4 on AROS
-  ([README](../../tests/fixtures/migration/captured-0.7.4-v1/README.md)).
+  ([README](../../tests/fixtures/migration/captured-0.7.4-v1/README.md)), and
+  installed records of every release line
+  ([README](../../tests/fixtures/migration/legacy-records/README.md)).
+- The legacy-copy importer refuses an unfinished replacement
+  (`db/replace.json`), can inspect a copy of `ENVARC:arospkg`, keeps installed
+  drawer icons as unowned user state when the mapping says so, and reads 0.1
+  records without `subdir` ([legacy copy](legacy-copy.md)).
 
 ## Not ported
 
@@ -45,16 +51,23 @@ held, and is deleted once released.
 ## Results and limits
 
 Host: `make test-fusion` passes; the inherited arospkg host suite passes,
-including the new report cases. x86_64 builds with the project profiles (GCC
-10.5): ABIv11 PkgManager and CLI against the 2026.09 SDK, ABIv1 PkgManager and
-CLI against the official SDK of nightly 20261105 with `--sysroot`. Both need
-`-Wl,--allow-multiple-definition` (`pkg_strstatus` is defined by inherited
-`err.c` and `pkg_container.c`), as the aarch64 profile already uses.
+including the new report cases. Builds, with the project profiles: ABIv11
+PkgManager and CLI with GCC 10.5 against the 2026.09 SDK; ABIv1 PkgManager and
+CLI with GCC 10.5 against the official SDK of nightly 20261105 (`--sysroot`);
+Raspberry Pi PkgManager and CLI with clang 20.1 against the official raspi
+SDK of nightly 20261105. All link without `--allow-multiple-definition`: the
+container's status text is `pkg_container_strstatus`, so no symbol is defined
+twice. The aarch64 profile (`build-apkg-aros.sh`) still passes the flag and was
+not rebuilt here.
 
 AROS (x86_64 mainline nightly 20261105 in QEMU, `dos.library` 50.86): the
 common CLI initializes a root and reads the signed channel; every installation
 plan is refused, because `pkg_fs_atomic_replace_supported()` is false: the SDK
-declares no `ReplaceObject`. The CLI shows only "channel installation plan
-refused" without that reason. PkgManager starts with Linktext views; copying
+declares no `ReplaceObject`. Neither of the SDKs checked (official mainline
+20261105 for x86_64 and raspi, ABIv11 2026.09) declares it. The refusal now
+names that reason through the CLI and PkgManager
+(`pkg_fs_atomic_replace_unavailable`); the measurement above predates that
+change. A proposal for these systems is in
+[proposal-aros-replacement.md](proposal-aros-replacement.md). PkgManager starts with Linktext views; copying
 the release-page link put the exact 56-byte address on clipboard unit 0.
 ABIv11 was compiled, not run.
