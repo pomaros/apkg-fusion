@@ -35,7 +35,7 @@ static void ok_status(enum pkg_status got, enum pkg_status want, const char *wha
     if (got != want) {
         failures++;
         printf("  FAIL %s: got %s, want %s\n", what,
-               pkg_strstatus(got), pkg_strstatus(want));
+               pkg_container_strstatus(got), pkg_container_strstatus(want));
     }
 }
 

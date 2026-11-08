@@ -47,7 +47,7 @@ enum pkg_status {
 };
 
 /* Human-readable form of a status, for a refusal that names its reason. */
-const char *pkg_strstatus(enum pkg_status s);
+const char *pkg_container_strstatus(enum pkg_status s);
 
 /* ---- byte order ------------------------------------------------------- *
  *
