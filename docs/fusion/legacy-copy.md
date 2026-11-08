@@ -9,6 +9,10 @@ adapters remain available without a complete migration/compatibility claim.
 
 The host adapter [apkg_migrate.py](../../tools/apkg_migrate.py) prepares a separate
 copy of an arospkg root and registers its bundles through the common engine.
+It is a rehearsal that runs on a POSIX host over a root copied from AROS: it is
+written in Python and reads host file attributes. It is not a tool an AROS user
+can run, and it does not switch a running installation to the copy. How users
+migrate on AROS is still open.
 It never changes the original root, installs the new client over an existing
 client, changes global settings, or switches a live installation to the copy.
 Source records do not acquire retrospective publisher authentication.
@@ -22,25 +26,41 @@ and artifact mapping. The mapping is a JSON object with exactly these fields:
 {
   "format": "apkg-legacy-import-1",
   "legacy_root": "Work:Packages",
+  "icons": "unowned",
   "packages": [
     {"name": "map-demo", "artifact": "/absolute/path/to/signed-package"}
   ]
 }
 ```
 
-Every installed record needs one mapping. The artifact can be a signed package
+Every installed record needs one mapping. `icons` is optional. arospkg owns the
+drawer icon it installed at `<root>/<id>.info`, outside the package drawer, and
+the common engine has no owned placement there. Without `icons`, such a record
+refuses. With `"icons": "unowned"` the icon stays in place as unowned user
+state: later removal or upgrade leaves it. The receipt reports for each package
+whether the icon still has its delivered bytes or was changed. The artifact can be a signed package
 folder or a PKG/1 archive. `legacy_root` scopes original DOS history references;
 an empty label leaves those references unresolved. A recorded LHA archive hash
 is retained in its original domain, never compared as a signed-manifest digest.
 
 ```text
-python3 tools/apkg_migrate.py prepare ORIGINAL COPY mapping.json policy.json x86_64-aros-v11-native --quiescent
+python3 tools/apkg_migrate.py prepare ORIGINAL COPY mapping.json policy.json x86_64-aros-v11-native --quiescent [--legacy-env ENVARC-AROSPKG-COPY]
 python3 tools/apkg_migrate.py commit COPY --confirm MIGRATION-SHA256
 ```
 
 An optional global `--apkg PATH` selects the common executable. The operator must
 establish source quiescence; `--quiescent` records that assertion and does not
-claim to inspect global ENV/ENVARC locks or other machines. Source and destination
+claim to inspect global ENV/ENVARC locks or other machines.
+
+Preparation refuses, before copying anything, a lock owner, a transaction in
+`db/transactions`, and an unfinished replacement in `db/replace.json` (arospkg
+0.6.0 and later). Any writing command of the classic client finishes or reports
+such a replacement. arospkg keeps its self-update journal and the record of
+`apkg` copies outside the root, in `ENVARC:arospkg`. `--legacy-env` names a copy
+of that drawer: `self-update.json`, `self-update.lock` or a `.new` file there
+refuse, and `copies.json` is kept in the receipt, retained and not converted.
+Without `--legacy-env` the receipt says `not-inspected`; the adapter then has
+not checked for an interrupted self-update or recorded copies such as `C:apkg`. Source and destination
 cannot overlap. The destination must not exist.
 
 Preparation **creates the copy and initializes its explicit common policy**; it
@@ -96,7 +116,11 @@ bytes from unavailable/unresolved references.
 
 ## Profile and qualification boundaries
 
-This profile interprets schema-1 installed records with file baselines.
+This profile interprets schema-1 installed records with file baselines, as
+every arospkg line from 0.1 to 0.7.5 writes them. 0.1 records have no
+`subdir`, `revision`, `abi` or `previous`; these are reported as unrecorded.
+Later classic releases do not rewrite older records, so updating to the last
+classic release does not normalize them.
 Recorded `depends`, `conflicts`, `replaces` and `recommends` are read in
 arospkg's own syntax (`id` or `id >= dotted.version`, and recommendation
 objects) and must equal the signed artifact's recorded relation families by
@@ -111,8 +135,8 @@ common descriptor has no field for it. An unreadable or self-naming relation,
 or any difference, refuses. Recorded system requirements must equal the signed
 descriptor's by type, id and minimum version; arospkg's installation-time
 probe outcome for each stays in the retained record as history, and adoption
-does not probe again. Owned icons at shared root destinations also
-refuse. Unknown record fields refuse instead of disappearing.
+does not probe again. Owned icons at shared root destinations refuse unless the
+mapping keeps them unowned. Unknown record fields refuse instead of disappearing.
 
 Launch metadata and settings are preserved as original bytes; this adapter does
 not reconstruct launch descriptors or activate old client settings. External

@@ -55,18 +55,28 @@ class CapturedRoots(unittest.TestCase):
             rows.append(dict(name=name, artifact=str(folder)))
         return rows
 
-    def prepare(self, d, case, legacy_root):
+    def prepare(self, d, case, legacy_root, icons=None, env=None, change=None):
         base = Path(d); source = base / 'original'
         shutil.copytree(globals()['CAPTURED'] / case, source)
+        if change:
+            change(source)
         mapping = base / 'mapping.json'
         packages = self.artifacts(base, source) if (source / 'db/installed/mini.json').exists() else []
-        mapping.write_bytes(canonical(dict(format='apkg-legacy-import-1', legacy_root=legacy_root, packages=packages)))
+        rows = dict(format='apkg-legacy-import-1', legacy_root=legacy_root, packages=packages)
+        if icons:
+            rows['icons'] = icons
+        mapping.write_bytes(canonical(rows))
         seed = base / 'policy.json'; seed.write_bytes(policy())
         before = migration.inventory(source)
+        extra = ['--legacy-env', str(env)] if env else []
         result = subprocess.run([sys.executable, str(ROOT / 'tools/apkg_migrate.py'), '--apkg', str(CLI), 'prepare',
-                                 str(source), str(base / 'copy'), str(mapping), str(seed), V1, '--quiescent'],
+                                 str(source), str(base / 'copy'), str(mapping), str(seed), V1, '--quiescent', *extra],
                                 capture_output=True, text=True)
         return result, source, before, base / 'copy'
+
+    def commit(self, copy_root, approval):
+        return subprocess.run([sys.executable, str(ROOT / 'tools/apkg_migrate.py'), '--apkg', str(CLI), 'commit',
+                               str(copy_root), '--confirm', approval], capture_output=True, text=True)
 
     def test_installed_drawer_icon_is_refused_with_the_original_kept(self):
         # Every arospkg package with a drawer icon records it as an installed
@@ -106,6 +116,72 @@ class CapturedRoots(unittest.TestCase):
             self.assertEqual((source / 'mini/Mini.cfg').read_bytes(), b'user=edited by the user\n')
             self.assertEqual(migration.inventory(source), before)
 
+    def test_installed_icon_kept_unowned_by_explicit_mapping(self):
+        # The released record as written, with its installed icon that the user
+        # replaced: an explicit mapping keeps the icon as unowned user state.
+        with tempfile.TemporaryDirectory() as d:
+            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned')
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            receipt = json.loads(result.stdout)
+            mini = next(o for o in receipt['observations'] if o['name'] == 'mini')
+            self.assertEqual(mini['icon'], 'installed; changed since installation; kept as unowned user state')
+            self.assertEqual(receipt['legacy_environment'], 'not-inspected')
+            done = self.commit(copy_root, receipt['approval'])
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            state = json.loads((copy_root / '.apkg/state').read_bytes())
+            self.assertNotIn('mini.info', json.dumps(state))
+            self.assertEqual((copy_root / 'mini.info').read_bytes(), (source / 'mini.info').read_bytes())
+            self.assertEqual(migration.inventory(source), before)
+
+    def test_unknown_icon_policy_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='owned')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('invalid icon mapping policy', result.stderr)
+            self.assertFalse(copy_root.exists())
+
+    def test_unfinished_replacement_is_refused_and_preserved(self):
+        # db/replace.json as arospkg 0.6.0 and later write it before the new
+        # package of a replacement is installed (relations_io.c write_replace).
+        record = b'{ "schema":1, "new":"mini", "old":["oldmini"] }\n'
+        with tempfile.TemporaryDirectory() as d:
+            result, source, before, copy_root = self.prepare(
+                d, 'managed-upgraded', 'SYS:MigA', icons='unowned',
+                change=lambda root: (root / 'db/replace.json').write_bytes(record))
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('unfinished legacy replacement (db/replace.json) requires recovery', result.stderr)
+            self.assertEqual(migration.inventory(source), before)
+            self.assertEqual((source / 'db/replace.json').read_bytes(), record)
+            self.assertFalse(copy_root.exists())
+
+    def test_self_update_journal_in_the_environment_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = Path(d) / 'envarc-arospkg'; env.mkdir()
+            # The layout of su_journal_text in arospkg's selfup.c.
+            journal = (b'{\n  "format":1,\n  "from":"0.7.4",\n  "to":"0.7.5",\n  "root":"SYS:MigA",\n'
+                       b'  "managed_to":"",\n  "files": [\n    { "path":"C:apkg", "from":"' + b'a' * 64 +
+                       b'", "to":"' + b'b' * 64 + b'" }\n  ]\n}\n')
+            (env / 'self-update.json').write_bytes(journal)
+            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned', env=env)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('unfinished self-update (ENVARC:arospkg/self-update.json)', result.stderr)
+            self.assertEqual((env / 'self-update.json').read_bytes(), journal)
+            self.assertEqual(migration.inventory(source), before)
+            self.assertFalse(copy_root.exists())
+
+    def test_copies_record_is_retained_not_converted(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = Path(d) / 'envarc-arospkg'; env.mkdir()
+            # The layout of the copies record written by arospkg's selfup.c.
+            copies = b'{\n  "schema":1,\n  "copies": [\n    { "path":"C:apkg", "drawer":"SYS:Utilities/arospkg" }\n  ]\n}\n'
+            (env / 'copies.json').write_bytes(copies)
+            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned', env=env)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout)['legacy_environment'], 'inspected')
+            body = json.loads((copy_root / '.apkg-legacy/import.json').read_bytes())['body']
+            self.assertEqual(body['legacy_environment']['copies'], 'retained-not-converted')
+            self.assertEqual(bytes.fromhex(body['legacy_environment']['copies_record']), copies)
+
     def test_interrupted_install_is_refused_and_preserved(self):
         with tempfile.TemporaryDirectory() as d:
             result, source, before, copy_root = self.prepare(d, 'interrupted-install', 'SYS:MigB')
@@ -113,6 +189,28 @@ class CapturedRoots(unittest.TestCase):
             self.assertIn('legacy transactions require recovery', result.stdout + result.stderr)
             self.assertEqual(migration.inventory(source), before)
             self.assertFalse(copy_root.exists())
+
+
+RECORDS = ROOT / 'tests/fixtures/migration/legacy-records'
+
+
+class RecordsOfEveryLine(unittest.TestCase):
+    # Records as each arospkg release line wrote them (see the README there).
+    def test_every_line_is_read_with_unowned_icons(self):
+        paths = sorted(RECORDS.glob('*/*.json'))
+        self.assertGreaterEqual(len(paths), 9)
+        for path in paths:
+            raw = path.read_bytes(); record = migration.decode(raw)
+            evidence = migration.package_evidence(record, raw, 'unowned')
+            self.assertEqual(bytes.fromhex(evidence['body']['record']), raw, path.name)
+            if record.get('icon', {}).get('state') == 'installed':
+                with self.assertRaisesRegex(migration.Refused, 'owned root icon placement is not mapped'):
+                    migration.package_evidence(record, raw)
+
+    def test_the_0_1_line_has_no_subdir_and_is_kept_as_written(self):
+        raw = (RECORDS / 'aros/openloco-0.1-line.json').read_bytes(); record = migration.decode(raw)
+        self.assertFalse({'subdir', 'revision', 'abi', 'previous'} & set(record))
+        migration.package_evidence(record, raw)
 
 
 if __name__ == '__main__':
