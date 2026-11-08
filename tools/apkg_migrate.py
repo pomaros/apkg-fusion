@@ -8,6 +8,7 @@ not a second transaction coordinator. A partial preparation is never reused.
 """
 import argparse
 import ctypes
+import datetime
 import hashlib
 import json
 import os
@@ -273,7 +274,9 @@ def icon_observation(source, name, record):
     recorded = icon.get('sha256', '')
     change = ('delivered bytes unchanged' if current == recorded else
               'changed since installation' if SHA.fullmatch(recorded or '') else 'delivered hash unrecorded')
-    return 'installed; ' + change + '; kept as unowned user state'
+    # Kept is not managed: no later operation of the package touches it.
+    return ('installed; ' + change + '; kept as unowned user state, not managed by the package: '
+            'removing the package leaves it behind and an upgrade does not replace it')
 
 def inspect_source(source, mapping):
     rows = inventory(source)
@@ -357,24 +360,50 @@ def inspect_source(source, mapping):
     manifest = dict(body=dict(packages=packages), format='apkg-json-1', requires=[], schema='1', type='adoption-set')
     return rows, records, artifacts, observations, manifest
 
-def legacy_environment(path):
-    """arospkg keeps its self-update journal and the copies record outside the
-    root, in ENVARC:arospkg (selfup.h). The rehearsal can only inspect them
-    when the operator hands over that drawer (or a copy of it); otherwise the
-    receipt says they were not inspected."""
+ENV_MEANING = ('the state of the copy handed over, as read at inspected_at; it does not show '
+               'that no self-update runs now on the machine it came from')
+
+def legacy_drawer(path, which):
+    """One drawer of the classic client's environment, from a copy the
+    operator handed over (arospkg selfup.h, selfup_io.c, util.c). Without a
+    copy it says not-inspected."""
     if path is None:
         return dict(state='not-inspected')
-    require(path.is_dir() and not path.is_symlink(), 'legacy environment is not a physical directory')
-    for name in ('self-update.json', 'self-update.lock'):
-        require(not (path/name).exists() and not (path/name).is_symlink(),
-                'an unfinished self-update (ENVARC:arospkg/%s) requires recovery by the classic client first' % name)
-    partial = sorted(p.name for p in path.iterdir() if p.name.endswith('.new'))
-    require(not partial, 'partial self-update files require recovery: ' + ', '.join(partial))
-    copies = path/'copies.json'
-    if not copies.exists():
-        return dict(state='inspected', copies='none')
-    raw = regular_bytes(copies); decode(raw)
-    return dict(state='inspected', copies='retained-not-converted', copies_record=raw.hex())
+    require(path.is_dir() and not path.is_symlink(), 'legacy %s copy is not a physical directory' % which)
+    names = sorted(p.name for p in path.iterdir())
+    checked = dict(ENVARC=['self-update.json', '*.new', 'copies.json'],
+                   ENV=['self-update.lock', 'self-update.<nonce>', '*.new', 'self-update-result.json'])[which]
+    found = dict(state='inspected', drawer=which + ':arospkg', checked=checked,
+                 inspected_at=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+    partial = [n for n in names if n.endswith('.new')]
+    require(not partial, 'partial writes in %s:arospkg require recovery by the classic client first: %s'
+            % (which, ', '.join(partial)))
+    if which == 'ENVARC':
+        require('self-update.json' not in names,
+                'an unfinished self-update (ENVARC:arospkg/self-update.json) requires recovery by the classic client first')
+        if 'copies.json' in names:
+            raw = regular_bytes(path/'copies.json'); decode(raw)
+            found.update(copies='retained-not-converted', copies_record=raw.hex())
+        else:
+            found.update(copies='none')
+    else:
+        # The lock, and the nonce file it is taken through. ENV: is cleared
+        # by a reboot, so either one means a self-update was running, or its
+        # holder died, when the copy was taken.
+        held = [n for n in names if n.startswith('self-update.') and n != 'self-update-result.json']
+        require(not held, 'a self-update held its lock (ENV:arospkg/%s) when the copy was taken; '
+                'let it finish or restart, then capture again' % ', '.join(held))
+        found.update(unread_result='self-update-result.json' in names)
+    return found
+
+def legacy_environment(envarc, env):
+    """The self-update journal and the copies record live in ENVARC:arospkg,
+    the self-update lock in ENV:arospkg. Each is reported on its own; the
+    whole is inspected only when both copies were."""
+    parts = dict(envarc=legacy_drawer(envarc, 'ENVARC'), env=legacy_drawer(env, 'ENV'))
+    states = {parts['envarc']['state'], parts['env']['state']}
+    state = 'inspected' if states == {'inspected'} else 'not-inspected' if states == {'not-inspected'} else 'partial'
+    return dict(state=state, meaning=ENV_MEANING, **parts)
 
 def run(apkg, *args, expected=0):
     result = subprocess.run([str(apkg), *map(str,args)], capture_output=True)
@@ -445,7 +474,7 @@ def prepare(args):
     require(not destination.exists() and not destination.is_symlink(), 'destination already exists; use a fresh copy')
     mapping = decode(regular_bytes(args.mapping)); policy = regular_bytes(args.policy)
     rows, records, artifacts, observations, manifest = inspect_source(source,mapping)
-    environment = legacy_environment(getattr(args, 'legacy_env', None))
+    environment = legacy_environment(getattr(args, 'legacy_envarc', None), getattr(args, 'legacy_env', None))
     source_id = identity(source)
     copy_inventory(source,destination,rows)
     require(identity(source) == source_id and inventory(source) == rows, 'source changed during copying')
@@ -511,7 +540,8 @@ def main():
     commands = parser.add_subparsers(dest='command',required=True)
     p = commands.add_parser('prepare');p.add_argument('source',type=Path);p.add_argument('destination',type=Path)
     p.add_argument('mapping',type=Path);p.add_argument('policy',type=Path);p.add_argument('target');p.add_argument('--quiescent',action='store_true')
-    p.add_argument('--legacy-env',type=Path,help='a copy of ENVARC:arospkg, for the self-update journal and copies record')
+    p.add_argument('--legacy-envarc',type=Path,help='a copy of ENVARC:arospkg: the self-update journal and the copies record')
+    p.add_argument('--legacy-env',type=Path,help='a copy of ENV:arospkg: the self-update lock')
     p = commands.add_parser('commit');p.add_argument('destination',type=Path);p.add_argument('--confirm',required=True)
     args = parser.parse_args()
     try:

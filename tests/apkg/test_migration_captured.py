@@ -55,7 +55,7 @@ class CapturedRoots(unittest.TestCase):
             rows.append(dict(name=name, artifact=str(folder)))
         return rows
 
-    def prepare(self, d, case, legacy_root, icons=None, env=None, change=None):
+    def prepare(self, d, case, legacy_root, icons=None, envarc=None, env=None, change=None):
         base = Path(d); source = base / 'original'
         shutil.copytree(globals()['CAPTURED'] / case, source)
         if change:
@@ -68,7 +68,7 @@ class CapturedRoots(unittest.TestCase):
         mapping.write_bytes(canonical(rows))
         seed = base / 'policy.json'; seed.write_bytes(policy())
         before = migration.inventory(source)
-        extra = ['--legacy-env', str(env)] if env else []
+        extra = (['--legacy-envarc', str(envarc)] if envarc else []) + (['--legacy-env', str(env)] if env else [])
         result = subprocess.run([sys.executable, str(ROOT / 'tools/apkg_migrate.py'), '--apkg', str(CLI), 'prepare',
                                  str(source), str(base / 'copy'), str(mapping), str(seed), V1, '--quiescent', *extra],
                                 capture_output=True, text=True)
@@ -124,7 +124,9 @@ class CapturedRoots(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             receipt = json.loads(result.stdout)
             mini = next(o for o in receipt['observations'] if o['name'] == 'mini')
-            self.assertEqual(mini['icon'], 'installed; changed since installation; kept as unowned user state')
+            self.assertTrue(mini['icon'].startswith('installed; changed since installation; kept as unowned user state'))
+            self.assertIn('removing the package leaves it behind', mini['icon'])
+            self.assertIn('an upgrade does not replace it', mini['icon'])
             self.assertEqual(receipt['legacy_environment'], 'not-inspected')
             done = self.commit(copy_root, receipt['approval'])
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
@@ -162,7 +164,7 @@ class CapturedRoots(unittest.TestCase):
                        b'  "managed_to":"",\n  "files": [\n    { "path":"C:apkg", "from":"' + b'a' * 64 +
                        b'", "to":"' + b'b' * 64 + b'" }\n  ]\n}\n')
             (env / 'self-update.json').write_bytes(journal)
-            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned', env=env)
+            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned', envarc=env)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('unfinished self-update (ENVARC:arospkg/self-update.json)', result.stderr)
             self.assertEqual((env / 'self-update.json').read_bytes(), journal)
@@ -171,16 +173,58 @@ class CapturedRoots(unittest.TestCase):
 
     def test_copies_record_is_retained_not_converted(self):
         with tempfile.TemporaryDirectory() as d:
-            env = Path(d) / 'envarc-arospkg'; env.mkdir()
+            envarc = Path(d) / 'envarc-arospkg'; envarc.mkdir()
+            env = Path(d) / 'env-arospkg'; env.mkdir()
             # The layout of the copies record written by arospkg's selfup.c.
             copies = b'{\n  "schema":1,\n  "copies": [\n    { "path":"C:apkg", "drawer":"SYS:Utilities/arospkg" }\n  ]\n}\n'
-            (env / 'copies.json').write_bytes(copies)
-            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned', env=env)
+            (envarc / 'copies.json').write_bytes(copies)
+            (env / 'copies.json').write_bytes(copies)  # the courtesy copy in ENV:
+            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned',
+                                                             envarc=envarc, env=env)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(json.loads(result.stdout)['legacy_environment'], 'inspected')
-            body = json.loads((copy_root / '.apkg-legacy/import.json').read_bytes())['body']
-            self.assertEqual(body['legacy_environment']['copies'], 'retained-not-converted')
-            self.assertEqual(bytes.fromhex(body['legacy_environment']['copies_record']), copies)
+            seen = json.loads((copy_root / '.apkg-legacy/import.json').read_bytes())['body']['legacy_environment']
+            self.assertEqual(seen['envarc']['copies'], 'retained-not-converted')
+            self.assertEqual(bytes.fromhex(seen['envarc']['copies_record']), copies)
+            self.assertEqual(seen['env']['unread_result'], False)
+            self.assertIn('does not show that no self-update runs now', seen['meaning'])
+            for part in ('envarc', 'env'):
+                self.assertRegex(seen[part]['inspected_at'], r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$')
+
+    def test_self_update_lock_lives_in_env_not_envarc(self):
+        # selfup.h: the lock is ENV:arospkg/self-update.lock. An empty ENVARC
+        # copy alone does not make the environment inspected.
+        with tempfile.TemporaryDirectory() as d:
+            envarc = Path(d) / 'envarc-arospkg'; envarc.mkdir()
+            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned',
+                                                             envarc=envarc)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout)['legacy_environment'], 'partial')
+            seen = json.loads((copy_root / '.apkg-legacy/import.json').read_bytes())['body']['legacy_environment']
+            self.assertEqual((seen['envarc']['state'], seen['env']['state']), ('inspected', 'not-inspected'))
+        for held in ('self-update.lock', 'self-update.1f2e3d4c5b6a'):
+            with tempfile.TemporaryDirectory() as d:
+                envarc = Path(d) / 'envarc-arospkg'; envarc.mkdir()
+                env = Path(d) / 'env-arospkg'; env.mkdir()
+                (env / held).write_bytes(b'1f2e3d4c 1f2e3d4c5b6a\n')
+                result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned',
+                                                                 envarc=envarc, env=env)
+                self.assertNotEqual(result.returncode, 0, held)
+                self.assertIn('held its lock (ENV:arospkg/%s)' % held, result.stderr)
+                self.assertTrue((env / held).exists())
+                self.assertEqual(migration.inventory(source), before)
+                self.assertFalse(copy_root.exists())
+
+    def test_unread_self_update_result_is_recorded_not_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = Path(d) / 'env-arospkg'; env.mkdir()
+            (env / 'self-update-result.json').write_bytes(b'{ "ok":1, "changed":1, "from":"0.7.4", "to":"0.7.5", '
+                                                           b'"summary":"", "detail":"" }\n')
+            result, source, before, copy_root = self.prepare(d, 'managed-upgraded', 'SYS:MigA', icons='unowned', env=env)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout)['legacy_environment'], 'partial')
+            seen = json.loads((copy_root / '.apkg-legacy/import.json').read_bytes())['body']['legacy_environment']
+            self.assertEqual(seen['env']['unread_result'], True)
 
     def test_interrupted_install_is_refused_and_preserved(self):
         with tempfile.TemporaryDirectory() as d:

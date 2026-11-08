@@ -37,14 +37,18 @@ Every installed record needs one mapping. `icons` is optional. arospkg owns the
 drawer icon it installed at `<root>/<id>.info`, outside the package drawer, and
 the common engine has no owned placement there. Without `icons`, such a record
 refuses. With `"icons": "unowned"` the icon stays in place as unowned user
-state: later removal or upgrade leaves it. The receipt reports for each package
-whether the icon still has its delivered bytes or was changed. The artifact can be a signed package
+state. It is preserved, not managed: removing the package leaves it behind as an
+orphan in the root, and an upgrade does not replace it with the new release's
+icon. The receipt states this, and whether the icon still has its delivered
+bytes or was changed, for each package. Managing these icons needs an owned
+placement for root icons in the engine, which is a decision for both
+maintainers. The artifact can be a signed package
 folder or a PKG/1 archive. `legacy_root` scopes original DOS history references;
 an empty label leaves those references unresolved. A recorded LHA archive hash
 is retained in its original domain, never compared as a signed-manifest digest.
 
 ```text
-python3 tools/apkg_migrate.py prepare ORIGINAL COPY mapping.json policy.json x86_64-aros-v11-native --quiescent [--legacy-env ENVARC-AROSPKG-COPY]
+python3 tools/apkg_migrate.py prepare ORIGINAL COPY mapping.json policy.json x86_64-aros-v11-native --quiescent [--legacy-envarc ENVARC-AROSPKG-COPY] [--legacy-env ENV-AROSPKG-COPY]
 python3 tools/apkg_migrate.py commit COPY --confirm MIGRATION-SHA256
 ```
 
@@ -55,12 +59,26 @@ claim to inspect global ENV/ENVARC locks or other machines.
 Preparation refuses, before copying anything, a lock owner, a transaction in
 `db/transactions`, and an unfinished replacement in `db/replace.json` (arospkg
 0.6.0 and later). Any writing command of the classic client finishes or reports
-such a replacement. arospkg keeps its self-update journal and the record of
-`apkg` copies outside the root, in `ENVARC:arospkg`. `--legacy-env` names a copy
-of that drawer: `self-update.json`, `self-update.lock` or a `.new` file there
-refuse, and `copies.json` is kept in the receipt, retained and not converted.
-Without `--legacy-env` the receipt says `not-inspected`; the adapter then has
-not checked for an interrupted self-update or recorded copies such as `C:apkg`. Source and destination
+such a replacement.
+
+arospkg keeps self-update state outside the root, in two drawers. Each is
+checked only from a copy the operator hands over, and reported on its own:
+
+- `--legacy-envarc` names a copy of `ENVARC:arospkg`. `self-update.json` (the
+  self-update journal) or any `.new` file there refuses. `copies.json`, the
+  record of `apkg` copies such as `C:apkg`, is kept in the receipt, retained
+  and not converted.
+- `--legacy-env` names a copy of `ENV:arospkg`. `self-update.lock`, or the
+  `self-update.<nonce>` file the lock is taken through, refuses: an update was
+  running, or its holder died, when the copy was taken. An unread
+  `self-update-result.json` is recorded, not refused.
+
+The receipt records `inspected`, `partial` or `not-inspected`, the files
+checked in each drawer and when the copy was read. A copy shows the state when
+it was taken. It does not show that no self-update runs now; that remains the
+operator's `--quiescent` assertion. The `.new` and `.old` files a self-update
+leaves beside the programs it replaces, such as `C:apkg.new`, are outside both
+drawers and are found only through the journal. Source and destination
 cannot overlap. The destination must not exist.
 
 Preparation **creates the copy and initializes its explicit common policy**; it
