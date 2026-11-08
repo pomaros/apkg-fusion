@@ -71,3 +71,13 @@ change. A proposal for these systems is in
 [proposal-aros-replacement.md](proposal-aros-replacement.md). PkgManager starts with Linktext views; copying
 the release-page link put the exact 56-byte address on clipboard unit 0.
 ABIv11 was compiled, not run.
+
+With this branch (QEMU, mainline v1 and Pi nightly 20261105 with `dos.library`
+50.86, ABIv11 2026.09 with 50.77): the CLI's install and channel install refuse
+with "atomic file replacement is unavailable: this build's SDK declares no
+ReplaceObject"; PkgManager shows the same reason when loading the signed
+catalogue and, after `f48dc57` (checked on v1), when an install is refused.
+PkgManager starts and closes cleanly on all three, and copying a link from its
+About page puts the exact address on clipboard unit 0. No common-engine panel
+with an address could be shown, because the catalogue does not load there. The
+rest of the flow waits for the replacement decision.
