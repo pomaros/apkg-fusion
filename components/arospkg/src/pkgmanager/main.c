@@ -2309,7 +2309,8 @@ static int on_message(pm_msg *m)
             MUI_Request(app, win, 0, (STRPTR)"Package recovery required", (STRPTR)"OK",
                         (STRPTR)"The operation needs recovery. Retained evidence:\n%s", m->common_record ? m->common_record : root);
             status("Recovery required; retained package data was preserved");
-        } else status(m->common_status == APKG_OK ? "Operation completed" : m->common_status == APKG_CANCELLED ? "Operation cancelled" : "Operation refused");
+        } else status(m->common_status == APKG_OK ? "Operation completed" : m->common_status == APKG_CANCELLED ? "Operation cancelled"
+                      : m->err.summary[0] ? m->err.summary : "Operation refused");
         if (m->common_record) { FreeVec(m->common_record); m->common_record = NULL; }
         if(m->common_status==APKG_OK)refill("",NULL,"common operation complete");
         return quit_pending;
