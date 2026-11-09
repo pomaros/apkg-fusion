@@ -57,8 +57,21 @@ CLI with GCC 10.5 against the official SDK of nightly 20261105 (`--sysroot`);
 Raspberry Pi PkgManager and CLI with clang 20.1 against the official raspi
 SDK of nightly 20261105. All link without `--allow-multiple-definition`: the
 container's status text is `pkg_container_strstatus`, so no symbol is defined
-twice. The aarch64 profile (`build-apkg-aros.sh`) still passes the flag and was
-not rebuilt here.
+twice.
+
+The aarch64 profile (`tools/build-apkg-aros.sh`) no longer passes the flag.
+With `APKG_AROS_RUNTIME=native` against the official raspi SDK of nightly
+20261105 (clang 20.1), `apkg-core` and PkgManager link without it. With
+`APKG_AROS_RUNTIME=hosted` against the Macaros SDK (aros-upstream
+`6a55c079cc`, clang of that workspace) the link finds duplicate
+`__aros_libreq_DOSBase.0`, `PosixCBase.0`, `StdCBase.0` and `SysBase.0`: that
+SDK's `AROS_LIBREQ` defines them `.global` in every unit, where current mainline
+defines them `.weak`. The script links without the option first and repeats
+the link with it only when every duplicate is such a symbol and the SDK header
+is of that kind, listing them. A duplicate of our own still fails the build;
+a two-unit test program with one checked that. Pomaros (hosted Linux aarch64)
+was not built: no SDK of it is on this machine. These are builds only;
+nothing was run on Macaros.
 
 AROS (x86_64 mainline nightly 20261105 in QEMU, `dos.library` 50.86): the
 common CLI initializes a root and reads the signed channel; every installation
