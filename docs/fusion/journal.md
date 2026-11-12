@@ -40,7 +40,7 @@ Only relative validated package paths and the exact bound root can be mutated.
 | Ready | Recheck before any managed payload publication | Without decision: preserve original state, remove only verified owned staging/publication |
 | Install apply | Rename staged tree to absent package directory without overwrite | Without decision, restore by removing only the exact recorded tree if all bytes/entries still match; foreign changes require manual recovery |
 | Decision | Create/flush decision marker, flush journal | Every subsequent recovery rolls forward; cancellation is deferred |
-| State publication | Atomically replace state after comparing old/new identity; initialize publishes staged metadata/root without overwriting | Accept already-published exact new state, otherwise finish from retained bytes; different state is unresolved |
+| State publication | Replace state ([atomically or through its aside](#replacement-without-replaceobject)); initialize publishes staged metadata/root without overwriting | Accept already-published exact new state, or old state held aside, otherwise finish from retained bytes; remove a leftover aside; different state is unresolved |
 | Completion | Flush affected directories, retain accurate result, atomically archive journal, flush parent | Cleanup interrupted: repeat verification/archive; never apply twice |
 
 A normal preparation failure removes only its own physically bound draft and
@@ -80,6 +80,32 @@ process-death behavior only. Power-loss/DOS-handler claims require independent
 runtime evidence; fsync/flush and atomic-replace capabilities must succeed or
 mutation reports failure. Cross-volume participants remain unsupported until
 SELF-UPDATE supplies a reviewed activation/recovery protocol.
+
+## Replacement without ReplaceObject
+
+`ReplaceObject` replaces a regular file atomically. It exists from dos.library
+50.84, and a handler must implement `ACTION_REPLACE_OBJECT`; SFS and FFS answer
+`ERROR_ACTION_NOT_KNOWN` (a handler lacking the optional group that carries it answers `ERROR_NOT_IMPLEMENTED`, treated the same). On every other system a replacement takes three steps:
+
+1. the current file moves to its aside name, `.pkgold` and the FNV-1a hash of
+   its name in the same directory (short enough for FFS's 30 characters);
+2. the new file takes the name;
+3. the aside goes.
+
+Nothing is deleted before the new file is in place, and only regular files are
+replaced or set aside. While the file itself is missing, its last complete
+contents are under the aside name: `pkg_fs_read` returns them, so a source
+profile reader sees the old or the new profile. With the file present, an aside
+is the leftover of an interruption after step 2, and the next replacement
+removes it.
+
+State is published only after the commit decision, with the whole new state in
+the journal. Recovery accepts a state that is missing while its aside holds the
+expected bytes, republishes, and removes a leftover aside before archiving the
+journal. A root with an unfinished replacement therefore reads as pending, never
+as damaged. The host model forces this path (`pkg_fs_test_replace`, or
+`APKG_TEST_REPLACE_ASIDE` for a whole suite) and stops the process after each
+step.
 
 Design review: intent precedes publication; init can be journalled before root
 creation; no-overwrite directory publication protects foreign directories;

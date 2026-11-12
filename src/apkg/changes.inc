@@ -171,9 +171,9 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
     if (decision < 0 || ak_fault(6))
         goto done;
     if (decision) {
-        if (exact_file(state, old, on) && exact_file(state, next, nn))
+        if (exact_state(state, old, on) && exact_state(state, next, nn))
             goto done;
-    } else if (exact_file(state, old, on))
+    } else if (exact_state(state, old, on))
         goto done;
     /* First validate every participant before recovery touches any of them. */
     for (i = (size_t)arr + 1; i < plan->tokens[arr].next;
@@ -245,8 +245,9 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
             if (ak_fault(106))
                 goto done;
         }
-    } else if (exact_file(state, next, nn) &&
-               state_publish(state, txn, change_limit(c)))
+    } else if ((exact_state(state, next, nn) &&
+                state_publish(state, txn, change_limit(c))) ||
+               aside_clear(state))
         goto done;
     if (ak_sync_dir(c->root) || ak_fault(7))
         goto done;

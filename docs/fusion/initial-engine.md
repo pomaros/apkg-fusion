@@ -150,11 +150,11 @@ allocated before its worker starts. Process-death tests are not power-loss tests
 Uncooperative filesystem writers remain a platform/concurrency boundary; these
 checks do not claim to freeze arbitrary external processes' file handles.
 
-Atomic existing-state replacement is a required capability. AROS needs both an
-SDK exposing `ReplaceObject` and dos.library >= 50.84. Unsupported SDK/runtime
-combinations refuse the signed install plan before publication. Handler flush
-and file/directory sync errors are reported; no delete-then-rename fallback is
-used. [Single-root self-update](journal.md#single-root-self-update) now uses the
+Existing-state replacement uses `ReplaceObject` where dos.library is 50.84 or
+later and the handler implements it. Elsewhere it uses the recoverable
+[aside replacement](journal.md#replacement-without-replaceobject), so the engine
+runs on mainline AROS and AROS One. Handler flush and file/directory sync errors
+are reported; nothing is ever deleted before its replacement is in place. [Single-root self-update](journal.md#single-root-self-update) now uses the
 common journal; multi-root participants and historical journal migration remain
 separate, and unsupported cases refuse.
 

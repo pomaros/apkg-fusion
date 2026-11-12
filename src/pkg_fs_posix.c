@@ -14,6 +14,7 @@
 #endif
 
 #include "pkg_fs.h"
+#include "pkg_fs_aside.h"
 #include "pkg.h"
 
 #include <ctype.h>
@@ -41,42 +42,127 @@
 #include <dos/dos.h>
 #endif
 
-/* Atomic regular-file publication. Unsupported AROS handlers fail with the
- * destination intact; deleting it would violate the operation's contract. */
+/* Regular-file replacement. Where DOS offers ReplaceObject and the handler
+ * implements it, the replacement is atomic. Elsewhere (DOS before 50.84,
+ * an SDK without it, or a handler answering ERROR_ACTION_NOT_KNOWN, such as
+ * SFS or FFS, or ERROR_NOT_IMPLEMENTED) the previous contents first move to
+ * a deterministic aside name, then the new file takes the name, then the
+ * aside goes. An interruption
+ * leaves the old contents under the aside name: pkg_fs_read and the common
+ * engine's recovery read them there, and the next replacement finishes the
+ * cleanup. Every reader therefore sees the old or the new contents. */
 int pkg_fs_atomic_replace_supported(void)
 {
-#ifdef __AROS__
-#ifdef ReplaceObject
-    const struct Library *dos = (const struct Library *)__aros_getbase_DOSBase();
-    return dos && (dos->lib_Version > 50 || (dos->lib_Version == 50 && dos->lib_Revision >= 84));
-#else
-    return 0; /* This SDK cannot express the required DOS operation. */
-#endif
-#else
     return 1;
+}
+
+#ifdef APKG_TESTING
+/* Host model of a DOS without ReplaceObject: force the aside path and stop
+ * the process after a numbered step (1: old contents set aside, 2: new file
+ * in place, aside still present). */
+static int test_aside, test_crash;
+void pkg_fs_test_replace(int force_aside, int crash_after)
+{
+    test_aside = force_aside;
+    test_crash = crash_after;
+}
+#define ASIDE_STEP(n) do { if (test_crash == (n)) _exit(99); } while (0)
+#else
+#define ASIDE_STEP(n) do { } while (0)
+#endif
+
+#if defined(__AROS__) || defined(APKG_TESTING)
+static int plain_rename(const char *from, const char *to)
+{
+#ifdef __AROS__
+    if (Rename((CONST_STRPTR)from, (CONST_STRPTR)to))
+        return 0;
+    errno = IoErr() == ERROR_OBJECT_EXISTS ? EEXIST : EIO;
+    return -1;
+#else
+    return rename(from, to);
 #endif
 }
+
+static int replace_by_aside(const char *from, const char *to)
+{
+    size_t size = strlen(to) + 24u;
+    char *aside = (char *)malloc(size);
+    struct stat st;
+    int have_to, have_aside;
+    if (aside == NULL)
+        return -1;
+    if (pkg_fs_aside_name(to, aside, size) != 0) {
+        free(aside);
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    /* Only regular files are replaced, and only a regular file is ever an
+     * aside: a directory or link under either name refuses untouched. */
+    have_to = lstat(to, &st) == 0;
+    if (!have_to && errno != ENOENT) { free(aside); return -1; }
+    if (have_to && !S_ISREG(st.st_mode)) { free(aside); errno = EEXIST; return -1; }
+    have_aside = lstat(aside, &st) == 0;
+    if (!have_aside && errno != ENOENT) { free(aside); return -1; }
+    if (have_aside && !S_ISREG(st.st_mode)) { free(aside); errno = EEXIST; return -1; }
+    if (have_to) {
+        /* With the file in place, an aside is what an interrupted earlier
+         * replacement left after finishing: it is stale. Without the file,
+         * the aside holds the last complete contents and stays until the
+         * new file is in place. */
+        if (have_aside && unlink(aside) != 0) { free(aside); return -1; }
+        if (plain_rename(to, aside) != 0) { free(aside); return -1; }
+        ASIDE_STEP(1);
+    }
+    if (plain_rename(from, to) != 0) {
+        int saved = errno;
+        if (have_to)
+            (void)plain_rename(aside, to); /* best effort; readers use the aside */
+        free(aside);
+        errno = saved;
+        return -1;
+    }
+    ASIDE_STEP(2);
+    if ((have_to || have_aside) && unlink(aside) != 0 && errno != ENOENT) {
+        free(aside);
+        return -1;
+    }
+    free(aside);
+    return 0;
+}
+
+#endif
 
 static int replace_file(const char *from, const char *to)
 {
 #ifdef __AROS__
     const struct Library *dos = (const struct Library *)__aros_getbase_DOSBase();
-    if (dos == NULL || dos->lib_Version < 50 ||
-        (dos->lib_Version == 50 && dos->lib_Revision < 84)) {
-        errno = ENOTSUP;
-        return -1;
-    }
 #ifdef ReplaceObject
-    if (ReplaceObject((CONST_STRPTR)from, (CONST_STRPTR)to))
-        return 0;
+    if (dos != NULL && (dos->lib_Version > 50 ||
+                        (dos->lib_Version == 50 && dos->lib_Revision >= 84))) {
+        if (ReplaceObject((CONST_STRPTR)from, (CONST_STRPTR)to))
+            return 0;
+        {
+            /* A handler without the packet, or one built without the
+             * optional interface group it belongs to, leaves the file as it
+             * was; every other failure is a real refusal. */
+            LONG why = IoErr();
+            if (why != ERROR_ACTION_NOT_KNOWN && why != ERROR_NOT_IMPLEMENTED) {
+                errno = EIO;
+                return -1;
+            }
+        }
+    }
 #else
-    (void)from; (void)to;
-    errno = ENOTSUP;
-    return -1;
+    (void)dos;
 #endif
-    errno = EIO;
-    return -1;
+    return replace_by_aside(from, to);
 #else
+#ifdef APKG_TESTING
+    /* APKG_TEST_REPLACE_ASIDE runs a whole suite as a DOS without it. */
+    if (test_aside || getenv("APKG_TEST_REPLACE_ASIDE"))
+        return replace_by_aside(from, to);
+#endif
     return rename(from, to);
 #endif
 }
@@ -105,12 +191,25 @@ char *pkg_join(const char *a, const char *b)
 }
 
 
+int pkg_fs_replace(const char *from, const char *to)
+{
+    return replace_file(from, to);
+}
+
 int pkg_fs_read(const char *path, unsigned char **buf, size_t *len)
 {
     FILE *f = fopen(path, "rb");
     unsigned char *p = NULL;
     size_t cap = 0, n = 0;
 
+    if (f == NULL && errno == ENOENT) {
+        /* An interrupted replacement left the last complete contents aside. */
+        char aside[4096];
+        if (pkg_fs_aside_name(path, aside, sizeof aside) == 0)
+            f = fopen(aside, "rb");
+        if (f == NULL)
+            errno = ENOENT;
+    }
     if (f == NULL)
         return -1;
     for (;;) {

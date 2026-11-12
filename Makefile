@@ -35,7 +35,7 @@ build/apkg: build/apkg-core
 test-contract:
 	python3 tests/contracts/check.py
 
-test-fusion: test-contract test-apkg build/apkg build/apkg-provisional build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
+test-fusion: test-contract test-apkg test-apkg-aside build/apkg build/apkg-provisional build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
 	python3 tests/test_http_fixture.py
 	./build/test_target
 	./build/test_application
@@ -400,6 +400,11 @@ test-apkg: build/test_preparation_memory build/test_channel_memory build/libapkg
 	./build/test_pm_rexx
 	./build/test_pm_dispatch
 	python3 -m unittest discover -s tests/apkg -v
+
+# The same suite on a modelled DOS without ReplaceObject.
+.PHONY: test-apkg-aside
+test-apkg-aside: test-apkg
+	APKG_TEST_REPLACE_ASIDE=1 python3 -m unittest discover -s tests/apkg
 
 build/test_pm_dispatch: tests/apkg/test_pm_dispatch.c components/arospkg/src/pkgmanager/worker.c components/arospkg/src/pkgmanager/job.h components/arospkg/src/pkgmanager/common_catalogue.h components/arospkg/src/pkgmanager/rexxcmd.h include/apkg.h include/apkg_client.h $(wildcard tests/pm_stubs/proto/*.h tests/pm_stubs/exec/*.h tests/pm_stubs/dos/*.h)
 	@mkdir -p build

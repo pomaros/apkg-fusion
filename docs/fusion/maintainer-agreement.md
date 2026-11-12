@@ -32,8 +32,10 @@ identified in the examined public sources. Neither distribution's installed
 dos.library version/revision is established by those sources. MAP records these
 as unverified fields and collects them when evidence becomes available.
 
-The pkg backend requires DOS 50.84 for its `ReplaceObject` path. A target's CPU
-and ABI do not prove that requirement is met. Compatibility and recovery tests
+`ReplaceObject` (DOS 50.84) makes a replacement atomic; without it the
+[aside replacement](journal.md#replacement-without-replaceobject) keeps every
+reader on the old or the new contents. A target's CPU and ABI say nothing about
+which path its DOS and handlers take. Compatibility and recovery tests
 must exercise the actual distribution/handler combination before claiming its
 support; development of the common contracts can proceed meanwhile.
 

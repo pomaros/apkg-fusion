@@ -13,9 +13,17 @@
 #include <stddef.h>
 
 /* Return 0, or -1 with errno set. */
-/* Read-only preflight for atomic replacement of an existing state file. */
+/* Read-only preflight for replacing an existing state file: atomic where the
+ * system can, otherwise through the recoverable aside name of pkg_fs_aside.h.
+ * pkg_fs_read returns the aside's contents while the file itself is missing. */
 int pkg_fs_atomic_replace_supported(void);
+#ifdef APKG_TESTING
+void pkg_fs_test_replace(int force_aside, int crash_after);
+#endif
 int  pkg_fs_read(const char *path, unsigned char **buf, size_t *len);
+/* Replace the regular file `to` with `from` on the same volume: atomic where
+ * the system can, otherwise through the aside name (see above). */
+int  pkg_fs_replace(const char *from, const char *to);
 int  pkg_fs_write_atomic(const char *path, const void *buf, size_t len);
 /* Writes a file straight under its name, parents made: for a directory only
  * Pkg reads (staging), where no temporary name and rename are needed. */

@@ -2132,6 +2132,19 @@ to the signed one and refuse a different minimum, an undeclared signed
 requirement and unreadable records. The probe verdicts on AROS are exercised
 only by the M1 rehearsal.
 
+## Replacement without ReplaceObject
+
+The engine refused every install where DOS lacks `ReplaceObject`, which is every
+system apkg users run: it exists only in the PomAROS core (dos 50.88), not in
+mainline or AROS One. The [aside replacement](journal.md#replacement-without-replaceobject)
+removes that refusal. Five host model cases cover install, upgrade and removal
+leaving no aside, interruption after each step of an install's and an
+upgrade's state publication reading as pending and recovering to the new state
+without a leftover, and a profile reader seeing the old or the new contents
+with the next write cleaning up. The whole engine suite also runs with the
+fallback forced (`make test-apkg-aside`). The AROS build type-checks with and
+without `ReplaceObject`; it has not run on mainline or AROS One yet.
+
 ## Clean-workspace alpha scenario
 
 [`tests/apkg/test_alpha.py`](../../tests/apkg/test_alpha.py) runs the alpha's

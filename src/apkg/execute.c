@@ -4,6 +4,7 @@
 #define _DARWIN_C_SOURCE
 #include "internal.h"
 #include "pkg_fs.h"
+#include "pkg_fs_aside.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -464,24 +465,10 @@ static int state_publish(const char *state, const char *txn, size_t max) {
     free(bytes);
     if (r)
         return -1;
-#ifdef __AROS__
-    {
-        struct pkg_fs_id id;
-        unsigned char *data = NULL;
-        size_t len;
-        if (pkg_fs_identity(state, &id) || ak_read(next, &data, &len, AK_MAX))
-            return -1;
-        r = pkg_fs_replace_if_same(state, &id, data, len);
-        free(data);
-        if (r)
-            return -1;
-        if (unlink(next))
-            return -1;
-    }
-#else
-    if (rename(next, state))
+    /* Atomic where DOS can; otherwise the old state waits under its aside
+     * name, which exact_state below accepts, until this republication. */
+    if (pkg_fs_replace(next, state))
         return -1;
-#endif
     return ak_sync_dir(meta);
 }
 static int exact_file(const char *path, const unsigned char *expected,
@@ -494,6 +481,31 @@ static int exact_file(const char *path, const unsigned char *expected,
     r = len == n && !memcmp(bytes, expected, n) ? 0 : -1;
     free(bytes);
     return r;
+}
+/* The state file holds `expected`, or it is missing while an interrupted
+ * replacement keeps `expected` under its aside name. */
+static int exact_state(const char *state, const unsigned char *expected,
+                       size_t n) {
+    char aside[AK_PATH + 24];
+    if (!exact_file(state, expected, n))
+        return 0;
+    if (ak_exists(state) != 0 || pkg_fs_aside_name(state, aside, sizeof aside))
+        return -1;
+    return exact_file(aside, expected, n);
+}
+/* With the state file in place, an aside is the leftover of a replacement
+ * interrupted after its second step: it goes before the journal does. */
+static int aside_clear(const char *state) {
+    char aside[AK_PATH + 24], meta[AK_PATH];
+    int present;
+    if (ak_exists(state) != 1 || pkg_fs_aside_name(state, aside, sizeof aside))
+        return -1;
+    present = ak_exists(aside);
+    if (present <= 0)
+        return present;
+    strcpy(meta, state);
+    *strrchr(meta, '/') = 0;
+    return unlink(aside) || ak_sync_dir(meta) ? -1 : 0;
 }
 static void result_set(apkg_result *r, apkg_status code, apkg_outcome outcome) {
     r->view.status = code;
@@ -638,7 +650,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             if (ak_exists(meta) != 0)
                 goto done; /* nothing managed was published before init decision
                             */
-        } else if (exact_file(state, newstate, nn) ==
+        } else if (exact_state(state, newstate, nn) ==
                    0) { /* already committed */
         } else if (root_was_absent) {
             /* Whatever stands at the root now was created by someone else
@@ -689,7 +701,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
             ak_path(live, c->root, name))
             goto done;
         if (!decision) {
-            if (exact_file(state, oldstate, on))
+            if (exact_state(state, oldstate, on))
                 goto done;
             int present = ak_exists(live);
             if (present < 0)
@@ -706,14 +718,16 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         } else {
             if (tree_identity(txn, live, 0) || verify_tree(live, &descriptor))
                 goto done;
-            if (exact_file(state, newstate, nn)) {
-                if (exact_file(state, oldstate, on) ||
+            if (exact_state(state, newstate, nn)) {
+                if (exact_state(state, oldstate, on) ||
                     state_publish(state, txn,
                                   c->object_max < c->memory_max / 32
                                       ? c->object_max
                                       : c->memory_max / 32))
                     goto done;
             }
+            if (aside_clear(state))
+                goto done;
         }
     }
     {

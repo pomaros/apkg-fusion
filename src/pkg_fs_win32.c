@@ -402,6 +402,12 @@ int pkg_fs_rename(const char *from, const char *to)
     return ok ? 0 : -1;
 }
 
+/* MoveFileEx replaces atomically on NTFS; no aside name is involved. */
+int pkg_fs_replace(const char *from, const char *to)
+{
+    return pkg_fs_rename(from, to);
+}
+
 int pkg_fs_unlink(const char *path)
 {
     wchar_t *w = wide(path);
