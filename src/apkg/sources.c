@@ -444,7 +444,7 @@ apkg_status apkg_client_source_install(const char *root, const char *name,
     char *text = NULL;
     size_t count = 0, best_k = 0;
     const apkg_channel_entry_view *best = NULL;
-    int current = 0;
+    int current = 0, other_target = 0;
     apkg_status code;
     if (e)
         *e = NULL;
@@ -480,6 +480,8 @@ apkg_status apkg_client_source_install(const char *root, const char *name,
                 continue;
             if (state.state == APKG_CANDIDATE_CURRENT)
                 current = 1;
+            if (row->author_trust == APKG_TRUST_ACCEPTED && !row->target_matches)
+                other_target = 1;
             if ((state.state != APKG_CANDIDATE_NOT_INSTALLED &&
                  state.state != APKG_CANDIDATE_NEWER) ||
                 row->author_trust != APKG_TRUST_ACCEPTED || !row->target_matches)
@@ -538,7 +540,11 @@ apkg_status apkg_client_source_install(const char *root, const char *name,
                 r->view.outcome = APKG_UNCHANGED;
                 *out = r;
             }
-        } else
+        } else if (other_target)
+            code = ak_fail(e, APKG_TARGET,
+                           "the listed sources have this package built only "
+                           "for another system", name);
+        else
             code = ak_fail(e, APKG_NOT_FOUND,
                            "no listed source offers a trusted candidate", name);
     }

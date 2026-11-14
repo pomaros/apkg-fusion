@@ -223,9 +223,10 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
             int oldtok = ak_member(plan, (int)i, "before");
             int was_absent = plan->tokens[oldtok].type == 'n';
             ak_string(plan, ak_member(plan, (int)i, "name"), name, sizeof name);
-            ak_path(live, c->root, name);
-            change_path(backup, txn, "old", index);
-            change_path(restored, txn, "restored", index);
+            if (ak_path(live, c->root, name) ||
+                change_path(backup, txn, "old", index) ||
+                change_path(restored, txn, "restored", index))
+                goto done;
             int held_old = ak_exists(backup), present = ak_exists(live);
             if (held_old < 0 || present < 0)
                 goto done;

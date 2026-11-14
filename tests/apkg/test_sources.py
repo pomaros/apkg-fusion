@@ -35,12 +35,13 @@ def confirmed(*args):
 def body(root): return json.loads((root / '.apkg/state').read_bytes())['body']
 
 class Sources:
-    def __init__(self, d, second_author=False):
+    def __init__(self, d, second_author=False, target=None):
         self.d = d; key_fixture(d / 'author-key'); channel_key(d / 'channel-key')
         (d / 'author2-key').write_text('Pkg-Secret-Key: 1\nSeed: ' + (bytes([3]) * 32).hex() + '\nPublic: ' + PK2.hex() + '\n')
         (d / 'author2-key').chmod(0o600)
         self.main = d / 'main'; self.extra = d / 'extra'; self.n = 0
-        self.root = d / 'root'; state(self.root, policy=policy_two(second_author))
+        self.root = d / 'root'
+        state(self.root, policy=policy_two(second_author), **(dict(target=target) if target else {}))
     def offer(self, where, name, version, data, depends=None, author=None):
         self.n += 1; folder = self.d / ('src%d' % self.n); folder.mkdir()
         source = folder / 'Drawer'; author_fixture(source, name=name, version=version, depends=depends or [])
@@ -85,6 +86,19 @@ class RootSources(unittest.TestCase):
             self.assertEqual([h['id'] for h in body(s.root)['channel_heads']], [OTHER])
             again = confirmed('source-install', s.root, 'client'); self.assertEqual(again.returncode, 0)
             self.assertIn('outcome=0', again.stdout)
+
+    def test_name_offered_only_for_another_system_is_refused_as_such(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = Sources(Path(d), target='i386-aros-v0-native'); s.offer(s.main, 'client', '1.2', b'old')
+            s.offer(s.extra, 'client', '2.0', b'new'); s.add_both(self)
+            before = (s.root / '.apkg/state').read_bytes()
+            result = cli('source-install', s.root, 'client')
+            self.assertEqual(result.returncode, 13, result.stdout + result.stderr)
+            self.assertIn('built only for another system', result.stderr)
+            missing = cli('source-install', s.root, 'absent')
+            self.assertEqual(missing.returncode, 5, missing.stdout + missing.stderr)
+            self.assertEqual((s.root / '.apkg/state').read_bytes(), before)
+            self.assertFalse((s.root / 'client').exists())
 
     def test_pkgmanager_worker_installs_by_name_from_the_source_list(self):
         with tempfile.TemporaryDirectory() as d:
