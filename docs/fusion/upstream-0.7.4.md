@@ -77,10 +77,9 @@ AROS (x86_64 mainline nightly 20261105 in QEMU, `dos.library` 50.86): the
 common CLI initializes a root and reads the signed channel; every installation
 plan is refused, because `pkg_fs_atomic_replace_supported()` is false: the SDK
 declares no `ReplaceObject`. Neither of the SDKs checked (official mainline
-20261105 for x86_64 and raspi, ABIv11 2026.09) declares it. The refusal now
-names that reason through the CLI and PkgManager
-(`pkg_fs_atomic_replace_unavailable`); the measurement above predates that
-change. A proposal for these systems is in
+20261105 for x86_64 and raspi, ABIv11 2026.09) declares it. Since `1de2818` the engine
+replaces through the aside name instead of refusing; see "After the aside
+path" below. A proposal for these systems is in
 [proposal-aros-replacement.md](proposal-aros-replacement.md). PkgManager starts with Linktext views; copying
 the release-page link put the exact 56-byte address on clipboard unit 0.
 ABIv11 was compiled, not run.
@@ -94,3 +93,44 @@ PkgManager starts and closes cleanly on all three, and copying a link from its
 About page puts the exact address on clipboard unit 0. No common-engine panel
 with an address could be shown, because the catalogue does not load there. The
 rest of the flow waits for the replacement decision.
+
+## After the aside path (2026-11-14)
+
+The branch was moved onto `1de2818` ("Replace state and profiles without
+ReplaceObject"). The commit that named the refusal reason was dropped: the
+engine no longer refuses.
+
+The first run on mainline (x86_64 nightly 20261110, `dos.library` 50.89) got
+past planning and stopped in preparation with `APKG_IO`. A staged file was
+flushed with `fsync()` on a descriptor opened for reading, which the mainline C
+library fails with `EBADF` (the fix is proposed upstream in AROS PR 2152, not
+merged). `ak_sync_file()` now asks the file's handler to flush on AROS, as
+`ak_sync_dir()` does.
+
+With that, the isolated rehearsal (`tests/aros/prepare_rehearsal.py`, 25 steps,
+checked by `verify_rehearsal.py`) passes on all three systems, one boot each in
+QEMU, everything in `RAM:`, replacement through the aside path:
+
+| System | `dos.library` | Result |
+|---|---|---|
+| mainline x86_64 nightly 20261110 | 50.89 | PASS, 25 steps |
+| ABIv11 2026.09 | 50.77 | PASS, 25 steps |
+| Raspberry Pi nightly 20261110, non-SMP | 50.89 | PASS, 25 steps |
+
+The steps cover root initialization, a signed channel install, refusal of a
+tampered archive, upgrade, verification, removal with the edited configuration
+kept, and the install through the GUI root. Not covered: a disk filesystem (SFS,
+FFS, FAT), interruption between the aside steps on a real system, and a held
+drawer.
+
+All three CLIs link without `--allow-multiple-definition`. The ABIv11 build
+reports one implicit declaration, `alloca` in the SDK's own
+`clib/alib_protos.h`; none comes from this repository.
+
+PomAROS SDK `sdk-aarch64-9b25c24`: `tools/build-apkg-aros.sh` now finds the
+posixc headers of a published SDK (under `AROS/Developer/include`, without
+`gen/`). The CLI compiles and links against it, with `ReplaceObject` declared.
+The SDK's own `collect-aros` could not be used: it carries the absolute paths of
+the machine that built it (`ld.lld`, `llvm-nm`, the library directory), so the
+link used a locally built `collect-aros`. Nothing was run: no system of core
+`9b25c24` is available here.

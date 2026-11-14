@@ -25,6 +25,13 @@ ar=$APKG_AROS_TOOLS/bin/llvm-ar
 out=${APKG_AROS_OUT:-$repo/build/aros-common/$target-$abi-$runtime}
 # collect-aros lives in the SDK's tools, or beside a native build's host tools.
 export COMPILER_PATH="${APKG_AROS_HOST_TOOLS:-$sdk/tools}:$APKG_AROS_TOOLS/bin"
+# A build tree keeps generated headers and posixc under gen/; a published SDK
+# (PomAROS-SDK-aarch64) has posixc under AROS/Developer/include and no gen/.
+if [ -d "$sdk/gen/include" ]; then
+    gen_include="-isystem $sdk/gen/include"; posixc=$sdk/gen/include/aros/posixc
+else
+    gen_include=; posixc=$dev/include/aros/posixc
+fi
 for need in "$cc" "$ar" "$dev/lib/startup.o"; do [ -e "$need" ] || { echo "missing $need" >&2; exit 2; }; done
 mkdir -p "$out"
 cd "$repo"
@@ -68,7 +75,7 @@ link_checked() {
     return 1
 }
 # shellcheck disable=SC2086
-set -- "--target=$target" "-DPKG_ABI=\"$abi\"" "-DPKG_RUNTIME=\"$runtime\"" "-DPKG_BUILD_ID=\"$build_id\"" -mcmodel=large $runtime_flags -O2 -std=gnu11 -DPKG_FS_LOCAL_ONLY -isystem "$dev/include" -isystem "$sdk/gen/include" -isystem "$sdk/gen/include/aros/posixc" -isystem "$dev/include/aros/stdc" -Iinclude -Isrc/apkg
+set -- "--target=$target" "-DPKG_ABI=\"$abi\"" "-DPKG_RUNTIME=\"$runtime\"" "-DPKG_BUILD_ID=\"$build_id\"" -mcmodel=large $runtime_flags -O2 -std=gnu11 -DPKG_FS_LOCAL_ONLY -isystem "$dev/include" $gen_include -isystem "$posixc" -isystem "$dev/include/aros/stdc" -Iinclude -Isrc/apkg
 sources=$(make -s print-apkg-sources)
 # The source list consists of repository-owned relative paths without spaces.
 # shellcheck disable=SC2086
