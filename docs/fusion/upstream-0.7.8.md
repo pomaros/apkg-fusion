@@ -46,10 +46,18 @@ behaviour was compared with `src/apkg` by reading the code.
 arospkg 0.7.7 keeps the package drawer and moves its children, because on AROS
 a lock on the drawer follows the object, not the name. A Shell path, an assign
 added by a package startup script, or the `PROGDIR:` of a running program
-points to the old tree after the common engine's update, that is into the
-transaction and later the history archive, until the next boot or until the
-assign is made again. This is read from the code; it has not been observed on
-AROS with the common engine. Keeping the drawer changes how a tree is staged
+points to the old tree after the common engine's update.
+
+Observed on mainline x86_64 (nightly 20261113 runtime, `dos.library` 50.89,
+`RAM:`, 2026-11-15): with `Assign HOLDDRW: <root>/trial/Drawer` and
+`Assign HOLDPKG: <root>/trial` in place, `upgrade trial` from 1.2 to 2.0
+returns 0 and the live tree is correct, with the changed file, the user's
+drawer and the empty drawer preserved. Both assigns then name
+`<root>.apkg-history.<id>/old-0` and `.../old-0/Drawer` and list the 1.2
+files. `remove` afterwards also returns 0; the assigns still name the history
+tree. Nothing is reported to the user in either case.
+
+Keeping the drawer changes how a tree is staged
 and restored, which belongs to the write and recovery contract, so it is
 recorded here and not changed on this branch. A report that the drawer is in
 use could be added where the live tree is renamed away.
@@ -59,5 +67,5 @@ use could be added where the live tree is renamed away.
 Host: `make test-fusion` passes with and without `ReplaceObject` (438 tests
 each); the inherited arospkg host suite passes. The common-engine CLI builds
 for mainline x86_64 (SDK of nightly 20261110), ABIv11 (2026.09) and the
-Raspberry Pi (nightly 20261110). Nothing of this branch was run on AROS; the
-AROS runs of the base branch are in [upstream-0.7.4](upstream-0.7.4.md).
+Raspberry Pi (nightly 20261110). The held-drawer observation above is the only AROS run of this branch; the
+rehearsal runs of the base branch are in [upstream-0.7.4](upstream-0.7.4.md).
