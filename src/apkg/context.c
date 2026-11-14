@@ -210,6 +210,23 @@ int ak_write(const char *p, const void *v, size_t n, int exclusive) {
     }
     return close(fd);
 }
+/* Write a finished file's bytes and attributes back before it is published.
+ * On AROS this asks the file's handler to flush: fsync() of a descriptor
+ * opened for reading fails with EBADF in the mainline C library (through
+ * nightly 20261110), which refused every installation there. */
+int ak_sync_file(const char *p) {
+#ifdef __AROS__
+    return pkg_fs_flush_root(p) ? 0 : -1;
+#else
+    int fd = open(p, O_RDONLY), r;
+    if (fd < 0)
+        return -1;
+    r = fsync(fd);
+    if (close(fd))
+        r = -1;
+    return r;
+#endif
+}
 int ak_sync_dir(const char *p) {
 #ifdef __AROS__
     return pkg_fs_flush_root(p) ? 0 : -1;

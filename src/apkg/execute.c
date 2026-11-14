@@ -263,12 +263,7 @@ static int stage_package(apkg_ctx *c, const char *tree, const ak_json *j,
             if (chmod(path, (mode_t)mode) ||
                 stage_attributes(path, j, (int)i, mode))
                 return -1;
-            int fd = open(path, O_RDONLY);
-            if (fd < 0)
-                return -1;
-            int flushed = fsync(fd);
-            int closed = close(fd);
-            if (flushed || closed)
+            if (ak_sync_file(path))
                 return -1;
             continue;
         }
@@ -290,16 +285,8 @@ static int stage_package(apkg_ctx *c, const char *tree, const ak_json *j,
         free(hex);
         free(bytes);
         /* chmod metadata and file bytes must be flushed before publication. */
-        {
-            int fd = open(path, O_RDONLY);
-            if (fd < 0)
-                return -1;
-            if (fsync(fd)) {
-                close(fd);
-                return -1;
-            }
-            close(fd);
-        }
+        if (ak_sync_file(path))
+            return -1;
     }
     return ak_sync_dir(tree);
 }

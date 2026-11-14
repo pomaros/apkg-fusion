@@ -133,6 +133,7 @@ char *ak_copy(const void *, size_t);
 int ak_path(char *, const char *, const char *);
 int ak_read(const char *, unsigned char **, size_t *, size_t);
 int ak_write(const char *, const void *, size_t, int);
+int ak_sync_file(const char *);
 int ak_sync_dir(const char *);
 int ak_remove_tree(const char *);
 int ak_parent(const char *, char *);
