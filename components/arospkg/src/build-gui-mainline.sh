@@ -30,9 +30,9 @@ echo "build id $BUILD_ID  (PkgManager, ABIv1 / mainline, additional)"
 
 "$CC" -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS $FUSION_FLAGS \
     -DPKG_BUILD_ID='"'"$BUILD_ID"'"' \
-    -DPKG_TOOLCHAIN='"'"$TC"'"' \
+    -DPKG_TOOLCHAIN='"'"$(echo "$TC" | sed "s|^$HOME|~|")"'"' \
     -DPKG_ABI='"v1"' \
-    -DPKG_SDK='"'"$SDK"'"' \
+    -DPKG_SDK='"'"$(echo "$SDK" | sed "s|^$HOME|~|")"'"' \
     -DPKG_CC="\"$("$CC" -dumpversion)\"" \
     -I"$SDK/include" $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \
     -DLINKTEXT_EMBEDDED -I"$HERE/../third_party/zunekit" \

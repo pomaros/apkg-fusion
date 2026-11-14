@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build apkg for native AROS on the Raspberry Pi (raspi-aarch64, ABIv1), with
 # the toolchain in ~/Work/AROS/toolchains/raspi-aarch64: Clang 20 over the
-# Pi's own Developer SDK, never the hosted Macaros one. Its archive is named
+# Pi's own Developer SDK, never a hosted aarch64 one. Its archive is named
 # aarch64-aros-raspi (PKG_TARGET) until the Pi and hosted aarch64 builds are
 # known to be interchangeable.
 set -e
@@ -21,10 +21,10 @@ echo "build id $BUILD_ID  (raspi-aarch64 / ABIv1)"
 
 "$CC" -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS \
     -DPKG_BUILD_ID='"'"$BUILD_ID"'"' \
-    -DPKG_TOOLCHAIN='"'"$RPI"'"' \
+    -DPKG_TOOLCHAIN='"'"$(echo "$RPI" | sed "s|^$HOME|~|")"'"' \
     -DPKG_ABI='"v1"' \
     -DPKG_TARGET='"aarch64-aros-raspi"' \
-    -DPKG_SDK='"'"$SDK"'"' \
+    -DPKG_SDK='"'"$(echo "$SDK" | sed "s|^$HOME|~|")"'"' \
     -DPKG_CC="\"clang $("$CC" -dumpversion)\"" \
     $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \
     "$HERE"/libpkg/*.c "$HERE"/pkg/*.c "$HERE"/../third_party/aros-xterm/aros_tty_client.c $TLS_SRC \

@@ -163,6 +163,7 @@ typedef struct {
     const rel_inst *inst; int ninst;
     const char *arch, *abi;
     rel_plan *out;
+    int upgrade;
     char stack[REL_PLAN_MAX][PKG_MAXID]; int depth;
 } planner;
 
@@ -219,9 +220,20 @@ static int choose(planner *p, const char *id, const char *wanted_by)
     if (!native(arch, abi, p->arch, p->abi)) {
         char target[32];
         snprintf(target, sizeof target, "%s/%s", arch, abi[0] ? abi : "?");
-        return wanted_by ? refuse(p, PKG_E_NOT_FOUND, "%s needs %s, which the catalogue has only for other "
-                                  "systems (%s).", wanted_by, id, target)
-                         : -2;   /* the target: the install's own target check explains it */
+        if (wanted_by)
+            return refuse(p, PKG_E_NOT_FOUND, "%s needs %s, which the catalogue has only for other "
+                          "systems (%s).", wanted_by, id, target);
+        /* An upgrade reads its entry itself and says why. An install
+           used to return here with no step for the target, so the plan was
+           empty, nothing ran the install's own ABI check, and "apkg install"
+           ended with success and nothing installed. Refuse with that check's
+           reason instead. */
+        if (p->upgrade) return -2;
+        if (arch[0] && strcmp(arch, p->arch) != 0)
+            return refuse(p, PKG_E_CONFLICT, "Only a build for %s is available; this system is %s.%s",
+                          arch, p->arch, "");
+        return refuse(p, PKG_E_CONFLICT, "Only a build for ABI%s is available; this system is ABI%s.%s",
+                      abi[0] ? abi : "?", p->abi, "");
     }
     return el;
 }
@@ -338,7 +350,7 @@ int rel_plan_install(const char *json, size_t len, const rel_inst *inst, int nin
     ntok = js_parse_alloc(json, len, &t, PKG_JSON_MAXTOK);
     if (ntok < 0) { free(dd); out->ok = 0; out->status = PKG_E_VERIFY; snprintf(out->why, sizeof out->why, "the catalogue cannot be read"); return ntok; }
     p.json = json; p.t = t; p.ntok = ntok; p.arr = js_member(json, t, ntok, 0, "packages");
-    p.inst = inst; p.ninst = ninst; p.arch = my_arch; p.abi = my_abi; p.out = out;
+    p.inst = inst; p.ninst = ninst; p.arch = my_arch; p.abi = my_abi; p.out = out; p.upgrade = upgrade;
     if (p.arr < 0) { free(t); free(dd); out->ok = 0; out->status = PKG_E_VERIFY; snprintf(out->why, sizeof out->why, "the catalogue cannot be read"); return JS_EINVAL; }
 
     if (visit(&p, id, NULL, NULL, 1) != 0) goto done;

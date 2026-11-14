@@ -20,11 +20,12 @@ grep -q "\"apkg $V\"" "$HERE/src/pkg/main.c" || { echo "src/pkg/main.c does not 
 OUT_=$B/x86_64-aros-v11; mkdir -p $OUT_
 OUT=$OUT_/apkg sh "$HERE/src/build.sh" >/dev/null 2>&1
 OUT=$OUT_/PkgManager sh "$HERE/src/build-gui.sh" >/dev/null 2>&1
-TARGETS=${TARGETS:-x86_64-aros-v11 x86_64-aros-v1 i386-aros-v0 aarch64-aros}
+# i386 ABIv0 is no longer a release target (0.7.8 was the last); it can still
+# be built on request: TARGETS="... i386-aros-v0".
+TARGETS=${TARGETS:-x86_64-aros-v11 x86_64-aros-v1 aarch64-aros-raspi}
 want() { case " $TARGETS " in *" $1 "*) return 0;; esac; return 1; }
 want x86_64-aros-v1 && { mkdir -p $B/x86_64-aros-v1; OUT=$B/x86_64-aros-v1/apkg sh "$HERE/src/build-mainline.sh" >/dev/null 2>&1; }
 want i386-aros-v0   && { mkdir -p $B/i386-aros-v0;   OUT=$B/i386-aros-v0/apkg   sh "$HERE/src/build-i386.sh"     >/dev/null 2>&1; }
-want aarch64-aros   && { mkdir -p $B/aarch64-aros;   OUT=$B/aarch64-aros/apkg   sh "$HERE/src/build-aarch64.sh"  >/dev/null 2>&1; }
 want aarch64-aros-raspi && { mkdir -p $B/aarch64-aros-raspi; OUT=$B/aarch64-aros-raspi/apkg sh "$HERE/src/build-raspi.sh" >/dev/null 2>&1;
                              OUT=$B/aarch64-aros-raspi/PkgManager sh "$HERE/src/build-gui-raspi.sh" >/dev/null 2>&1; }
 want x86_64-aros-v1 && { OUT=$B/x86_64-aros-v1/PkgManager sh "$HERE/src/build-gui-mainline.sh" >/dev/null 2>&1; }

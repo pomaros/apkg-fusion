@@ -6,13 +6,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-void u_join(char *out, size_t n, const char *a, const char *b)
+int u_join(char *out, size_t n, const char *a, const char *b)
 {
     size_t la = strlen(a);
+    int w;
     if (la && (a[la-1] == '/' || a[la-1] == ':'))
-        snprintf(out, n, "%s%s", a, b);
+        w = snprintf(out, n, "%s%s", a, b);
     else
-        snprintf(out, n, "%s/%s", a, b);
+        w = snprintf(out, n, "%s/%s", a, b);
+    return (w < 0 || (size_t)w >= n) ? -1 : 0;
 }
 
 int u_exists(const char *path)
@@ -95,6 +97,22 @@ int u_listdir(const char *path, char ***names, int *count)
     UnLock(l);
     *names = v; *count = n;
     return 0;
+}
+
+int u_move_children(const char *from, const char *to, int max, int *moved)
+{
+    char **names; int n, i, bad = 0;
+    *moved = 0;
+    if (u_listdir(from, &names, &n) != 0) return -1;
+    for (i = 0; i < n && !bad; i++) {
+        char a[512], b[512];
+        if (max >= 0 && *moved >= max) break;
+        if (u_join(a, sizeof a, from, names[i]) != 0 || u_join(b, sizeof b, to, names[i]) != 0
+            || u_exists(b) || !Rename((CONST_STRPTR)a, (CONST_STRPTR)b)) bad = 1;
+        else (*moved)++;
+    }
+    u_freelist(names, n);
+    return bad ? -1 : 0;
 }
 
 void u_freelist(char **names, int count)

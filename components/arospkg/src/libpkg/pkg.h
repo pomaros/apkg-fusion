@@ -12,6 +12,10 @@
 #include <stddef.h>
 
 #define PKG_MAXPATH 512
+/* The longest --root: every path apkg derives from it (root/id, root/tmp/
+   <transaction>/<id>/..., root/db/transactions/<transaction>/...) must still
+   fit in PKG_MAXPATH, or a cut-off path could name another package's drawer. */
+#define PKG_MAXROOT 255
 
 /* The catalogue apkg update fetches. index-v3.json is the generation of the
    file this client reads: every package, including those that need
@@ -172,8 +176,12 @@ typedef enum {
      * between the renames. Appended, as --interrupt-at names them by number. */
     PKG_STOP_AFTER_OLD_MOVED,   /* live tree moved aside, nothing published */
     PKG_STOP_AFTER_NEW_PUBLISHED,/* new tree in place, registry not written  */
-    PKG_STOP_BEFORE_REPLACED    /* replacement installed, old one not yet  *
+    PKG_STOP_BEFORE_REPLACED,   /* replacement installed, old one not yet  *
                                  * removed: what recovery must finish      */
+    /* Since 0.7.7 the swap moves the drawer's contents and keeps the drawer
+     * itself; these stop halfway through each of its two moves. */
+    PKG_STOP_IN_OLD_OUT,        /* some old entries aside, some still in place */
+    PKG_STOP_IN_NEW_IN          /* some new entries in place, some still staged */
 } pkg_stop;
 
 /* Fault injection for the paths that only run when a write fails. These are

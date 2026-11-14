@@ -179,6 +179,42 @@ static int copy_into(const char *from_root, const char *to_root, const char *rel
     return u_copy(src, dst);
 }
 
+/* The user's drawers, with or without files in them. The files were copied
+ * above and made their parents on the way; a drawer the installed revision
+ * never had a file in (one the user or the program made, such as a state
+ * drawer that is empty between two uses) has nothing to make it, and a
+ * program running through the upgrade then writes into a drawer that is
+ * gone. A drawer of the package's own that the target no longer fills is
+ * not carried: the plan removed its files on purpose. */
+static int carry_dirs(const char *from_root, const char *to_root, const char *rel,
+                      const inv_ent *old, int nold)
+{
+    char **names; int cnt, i, bad = 0;
+    char from[PKG_MAXPATH], sub[PKG_MAXPATH];
+    u_join(from, sizeof from, from_root, rel);
+    if (u_listdir(from, &names, &cnt) != 0) return -1;
+    for (i = 0; i < cnt && !bad; i++) {
+        char path[PKG_MAXPATH];
+        size_t l;
+        int k, ours = 0;
+        u_join(path, sizeof path, from, names[i]);
+        if (!u_isdir(path)) continue;
+        if (*rel) snprintf(sub, sizeof sub, "%s/%s", rel, names[i]);
+        else      snprintf(sub, sizeof sub, "%s", names[i]);
+        l = strlen(sub);
+        for (k = 0; k < nold && !ours; k++)
+            ours = strncmp(old[k].rel, sub, l) == 0 && old[k].rel[l] == '/';
+        if (!ours) {
+            char to[PKG_MAXPATH];
+            u_join(to, sizeof to, to_root, sub);
+            if (!u_exists(to) && u_mkpath(to) != 0) bad = 1;
+        }
+        if (!bad && carry_dirs(from_root, to_root, sub, old, nold) != 0) bad = 1;
+    }
+    u_freelist(names, cnt);
+    return bad ? -1 : 0;
+}
+
 static void print_plan(const up_step *steps, int n, const char *dest)
 {
     int i, a = 0, r = 0, d = 0, k = 0, u = 0;
@@ -320,6 +356,10 @@ static pkg_status swap(pkg_ctx *c, const char *id, int is_rollback,
             }
         }
     }
+    if (u_exists(dest) && carry_dirs(dest, staging, "", old, nold) != 0) {
+        st = pkg_fail(e, PKG_E_IO, "cannot carry a drawer over into the new tree", "", dest);
+        goto fail_staging;
+    }
     if (inv_of_tree(staging, "", result, &nresult, MAXINV) != 0) { st = pkg_fail(e, PKG_E_IO, "cannot inventory the result", "", staging); goto fail_staging; }
 
     /* The drawer icon: replaced only if it is ours and unchanged, and the
@@ -374,6 +414,8 @@ static pkg_status swap(pkg_ctx *c, const char *id, int is_rollback,
         js_raw(&o, ",\n  "); js_key(&o, "dir");      js_vstr(&o, dest);
         js_raw(&o, ",\n  "); js_key(&o, "staging");  js_vstr(&o, staging);
         js_raw(&o, ",\n  "); js_key(&o, "oldtree");  js_vstr(&o, oldtree);
+        /* Since 0.7.7: the drawer keeps its identity, its entries move. */
+        js_raw(&o, ",\n  "); js_key(&o, "swap");     js_vstr(&o, "contents");
         js_raw(&o, ",\n  "); js_key(&o, "registry"); js_vstr(&o, regpath);
         js_raw(&o, ",\n  "); js_key(&o, "registry_before"); js_vstr(&o, regbefore);
         js_raw(&o, ",\n  "); js_key(&o, "prev_registry"); js_vstr(&o, is_rollback ? from->prev_registry : prev_reg);
@@ -405,14 +447,36 @@ static pkg_status swap(pkg_ctx *c, const char *id, int is_rollback,
     }
     STOP(PKG_STOP_AFTER_PLAN);
 
-    /* 5. The swap: two renames. */
+    /* 5. The swap. The drawer itself stays where it is: a Shell path, an
+       assign or a running program holds a lock on that directory, and a
+       lock follows the object, not the name. Renaming the drawer aside
+       left every such lock on the old tree, emptied at commit (a package
+       on the path became "object not found" until a reboot). So the old
+       entries move into tmp/, then the new ones into the drawer. A running
+       program keeps the code it loaded; what it saves lands in the new tree.
+       Recovery tells the two halves apart by the 001a marker. */
+    if (u_exists(dest) && u_in_use(dest))
+        printf("note: %s is in use: by a Shell path or an assign, which keep working,\n"
+               "or by a running program, which keeps its old code until it is started again.\n", dest);
     prog(c, "publish", 0, 2, 0);
-    if (u_exists(dest) && u_publish(dest, oldtree) != 0) {
-        st = pkg_fail(e, PKG_E_IO, "cannot move the drawer aside", "The transaction is kept; the next run rolls it back.", dest); goto out;
-    }
-    STOP(PKG_STOP_AFTER_OLD_MOVED);
-    if (u_publish(staging, dest) != 0) {
-        st = pkg_fail(e, PKG_E_IO, "cannot put the new tree in place", "The transaction is kept; the next run rolls it back.", dest); goto out;
+    {
+        int moved = 0;
+        if (!u_exists(dest) && u_mkdir(dest) != 0) {
+            st = pkg_fail(e, PKG_E_IO, "cannot create the drawer", "", dest); goto out;
+        }
+        if (u_mkdir(oldtree) != 0) {
+            st = pkg_fail(e, PKG_E_IO, "cannot create the place for the old tree", "", oldtree); goto out;
+        }
+        if (u_move_children(dest, oldtree, stop == PKG_STOP_IN_OLD_OUT ? 1 : -1, &moved) != 0) {
+            st = pkg_fail(e, PKG_E_IO, "cannot move the old tree aside", "The transaction is kept; the next run rolls it back.", dest); goto out;
+        }
+        STOP(PKG_STOP_IN_OLD_OUT);
+        txn_marker(c, tid, "001a-old-out");
+        STOP(PKG_STOP_AFTER_OLD_MOVED);
+        if (u_move_children(staging, dest, stop == PKG_STOP_IN_NEW_IN ? 1 : -1, &moved) != 0) {
+            st = pkg_fail(e, PKG_E_IO, "cannot put the new tree in place", "The transaction is kept; the next run rolls it back.", dest); goto out;
+        }
+        STOP(PKG_STOP_IN_NEW_IN);
     }
     prog(c, "publish", 2, 2, 0);
     STOP(PKG_STOP_AFTER_NEW_PUBLISHED);

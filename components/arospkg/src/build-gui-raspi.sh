@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build PkgManager, the Zune front end, for native AROS on the Raspberry Pi
 # (raspi-aarch64, ABIv1): the toolchain and SDK of build-raspi.sh, the sources
-# of build-gui.sh. The Pi's own Developer SDK, never the hosted Macaros one.
+# of build-gui.sh. The Pi's own Developer SDK, never a hosted aarch64 one.
 set -e
 RPI=${RPI:-$HOME/Work/AROS/toolchains/raspi-aarch64}
 SDK=${SDK:-$RPI/sdk}
@@ -28,10 +28,10 @@ echo "build id $BUILD_ID  (PkgManager, raspi-aarch64 / ABIv1)"
 
 "$CC" -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS $FUSION_FLAGS \
     -DPKG_BUILD_ID='"'"$BUILD_ID"'"' \
-    -DPKG_TOOLCHAIN='"'"$RPI"'"' \
+    -DPKG_TOOLCHAIN='"'"$(echo "$RPI" | sed "s|^$HOME|~|")"'"' \
     -DPKG_ABI='"v1"' \
     -DPKG_TARGET='"aarch64-aros-raspi"' \
-    -DPKG_SDK='"'"$SDK"'"' \
+    -DPKG_SDK='"'"$(echo "$SDK" | sed "s|^$HOME|~|")"'"' \
     -DPKG_CC="\"clang $("$CC" -dumpversion)\"" \
     $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \
     -DLINKTEXT_EMBEDDED -I"$HERE/../third_party/zunekit" \

@@ -237,6 +237,40 @@ static void recover_one(pkg_ctx *c, const char *tid)
         slash = strrchr(sroot, '/'); if (slash) *slash = 0;
         printf("  %s: %s without commit -- rolling back\n", tid, op);
 
+        {
+            char swapmode[16] = "";
+            js_str(plan, t, js_member(plan, t, ntok, 0, "swap"), swapmode, sizeof swapmode);
+            if (strcmp(swapmode, "contents") == 0) {
+                /* 0.7.7 and later: the drawer stayed, its entries moved. With
+                   001a the old entries were all aside and the drawer holds
+                   only new ones (all, some or none): they go back to staging.
+                   Then whatever of the old tree is aside comes back. */
+                int moved = 0;
+                if (txn_has(c, tid, "001a-old-out") && u_exists(dest) &&
+                    u_move_children(dest, staging, -1, &moved) != 0) {
+                    printf("      cannot take the new tree out of %s -- transaction kept\n", dest);
+                    pkgctx_unresolved(c); free(plan); free(t); free(inv); return;
+                }
+                if (oldtree[0] && u_exists(oldtree)) {
+                    if (!u_exists(dest) && u_mkdir(dest) != 0) {
+                        printf("      cannot recreate %s -- transaction kept\n", dest);
+                        pkgctx_unresolved(c); free(plan); free(t); free(inv); return;
+                    }
+                    if (u_move_children(oldtree, dest, -1, &moved) != 0) {
+                        printf("      cannot move the old tree back into %s -- transaction kept\n", dest);
+                        pkgctx_unresolved(c); free(plan); free(t); free(inv); return;
+                    }
+                }
+                if (!txn_has(c, tid, "001-dir-done")) {
+                    printf("      drawer contents moved back\n");
+                    u_deltree(sroot); u_deltree(dir);
+                    pkgctx_resolved(c); free(plan); free(t); free(inv); return;
+                }
+                /* After 001: the icon, registry and archives below, as before. */
+                goto restore_bookkeeping;
+            }
+        }
+
         if (staging[0] && u_exists(staging)) {
             /* State 1 or 2: nothing of ours is in the drawer. */
             if (!u_exists(dest) && oldtree[0] && u_exists(oldtree)) {
@@ -266,6 +300,7 @@ static void recover_one(pkg_ctx *c, const char *tid)
             printf("      cannot move the old drawer back -- transaction kept\n");
             pkgctx_unresolved(c); free(plan); free(t); free(inv); return;
         }
+restore_bookkeeping:
         if (icon_managed && icon_before[0] && u_exists(icon_before)) {
             char sha[65] = "";
             if (u_exists(icon_path) && sha256_file(icon_path, sha) == 0 && strcmp(sha, icon_sha) == 0)

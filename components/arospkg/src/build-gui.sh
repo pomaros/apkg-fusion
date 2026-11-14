@@ -33,8 +33,8 @@ echo "build id $BUILD_ID  (PkgManager, ABIv11 / AROS One)"
 
 "$TC/x86_64-aros-gcc" -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS $FUSION_FLAGS \
     -DPKG_BUILD_ID='"'"$BUILD_ID"'"' \
-    -DPKG_TOOLCHAIN='"'"$TC"'"' \
-    -DPKG_SDK='"'"$SDK"'"' \
+    -DPKG_TOOLCHAIN='"'"$(echo "$TC" | sed "s|^$HOME|~|")"'"' \
+    -DPKG_SDK='"'"$(echo "$SDK" | sed "s|^$HOME|~|")"'"' \
     -DPKG_ABI='"v11"' \
     -DPKG_CC="\"$("$TC/x86_64-aros-gcc" -dumpversion)\"" \
     -I"$SDK/include" $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \

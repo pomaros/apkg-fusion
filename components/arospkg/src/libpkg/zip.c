@@ -227,7 +227,10 @@ static int extract(const char *archive, const char *dest, const char *strip,
             if (!*use) continue;
 
             strncpy(rel, use, sizeof rel - 1); rel[sizeof rel - 1] = 0;
-            u_join(full, sizeof full, dest, rel);
+            /* A cut-off path would write the member under another name. */
+            if (u_join(full, sizeof full, dest, rel) != 0) {
+                snprintf(why, 160, "member path too long: %.100s", name); goto out;
+            }
 
             if (rel[strlen(rel) - 1] == '/') { /* a directory entry */
                 char d[512];

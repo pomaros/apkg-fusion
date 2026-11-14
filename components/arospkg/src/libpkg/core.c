@@ -263,8 +263,11 @@ int prune_empty(const char *dir)
 
 pkg_status pkg_open(const char *root, pkg_mode mode, pkg_ctx **out, pkg_err *e)
 {
-    pkg_ctx *c = (pkg_ctx *)calloc(1, sizeof *c);
+    pkg_ctx *c;
     pkg_status st;
+    if (strlen(root) > PKG_MAXROOT)
+        return pkg_fail(e, PKG_E_IO, "the root path is too long", "at most 255 characters", "");
+    c = (pkg_ctx *)calloc(1, sizeof *c);
     if (!c) return pkg_fail(e, PKG_E_NOMEM, "out of memory", "", "");
     snprintf(c->root, sizeof c->root, "%s", root);
     snprintf(c->db,        sizeof c->db,        "%s/db", root);

@@ -218,6 +218,15 @@ and dots, optionally with one `-testN`, `-previewN` or `-rcN` tag and a
 order); apkg refuses an older version and any version it cannot order, and
 says why. `rollback` returns to what the last upgrade replaced.
 
+An upgrade replaces the contents of the package's drawer: the new revision's
+files, every file you changed or added, and every drawer the installed
+revision had no file in (one you or the program made, even an empty one).
+The drawer itself stays, so a Shell path or an assign that points to it,
+such as the one a package startup script adds, keeps working after an
+upgrade or a rollback. Quit the program before you upgrade it: a program
+running through the upgrade keeps the code it loaded until it is started
+again; apkg says so when it finds the drawer in use.
+
 `upgrade --all` first prints the plan: every update it will install and
 every one it skips, with the reason. Then it upgrades the packages one after
 the other, each exactly as `apkg upgrade <id>` would, and reports each.

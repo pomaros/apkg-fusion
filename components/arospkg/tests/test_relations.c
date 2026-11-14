@@ -39,7 +39,8 @@ static const char *CAT =
     E("taker",   "1",     "x86_64", "v11", ",\"replaces\":[\"hardcode\"],\"client_features\":[\"relations\"]") ","
     E("both",    "1",     "x86_64", "v11", ",\"depends\":[\"usesold\"],\"replaces\":[\"hardcode\"],\"client_features\":[\"relations\"]") ","
     E("usesold", "1",     "x86_64", "v11", ",\"depends\":[\"hardcode\"],\"client_features\":[\"relations\"]") ","
-    E("pairrep", "1",     "x86_64", "v11", ",\"replaces\":[\"olda\",\"oldb\"],\"client_features\":[\"relations\"]")
+    E("pairrep", "1",     "x86_64", "v11", ",\"replaces\":[\"olda\",\"oldb\"],\"client_features\":[\"relations\"]") ","
+    E("armonly", "1",     "aarch64", "v1", "")
     "]}";
 
 static rel_inst I(const char *id, const char *v, const char *abi, const char *dep)
@@ -96,6 +97,10 @@ int main(void)
     plan(NULL, 0, "cyc1", 0);                    refused("a cycle", PKG_E_REQUIRES, "cycle");
     plan(NULL, 0, "nodep", 0);                   refused("does not list", PKG_E_NOT_FOUND, "dependency not in the catalogue");
     plan(NULL, 0, "otherabi", 0);                refused("only for other systems", PKG_E_NOT_FOUND, "dependency only for another ABI");
+    /* The package asked for, only in a build for another system: refused
+       with the reason, not an empty plan that "installs" nothing (0.6-0.7.7). */
+    plan(NULL, 0, "v1only", 0);                  refused("Only a build for ABIv1 is available; this system is ABIv11.", PKG_E_CONFLICT, "target only for another ABI");
+    plan(NULL, 0, "armonly", 0);                 refused("Only a build for aarch64 is available; this system is x86_64.", PKG_E_CONFLICT, "target only for another CPU");
     plan(NULL, 0, "amb", 0);                     refused("more than one build", PKG_E_CONFLICT, "ambiguous dependency");
     plan(NULL, 0, "future", 0);                  refused("newer apkg", PKG_E_REQUIRES, "unknown client feature");
 
