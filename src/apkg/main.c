@@ -45,6 +45,7 @@ static int apkg_main(int argc, char **argv) {
     const char *dos = strrchr(base, ':'); if (dos) base = dos + 1;
     if (!strcmp(base, "apkg-legacy")) return ak_legacy_main(argc, argv);
     if (argc > 1 && !strcmp(argv[1], "legacy")) return ak_legacy_main(argc - 1, argv + 1);
+    if (argc > 1 && !strcmp(argv[1], "migrate")) return ak_migrate_main(argc - 1, argv + 1);
     apkg_open_options o = {0};
     apkg_ctx *c = NULL;
     apkg_snapshot *s = NULL;
@@ -69,7 +70,7 @@ static int apkg_main(int argc, char **argv) {
     if (argc < 3) {
         fprintf(
             argc == 2 && !strcmp(argv[1], "--help") ? stdout : stderr,
-            "Usage: apkg legacy [--help] | inspect ROOT | recover ROOT | init ROOT TARGET "
+            "Usage: apkg legacy [--help] | migrate --help | inspect ROOT | recover ROOT | init ROOT TARGET "
             "POLICY "
             "[--yes] | install ROOT "
             "PACKAGE-DIRECTORY [--confirm "

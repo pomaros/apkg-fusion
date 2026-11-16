@@ -100,6 +100,9 @@ static int metadata_supported(const char *path, const struct stat *st) {
 #endif
     return 1;
 }
+int ak_metadata_supported(const char *path, const struct stat *st) {
+    return metadata_supported(path, st);
+}
 static int names(const void *a, const void *b) {
     return strcmp(*(char *const *)a, *(char *const *)b);
 }

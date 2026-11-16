@@ -11,8 +11,9 @@ The host adapter [apkg_migrate.py](../../tools/apkg_migrate.py) prepares a separ
 copy of an arospkg root and registers its bundles through the common engine.
 It is a rehearsal that runs on a POSIX host over a root copied from AROS: it is
 written in Python and reads host file attributes. It is not a tool an AROS user
-can run, and it does not switch a running installation to the copy. How users
-migrate on AROS is still open.
+can run, and it does not switch a running installation to the copy. On AROS,
+[`apkg migrate`](native-migration.md) inspects and copies a classic root;
+registering the copy there is still open.
 It never changes the original root, installs the new client over an existing
 client, changes global settings, or switches a live installation to the copy.
 Source records do not acquire retrospective publisher authentication.
