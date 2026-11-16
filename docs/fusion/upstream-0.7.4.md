@@ -104,8 +104,24 @@ The first run on mainline (x86_64 nightly 20261110, `dos.library` 50.89) got
 past planning and stopped in preparation with `APKG_IO`. A staged file was
 flushed with `fsync()` on a descriptor opened for reading, which the mainline C
 library fails with `EBADF` (the fix is proposed upstream in AROS PR 2152, not
-merged). `ak_sync_file()` now asks the file's handler to flush on AROS, as
-`ak_sync_dir()` does.
+merged). On AROS `ak_sync_file()` therefore does not call `fsync()`. It first
+asked the file's handler to flush; the handler's flush covers the whole volume,
+so that repeated the same request for every staged file. It now does nothing on
+AROS, and the `ak_sync_dir()` that ends `stage_package()` flushes the volume
+once.
+
+Installing one signed package of 402 files (400 of 4 KiB) on mainline x86_64
+(`dos.library` 50.89, QEMU, one-second clock), flush per file against one flush:
+
+| Volume | Per file | Once |
+|---|---|---|
+| `RAM:` | 8 s, 9 s | 8 s, 8 s |
+| SFS | 12 s | 12 s |
+
+Both builds return 0 on these volumes. Not measured on FFS: the test pool has no
+FFS volume. On the pool's FAT32 volume both builds refuse the installation with
+status 10 after about 28 s and an empty reason ("channel installation plan
+refused: "); the cause is not established.
 
 With that, the isolated rehearsal (`tests/aros/prepare_rehearsal.py`, 25 steps,
 checked by `verify_rehearsal.py`) passes on all three systems, one boot each in
