@@ -135,7 +135,16 @@ Registration, host only: `tests/apkg/test_migrate_register.py`, 19 tests over
 the same captured root (form of the entries, queries, verify, refused repair,
 refused replacement by a signed package of the same name, refused policy and
 signature for the reserved authority, invalid state forms, removal keeping
-the user's files). `register` has not been run on AROS yet.
+the user's files).
+
+Registration on AROS, mainline x86_64 (`dos.library` 50.89), 2026-11-17, the
+captured root copied from `RAM:` to the SFS system volume, two boots: `copy`
+0, `init` 0, `register` 16 with the plan, then 0 with its digest. `list` and
+`info` report no signature, `verify` returns 0 and compares with the recorded
+hashes, `repair` returns 17, removing the needed package returns 15, removing
+the application returns 0 and leaves the changed and unlisted files. A file
+that was given a comment before the copy counts as changed and stays on
+removal. Not run on ABIv11 or the Pi.
 
 ## Open
 
@@ -147,9 +156,9 @@ These need both maintainers and are proposals until agreed:
   between migrated packages name the reserved authority, so a takeover has
   to say what becomes of them.
 - **Protection bits and comments** of migrated files: the unsigned descriptor
-  carries no AROS attributes. A file with a comment or unusual protection
-  is then expected to count as changed by the user and stay on removal; this
-  has not been checked on AROS.
+  carries no AROS attributes, so a file with a comment counts as changed by
+  the user and stays on removal (seen on mainline x86_64). Unusual protection
+  bits are expected to behave the same; not checked.
 - **Owned placement of the drawer icon** when its bytes are the delivered
   ones. The inspection already reports which icons qualify.
 - **Sets above 128 packages**: the limit of `apkg_plan_adopt_many` belongs to
