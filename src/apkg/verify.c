@@ -89,7 +89,10 @@ apkg_status apkg_client_verify(const char *root, const char *name,
         code = apkg_snapshot_inspect(snapshot, matched, &inspection, error);
     const apkg_inspection_view *view =
         inspection ? apkg_inspection_get(inspection) : NULL;
-    if (!code && view->signature != APKG_SIGNATURE_VALID)
+    /* A migrated entry has no signature; its files are compared with the
+     * hashes the classic client recorded, and the report says so. */
+    if (!code && view->signature != APKG_SIGNATURE_VALID &&
+        view->signature != APKG_SIGNATURE_ABSENT)
         code = APKG_SIGNATURE;
     if (!code) {
         int parsed = ak_json_parse(view->descriptor.data, view->descriptor.size,
@@ -171,13 +174,18 @@ apkg_status apkg_client_verify(const char *root, const char *name,
     if (!code) {
         ak_buf_add(&report,
                    "Verification of %s/%s %s (revision %" PRIu64
-                   ")\nSignature: verified\nAuthor trust: %s\nok %" PRIu64
+                   ")\nSignature: %s\nAuthor trust: %s\nok %" PRIu64
                    "\nchanged %" PRIu64 "\nmissing %" PRIu64
                    "\nunknown %" PRIu64 "\n%s",
                    view->authority.data, view->name.data, view->version.data,
                    view->revision,
-                   view->author_trust == APKG_TRUST_ACCEPTED ? "accepted"
-                                                             : "rejected",
+                   view->signature == APKG_SIGNATURE_ABSENT
+                       ? "none (migrated from the classic client, not "
+                         "authenticated)"
+                       : "verified",
+                   view->author_trust == APKG_TRUST_ACCEPTED  ? "accepted"
+                   : view->author_trust == APKG_TRUST_UNKNOWN ? "none"
+                                                              : "rejected",
                    ok, changed, missing, unknown, rows.data ? rows.data : "");
         code = report.bad ? (apkg_status)report.bad : APKG_OK;
     }

@@ -124,12 +124,19 @@ apkg_status apkg_snapshot_inspect(const apkg_snapshot *snapshot, uint64_t index,
                        : slice(&info->record, relations);
     unsigned char key[32];
     apkg_digest digest;
-    code = ak_signature_check(v->descriptor, v->signature_envelope,
-                              "descriptor", key, &digest);
-    if (code == APKG_NOMEM)
-        goto done;
-    v->signature =
-        code == APKG_OK ? APKG_SIGNATURE_VALID : APKG_SIGNATURE_INVALID;
+    if (ak_entry_unsigned(&info->record, 0)) {
+        /* Recognised by form; no signature code runs for it. */
+        v->signature = APKG_SIGNATURE_ABSENT;
+        v->author_trust = APKG_TRUST_UNKNOWN;
+        code = APKG_OK;
+    } else {
+        code = ak_signature_check(v->descriptor, v->signature_envelope,
+                                  "descriptor", key, &digest);
+        if (code == APKG_NOMEM)
+            goto done;
+        v->signature =
+            code == APKG_OK ? APKG_SIGNATURE_VALID : APKG_SIGNATURE_INVALID;
+    }
     if (v->signature == APKG_SIGNATURE_VALID) {
         parsed =
             ak_json_parse(snapshot->policy, strlen(snapshot->policy), &policy);
@@ -224,6 +231,7 @@ static void field_value(ak_buf *b, const apkg_inspection_view *v,
         ak_buf_add(b, "%s",
                    v->signature == APKG_SIGNATURE_VALID     ? "verified"
                    : v->signature == APKG_SIGNATURE_INVALID ? "invalid"
+                   : v->signature == APKG_SIGNATURE_ABSENT  ? "none"
                                                             : "unknown");
     else if (!strcmp(field, "authortrust"))
         ak_buf_add(b, "%s",

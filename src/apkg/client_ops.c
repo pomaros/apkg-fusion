@@ -60,14 +60,40 @@ static apkg_status read_adoptions(apkg_ctx *c, const char *path,
         int e = ak_member(j, i, "evidence");
         if (*count == 128)
             return APKG_LIMIT;
+        int descriptor = ak_member(j, i, "descriptor");
+        apkg_status code;
+        if (descriptor >= 0) {
+            /* A package of a migrated classic installation: no artifact
+             * exists for it. The row carries the unsigned descriptor, which
+             * is accepted in that one form only. */
+            if (!ak_fields(j, i,
+                           (const char *const[]){"descriptor", "evidence"},
+                           2) ||
+                e < 0 || j->tokens[descriptor].type != '{')
+                return APKG_INVALID;
+            code = ak_unsigned_package(
+                c,
+                (apkg_bytes){(const unsigned char *)j->text +
+                                 j->tokens[descriptor].start,
+                             j->tokens[descriptor].end -
+                                 j->tokens[descriptor].start},
+                &packages[*count]);
+            if (code)
+                return code;
+            inputs[*count].package = packages[*count];
+            inputs[*count].evidence = (apkg_bytes){
+                (const unsigned char *)j->text + j->tokens[e].start,
+                j->tokens[e].end - j->tokens[e].start};
+            (*count)++;
+            continue;
+        }
         if (!ak_fields(j, i, (const char *const[]){"artifact", "evidence"},
                        2) ||
             ak_string(j, ak_member(j, i, "artifact"), artifact,
                       sizeof artifact) ||
             !*artifact || e < 0)
             return APKG_INVALID;
-        apkg_status code =
-            read_package(c, artifact, observer, &packages[*count], error);
+        code = read_package(c, artifact, observer, &packages[*count], error);
         if (code)
             return code;
         inputs[*count].package = packages[*count];
@@ -268,13 +294,19 @@ apkg_status apkg_client_query(const char *root, const char *match, char **out,
         ak_buf_add(&b,
                    "\n%s %s revision %" PRIu64
                    "\nAuthority: %s\nTarget: %s\nReason: %s\nSignature/trust: "
-                   "not reverified by this read-only query\nReview/runtime "
+                   "%s\nReview/runtime "
                    "qualification: unknown\n",
                    r->name.value.data, r->version.value.data, r->revision.value,
-                   r->authority.value.data, r->target.value.data,
+                   ak_authority_reserved(r->authority.value.data)
+                       ? "none (migrated from the classic client)"
+                       : r->authority.value.data,
+                   r->target.value.data,
                    r->reason == APKG_REASON_DEPENDENCY       ? "dependency"
                    : r->reason == APKG_REASON_RECOMMENDATION ? "recommendation"
-                                                             : "explicit");
+                                                             : "explicit",
+                   ak_authority_reserved(r->authority.value.data)
+                       ? "no signature; not authenticated"
+                       : "not reverified by this read-only query");
     }
     code = b.bad;
     if (!code) {
@@ -432,8 +464,9 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
     if (p->view.kind == APKG_PLAN_ADOPT)
         ak_buf_add(&b, "Adoption: keep the entire observed bundle; register "
                        "ownership only.\n"
-                       "Signature authenticates the supplied artifact. "
-                       "Original legacy authentication: unknown.\n");
+                       "A signature, where one is stated below, authenticates "
+                       "the supplied artifact. Original legacy "
+                       "authentication: unknown.\n");
     arr = ak_member(&state, ak_member(&state, 0, "body"), "installed");
     for (i = (size_t)arr + 1; i < state.tokens[arr].next;
          i = state.tokens[i].next) {
@@ -445,8 +478,10 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
         ak_string(&state, ak_member(&state, body, "name"), name, sizeof name);
         ak_string(&state, ak_member(&state, body, "authority"), authority,
                   sizeof authority);
-        ak_string(&state, ak_member(&state, sig, "public_key"), key,
-                  sizeof key);
+        int unsigned_entry = ak_entry_unsigned(&state, (int)i);
+        if (!unsigned_entry)
+            ak_string(&state, ak_member(&state, sig, "public_key"), key,
+                      sizeof key);
         ak_string(&state, ak_member(&state, body, "version"), version,
                   sizeof version);
         ak_string(&state, ak_member(&state, body, "target"), target,
@@ -465,11 +500,19 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
                        record);
             free(record);
         }
-        ak_buf_add(&b,
-                   "\nSelected: %s %s revision %" PRIu64
-                   "\nPublisher: %s\nTarget: %s\nSignature: verified, "
-                   "authorized key %s\n",
-                   name, version, revision, authority, target, key);
+        if (unsigned_entry)
+            ak_buf_add(&b,
+                       "\nSelected: %s %s revision %" PRIu64
+                       "\nPublisher: none\nTarget: %s\nSignature: none "
+                       "(migrated from the classic client, not "
+                       "authenticated)\n",
+                       name, version, revision, target);
+        else
+            ak_buf_add(&b,
+                       "\nSelected: %s %s revision %" PRIu64
+                       "\nPublisher: %s\nTarget: %s\nSignature: verified, "
+                       "authorized key %s\n",
+                       name, version, revision, authority, target, key);
     }
     ak_buf_add(&b, "\nReview/runtime qualification: no independent "
                    "qualification asserted\n");

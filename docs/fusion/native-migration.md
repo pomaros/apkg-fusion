@@ -17,6 +17,8 @@ artifacts. The native command needs no artifact, mapping or policy.
 ```text
 apkg migrate check ROOT [--json]
 apkg migrate copy ROOT NEW-DRAWER --quiescent [--json]
+apkg init NEW-DRAWER TARGET POLICY-FILE --yes
+apkg migrate register NEW-DRAWER [--json | --confirm DIGEST]
 ```
 
 Both accept `--legacy-envarc DRAWER` and `--legacy-env DRAWER`, copies of
@@ -37,6 +39,28 @@ PkgManager) runs meanwhile. Inside the copy the classic registry moves from
 `db` to `.apkg-legacy/db`, so a classic client no longer takes the copy for
 its root, and `.apkg-legacy/inspection.json` records what was found. The
 command prints the SHA-256 of that record. The copy is not a common root yet.
+
+`init` is the ordinary command; it makes the copy a common root for the named
+target with the named policy.
+
+`register` reads the records under `.apkg-legacy/db/installed` and registers
+every package as an [unsigned entry](data-model.md#unsigned-entries-of-a-migrated-installation).
+It writes the adoption set to `.apkg-legacy/adoption-set.json` and hands it to
+the same plan, preview and confirmation as `apkg adopt-set`: without
+`--confirm` it prints the plan and its digest and returns 16; with the digest
+it commits. Each record must be for the root's target, its drawer must be named
+after the package, and its version must be one the common engine accepts;
+otherwise nothing is registered. Files whose bytes or mode differ from the
+record are kept as the user's; files the record does not name are unowned.
+Recorded dependencies between the migrated packages are kept, so removing a
+needed package is still refused. Recorded conflicts, replacements,
+recommendations and system requirements stay in the evidence only.
+
+A record with launch data gives kind `application`. The named program must be
+a valid path inside the drawer. Where the record and the drawer's
+`application.json` name a different program or mode, `register` prints both
+and chooses neither: the record stays in the evidence, the file stays in the
+drawer. Nothing is run.
 
 ## What is checked
 
@@ -107,17 +131,25 @@ captured interrupted install) and 7 (`ENV:arospkg/self-update.lock`).
 Not run: ABIv11, the Pi, a root written by 0.7.5 to 0.7.8, a root with many
 large packages, drawer comments, a full volume, power loss during the copy.
 
+Registration, host only: `tests/apkg/test_migrate_register.py`, 19 tests over
+the same captured root (form of the entries, queries, verify, refused repair,
+refused replacement by a signed package of the same name, refused policy and
+signature for the reserved authority, invalid state forms, removal keeping
+the user's files). `register` has not been run on AROS yet.
+
 ## Open
 
 These need both maintainers and are proposals until agreed:
 
-- **How an unsigned package is stored.** Every installation made by the
-  classic client comes from an unsigned catalogue archive, so the adopted,
-  unauthenticated entry is the main path of migration. The engine has no
-  such entry today: an installed entry carries a signed descriptor, and
-  `ak_verified_entry` checks it. Until this is settled the copy cannot be
-  registered.
-- **Kind and launch data** of a migrated application.
+- **Takeover** of an unsigned entry by a signed package of the same name: an
+  explicit operation whose plan shows the change of authority and needs its
+  own approval. Until it exists such a package is refused. Dependencies
+  between migrated packages name the reserved authority, so a takeover has
+  to say what becomes of them.
+- **Protection bits and comments** of migrated files: the unsigned descriptor
+  carries no AROS attributes. A file with a comment or unusual protection
+  is then expected to count as changed by the user and stay on removal; this
+  has not been checked on AROS.
 - **Owned placement of the drawer icon** when its bytes are the delivered
   ones. The inspection already reports which icons qualify.
 - **Sets above 128 packages**: the limit of `apkg_plan_adopt_many` belongs to

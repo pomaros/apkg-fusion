@@ -54,6 +54,7 @@ apkg_status ak_tree_source_read(const char *, size_t, char **, ak_identity *);
 apkg_status ak_source_inventory(const char *, char **, apkg_error **);
 int ak_legacy_main(int, char **);
 /* Inspect and copy a root of the classic client (migrate.c). */
+int ak_migrate_manifest(const char *, char *, size_t);
 int ak_migrate_main(int, char **);
 /* Whether ownership and extended metadata of a node can be round-tripped. */
 int ak_metadata_supported(const char *, const struct stat *);
@@ -242,6 +243,14 @@ struct apkg_package {
     apkg_digest digest;
 };
 int ak_adoption_valid(const ak_json *, int, const ak_json *);
+/* Unsigned entries of a migrated classic installation (unsigned.c). */
+#define AK_UNSIGNED_AUTHORITY "00000000000000000000000000000000"
+int ak_entry_unsigned(const ak_json *, int);
+int ak_authority_reserved(const char *);
+int ak_unsigned_descriptor(const ak_json *);
+int ak_unsigned_entry_valid(const ak_json *, int);
+int ak_package_unsigned(const apkg_package *);
+apkg_status ak_unsigned_package(apkg_ctx *, apkg_bytes, apkg_package **);
 int ak_adoption_protected(const ak_json *, const char *);
 void ak_entry_write(ak_buf *, const apkg_package *, const char *,
                     const apkg_package *);

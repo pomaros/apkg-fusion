@@ -132,6 +132,13 @@ to the bundle, and launching requires no registry entry. Managed updates,
 adoption and movement add management without making it a prerequisite for
 execution. Launching does not implicitly install missing system components.
 
+Installed state holds signed entries and, after a native migration, unsigned
+entries in the one form the [data model](data-model.md#unsigned-entries-of-a-migrated-installation)
+defines. Every reader of installed state decides between the two from the
+entry's structure; the unsigned path calls no signature code and consults no
+policy. Planning admits an unsigned entry through adoption alone and carries
+it unchanged through every other plan.
+
 System packages declare shared destinations and ownership. The engine serves
 fresh target-volume installation and upgrades, with distribution package sets,
 configuration preservation and recovery. Resident components, deferred

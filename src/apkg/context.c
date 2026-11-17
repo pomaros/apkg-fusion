@@ -651,7 +651,22 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
                         goto nomem;
                     goto invalid;
                 }
+                /* An entry is either signed or has exactly the unsigned
+                 * form; the reserved authority belongs to that form only. */
+                int reserved = ak_equal(
+                    &d, ak_member(&d, ak_member(&d, 0, "body"), "authority"),
+                    AK_UNSIGNED_AUTHORITY);
                 ak_json_free(&d);
+                if (ak_entry_unsigned(&j, (int)i)) {
+                    if (!ak_unsigned_entry_valid(&j, (int)i)) {
+                        if (errno == ENOMEM)
+                            goto nomem;
+                        goto invalid;
+                    }
+                } else if (reserved ||
+                           j.tokens[ak_member(&j, (int)i, "signature")]
+                                   .type != '{')
+                    goto invalid;
             }
             body = ak_member(&j, desc, "body");
             ak_hash(j.text + j.tokens[desc].start,

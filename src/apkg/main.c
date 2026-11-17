@@ -45,6 +45,30 @@ static int apkg_main(int argc, char **argv) {
     const char *dos = strrchr(base, ':'); if (dos) base = dos + 1;
     if (!strcmp(base, "apkg-legacy")) return ak_legacy_main(argc, argv);
     if (argc > 1 && !strcmp(argv[1], "legacy")) return ak_legacy_main(argc - 1, argv + 1);
+    if (argc > 3 && !strcmp(argv[1], "migrate") && !strcmp(argv[2], "register")) {
+        /* migrate register ROOT [--json | --confirm DIGEST]: the packages of
+         * a copied classic root become unsigned entries through the same
+         * adoption plan, preview and confirmation as adopt-set. */
+        static char manifest[4096];
+        apkg_result *result = NULL;
+        apkg_error *error = NULL;
+        int json = argc == 5 && !strcmp(argv[4], "--json");
+        int status;
+        if (argc != 4 && !json && !(argc == 6 && !strcmp(argv[4], "--confirm")))
+            return APKG_INVALID;
+        status = ak_migrate_manifest(argv[3], manifest, sizeof manifest);
+        if (status)
+            return status;
+        status = (int)apkg_client_apply(APKG_CLIENT_ADOPT_SET, argv[3], manifest,
+                                        NULL, json ? json_preview : confirm,
+                                        argc == 6 ? argv[5] : NULL, NULL,
+                                        &result, &error);
+        if (!json)
+            report((apkg_status)status, result, error);
+        apkg_error_free(error);
+        apkg_result_free(result);
+        return status;
+    }
     if (argc > 1 && !strcmp(argv[1], "migrate")) return ak_migrate_main(argc - 1, argv + 1);
     apkg_open_options o = {0};
     apkg_ctx *c = NULL;

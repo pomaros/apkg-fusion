@@ -1505,6 +1505,309 @@ done:
     free(record.data);
     return code;
 }
+/* ---- Registration: the copy's packages as unsigned entries. ---- */
+/* Builds the adoption set that registers the packages of a copied root with
+ * the common engine. Each row carries a descriptor made from the record the
+ * classic client wrote (reserved authority, files named by hash, no bytes)
+ * and that record as evidence. Nothing is run and no launch data is chosen:
+ * the record stays in the evidence, application.json stays in the drawer. */
+static int strcmp_files(const void *a, const void *b) {
+    return strcmp(((const mg_file *)a)->path, ((const mg_file *)b)->path);
+}
+typedef struct {
+    char name[64], minimum[64];
+} mg_need;
+static int needs_order(const void *a, const void *b) {
+    return strcmp(((const mg_need *)a)->name, ((const mg_need *)b)->name);
+}
+static const char *launch_text(const mj *object, const char *key) {
+    const mj *launch = object ? mj_get(object, "launch") : NULL;
+    const char *t = launch && launch->type == '{' ? mj_text(mj_get(launch, key))
+                                                  : NULL;
+    return t ? t : "";
+}
+static apkg_status register_row(mg *m, const char *root, const char *target,
+                                const char *file, ak_buf *rows, FILE *notes) {
+    char path[AK_PATH], drawer[AK_PATH];
+    unsigned char *raw = NULL, *app = NULL;
+    size_t size = 0, app_size = 0, nneeds = 0;
+    mj *record = NULL, *application = NULL;
+    mg_package p = {0};
+    mg_need needs[MG_RELATIONS];
+    int nomem = 0, parsed;
+    const char *wrong;
+    const mj *v;
+    apkg_status code = APKG_OK;
+    ak_buf d = {0}, e = {0};
+    char prefix[160];
+    d.max = e.max = AK_MAX;
+    char relative[AK_PATH];
+    if (snprintf(relative, sizeof relative, MG_ARCHIVE "/db/installed/%s",
+                 file) >= (int)sizeof relative ||
+        ak_path(path, root, relative))
+        return refuse(m, APKG_LIMIT, "path too long", file);
+    if (ak_read(path, &raw, &size, AK_MAX))
+        return refuse(m, APKG_IO, "cannot read the retained record", file);
+    parsed = mj_parse(raw, size, &record);
+    if (parsed) {
+        code = refuse(m, parsed == -2 ? APKG_NOMEM : APKG_INVALID,
+                      "the retained record is not readable JSON", file);
+        goto done;
+    }
+    wrong = record_read(record, &p, &nomem);
+    if (wrong) {
+        code = refuse(m, nomem ? APKG_NOMEM : APKG_UNSUPPORTED, wrong, file);
+        goto done;
+    }
+    if (strlen(file) != strlen(p.name) + 5 ||
+        strncmp(file, p.name, strlen(p.name))) {
+        code = refuse(m, APKG_INVALID,
+                      "the record's file name is not its package name", file);
+        goto done;
+    }
+    if ((v = mj_get(record, "dir")) &&
+        (!mj_text(v) || strcmp(v->text, p.name))) {
+        code = refuse(m, APKG_UNSUPPORTED,
+                      "the package's drawer is not named after the package",
+                      p.name);
+        goto done;
+    }
+    for (const char *c = p.version; *c; c++)
+        if (!((*c >= '0' && *c <= '9') || (*c >= 'a' && *c <= 'z') ||
+              (*c >= 'A' && *c <= 'Z') || strchr("._-+", *c))) {
+            code = refuse(m, APKG_UNSUPPORTED,
+                          "the recorded version has characters the common "
+                          "engine does not accept",
+                          p.name);
+            goto done;
+        }
+    /* The record must be for the system this root is for. */
+    snprintf(prefix, sizeof prefix, "%s-aros-%s-", p.arch,
+             p.has_abi ? p.abi : "");
+    if (p.has_abi ? strncmp(target, prefix, strlen(prefix)) != 0
+                  : (strncmp(target, p.arch, strlen(p.arch)) != 0 ||
+                     target[strlen(p.arch)] != '-')) {
+        code = refuse(m, APKG_TARGET,
+                      "the package was recorded for another system than this "
+                      "root's target",
+                      p.name);
+        goto done;
+    }
+    if (ak_path(drawer, root, p.name) || !is_directory(drawer)) {
+        code = refuse(m, APKG_INTEGRITY, "the package's drawer is missing",
+                      p.name);
+        goto done;
+    }
+    /* Dependencies among the migrated packages keep protecting removal. A
+     * recorded conflict, replacement or recommendation stays in the evidence:
+     * under the reserved authority it could never match a signed package. */
+    if ((v = mj_get(record, "depends")))
+        for (const mj *item = v->child; item; item = item->next) {
+            const char *t = mj_text(item), *min;
+            if (!t || nneeds == MG_RELATIONS ||
+                !relation(t, 1, needs[nneeds].name)) {
+                code = refuse(m, APKG_UNSUPPORTED, "unreadable dependency",
+                              p.name);
+                goto done;
+            }
+            min = strstr(t, " >= ");
+            snprintf(needs[nneeds].minimum, sizeof needs[nneeds].minimum, "%s",
+                     min ? min + 4 : "");
+            nneeds++;
+        }
+    if (nneeds > 1)
+        qsort(needs, nneeds, sizeof *needs, needs_order);
+    if (p.nfiles > 1)
+        qsort(p.files, p.nfiles, sizeof *p.files, strcmp_files);
+    /* Launch data: check what the record names, choose nothing. */
+    v = mj_get(record, "launch");
+    if (v) {
+        const char *exe = launch_text(record, "executable");
+        struct stat st;
+        char full[AK_PATH];
+        if (v->type != '{' || !*exe || !ak_valid_path(exe) ||
+            ak_path(full, drawer, exe)) {
+            code = refuse(m, APKG_INVALID,
+                          "the recorded launch data names no valid program "
+                          "inside the drawer",
+                          p.name);
+            goto done;
+        }
+        if (lstat(full, &st) || !S_ISREG(st.st_mode))
+            fprintf(notes,
+                    "note: %s: the recorded program \"%s\" is not in the "
+                    "drawer\n",
+                    p.name, exe);
+        if (!ak_path(full, drawer, "application.json") &&
+            !ak_read(full, &app, &app_size, AK_MAX)) {
+            if (mj_parse(app, app_size, &application))
+                fprintf(notes,
+                        "note: %s: application.json in the drawer is not "
+                        "readable; the record's launch data is kept as "
+                        "evidence\n",
+                        p.name);
+            else if (strcmp(exe, launch_text(application, "executable")) ||
+                     strcmp(launch_text(record, "mode"),
+                            launch_text(application, "mode")))
+                fprintf(notes,
+                        "note: %s: launch data disagrees. Record: program "
+                        "\"%s\", mode \"%s\". application.json: program "
+                        "\"%s\", mode \"%s\". Neither is chosen; both are "
+                        "kept.\n",
+                        p.name, exe, launch_text(record, "mode"),
+                        launch_text(application, "executable"),
+                        launch_text(application, "mode"));
+        }
+    }
+    /* Evidence. */
+    ak_buf_add(&e, "{\"body\":{\"baseline\":[");
+    for (size_t i = 0; i < p.nfiles; i++) {
+        ak_buf_add(&e, "%s{\"path\":", i ? "," : "");
+        text(&e, p.files[i].path);
+        ak_buf_add(&e, ",\"sha256\":\"%s\",\"size\":\"%" PRIu64 "\"}",
+                   p.files[i].sha, p.files[i].size);
+    }
+    ak_buf_add(&e, "],\"reason\":\"%s\",\"record\":\"",
+               !strcmp(p.reason, "explicit") || !strcmp(p.reason, "dependency")
+                   ? p.reason
+                   : "unrecorded");
+    for (size_t i = 0; i < size; i++)
+        ak_buf_add(&e, "%02x", raw[i]);
+    ak_buf_add(&e, "\",\"source\":\"arospkg-v1\"},\"format\":\"apkg-json-1\","
+                   "\"requires\":[],\"schema\":\"1\",\"type\":\"adoption\"}");
+    /* Descriptor. */
+    ak_buf_add(&d, "{\"body\":{\"authority\":\"" AK_UNSIGNED_AUTHORITY
+                   "\",\"files\":[");
+    for (size_t i = 0; i < p.nfiles; i++) {
+        struct stat st;
+        char full[AK_PATH];
+        unsigned mode = 0644;
+        if (!ak_path(full, drawer, p.files[i].path) && !lstat(full, &st) &&
+            S_ISREG(st.st_mode))
+            mode = (unsigned)(st.st_mode & 0777) | 0400;
+        ak_buf_add(&d, "%s{\"blob\":\"%s\",\"mode\":\"%u\",\"path\":",
+                   i ? "," : "", p.files[i].sha, mode);
+        text(&d, p.files[i].path);
+        ak_buf_add(&d,
+                   ",\"sha256\":\"%s\",\"size\":\"%" PRIu64
+                   "\",\"type\":\"file\"}",
+                   p.files[i].sha, p.files[i].size);
+    }
+    ak_buf_add(&d, "],\"kind\":\"%s\",\"name\":\"%s\",\"relations\":{"
+                   "\"conflicts\":[],\"depends\":[",
+               v ? "application" : "data", p.name);
+    for (size_t i = 0; i < nneeds; i++)
+        ak_buf_add(&d,
+                   "%s{\"authority\":\"" AK_UNSIGNED_AUTHORITY
+                   "\",\"min_revision\":\"0\",\"min_version\":\"%s\","
+                   "\"name\":\"%s\",\"target\":\"%s\"}",
+                   i ? "," : "", needs[i].minimum, needs[i].name, target);
+    ak_buf_add(&d,
+               "],\"recommends\":[],\"replaces\":[]},\"revision\":\"%" PRIu64
+               "\",\"target\":\"%s\",\"version\":\"%s\"},\"format\":"
+               "\"apkg-json-1\",\"requires\":[],\"schema\":\"1\",\"type\":"
+               "\"descriptor\"}",
+               p.has_revision ? p.revision : 0, target, p.version);
+    if (d.bad || e.bad) {
+        code = refuse(m, d.bad == APKG_NOMEM || e.bad == APKG_NOMEM
+                             ? APKG_NOMEM
+                             : APKG_LIMIT,
+                      "the record is too large to register", p.name);
+        goto done;
+    }
+    ak_buf_add(rows, "%s{\"descriptor\":%s,\"evidence\":%s}",
+               rows->size > 30 ? "," : "", d.data, e.data);
+done:
+    free(d.data);
+    free(e.data);
+    free(raw);
+    free(app);
+    mj_free(record);
+    mj_free(application);
+    package_free(&p);
+    return code;
+}
+/* Writes ROOT/.apkg-legacy/adoption-set.json and returns its path. */
+int ak_migrate_manifest(const char *root, char *manifest, size_t manifest_size) {
+    mg *m = calloc(1, sizeof *m);
+    apkg_open_options o = {0};
+    apkg_ctx *c = NULL;
+    apkg_snapshot *s = NULL;
+    char path[AK_PATH], target[64] = "", **names = NULL;
+    size_t n = 0;
+    ak_buf rows = {0};
+    apkg_status code;
+    if (!m)
+        return APKG_NOMEM;
+    o.contract_version = 1;
+    o.struct_size = sizeof o;
+    o.mode = APKG_READ;
+    o.root.data = root;
+    o.root.size = strlen(root);
+    code = apkg_open(&o, &c, NULL);
+    if (!code)
+        code = apkg_snapshot_read(c, &s, NULL);
+    if (!code && (s->view.state != APKG_ROOT_READY || !s->target ||
+                  strlen(s->target) >= sizeof target))
+        code = APKG_POLICY;
+    if (!code)
+        strcpy(target, s->target);
+    apkg_snapshot_free(s);
+    apkg_close(c);
+    if (code) {
+        refuse(m, code,
+               "the copy is not an initialized root of the common engine; "
+               "run \"apkg init\" on it first",
+               root);
+        goto done;
+    }
+    if (ak_path(path, root, MG_ARCHIVE "/db/installed")) {
+        code = refuse(m, APKG_LIMIT, "path too long", root);
+        goto done;
+    }
+    code = names_read(path, &names, &n);
+    if (code || !n) {
+        code = refuse(m, code ? code : APKG_NOT_FOUND,
+                      "this drawer holds no registry set aside by \"apkg "
+                      "migrate copy\"",
+                      root);
+        goto done;
+    }
+    if (n > 128) {
+        code = refuse(m, APKG_LIMIT,
+                      "more than 128 packages; one registration cannot hold "
+                      "them yet",
+                      root);
+        goto done;
+    }
+    rows.max = AK_MAX;
+    ak_buf_add(&rows, "{\"body\":{\"packages\":[");
+    for (size_t i = 0; i < n && !code; i++)
+        code = register_row(m, root, target, names[i], &rows, stderr);
+    if (code)
+        goto done;
+    ak_buf_add(&rows, "]},\"format\":\"apkg-json-1\",\"requires\":[],"
+                      "\"schema\":\"1\",\"type\":\"adoption-set\"}");
+    if (rows.bad) {
+        code = refuse(m, rows.bad, "the adoption set is too large", root);
+        goto done;
+    }
+    if (manifest_size < AK_PATH ||
+        ak_path(manifest, root, MG_ARCHIVE "/adoption-set.json")) {
+        code = refuse(m, APKG_LIMIT, "path too long", root);
+        goto done;
+    }
+    if (ak_write(manifest, rows.data, rows.size, 0))
+        code = refuse(m, APKG_IO, "cannot write the adoption set", manifest);
+done:
+    if (code)
+        fprintf(stderr, "registration refused: %s\n",
+                *m->why ? m->why : "internal error");
+    names_free(names, n);
+    free(rows.data);
+    free(m);
+    return (int)code;
+}
 int ak_migrate_main(int argc, char **argv) {
     static const char usage[] =
         "Usage: apkg migrate check ROOT [--json]\n"
