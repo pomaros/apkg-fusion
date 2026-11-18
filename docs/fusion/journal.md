@@ -171,13 +171,20 @@ process holding the file open through `Open()`:
 | FAT32 | refused, 202 | granted | 0.96 s |
 
 An open file does not hold its drawer, which is why files are tried as well.
-FFS has not been measured. On the same system, on `RAM:` and SFS, `upgrade`
-refused with an assign on a sub-drawer, with a Shell's current directory in the
-package drawer and with a file held open, each time naming that object and
-leaving no draft or archive; `remove` refused with an assign on the package
-drawer; the same commands succeeded once the holder was gone, and a client
-started from inside the package drawer removed its package. Repair and
-rollback take the same path and are covered by the host tests only.
+The same answers came from ABIv11 x86_64 (AROS One, `dos.library` 50.77:
+`RAM:`, SFS, FAT32) and from the Raspberry Pi AArch64 (`dos.library` 50.89:
+`RAM:`, FAT32), with the same times on `RAM:` and SFS. FFS has not been
+measured.
+
+On all three systems (`RAM:` everywhere, SFS on both x86_64 systems)
+`upgrade` refused with an assign on a sub-drawer, with a Shell's current
+directory in the package drawer and with a file held open, leaving no draft or
+archive; `remove` refused with an assign on the package drawer; the same
+commands succeeded once the holder was gone, and a client started from inside
+the package drawer removed its package. On mainline and the Pi the error named
+the held object each time; the ABIv11 Shell has no error redirection, so only
+the refusals were recorded there. Repair and rollback take the same path and
+are covered by the host tests only.
 
 ## Single-root self-update
 
