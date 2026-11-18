@@ -59,8 +59,11 @@ tree. Nothing is reported to the user in either case.
 
 Keeping the drawer changes how a tree is staged
 and restored, which belongs to the write and recovery contract, so it is
-recorded here and not changed on this branch. A report that the drawer is in
-use could be added where the live tree is renamed away.
+recorded here and not changed on this branch.
+
+Since the [in-use check](journal.md#a-live-tree-in-use) the same update
+refuses with BUSY and names the held drawer; the assigns keep naming the live
+tree. Keeping the drawer in place remains a separate, later change.
 
 ## Results and limits
 

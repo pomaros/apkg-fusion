@@ -321,10 +321,33 @@ static int changes_preflight(apkg_ctx *c, const apkg_plan *p, const ak_json *j,
     }
     return 0;
 }
+/* Refuse while something holds the live tree of participant i, which the
+ * change would rename into the journal. 0 free or nothing to move. */
+static apkg_status change_in_use(apkg_ctx *c, const ak_json *j, size_t i,
+                                 int point, apkg_error **e) {
+    char name[256], live[AK_PATH], held[AK_PATH];
+    int before = ak_member(j, (int)i, "before"), busy;
+    if (before < 0 || j->tokens[before].type == 'n')
+        return APKG_OK;
+    if (ak_string(j, ak_member(j, (int)i, "name"), name, sizeof name) ||
+        ak_path(live, c->root, name))
+        return APKG_IO;
+    busy = ak_in_use(live, held, sizeof held);
+    if (!busy && ak_fault(point)) {
+        snprintf(held, sizeof held, "%s", live);
+        busy = 1;
+    }
+    if (busy < 0)
+        return APKG_IO;
+    if (!busy)
+        return APKG_OK;
+    return ak_fail(e, APKG_BUSY,
+                   "in use; close what uses it and repeat the operation", held);
+}
 static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
                                           const apkg_snapshot *s,
                                           const apkg_observer *o,
-                                          apkg_result *r) {
+                                          apkg_result *r, apkg_error **e) {
     ak_json j = {0};
     char txn[AK_PATH], active[AK_PATH], state[AK_PATH], hex[65], id[33];
     ak_identity preparation;
@@ -352,6 +375,13 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         code = errno == ENOMEM ? APKG_NOMEM : APKG_STALE;
         goto done;
     }
+    /* First check, before anything is written: a refusal leaves nothing. */
+    for (i = (size_t)arr + 1; i < j.tokens[arr].next; i = j.tokens[i].next) {
+        code = change_in_use(c, &j, i, 1301, e);
+        if (code)
+            goto done;
+    }
+    code = APKG_IO;
     if (preparation_start(c, r, txn, active, &preparation)) {
         code = errno == EEXIST || errno == ESTALE ? APKG_STALE
                : errno == ENAMETOOLONG            ? APKG_LIMIT
@@ -466,6 +496,12 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         ak_path(live, c->root, name);
         change_path(backup, txn, "old", index);
         change_path(staged, txn, "new", index);
+        /* Second check, right before this tree leaves its name. Trees
+         * already moved go back through the journal. */
+        code = change_in_use(c, &j, i, index ? 1303 : 1302, e);
+        if (code)
+            goto fail;
+        code = APKG_IO;
         if (j.tokens[before].type != 'n' &&
             (ak_publish(live, backup) || ak_sync_dir(c->root) ||
              ak_sync_dir(txn)))

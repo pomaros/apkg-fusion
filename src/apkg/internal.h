@@ -129,6 +129,8 @@ int ak_object(const ak_json *, const char *);
 int ak_fields(const ak_json *, int, const char *const *, size_t);
 int ak_empty(const ak_json *, int);
 apkg_status ak_fail(apkg_error **, apkg_status, const char *, const char *);
+/* 0 free, 1 held (the held drawer or file is named), -1 failure. */
+int ak_in_use(const char *tree, char *held, size_t size);
 char *ak_copy(const void *, size_t);
 int ak_path(char *, const char *, const char *);
 int ak_read(const char *, unsigned char **, size_t *, size_t);
