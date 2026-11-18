@@ -921,7 +921,7 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
     if (code)
         goto done;
     if (p->changes) {
-        code = execute_changes_locked(c, p, s, o, r);
+        code = execute_changes_locked(c, p, s, o, r, e);
         goto done;
     }
     if (!p->absent) {
