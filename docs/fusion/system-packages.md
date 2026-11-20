@@ -296,6 +296,8 @@ journal and history always stay with the root. With a store elsewhere, an
 install creates nothing inside the root but `.apkg/state` and the system's own
 files, and nothing beside it but the journal.
 
+An external store belongs to one root. The first import binds it to the canonical root path. Use a fresh directory for each root. An existing store with objects and no ownership record can still supply reads.
+
 The root does not record where its store is. The choice belongs to the
 caller, like the memory budgets, and nothing depends on it for correctness: a
 context opened without the store looks in the default place, finds no object,
@@ -359,6 +361,11 @@ the selected version and revision, the archive digest and size, and:
 | `ready` | the build is newer than the installed one, or none is installed |
 | `current` | the build is the installed one: nothing to do |
 | `none` | the installed build is not older than anything the channel offers |
+
+Use an empty destination for the first mirror. A successful claim creates
+the directory `.apkg-mirror-v1`; an interrupted transfer can resume there.
+Concurrent publishers serialize changes to the mirror. A source repository
+and an unrelated nonempty directory cannot be used as the destination.
 
 `mirror=unchanged` says the directory already held this snapshot and a
 verified archive, and nothing was fetched.

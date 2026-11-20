@@ -125,6 +125,32 @@ static apkg_status copy_archive(const char *source, int output, uint64_t size,
     free(buffer);
     return code;
 }
+/* Claim only an empty directory. The marker survives an interrupted first
+ * transfer, so retry can clean up safely. Serialize claim, publish and sweep. */
+static apkg_status claim_mirror(const char *dir) {
+    char marker[AK_PATH];
+    struct dirent *entry;
+    if (ak_path(marker, dir, ".apkg-mirror-v1"))
+        return APKG_LIMIT;
+    if (is_directory(marker))
+        return APKG_OK;
+    DIR *d = opendir(dir);
+    if (!d)
+        return APKG_IO;
+    apkg_status code = APKG_OK;
+    errno = 0;
+    while ((entry = readdir(d)))
+        if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..")) {
+            code = APKG_CONFLICT;
+            break;
+        }
+    if (!entry && errno)
+        code = APKG_IO;
+    closedir(d);
+    if (!code && (mkdir(marker, 0700) || ak_sync_dir(dir)))
+        code = APKG_IO;
+    return code;
+}
 /* What an earlier mirror left and the current one does not reference. */
 static void sweep(const char *dir, const char *keep, int snapshots) {
     char path[AK_PATH], (*names)[80] = NULL;
@@ -139,7 +165,8 @@ static void sweep(const char *dir, const char *keep, int snapshots) {
                        ? n == 64 && hex_name(entry->d_name, 64)
                        : (n == 68 && hex_name(entry->d_name, 64) &&
                           !strcmp(entry->d_name + 64, ".pkg")) ||
-                             (n == 42 && !strncmp(entry->d_name, ".incoming.", 10));
+                             (n == 42 && !strncmp(entry->d_name, ".incoming.", 10) &&
+                              hex_name(entry->d_name + 10, 32));
         if (!ours || !strcmp(entry->d_name, keep))
             continue;
         if (count == capacity) {
@@ -192,7 +219,8 @@ apkg_status apkg_client_channel_mirror(const apkg_client_mirror *m,
         archives[AK_PATH], archive[AK_PATH], temp[AK_PATH] = "", path[AK_PATH],
         digest[65], sha[65], leaf[80], reference[66];
     uint64_t best_index = 0;
-    int unchanged = 0, fd = -1;
+    int fd = -1;
+    void *lock = NULL;
     apkg_status code;
     if (e)
         *e = NULL;
@@ -322,6 +350,36 @@ apkg_status apkg_client_channel_mirror(const apkg_client_mirror *m,
                        m->directory);
         goto done;
     }
+    if (!ak_http_url(m->endpoint)) {
+        ak_identity source_id, dest_id;
+        if (ak_stat(m->endpoint, &source_id) || ak_stat(mirror, &dest_id)) {
+            code = APKG_IO;
+            goto done;
+        }
+        if (source_id.st_dev == dest_id.st_dev && source_id.st_ino == dest_id.st_ino) {
+            code = ak_fail(e, APKG_CONFLICT, "the source is also the mirror", mirror);
+            goto done;
+        }
+    }
+#ifdef __AROS__
+    int busy = 0;
+    lock = pkg_fs_lock_root(mirror, &busy);
+    if (!lock) {
+        code = busy ? APKG_BUSY : APKG_IO;
+        goto done;
+    }
+#else
+    lock = pkg_fs_lock_dir(mirror);
+    if (!lock) {
+        code = APKG_IO;
+        goto done;
+    }
+#endif
+    code = claim_mirror(mirror);
+    if (code) {
+        ak_fail(e, code, "use an empty directory or an existing apkg mirror", mirror);
+        goto done;
+    }
     if (ak_path(snapshots, mirror, "snapshots") ||
         ak_path(snapshot, snapshots, digest) ||
         ak_path(archives, mirror, "archives") ||
@@ -337,7 +395,6 @@ apkg_status apkg_client_channel_mirror(const apkg_client_mirror *m,
         !ak_path(path, snapshot, "channel.signature.json") &&
         !holds(path, signature.data, signature.size) &&
         archive_holds(archive, sha, best->archive_bytes) == APKG_OK) {
-        unchanged = 1;
         goto swept;
     }
     if (directory(snapshots) || directory(snapshot) || directory(archives)) {
@@ -435,12 +492,16 @@ apkg_status apkg_client_channel_mirror(const apkg_client_mirror *m,
 swept:
     sweep(archives, leaf, 0);
     sweep(snapshots, digest, 1);
-    (void)unchanged;
 done:
     if (fd >= 0)
         close(fd);
     if (*temp)
         unlink(temp);
+#ifdef __AROS__
+    pkg_fs_unlock_root(lock);
+#else
+    pkg_fs_unlock_dir(lock);
+#endif
     apkg_channel_free(channel);
     apkg_snapshot_free(s);
     apkg_close(c);

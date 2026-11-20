@@ -208,6 +208,7 @@ typedef struct {
 } ak_place_progress;
 /* The store directory of one kind ("objects" or "archives"). */
 int ak_store_path(const apkg_ctx *, const char *kind, char out[AK_PATH]);
+apkg_status ak_store_claim(apkg_ctx *);
 apkg_status ak_store_prune(apkg_ctx *, uint64_t *, uint64_t *);
 int ak_system_path_reserved(const char *);
 int ak_policy_system(const ak_json *, const char *, const char *);

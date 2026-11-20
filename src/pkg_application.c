@@ -402,7 +402,16 @@ int pkg_application_parse(const char *text, size_t length, struct pkg_applicatio
 const char *pkg_application_binary_arch(const unsigned char *h, size_t n)
 {
     if (!h) return "";
-    if (n >= 4 && h[0] == 0 && h[1] == 0 && h[2] == 0x03 && h[3] == 0xf3) return "m68k";
+    if (n >= 4 && !memcmp(h, "\x00\x00\x03\xf3", 4)) {
+        /* Classic diskfont files are a single LoadSeg hunk. Its entry is
+         * a return stub, followed by a DiskFontHeader (NT_FONT, DFH_ID). */
+        if (n >= 52 && !memcmp(h + 4, "\0\0\0\0\0\0\0\1\0\0\0\0\0\0\0\0", 16)
+            && !memcmp(h + 20, h + 28, 4) && h[24] == 0 && h[25] == 0 && h[26] == 3
+            && (h[27] == 0xe9 || h[27] == 0xea) && h[32] == 0x70
+            && h[34] == 0x4e && h[35] == 0x75 && h[44] == 12 && h[50] == 15 && h[51] == 0x80)
+            return "";
+        return "m68k";
+    }
     if (n >= 20 && h[0] == 0x7f && h[1] == 'E' && h[2] == 'L' && h[3] == 'F'
         && (h[4] == 1 || h[4] == 2) && (h[5] == 1 || h[5] == 2) && h[6] == 1) {
         unsigned m = h[5] == 2 ? (unsigned)(h[18] << 8 | h[19]) : (unsigned)(h[19] << 8 | h[18]);

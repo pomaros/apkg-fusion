@@ -57,7 +57,7 @@ class RehearsalEvidence(unittest.TestCase):
         info = dict(name='trial', version='1.2', revision=1, arch='aarch64',
                     abi='v1', signature='verified', authortrust='accepted', installed=True)
         rows = [
-            ('version', 0, 'apkg-fusion 0.1.0-alpha (common engine, contract 1)'),
+            ('version', 0, 'apkg-fusion 0.1.0-alpha (common engine, contract 2)'),
             ('info-v1', 0, json.dumps(info)), ('refuse-tamper', 10, ''),
             ('still-v1', 0, json.dumps(info)),
             ('info-v2', 0, json.dumps(dict(info, version='2.0'))),
@@ -96,7 +96,7 @@ class RehearsalEvidence(unittest.TestCase):
                          ('personal-configuration', 'default-configuration'),
                          ('nothing installed', 'trial'),
                          ('missing 0', 'missing 1'),
-                         ('common engine, contract 1', 'inherited engine')]:
+                         ('common engine, contract 2', 'inherited engine')]:
             with self.subTest(field=old), self.assertRaises(ValueError):
                 verify(prepared, report.replace(old, new))
 

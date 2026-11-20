@@ -1558,7 +1558,7 @@ class SystemStore(unittest.TestCase):
             self.assertEqual(sorted(x.name for x in root.iterdir()), ['.apkg', 'C', 'S'])
             self.assertEqual(sorted(x.name for x in (root / '.apkg').iterdir()), ['state'])
             # The store holds what repair of the installed version needs.
-            self.assertEqual(sorted(x.name for x in store.iterdir()), ['archives', 'objects'])
+            self.assertEqual(sorted(x.name for x in store.iterdir()), ['.apkg-owner', 'archives', 'objects'])
             self.assertEqual(sorted(x.name for x in (store / 'objects').iterdir()), listed_objects(root))
             self.assertEqual(list((store / 'archives').iterdir()), [])
             SystemClients.published(self, d, self.V2, '2.0', 'v2')
@@ -1572,6 +1572,22 @@ class SystemStore(unittest.TestCase):
             # The store must exist: the engine does not invent a volume.
             refused = clients.cli(*update, '--yes', '--store', d / 'absent')
             self.assertEqual(refused.returncode, 5, refused.stdout + refused.stderr)
+
+    def test_two_roots_cannot_prune_each_others_external_store(self):
+        with tempfile.TemporaryDirectory() as folder:
+            d = Path(folder)
+            root, update = self.channel(d)
+            store = d / 'store'
+            store.mkdir()
+            seed = d / 'policy.json'
+            self.assertEqual(clients.cli(*update, '--target', TARGET, '--store', store, '--yes').returncode, 0)
+            before = {p.name: p.read_bytes() for p in (store / 'objects').iterdir()}
+            other = d / 'other'
+            other.mkdir()
+            self.assertEqual(clients.cli('init', other, TARGET, seed, '--yes').returncode, 0)
+            self.assertEqual(clients.cli('prune', other, '--store', store).returncode, CONFLICT)
+            self.assertEqual(before, {p.name: p.read_bytes() for p in (store / 'objects').iterdir()})
+            self.assertEqual(clients.cli('verify', root, 'aros-system', '--store', store).returncode, 0)
 
     def test_prune_removes_only_what_the_engine_stored_and_nothing_needed(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1829,6 +1845,21 @@ class SystemMirror(unittest.TestCase):
             code, result = mirror_call(root, channel, mirror)
             self.assertEqual((code, result.newer, result.installed, result.changed, result.version, result.revision),
                              (0, 0, 1, 0, b'2.0', 1))
+
+    def test_mirror_preserves_a_repository_and_foreign_directories(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            root, _, channel, mirror = self.prepared(d)
+            alias = d / 'alias'
+            alias.symlink_to(channel, target_is_directory=True)
+            before = {p.relative_to(channel): p.read_bytes() for p in channel.rglob('*') if p.is_file()}
+            for destination in (channel, alias):
+                self.assertNotEqual(mirror_call(root, channel, destination)[0], 0)
+            self.assertEqual(before, {p.relative_to(channel): p.read_bytes() for p in channel.rglob('*') if p.is_file()})
+            mirror.mkdir()
+            (mirror / 'notes').write_text('keep')
+            self.assertNotEqual(mirror_call(root, channel, mirror)[0], 0)
+            self.assertEqual(list(mirror.iterdir()), [mirror / 'notes'])
 
     def test_an_interrupted_mirror_is_never_offered_as_complete(self):
         with tempfile.TemporaryDirectory() as d:

@@ -135,6 +135,12 @@ int main(void)
     assert(!*pkg_application_binary_arch(elf, sizeof elf));
     assert(!*pkg_application_binary_arch(elf, 4));
     assert(!*pkg_application_binary_arch(NULL, 64));
+    unsigned char font[64] = { [2]=3, [3]=0xf3, [11]=1, [23]=64,
+                               [26]=3, [27]=0xe9, [31]=64, [32]=0x70, [33]=0xff,
+                               [34]=0x4e, [35]=0x75, [44]=12, [50]=15, [51]=0x80 };
+    assert(!*pkg_application_binary_arch(font, sizeof font));
+    font[51] = 0;
+    assert(!strcmp(pkg_application_binary_arch(font, sizeof font), "m68k"));
     assert(!strcmp(pkg_application_binary_arch((const unsigned char *)"\0\0\3\363", 4), "m68k"));
     printf("application: %u parsing and path checks passed\n", checks);
     return 0;

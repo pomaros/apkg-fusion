@@ -105,6 +105,9 @@ static apkg_status store_dir(apkg_ctx *c, char *out, int create) {
     struct stat st;
     if (!ak_physical(c->anchor, &c->binding))
         return APKG_STALE;
+    apkg_status claim = create ? ak_store_claim(c) : APKG_OK;
+    if (claim)
+        return claim;
     if (ak_store_path(c, "objects", out))
         return APKG_LIMIT;
     if (lstat(out, &st)) {

@@ -13,6 +13,9 @@ static apkg_status cache_dir(apkg_ctx *ctx, char out[AK_PATH]) {
     char parent[AK_PATH];
     if (!ak_physical(ctx->anchor, &ctx->binding))
         return APKG_STALE;
+    apkg_status claim = ak_store_claim(ctx);
+    if (claim)
+        return claim;
     if (ak_store_path(ctx, "archives", out))
         return APKG_LIMIT;
     if (lstat(out, &st)) {

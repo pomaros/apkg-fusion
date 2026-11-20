@@ -31,7 +31,7 @@ def verify(prepared, report):
     if observed != expected or len({label for label, _, _ in blocks}) != len(blocks):
         raise ValueError('missing, reordered, duplicated or failed steps')
     output = {label: '\n'.join(body).strip() for label, _, body in blocks}
-    if output['version'] != 'apkg-fusion 0.1.0-alpha (common engine, contract 1)':
+    if output['version'] != 'apkg-fusion 0.1.0-alpha (common engine, contract 2)':
         raise ValueError('wrong engine identity')
     for label, version in [('info-v1', '1.2'), ('still-v1', '1.2'), ('info-v2', '2.0')]:
         info = json.loads(output[label])

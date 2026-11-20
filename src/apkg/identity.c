@@ -4,14 +4,10 @@
  *
  * The engine proves that a directory it renamed is still the one it recorded,
  * and that a root after a restart is the root its journal names, by comparing
- * st_dev/st_ino. POSIX hosts supply both. AROS posixc does not: st_ino is a
- * hash of the full path, so every rename changes it, and st_dev is the
- * address of the volume's DOS list node, which a reboot can change.
- *
- * On AROS use the lock's object key, with the volume's name and creation date.
- * fib_DiskKey is an enumeration cursor: on RAM: it changes when a child is
- * added. It cannot identify the directory. Keep the full pointer-sized lock
- * key outside POSIX ino_t, which is only 32 bits on AArch64 AROS.
+ * st_dev/st_ino. POSIX hosts supply both. On AROS the wide
+ * Examine packet supplies a stable object number on supporting handlers,
+ * including AFS+. RAM handlers on older systems use the lock key. Mix the
+ * volume name and creation date because a DOS list node can move at reboot.
  * Zero keys refuse mutation. Handler identity across rename/remount still
  * requires target qualification; RAM contents do not survive power loss. */
 #ifndef __AROS__
@@ -22,6 +18,9 @@
 #include <string.h>
 #ifdef __AROS__
 #include <dos/dos.h>
+#ifdef FIBEXTF_OBJECTKEY
+#include <dos/dos64.h>
+#endif
 #include <dos/dosextens.h>
 #include <exec/memory.h>
 #include <proto/dos.h>
@@ -39,7 +38,7 @@ static void native(const char *path, ak_identity *st) {
     st->st_ino = 0;
     st->st_dev = 0;
     struct FileLock *object = lock ? BADDR(lock) : NULL;
-    if (object && object->fl_Key && info && Info(lock, info) &&
+    if (object && info && Info(lock, info) &&
         info->id_VolumeNode) {
         struct DeviceList *volume = BADDR(info->id_VolumeNode);
         const unsigned char *name =
@@ -54,6 +53,20 @@ static void native(const char *path, ak_identity *st) {
         h = mix(h, &volume->dl_VolumeDate, sizeof volume->dl_VolumeDate);
         st->st_dev = h ? h : 1;
         st->st_ino = (uint64_t)object->fl_Key;
+#ifdef FIBEXTF_OBJECTKEY
+        /* Some handlers keep a different private address in each lock.
+         * Wide Examine reports the persistent filesystem object number. */
+        struct FileInfoBlock *fib = AllocDosObject(DOS_FIB, NULL);
+        if (fib) {
+            fib->fib_ActExtFlags = 0;
+            fib->fib_ReqExtFlags = 0;
+            if (DoPkt(object->fl_Task, ACTION_EXAMINE_OBJECT64, (SIPTR)lock,
+                      (SIPTR)MKBADDR(fib), 0, 0, 0) &&
+                (fib->fib_ActExtFlags & FIBEXTF_OBJECTKEY))
+                st->st_ino = fib->fib_ObjectKey;
+            FreeDosObject(DOS_FIB, fib);
+        }
+#endif
     }
     if (lock)
         UnLock(lock);

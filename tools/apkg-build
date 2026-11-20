@@ -73,7 +73,13 @@ def header_cpu(path):
   cpu=PACK['EM_ARCH'].get(machine)
   if not cpu:raise Refusal(f'{path.name}: unsupported executable CPU {machine}')
   return cpu
- if head[:4]==b'\x00\x00\x03\xf3':return 'm68k'
+ if head[:4]==b'\x00\x00\x03\xf3':
+  # Match the native reader's single-hunk DiskFontHeader (NT_FONT, DFH_ID).
+  if (len(head)>=52 and head[4:20]==bytes.fromhex('00000000 00000001 00000000 00000000')
+      and head[20:24]==head[28:32] and head[24:28] in (bytes.fromhex('000003e9'),bytes.fromhex('000003ea'))
+      and head[32]==0x70 and head[34:36]==b'\x4e\x75' and head[44]==12 and head[50:52]==b'\x0f\x80'):
+   return None
+  return 'm68k'
  return None
 
 REQ_TYPE=re.compile(r'[a-z]{1,23}\Z');REQ_ID=re.compile(r'[A-Za-z0-9][A-Za-z0-9._+-]{0,62}\Z')

@@ -21,6 +21,48 @@ typedef struct {
 static int digest_compare(const void *a, const void *b) {
     return strcmp(a, b);
 }
+/* A prune retains only this root's live objects. Bind an external store
+ * before its first import so a second root cannot lose its repair data. */
+apkg_status ak_store_claim(apkg_ctx *c) {
+    char owner[AK_PATH], objects[AK_PATH], archives[AK_PATH], temp[AK_PATH];
+    unsigned char *bytes = NULL, random[16];
+    char leaf[64] = ".apkg-owner.";
+    size_t size = 0;
+    if (!*c->store)
+        return APKG_OK;
+    if (ak_path(owner, c->store, ".apkg-owner") ||
+        ak_store_path(c, "objects", objects) || ak_store_path(c, "archives", archives))
+        return APKG_LIMIT;
+    if (!ak_exists(owner)) {
+        if (ak_exists(objects) || ak_exists(archives)) {
+            /* Another first writer may already have published its marker. */
+            if (ak_exists(owner) != 1)
+                return APKG_CONFLICT;
+        } else {
+            if (pkg_fs_random(random, sizeof random))
+                return APKG_IO;
+            ak_tohex(random, sizeof random, leaf + strlen(leaf));
+            if (ak_path(temp, c->store, leaf))
+                return APKG_LIMIT;
+            if (ak_write(temp, c->root, strlen(c->root), 1)) {
+                unlink(temp);
+                return APKG_IO;
+            }
+            if (ak_publish(temp, owner)) {
+                unlink(temp);
+                if (ak_exists(owner) != 1)
+                    return APKG_IO;
+            }
+            if (ak_sync_dir(c->store))
+                return APKG_IO;
+        }
+    }
+    if (ak_read(owner, &bytes, &size, AK_PATH))
+        return APKG_IO;
+    int matches = size == strlen(c->root) && !memcmp(bytes, c->root, size);
+    free(bytes);
+    return matches ? APKG_OK : APKG_CONFLICT;
+}
 static int hex_name(const char *s, size_t n) {
     for (size_t i = 0; i < n; i++)
         if (!((s[i] >= '0' && s[i] <= '9') || (s[i] >= 'a' && s[i] <= 'f')))
@@ -65,6 +107,10 @@ static apkg_status keep_build(apkg_ctx *c, const apkg_snapshot *s,
     if (parsed)
         return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
     rows = ak_member(&j, ak_member(&j, 0, "body"), "installed");
+    if (rows < 0) {
+        ak_json_free(&j);
+        return APKG_INVALID;
+    }
     for (size_t r = (size_t)rows + 1; r < j.tokens[rows].next && !code;
          r = j.tokens[r].next) {
         int files = ak_member(
@@ -175,6 +221,8 @@ apkg_status ak_store_prune(apkg_ctx *c, uint64_t *files, uint64_t *bytes) {
     if (s->view.state != APKG_ROOT_READY)
         code = s->view.state == APKG_ROOT_PENDING ? APKG_RECOVERY_REQUIRED
                                                   : APKG_POLICY;
+    if (!code)
+        code = ak_store_claim(c);
     if (!code)
         code = keep_build(c, s, &keep);
     if (!code)

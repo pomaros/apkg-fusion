@@ -94,7 +94,7 @@ static int apkg_main(int argc, char **argv) {
             break;
         }
     if (argc == 2 && !strcmp(argv[1], "--version")) {
-        puts("apkg-fusion 0.1.0-alpha (common engine, contract 1)");
+        printf("apkg-fusion 0.1.0-alpha (common engine, contract %u)\n", APKG_CONTRACT_VERSION);
         return APKG_OK;
     }
     if (argc == 2 && !strcmp(argv[1], "engine-info")) {
