@@ -47,11 +47,23 @@ print(h.hexdigest()[:16])
 BUILDID
 )
 # shellcheck disable=SC2086
-set -- "--target=$target" "-DPKG_ABI=\"$abi\"" "-DPKG_RUNTIME=\"$runtime\"" "-DPKG_BUILD_ID=\"$build_id\"" -mcmodel=large $runtime_flags -O2 -std=gnu11 -DPKG_FS_LOCAL_ONLY -isystem "$dev/include" -isystem "$sdk/gen/include" -isystem "$sdk/gen/include/aros/posixc" -isystem "$dev/include/aros/stdc" -Iinclude -Isrc/apkg
+set -- "--target=$target" "-DPKG_ABI=\"$abi\"" "-DPKG_RUNTIME=\"$runtime\"" "-DPKG_BUILD_ID=\"$build_id\"" -mcmodel=large $runtime_flags -O2 -std=gnu11 -isystem "$dev/include" -isystem "$sdk/gen/include" -isystem "$sdk/gen/include/aros/posixc" -isystem "$dev/include/aros/stdc" -Iinclude -Isrc/apkg
 sources=$(make -s print-apkg-sources)
+# AROS has no curl: the engine reads a channel with the inherited HTTP client,
+# whose https is Mbed TLS carried in the program, checked against the bundled
+# certificate authorities. MBEDTLS_TEST_SW_INET_PTON: posixc has no inet_pton.
+sh tools/ca-bundle-c.sh third_party/cacert/cacert.pem > "$out/pkg_cabundle.c"
+tls=third_party/mbedtls
+mkdir -p "$out/tls"
+for source in "$tls"/library/*.c; do
+    object=$out/tls/$(basename "$source" .c).o
+    if [ "$object" -nt "$source" ] && [ "$object" -nt "$tls/pkg_mbedtls_config.h" ] && [ "${APKG_AROS_REBUILD:-0}" != 1 ]; then continue; fi
+    "$cc" "$@" -Os -w -DMBEDTLS_CONFIG_FILE='"pkg_mbedtls_config.h"' -DMBEDTLS_TEST_SW_INET_PTON -I"$tls" -I"$tls/include" -I"$tls/library" -c "$source" -o "$object"
+done
+"$ar" rcs "$out/libpkgtls.a" "$out"/tls/*.o
 # The source list consists of repository-owned relative paths without spaces.
 # shellcheck disable=SC2086
-"$cc" "$@" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" src/apkg/main.c $sources -o "$out/apkg-core" -Wl,--allow-multiple-definition -Wl,--start-group -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
+"$cc" "$@" -DMBEDTLS_CONFIG_FILE='"pkg_mbedtls_config.h"' -isystem "$tls" -isystem "$tls/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" src/apkg/main.c $sources src/pkg_tls_aros.c "$out/pkg_cabundle.c" "$out/libpkgtls.a" -o "$out/apkg-core" -Wl,--allow-multiple-definition -Wl,--start-group -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
 # AROS programs are relocatable ELF. A successful link with garbage collection
 # can silently discard main/startup, so verify real program roots explicitly.
 "$APKG_AROS_TOOLS/bin/llvm-nm" --defined-only "$out/apkg-core" > "$out/core-symbols.txt"
@@ -70,7 +82,7 @@ for source in "$mb"/library/*.c; do
 done
 "$ar" rcs "$out/libmbedtls.a" "$out"/mbedtls/*.o
 # shellcheck disable=SC2086
-"$cc" "$@" -DAPKG_FUSION -DPKG_FS_LOCAL_ONLY -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -Icomponents/arospkg/src/tls -I"$mb/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" components/arospkg/src/libpkg/*.c components/arospkg/src/pkgmanager/*.c components/arospkg/src/tls/mbedtls.c components/arospkg/src/tls/platform_aros.c components/arospkg/src/tls/entropy_getentropy.c $sources "$out/libmbedtls.a" "$dev/lib/libz.static.a" -o "$out/PkgManager" -Wl,--allow-multiple-definition -Wl,--start-group -lmui -lmuimaster -lintuition -lgraphics -lworkbench -licon -ldatatypes -lasl -lrexxsyslib -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
+"$cc" "$@" -DAPKG_FUSION -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -Icomponents/arospkg/src/tls -I"$mb/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" components/arospkg/src/libpkg/*.c components/arospkg/src/pkgmanager/*.c components/arospkg/src/tls/mbedtls.c components/arospkg/src/tls/platform_aros.c components/arospkg/src/tls/entropy_getentropy.c $sources src/pkg_tls_aros.c "$out/pkg_cabundle.c" "$out/libmbedtls.a" "$dev/lib/libz.static.a" -o "$out/PkgManager" -Wl,--allow-multiple-definition -Wl,--start-group -lmui -lmuimaster -lintuition -lgraphics -lworkbench -licon -ldatatypes -lasl -lrexxsyslib -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
 "$APKG_AROS_TOOLS/bin/llvm-nm" --defined-only "$out/PkgManager" > "$out/gui-symbols.txt"
 for symbol in main __startup_entry pm_common_install apkg_execute; do
     awk -v symbol="$symbol" '$NF==symbol {found=1} END {exit !found}' "$out/gui-symbols.txt" || { echo "missing GUI program symbol $symbol" >&2; exit 1; }

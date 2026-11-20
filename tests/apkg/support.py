@@ -3,9 +3,10 @@
 import ctypes as C
 import hashlib
 import json
+import os
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
-lib = C.CDLL(str(ROOT / 'build/libapkg-test.dylib'))
+lib = C.CDLL(os.environ.get('APKG_TEST_LIBRARY') or str(ROOT / 'build/libapkg-test.dylib'))
 class Text(C.Structure): _fields_=[('data',C.c_void_p),('size',C.c_size_t)]
 class ID(C.Structure): _fields_=[('bytes',C.c_ubyte*16)]
 class Digest(C.Structure): _fields_=[('bytes',C.c_ubyte*32)]

@@ -89,6 +89,12 @@ extern void (*pkg_fs_on_transfer)(long long done, long long total);
  * a curl that has not written a byte yet. `host` is the machine being waited
  * for, NULL when that step is over. NULL, the default, asks for nothing. */
 extern void (*pkg_fs_on_wait)(const char *host);
+
+/* Called by pkg_net_get with the body bytes received so far, before they are
+ * kept. A nonzero answer ends the transfer there and pkg_net_get fails: its
+ * caller bounds a download, or stops one, without the client knowing why.
+ * NULL, the default, keeps everything. */
+extern int (*pkg_net_on_body)(long long total);
 extern void (*pkg_fs_on_tick)(void);
 /* Wait for socket readiness while servicing the activity callback.
  * Used by the POSIX/AROS network transport, including TLS's socket layer. */
