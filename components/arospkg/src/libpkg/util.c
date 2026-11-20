@@ -63,6 +63,15 @@ int u_mkpath(const char *path)
 
 int u_delete(const char *path) { return DeleteFile((CONST_STRPTR)path) ? 0 : -1; }
 
+int u_rename(const char *from, const char *to) { return Rename((CONST_STRPTR)from, (CONST_STRPTR)to) ? 0 : -1; }
+
+int u_in_use(const char *path)
+{
+    BPTR l = Lock((CONST_STRPTR)path, EXCLUSIVE_LOCK);
+    if (l) { UnLock(l); return 0; }
+    return IoErr() == ERROR_OBJECT_IN_USE;
+}
+
 long u_size(const char *path)
 {
     BPTR l = Lock((CONST_STRPTR)path, SHARED_LOCK);

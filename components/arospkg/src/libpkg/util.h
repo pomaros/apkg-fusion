@@ -11,6 +11,10 @@ int   u_isdir(const char *path);
 int   u_mkdir(const char *path);          /* one level; 0 = ok or existed */
 int   u_mkpath(const char *path);         /* every level                  */
 int   u_delete(const char *path);         /* file or empty dir            */
+int   u_rename(const char *from, const char *to);   /* 0 = ok              */
+/* 1 when another lock holds `path` (an exclusive lock is refused with
+ * ERROR_OBJECT_IN_USE); 0 when it is free or does not exist. */
+int   u_in_use(const char *path);
 int   u_deltree(const char *path);
 int   u_copy(const char *from, const char *to);
 long  u_size(const char *path);

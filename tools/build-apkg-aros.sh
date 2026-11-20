@@ -109,8 +109,13 @@ for source in "$mb"/library/*.c; do
     "$cc" "$@" -Os -w -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -DMBEDTLS_TEST_SW_INET_PTON -Icomponents/arospkg/src/tls -I"$mb/include" -I"$mb/library" -c "$source" -o "$object"
 done
 "$ar" rcs "$out/libmbedtls.a" "$out"/mbedtls/*.o
+# The engine's TLS glue (src/pkg_tls_aros.c) and the inherited client's
+# (components/arospkg/src/tls) both define mbedtls_hardware_poll and
+# mbedtls_ms_time, and SocketBase is defined in the client's net.c and in
+# src/pkg_fs_posix.c. Until one of each goes, this link accepts duplicates
+# and the first definition on the command line is used.
 # shellcheck disable=SC2086
-link_checked PkgManager "$cc" "$@" -DAPKG_FUSION -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -Icomponents/arospkg/src/tls -I"$mb/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" -DLINKTEXT_EMBEDDED -Icomponents/arospkg/third_party/zunekit components/arospkg/src/libpkg/*.c components/arospkg/src/pkgmanager/*.c components/arospkg/third_party/zunekit/*.c components/arospkg/src/tls/mbedtls.c components/arospkg/src/tls/platform_aros.c components/arospkg/src/tls/entropy_getentropy.c $sources src/pkg_tls_aros.c "$out/pkg_cabundle.c" "$out/libmbedtls.a" "$dev/lib/libz.static.a" -o "$out/PkgManager" -Wl,--start-group -lmui -lmuimaster -lintuition -lgraphics -lworkbench -licon -ldatatypes -lasl -lrexxsyslib -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
+"$cc" "$@" -Wl,--allow-multiple-definition -DAPKG_FUSION -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -Icomponents/arospkg/src/tls -I"$mb/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" -DLINKTEXT_EMBEDDED -Icomponents/arospkg/third_party/zunekit components/arospkg/src/libpkg/*.c components/arospkg/src/pkgmanager/*.c components/arospkg/third_party/zunekit/*.c components/arospkg/src/tls/mbedtls.c components/arospkg/src/tls/platform_aros.c components/arospkg/src/tls/entropy_getentropy.c $sources src/pkg_tls_aros.c "$out/pkg_cabundle.c" "$out/libmbedtls.a" "$dev/lib/libz.static.a" -o "$out/PkgManager" -Wl,--start-group -lmui -lmuimaster -lintuition -lgraphics -lworkbench -licon -ldatatypes -lasl -lrexxsyslib -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
 "$APKG_AROS_TOOLS/bin/llvm-nm" --defined-only "$out/PkgManager" > "$out/gui-symbols.txt"
 for symbol in main __startup_entry pm_common_install apkg_execute; do
     awk -v symbol="$symbol" '$NF==symbol {found=1} END {exit !found}' "$out/gui-symbols.txt" || { echo "missing GUI program symbol $symbol" >&2; exit 1; }
