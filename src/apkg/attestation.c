@@ -469,6 +469,7 @@ apkg_status apkg_client_attestation(const char *root, const char *folder,
     apkg_open_options options = {0};
     options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
+    ak_client_store(&options, NULL);
     options.root = (apkg_text){root, strlen(root)};
     code = apkg_open(&options, &ctx, error);
     if (!code)

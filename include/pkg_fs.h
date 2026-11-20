@@ -20,6 +20,14 @@ int pkg_fs_atomic_replace_supported(void);
 #ifdef APKG_TESTING
 void pkg_fs_test_replace(int force_aside, int crash_after);
 #endif
+/* Bytes a writer may still use on the volume that holds `path`, and the
+ * allocation unit files there are rounded up to. 0, or -1 with errno set. */
+int  pkg_fs_free_bytes(const char *path, unsigned long long *bytes,
+                       unsigned long long *unit);
+#ifdef APKG_TESTING
+/* Host model of a nearly full volume: nonzero replaces the answer above. */
+void pkg_fs_test_free(unsigned long long bytes);
+#endif
 int  pkg_fs_read(const char *path, unsigned char **buf, size_t *len);
 /* Replace the regular file `to` with `from` on the same volume: atomic where
  * the system can, otherwise through the aside name (see above). */

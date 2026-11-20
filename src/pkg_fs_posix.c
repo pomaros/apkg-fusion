@@ -33,12 +33,14 @@
 #include <unistd.h>
 #if !defined(__AROS__)
 #include <sys/file.h>
+#include <sys/statvfs.h>
 #endif
 #ifdef __AROS__
 #include <alloca.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
 #include <exec/execbase.h>
+#include <exec/memory.h>
 #include <dos/dos.h>
 #endif
 
@@ -190,6 +192,49 @@ char *pkg_join(const char *a, const char *b)
     return p;
 }
 
+
+#ifdef APKG_TESTING
+static unsigned long long test_free;
+void pkg_fs_test_free(unsigned long long bytes)
+{
+    test_free = bytes;
+}
+#endif
+
+int pkg_fs_free_bytes(const char *path, unsigned long long *bytes,
+                      unsigned long long *unit)
+{
+#ifdef __AROS__
+    /* InfoData must be longword aligned: allocate it. */
+    struct InfoData *info = (struct InfoData *)AllocMem(sizeof *info, MEMF_PUBLIC | MEMF_CLEAR);
+    BPTR lock = Lock((CONST_STRPTR)path, SHARED_LOCK);
+    int ok = info != NULL && lock != BNULL && Info(lock, info);
+    if (ok) {
+        unsigned long long left = info->id_NumBlocks > info->id_NumBlocksUsed
+            ? (unsigned long long)(info->id_NumBlocks - info->id_NumBlocksUsed) : 0;
+        *unit = (unsigned long long)info->id_BytesPerBlock;
+        *bytes = left * *unit;
+    }
+    if (lock != BNULL)
+        UnLock(lock);
+    if (info != NULL)
+        FreeMem(info, sizeof *info);
+    if (!ok)
+        errno = EIO;
+    return ok ? 0 : -1;
+#else
+    struct statvfs vfs;
+    if (statvfs(path, &vfs) != 0)
+        return -1;
+    *unit = (unsigned long long)(vfs.f_frsize ? vfs.f_frsize : vfs.f_bsize);
+    *bytes = (unsigned long long)vfs.f_bavail * *unit;
+#ifdef APKG_TESTING
+    if (test_free)
+        *bytes = test_free;
+#endif
+    return 0;
+#endif
+}
 
 int pkg_fs_replace(const char *from, const char *to)
 {

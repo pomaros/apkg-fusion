@@ -274,6 +274,52 @@ done:
         ak_fail(e, code, "signed package archive refused", path);
     return code;
 }
+/* Put back into the store the listed objects (sorted digests) an archive
+ * carries. The archive is not trusted and need not be: each object is
+ * admitted only under the digest it hashes to, and the digests come from a
+ * descriptor the root already approved. */
+static int digest_order(const void *a, const void *b) { return strcmp(a, b); }
+apkg_status ak_archive_restore(apkg_ctx *c, const char *path,
+                               const char (*wanted)[65], size_t count,
+                               size_t *restored) {
+    unsigned char header[8];
+    uint64_t remaining, size;
+    struct stat st;
+    int fd, skipped = 0;
+    apkg_status code = APKG_OK;
+    *restored = 0;
+    if (pkg_fs_path_is_link(path) != 0)
+        return APKG_INVALID;
+    fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return errno == ENOENT ? APKG_NOT_FOUND : APKG_IO;
+    if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size < 8 ||
+        st.st_size > AK_ARCHIVE_MAX || exact_read(fd, header, 8) ||
+        memcmp(header, "PKG\1", 4) ||
+        pkg_be32_get(header + 4) != (uint64_t)st.st_size) {
+        close(fd);
+        return APKG_INTEGRITY;
+    }
+    remaining = (uint64_t)st.st_size - 8;
+    while (remaining && !code) {
+        char name[129];
+        code = member(fd, &remaining, name, &size);
+        if (code)
+            break;
+        if (skipped >= 2 && !strncmp(name, "objects/", 8) &&
+            strlen(name) == 72 &&
+            bsearch(name + 8, wanted, count, 65, digest_order)) {
+            code = ak_blob_ingest(c, name + 8, size, fd, NULL);
+            if (!code)
+                ++*restored;
+        } else if (lseek(fd, (off_t)size, SEEK_CUR) < 0)
+            code = APKG_IO;
+        skipped++;
+        remaining -= size;
+    }
+    close(fd);
+    return code;
+}
 apkg_status ak_package_source(apkg_ctx *c, const char *source,
                               const apkg_observer *observer, apkg_package **out,
                               apkg_error **e) {

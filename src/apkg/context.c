@@ -66,6 +66,12 @@ int ak_path(char *o, const char *a, const char *b) {
                      (*a && a[strlen(a) - 1] == ':') ? "" : "/", b);
     return n < 0 || n >= AK_PATH ? -1 : 0;
 }
+int ak_store_path(const apkg_ctx *c, const char *kind, char out[AK_PATH]) {
+    if (*c->store)
+        return ak_path(out, c->store, kind);
+    return snprintf(out, AK_PATH, "%s.apkg-%s", c->root, kind) >= AK_PATH ? -1
+                                                                          : 0;
+}
 int ak_parent(const char *root, char *out) {
     char *p;
     if (!root || !out || strlen(root) >= AK_PATH) {
@@ -266,7 +272,7 @@ apkg_status apkg_open(const apkg_open_options *o, apkg_ctx **out,
     if (!out)
         return APKG_INVALID;
     *out = NULL;
-    if (!o || o->contract_version != 1 || o->struct_size != sizeof *o)
+    if (!o || o->contract_version != APKG_CONTRACT_VERSION || o->struct_size != sizeof *o)
         return ak_fail(err, APKG_UNSUPPORTED, "API version/size mismatch", "");
     if (!o->root.data || !o->root.size || o->root.size >= AK_PATH ||
         (!ak_text_path_valid(o->root.data, o->root.size)) ||
@@ -284,6 +290,22 @@ apkg_status apkg_open(const apkg_open_options *o, apkg_ctx **out,
         c->memory_max < 1048576u) {
         free(c);
         return ak_fail(err, APKG_LIMIT, "unsupported resource budget", "");
+    }
+    if (o->store.size) {
+        char given[AK_PATH];
+        ak_identity unused;
+        if (!o->store.data || o->store.size >= AK_PATH ||
+            !ak_text_path_valid(o->store.data, o->store.size)) {
+            free(c);
+            return ak_fail(err, APKG_INVALID, "invalid store directory", "");
+        }
+        memcpy(given, o->store.data, o->store.size);
+        given[o->store.size] = 0;
+        if (ak_resolve(given, c->store, &unused)) {
+            free(c);
+            return ak_fail(err, APKG_NOT_FOUND,
+                           "the store directory must exist", given);
+        }
     }
     memcpy(p, o->root.data, o->root.size);
     p[o->root.size] = 0;

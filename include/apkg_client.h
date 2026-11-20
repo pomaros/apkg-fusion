@@ -15,6 +15,11 @@ apkg_status apkg_recent_format(const apkg_recent *, int json, char **,
 apkg_status apkg_news_format(const apkg_news *, int json, char **, apkg_error **);
 typedef int (*apkg_confirm_fn)(void *, const apkg_plan *,
                                const char *presentation);
+/* The store directory (apkg_open_options.store) of every context the client
+ * calls of this process open from now on, unless a request names its own.
+ * NULL or "" returns to the stores beside the root. Process-wide: set it
+ * once at start, before the calls it is meant for. */
+apkg_status apkg_client_store(const char *directory);
 /* Local signed folder (descriptor.json/signature.json) or PKG/1 archive.
  * Explicit archive imports may populate a sibling verified-object store.
  * No shell, no network and no implicit initialization/trust expansion. */
@@ -55,6 +60,7 @@ typedef struct {
     apkg_client_action action;
     const char *root, *argument, *pool;
     int recommendations, system_takeover;
+    const char *store; /* NULL: the client default, see apkg_client_store */
     apkg_confirm_fn confirm;
     void *user;
     const apkg_observer *observer;
@@ -69,7 +75,9 @@ apkg_status apkg_client_request_apply(const apkg_client_request *,
  * policy when target is given; without a target it refuses. An interrupted
  * transaction is recovered first. The newest trusted candidate of the name
  * is planned as apkg_client_source_install does for a one-source list; a
- * current package yields an UNCHANGED result. A NULL confirm approves each
+ * current package yields an UNCHANGED result. If recovery of a pending
+ * system placement lacks objects, they are fetched again from the endpoint's
+ * archive of that same build and recovery is finished. A NULL confirm approves each
  * plan as made, which is the unattended form; a confirm sees every plan,
  * initialization included. Budgets of zero select the context defaults. */
 typedef struct {
@@ -79,13 +87,54 @@ typedef struct {
     apkg_bytes policy;
     const char *target; /* NULL: never initialize */
     int takeover, recommendations;
+    /* When the installed build is already the newest: restore its missing
+     * or damaged files, fetching its objects again if the store lost them. */
+    int repair;
     uint64_t max_object_bytes, max_memory_bytes;
+    const char *store; /* NULL: the client default, see apkg_client_store */
     apkg_confirm_fn confirm;
     void *user;
     const apkg_observer *observer;
 } apkg_client_update;
 apkg_status apkg_client_channel_update(const apkg_client_update *,
                                        apkg_result **, apkg_error **);
+/* A verified local mirror of what the next update of one package needs, for
+ * an updater that applies where there is no network. The channel at
+ * `endpoint` (http(s) or a directory) is opened under the root's policy and
+ * replay floor as apkg_client_channel_open does; the root is opened read-only
+ * and nothing in it or beside it changes. The newest build of `name` that the
+ * root's policy trusts and whose target is the root's is selected; several
+ * authors, or builds without a defined order, refuse. `directory` then
+ * becomes a file channel: the signed snapshot exactly as served
+ * (snapshots/DIGEST/channel.json, channel.signature.json) and the selected
+ * build's archive (archives/SHA.pkg), each written under a transfer name and
+ * given its name only once whole, the archive only with the size and digest
+ * the signed snapshot states. `current` is replaced last, in one step: an
+ * interrupted mirror is the previous complete mirror, or none. A transfer
+ * does not resume; an unfinished or damaged archive is fetched again whole.
+ * Afterwards archives and snapshots the mirror no longer references are
+ * removed. apkg_client_channel_update with `directory` as its endpoint then
+ * installs or upgrades with no network at all. The observer sees FETCH
+ * progress in bytes and may cancel. */
+typedef struct {
+    uint32_t contract_version; /* must be APKG_CONTRACT_VERSION */
+    size_t struct_size;        /* must be sizeof(apkg_client_mirror) */
+    const char *root, *endpoint, *identity, *name, *directory;
+    const char *store; /* NULL: the client default; a mirror reads no object */
+    const apkg_observer *observer;
+} apkg_client_mirror;
+typedef struct {
+    apkg_digest snapshot, descriptor, archive;
+    uint64_t sequence, revision, archive_bytes;
+    char version[256];
+    int newer;     /* newer than the build installed in the root, or none is
+                      installed: an update is ready */
+    int installed; /* exactly the installed build: nothing to do */
+    int changed;   /* 0: the mirror already held this snapshot and archive */
+} apkg_client_mirror_result;
+apkg_status apkg_client_channel_mirror(const apkg_client_mirror *,
+                                       apkg_client_mirror_result *,
+                                       apkg_error **);
 /* Endpoint-bound discovery and exact selection shared by CLI/PkgManager.
  * selection is CHANNEL-ID/SNAPSHOT-SHA256/DESCRIPTOR-SHA256, with lowercase hex identities.
  * Apply prepares selected archives, then approves one immutable package/floor

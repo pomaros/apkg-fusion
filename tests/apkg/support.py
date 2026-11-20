@@ -13,13 +13,13 @@ class Digest(C.Structure): _fields_=[('bytes',C.c_ubyte*32)]
 class U64(C.Structure): _fields_=[('state',C.c_int),('value',C.c_uint64),('evidence',Text)]
 class Fact(C.Structure): _fields_=[('state',C.c_int),('value',Text),('evidence',Text)]
 class RootView(C.Structure): _fields_=[('state',C.c_int),('identity_state',C.c_int),('root_id',ID),('generation',U64),('pending_count',U64),('snapshot_digest',Digest),('target',Fact),('diagnostic',Text),('source_record',Text)]
-class Options(C.Structure): _fields_=[('version',C.c_uint32),('size',C.c_size_t),('root',Text),('mode',C.c_int),('object_max',C.c_uint64),('memory_max',C.c_uint64)]
+class Options(C.Structure): _fields_=[('version',C.c_uint32),('size',C.c_size_t),('root',Text),('mode',C.c_int),('object_max',C.c_uint64),('memory_max',C.c_uint64),('store',Text)]
 for name,args,restype in [('apkg_open',[C.POINTER(Options),C.POINTER(C.c_void_p),C.c_void_p],C.c_int),('apkg_snapshot_read',[C.c_void_p,C.POINTER(C.c_void_p),C.c_void_p],C.c_int),('apkg_snapshot_root',[C.c_void_p],C.POINTER(RootView)),('apkg_snapshot_installed_count',[C.c_void_p],C.c_uint64),('apkg_close',[C.c_void_p],None),('apkg_snapshot_free',[C.c_void_p],None)]:
  f=getattr(lib,name);f.argtypes=args;f.restype=restype
 
 def wire(kind,body,requires=None): return json.dumps(dict(body=body,format='apkg-json-1',requires=requires or [],schema='1',type=kind),ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()
-def open_ctx(path,mode=0,budget=0):
- b=str(path).encode();buf=C.create_string_buffer(b);o=Options(1,C.sizeof(Options),Text(C.cast(buf,C.c_void_p),len(b)),mode,budget,0);ctx=C.c_void_p();r=lib.apkg_open(C.byref(o),C.byref(ctx),None);return r,ctx
+def open_ctx(path,mode=0,budget=0,memory=0,store=None):
+ b=str(path).encode();buf=C.create_string_buffer(b);s=os.fsencode(store) if store else b'';sbuf=C.create_string_buffer(s);o=Options(2,C.sizeof(Options),Text(C.cast(buf,C.c_void_p),len(b)),mode,budget,memory,Text(C.cast(sbuf,C.c_void_p),len(s)));ctx=C.c_void_p();r=lib.apkg_open(C.byref(o),C.byref(ctx),None);return r,ctx
 
 def snapshot(ctx):
  s=C.c_void_p();r=lib.apkg_snapshot_read(ctx,C.byref(s),None);return r,s

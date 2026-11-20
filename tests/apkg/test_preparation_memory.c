@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
     assert(argc == 4);
     int point = atoi(argv[3]);
     apkg_open_options options = {0};
-    options.contract_version = 1;
+    options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
     options.mode = APKG_WRITE;
     options.root.data = argv[1];

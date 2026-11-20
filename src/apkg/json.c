@@ -138,6 +138,11 @@ static int parse(ak_json *j, size_t *p, unsigned depth) {
         ak_token *grown;
         if (most > AK_TOKENS)
             most = AK_TOKENS;
+        if (most > j->limit) {
+            most = j->limit;
+            if (id >= most)
+                j->over = 1;
+        }
         if (cap > most)
             cap = most;
         if (id >= cap)
@@ -208,10 +213,16 @@ static int parse(ak_json *j, size_t *p, unsigned depth) {
     return (int)id;
 }
 int ak_json_parse(const void *v, size_t n, ak_json *j) {
+    return ak_json_parse_within(v, n, j, SIZE_MAX);
+}
+int ak_json_parse_within(const void *v, size_t n, ak_json *j, size_t memory) {
     size_t p = 0;
     memset(j, 0, sizeof *j);
     if (!v || !n || n > AK_MAX)
         return -1;
+    j->limit = memory / 2 / sizeof *j->tokens;
+    if (j->limit < 16)
+        j->limit = 16;
     j->text = ak_copy(v, n);
     j->capacity = n / 2 + 1;
     if (j->capacity > 4096)
@@ -224,11 +235,11 @@ int ak_json_parse(const void *v, size_t n, ak_json *j) {
         return -2;
     }
     if (parse(j, &p, 1) < 0 || p != n) {
-        int nomem = j->nomem;
+        int nomem = j->nomem, over = j->over;
         ak_json_free(j);
         if (nomem)
             errno = ENOMEM;
-        return nomem ? -2 : -1;
+        return nomem ? -2 : over ? -3 : -1;
     }
     return 0;
 }

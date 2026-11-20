@@ -17,7 +17,9 @@ typedef struct {
 #define AK_MAX 16777216u
 /* Tokens of one canonical object. A 16 MiB channel snapshot of system
  * packages (about 13 tokens per listed file) stays under it; the token array
- * grows with the object, so small objects never pay for the bound. */
+ * grows with the object, so small objects never pay for the bound. At 32
+ * bytes a token the full array is half the default 64 MiB working memory,
+ * which is what ak_json_parse_within charges it to. */
 #define AK_TOKENS 1048576u
 /* Total declared file bytes of one descriptor, shared blob references
  * counted once per entry: the materialized tree never exceeds the largest
@@ -32,7 +34,14 @@ typedef struct {
     size_t size, count, capacity;
     ak_token *tokens;
     int nomem; /* the token array could not grow */
+    size_t limit; /* tokens this parse may hold */
+    int over;     /* it needed more */
 } ak_json;
+/* As ak_json_parse, with the token array charged to a working-memory budget:
+ * -3 when the object needs more tokens than half of `memory` holds. A
+ * context's own objects are parsed this way; objects derived from them are
+ * no larger. */
+int ak_json_parse_within(const void *, size_t, ak_json *, size_t memory);
 typedef struct {
     char *data;
     size_t size, cap, max;
@@ -197,6 +206,9 @@ typedef struct {
     uint64_t *sequence;
     apkg_phase phase; /* APPLY while executing, RECOVER while recovering */
 } ak_place_progress;
+/* The store directory of one kind ("objects" or "archives"). */
+int ak_store_path(const apkg_ctx *, const char *kind, char out[AK_PATH]);
+apkg_status ak_store_prune(apkg_ctx *, uint64_t *, uint64_t *);
 int ak_system_path_reserved(const char *);
 int ak_policy_system(const ak_json *, const char *, const char *);
 int ak_policy_permission(const ak_json *, const char *);
@@ -212,9 +224,19 @@ apkg_status ak_place_plan(apkg_ctx *, ak_installed old, ak_installed next,
                           char **system, char **installed, apkg_error **);
 apkg_status ak_place_recheck(apkg_ctx *, const ak_json *plan,
                              const void *old_state, size_t old_size);
+apkg_status ak_archive_restore(apkg_ctx *, const char *path,
+                               const char (*wanted)[65], size_t count,
+                               size_t *restored);
+apkg_status ak_objects_restore(apkg_ctx *, const ak_json *, int descriptor,
+                               const char *endpoint, const apkg_observer *,
+                               apkg_error **);
+apkg_status ak_pending_restore(apkg_ctx *, const char *endpoint,
+                               const apkg_observer *, apkg_error **);
+apkg_status ak_place_ready(apkg_ctx *, const ak_json *plan, apkg_error **);
+/* journal: the transaction directory, where edits kept are recorded. */
 apkg_status ak_place_apply(apkg_ctx *, const ak_json *plan,
                            const void *old_state, size_t old_size,
-                           const ak_place_progress *);
+                           const char *journal, const ak_place_progress *);
 apkg_status ak_place_format(const apkg_plan *, ak_buf *);
 apkg_status ak_place_verify(apkg_ctx *, const ak_json *descriptor,
                             const apkg_observer *, uint64_t counts[4],
@@ -222,18 +244,21 @@ apkg_status ak_place_verify(apkg_ctx *, const ak_json *descriptor,
 /* Client entry points with the takeover planning input (apkg_client.h keeps
  * the forms without it). */
 typedef int (*ak_confirm_fn)(void *, const apkg_plan *, const char *);
+void ak_client_store(apkg_open_options *, const char *store);
 apkg_status ak_client_install(const char *root, const char *source,
-                              int takeover, ak_confirm_fn, void *,
+                              int takeover, const char *store, ak_confirm_fn,
+                              void *,
                               const apkg_observer *, apkg_result **,
                               apkg_error **);
 apkg_status ak_client_channel_apply(const char *root, const char *endpoint,
                                     const char *selection, int recommendations,
-                                    int takeover, ak_confirm_fn, void *,
+                                    int takeover, const char *store,
+                                    ak_confirm_fn, void *,
                                     const apkg_observer *, apkg_result **,
                                     apkg_error **);
 apkg_status ak_client_source_install(const char *root, const char *name,
                                      int recommendations, int takeover,
-                                     ak_confirm_fn, void *,
+                                     const char *store, ak_confirm_fn, void *,
                                      const apkg_observer *, apkg_result **,
                                      apkg_error **);
 apkg_status ak_channels_install_named(apkg_ctx *, const apkg_snapshot *,
@@ -252,6 +277,7 @@ struct apkg_ctx {
      * the last set verified by this context is not re-verified. */
     int records_verified;
     apkg_digest records_digest;
+    char store[AK_PATH]; /* "" keeps the stores beside the root */
     /* Planning input: later plans may replace unowned files that stand in
      * the way of a system package. Recorded in every such plan. */
     int takeover;

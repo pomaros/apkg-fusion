@@ -105,7 +105,7 @@ static apkg_status store_dir(apkg_ctx *c, char *out, int create) {
     struct stat st;
     if (!ak_physical(c->anchor, &c->binding))
         return APKG_STALE;
-    if (snprintf(out, AK_PATH, "%s.apkg-objects", c->root) >= AK_PATH)
+    if (ak_store_path(c, "objects", out))
         return APKG_LIMIT;
     if (lstat(out, &st)) {
         if (errno != ENOENT)

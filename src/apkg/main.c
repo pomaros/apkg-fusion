@@ -82,6 +82,17 @@ static int apkg_main(int argc, char **argv) {
     char *text = NULL;
     const char *confirmation = NULL;
     int initialize_yes = 0;
+    /* --store DIR, anywhere on the line: where this root keeps its verified
+     * objects and fetched archives instead of beside the root. */
+    for (int i = 1; i + 1 < argc; i++)
+        if (!strcmp(argv[i], "--store")) {
+            if (apkg_client_store(argv[i + 1]))
+                return APKG_LIMIT;
+            memmove(argv + i, argv + i + 2,
+                    (size_t)(argc - i - 2) * sizeof *argv);
+            argc -= 2;
+            break;
+        }
     if (argc == 2 && !strcmp(argv[1], "--version")) {
         puts("apkg-fusion 0.1.0-alpha (common engine, contract 1)");
         return APKG_OK;
@@ -115,15 +126,17 @@ static int apkg_main(int argc, char **argv) {
             "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-install ROOT ENDPOINT "
             "CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256 [--recommends] "
             "[--takeover] [--confirm DIGEST]\nchannel-update ROOT ENDPOINT "
-            "CHANNEL-ID NAME --policy FILE [--target TARGET] [--takeover] "
-            "[--yes | --confirm DIGEST]\nchannel-accept ROOT ENDPOINT "
+            "CHANNEL-ID NAME --policy FILE [--target TARGET] [--takeover] [--repair] "
+            "[--yes | --confirm DIGEST]\nchannel-mirror ROOT ENDPOINT CHANNEL-ID "
+            "NAME DIRECTORY\nchannel-accept ROOT ENDPOINT "
             "CHANNEL-ID [--confirm DIGEST]\nself-update ROOT ENDPOINT "
             "CHANNEL-ID EXECUTABLE [--check] [--confirm DIGEST]\npolicy ROOT "
             "POLICY-FILE [--confirm DIGEST]\nsource-add ROOT NAME ENDPOINT "
             "CHANNEL-ID | source-remove ROOT NAME | source-install ROOT NAME "
             "[--recommends] [--takeover], each [--confirm DIGEST]\nsource-list "
-            "ROOT\n--takeover lets a system package replace unowned files in "
-            "its way; the plan lists each one.\n");
+            "ROOT\nprune ROOT\n--takeover lets a system package replace "
+            "unowned files in its way; the plan lists each one.\n--store DIR "
+            "on any command keeps the root's objects and archives in DIR.\n");
         return argc == 2 && !strcmp(argv[1], "--help") ? APKG_OK : APKG_INVALID;
     }
     if (!strcmp(argv[1], "channel-install")) {
@@ -149,6 +162,35 @@ static int apkg_main(int argc, char **argv) {
                        recommendations, takeover, confirmation, &r, &e);
         goto done;
     }
+    if (!strcmp(argv[1], "channel-mirror")) {
+        /* channel-mirror ROOT ENDPOINT CHANNEL-ID NAME DIRECTORY */
+        apkg_client_mirror m = {0};
+        apkg_client_mirror_result done;
+        char snapshot[65], archive[65];
+        if (argc != 7)
+            return APKG_INVALID;
+        m.contract_version = APKG_CONTRACT_VERSION;
+        m.struct_size = sizeof m;
+        m.root = argv[2];
+        m.endpoint = argv[3];
+        m.identity = argv[4];
+        m.name = argv[5];
+        m.directory = argv[6];
+        code = apkg_client_channel_mirror(&m, &done, &e);
+        if (!code) {
+            ak_tohex(done.snapshot.bytes, 32, snapshot);
+            ak_tohex(done.archive.bytes, 32, archive);
+            printf("snapshot=%s\nsequence=%llu\nname=%s\nversion=%s\n"
+                   "revision=%llu\narchive=%s\narchive_bytes=%llu\n"
+                   "update=%s\nmirror=%s\n",
+                   snapshot, (unsigned long long)done.sequence, argv[5],
+                   done.version, (unsigned long long)done.revision, archive,
+                   (unsigned long long)done.archive_bytes,
+                   done.newer ? "ready" : done.installed ? "current" : "none",
+                   done.changed ? "updated" : "unchanged");
+        }
+        goto done;
+    }
     if (!strcmp(argv[1], "channel-update")) {
         /* channel-update ROOT ENDPOINT CHANNEL-ID NAME --policy FILE
          *   [--target TARGET] [--takeover] [--yes | --confirm DIGEST]
@@ -167,6 +209,8 @@ static int apkg_main(int argc, char **argv) {
                 u.target = argv[++i];
             else if (!strcmp(argv[i], "--takeover") && !u.takeover)
                 u.takeover = 1;
+            else if (!strcmp(argv[i], "--repair") && !u.repair)
+                u.repair = 1;
             else if (!strcmp(argv[i], "--yes") && !yes && !confirmation)
                 yes = 1;
             else if (!strcmp(argv[i], "--confirm") && !confirmation && !yes &&
@@ -293,8 +337,9 @@ static int apkg_main(int argc, char **argv) {
         apkg_id id;
         if (ak_hex(argv[4], id.bytes, 16))
             return APKG_INVALID;
-        o.contract_version = 1;
+        o.contract_version = APKG_CONTRACT_VERSION;
         o.struct_size = sizeof o;
+    ak_client_store(&o, NULL);
         o.root.data = argv[2];
         o.root.size = strlen(argv[2]);
         o.mode = APKG_WRITE;
@@ -345,8 +390,9 @@ static int apkg_main(int argc, char **argv) {
         apkg_id id;
         if (ak_hex(argv[4], id.bytes, 16))
             return APKG_INVALID;
-        o.contract_version = 1;
+        o.contract_version = APKG_CONTRACT_VERSION;
         o.struct_size = sizeof o;
+    ak_client_store(&o, NULL);
         o.root.data = argv[2];
         o.root.size = strlen(argv[2]);
         o.mode = APKG_WRITE;
@@ -391,8 +437,9 @@ static int apkg_main(int argc, char **argv) {
         apkg_package *package = NULL;
         if (argc != 4)
             return APKG_INVALID;
-        o.contract_version = 1;
+        o.contract_version = APKG_CONTRACT_VERSION;
         o.struct_size = sizeof o;
+    ak_client_store(&o, NULL);
         o.root.data = argv[2];
         o.root.size = strlen(argv[2]);
         o.mode = APKG_WRITE;
@@ -684,8 +731,9 @@ static int apkg_main(int argc, char **argv) {
                        confirmation, &r, &e);
         goto done;
     }
-    o.contract_version = 1;
+    o.contract_version = APKG_CONTRACT_VERSION;
     o.struct_size = sizeof o;
+    ak_client_store(&o, NULL);
     o.root.data = argv[2];
     o.root.size = strlen(argv[2]);
     o.mode = !strcmp(argv[1], "inspect") ? APKG_READ : APKG_WRITE;
@@ -698,6 +746,18 @@ static int apkg_main(int argc, char **argv) {
             goto done;
         }
         code = apkg_recover(c, NULL, &r, &e);
+        goto done;
+    }
+    if (!strcmp(argv[1], "prune")) {
+        uint64_t files = 0, bytes = 0;
+        if (argc != 3) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        code = apkg_store_prune(c, &files, &bytes, &e);
+        if (!code)
+            printf("pruned files=%llu bytes=%llu\n", (unsigned long long)files,
+                   (unsigned long long)bytes);
         goto done;
     }
     code = apkg_snapshot_read(c, &s, &e);

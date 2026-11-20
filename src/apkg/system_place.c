@@ -14,6 +14,7 @@
 #include "internal.h"
 #include "pkg_fs.h"
 #include "pkg_fs_aside.h"
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -166,28 +167,113 @@ static apkg_status live_read(const char *root, const char *relative,
     return code;
 }
 
-/* Paths other system packages of the resulting root own. */
+/* AROS volumes do not tell case apart, so neither do ownership and the
+ * comparison of two signed lists: every path is looked up by its folded
+ * form. A descriptor never lists two paths that fold alike (schema.c). */
 typedef struct {
+    char *path, *fold;
+    int token, directory;
+} row;
+typedef struct {
+    row *rows;
+    size_t count;
+} table;
+static int row_compare(const void *a, const void *b) {
+    return strcmp(((const row *)a)->fold, ((const row *)b)->fold);
+}
+static void table_free(table *t) {
+    if (t->rows)
+        for (size_t i = 0; i < t->count; i++) {
+            free(t->rows[i].path);
+            free(t->rows[i].fold);
+        }
+    free(t->rows);
+    t->rows = NULL;
+    t->count = 0;
+}
+static apkg_status table_add(table *t, const char *path, int token,
+                             int directory) {
+    row *r = &t->rows[t->count];
+    size_t n = strlen(path);
+    r->path = ak_copy(path, n);
+    r->fold = ak_copy(path, n);
+    if (!r->path || !r->fold) {
+        free(r->path);
+        free(r->fold);
+        return APKG_NOMEM;
+    }
+    for (size_t i = 0; i < n; i++)
+        if (r->fold[i] >= 'A' && r->fold[i] <= 'Z')
+            r->fold[i] = (char)(r->fold[i] + 32);
+    r->token = token;
+    r->directory = directory;
+    t->count++;
+    return APKG_OK;
+}
+/* The files of a descriptor (strings 0) or an array of paths (strings 1),
+ * by folded path. array < 0 is an empty table. */
+static apkg_status table_load(table *t, const ak_json *j, int array,
+                              int strings, size_t max) {
+    size_t n = 0;
     char *path;
-    int directory;
-} owned;
-static int owned_compare(const void *a, const void *b) {
-    return strcmp(((const owned *)a)->path, ((const owned *)b)->path);
-}
-static void owned_free(owned *rows, size_t count) {
-    if (rows)
-        for (size_t i = 0; i < count; i++)
-            free(rows[i].path);
-    free(rows);
-}
-static apkg_status owned_build(ak_installed next, int self, size_t max,
-                               owned **out, size_t *count) {
-    owned *rows = NULL;
-    size_t n = 0, k = 0;
-    char *path = NULL;
     apkg_status code = APKG_OK;
-    *out = NULL;
-    *count = 0;
+    memset(t, 0, sizeof *t);
+    if (array < 0)
+        return APKG_OK;
+    if (j->tokens[array].type != '[')
+        return APKG_INVALID;
+    for (size_t i = (size_t)array + 1; i < j->tokens[array].next;
+         i = j->tokens[i].next)
+        n++;
+    if (!n)
+        return APKG_OK;
+    if (n > max / sizeof *t->rows)
+        return APKG_LIMIT;
+    t->rows = calloc(n, sizeof *t->rows);
+    path = malloc(AK_PATH);
+    if (!t->rows || !path)
+        code = APKG_NOMEM;
+    for (size_t i = (size_t)array + 1; !code && i < j->tokens[array].next;
+         i = j->tokens[i].next) {
+        if (ak_string(j, strings ? (int)i : ak_member(j, (int)i, "path"), path,
+                      AK_PATH))
+            code = APKG_INVALID;
+        else
+            code = table_add(t, path, (int)i,
+                             !strings &&
+                                 ak_equal(j, ak_member(j, (int)i, "type"),
+                                          "directory"));
+    }
+    free(path);
+    if (code)
+        table_free(t);
+    else
+        qsort(t->rows, t->count, sizeof *t->rows, row_compare);
+    return code;
+}
+static const row *table_find(const table *t, const char *fold) {
+    row key;
+    if (!t->count)
+        return NULL;
+    key.fold = (char *)fold;
+    return bsearch(&key, t->rows, t->count, sizeof *t->rows, row_compare);
+}
+static const row *table_find_path(const table *t, const char *path,
+                                  char *scratch) {
+    size_t i;
+    for (i = 0; path[i]; i++)
+        scratch[i] = path[i] >= 'A' && path[i] <= 'Z' ? (char)(path[i] + 32)
+                                                      : path[i];
+    scratch[i] = 0;
+    return table_find(t, scratch);
+}
+/* Paths the other system packages of the resulting root list. */
+static apkg_status foreign_load(table *t, ak_installed next, int self,
+                                size_t max) {
+    size_t n = 0;
+    char *path = malloc(AK_PATH);
+    apkg_status code = path ? APKG_OK : APKG_NOMEM;
+    memset(t, 0, sizeof *t);
     for (int pass = 0; pass < 2 && !code; pass++) {
         for (size_t e = (size_t)next.array + 1;
              e < next.j->tokens[next.array].next && !code;
@@ -197,48 +283,37 @@ static apkg_status owned_build(ak_installed next, int self, size_t max,
                 continue;
             files = entry_files(next.j, (int)e);
             for (size_t f = (size_t)files + 1;
-                 f < next.j->tokens[files].next; f = next.j->tokens[f].next) {
-                if (!pass) {
+                 f < next.j->tokens[files].next && !code;
+                 f = next.j->tokens[f].next) {
+                if (!pass)
                     n++;
-                    continue;
-                }
-                if (ak_string(next.j, ak_member(next.j, (int)f, "path"), path,
-                              AK_PATH)) {
+                else if (ak_string(next.j, ak_member(next.j, (int)f, "path"),
+                                   path, AK_PATH))
                     code = APKG_INVALID;
-                    break;
-                }
-                rows[k].path = ak_copy(path, strlen(path));
-                if (!rows[k].path) {
-                    code = APKG_NOMEM;
-                    break;
-                }
-                rows[k++].directory = ak_equal(
-                    next.j, ak_member(next.j, (int)f, "type"), "directory");
+                else
+                    code = table_add(
+                        t, path, (int)f,
+                        ak_equal(next.j, ak_member(next.j, (int)f, "type"),
+                                 "directory"));
             }
         }
-        if (!pass) {
-            if (!n)
-                return APKG_OK;
-            if (n > max / sizeof *rows)
-                return APKG_LIMIT;
-            rows = calloc(n, sizeof *rows);
-            path = malloc(AK_PATH);
-            if (!rows || !path)
+        if (!pass && n) {
+            if (n > max / sizeof *t->rows)
+                code = APKG_LIMIT;
+            else if (!(t->rows = calloc(n, sizeof *t->rows)))
                 code = APKG_NOMEM;
         }
     }
     free(path);
-    if (code) {
-        owned_free(rows, k);
-        return code;
-    }
-    qsort(rows, k, sizeof *rows, owned_compare);
-    *out = rows;
-    *count = k;
-    return APKG_OK;
+    if (code)
+        table_free(t);
+    else if (t->count)
+        qsort(t->rows, t->count, sizeof *t->rows, row_compare);
+    return code;
 }
 
 enum {
+    L_CLEAR,
     L_DELETE,
     L_DIRECTORIES,
     L_KEEP,
@@ -251,18 +326,81 @@ enum {
     L_COUNT
 };
 typedef struct {
-    cursor was, now, created;
-    char full[AK_PATH];
-    ak_buf lists[L_COUNT];
-} scan;
-static void list_add(ak_buf *list, const char *path) {
-    /* Valid payload paths hold no quote, backslash or control byte. */
-    ak_buf_add(list, "%s\"%s\"", list->size ? "," : "", path);
+    const char **paths;
+    size_t count, capacity;
+} pathlist;
+static int path_compare(const void *a, const void *b) {
+    return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+static apkg_status list_add(pathlist *list, const char *path) {
+    if (list->count == list->capacity) {
+        size_t capacity = list->capacity ? list->capacity * 2 : 64;
+        const char **grown = calloc(capacity, sizeof *grown);
+        if (!grown)
+            return APKG_NOMEM;
+        if (list->count)
+            memcpy(grown, list->paths, list->count * sizeof *grown);
+        free(list->paths);
+        list->paths = grown;
+        list->capacity = capacity;
+    }
+    list->paths[list->count++] = path;
+    return APKG_OK;
+}
+/* Ascending by exact path, as every reader of a record expects. Valid
+ * payload paths hold no quote, backslash or control byte. */
+static void list_write(ak_buf *b, pathlist *list) {
+    if (list->count > 1)
+        qsort(list->paths, list->count, sizeof *list->paths, path_compare);
+    for (size_t i = 0; i < list->count; i++)
+        ak_buf_add(b, "%s\"%s\"", i ? "," : "", list->paths[i]);
 }
 static apkg_status refuse(apkg_error **e, apkg_status code, const char *why,
                           const char *subject) {
     if (e && !*e)
         ak_fail(e, code, why, subject);
+    return code;
+}
+/* Everything under a directory that is to become a file must be the old
+ * version's own: one unlisted entry and the directory is not ours to drop. */
+static apkg_status only_listed(const char *root, const char *relative,
+                               const table *old, char *scratch,
+                               apkg_error **e) {
+    char *full = malloc(AK_PATH), *child = malloc(AK_PATH);
+    DIR *d = NULL;
+    struct dirent *entry;
+    apkg_status code = APKG_OK;
+    if (!full || !child)
+        code = APKG_NOMEM;
+    else if (ak_path(full, root, relative))
+        code = APKG_LIMIT;
+    else if (!(d = opendir(full)))
+        code = APKG_IO;
+    errno = 0;
+    while (!code && (entry = readdir(d))) {
+        const row *known;
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+            continue;
+        if (ak_path(child, relative, entry->d_name)) {
+            code = APKG_LIMIT;
+            break;
+        }
+        known = table_find_path(old, child, scratch);
+        if (!known)
+            code = refuse(e, APKG_CONFLICT,
+                          "a directory that becomes a file holds something "
+                          "the package does not own",
+                          child);
+        else if (known->directory)
+            code = only_listed(root, child, old, scratch, e);
+        errno = 0;
+    }
+    if (!code && d && errno)
+        code = APKG_IO;
+    if (d)
+        closedir(d);
+    free(full);
+    free(child);
     return code;
 }
 /* One decision per path of the old and the new signed list, from the bytes
@@ -275,176 +413,251 @@ static apkg_status participant(apkg_ctx *c, ak_installed old, int old_entry,
                                int takeover, size_t max, ak_buf *record,
                                ak_buf *placement, apkg_error **e) {
     const ak_json *oj = old.j, *nj = next.j;
-    scan *w = calloc(1, sizeof *w);
-    owned *foreign = NULL;
-    size_t nforeign = 0, at = 0;
+    table was = {0}, now = {0}, created = {0}, foreign = {0};
+    pathlist lists[L_COUNT];
+    const char **retyped = NULL; /* folded directories that become files */
+    size_t nretyped = 0, io = 0, in = 0;
+    char *full = malloc(AK_PATH), *scratch = malloc(AK_PATH);
     struct pkg_sha256 observed;
     unsigned char digest[32];
     char hex[65];
     uint64_t bytes = 0;
     int repair = !strcmp(operation, "repair");
-    apkg_status code;
-    if (!w)
-        return APKG_NOMEM;
-    for (int i = 0; i < L_COUNT; i++)
-        w->lists[i].max = max;
-    code = owned_build(next, new_entry, max, &foreign, &nforeign);
-    if (code)
-        goto done;
-    if (cursor_open(&w->was, oj, old_entry < 0 ? -1 : entry_files(oj, old_entry),
-                    0) ||
-        cursor_open(&w->now, nj, entry_files(nj, new_entry), 0) ||
-        cursor_open(&w->created, oj,
-                    old_entry < 0
-                        ? -1
-                        : ak_member(oj, ak_member(oj, old_entry, "placement"),
-                                    "directories"),
-                    1)) {
-        code = APKG_INVALID;
-        goto done;
-    }
+    ak_buf out = {0};
+    apkg_status code = full && scratch ? APKG_OK : APKG_NOMEM;
+    memset(lists, 0, sizeof lists);
+    if (!code)
+        code = table_load(&was, oj, old_entry < 0 ? -1 : entry_files(oj, old_entry),
+                          0, max);
+    if (!code)
+        code = table_load(&now, nj, entry_files(nj, new_entry), 0, max);
+    if (!code)
+        code = table_load(
+            &created, oj,
+            old_entry < 0 ? -1
+                          : ak_member(oj, ak_member(oj, old_entry, "placement"),
+                                      "directories"),
+            1, max);
+    if (!code)
+        code = foreign_load(&foreign, next, new_entry, max);
+    if (!code && was.count &&
+        !(retyped = calloc(was.count, sizeof *retyped)))
+        code = APKG_NOMEM;
     pkg_sha256_init(&observed);
-    while (w->was.valid || w->now.valid) {
-        int order = !w->was.valid   ? 1
-                    : !w->now.valid ? -1
-                                    : strcmp(w->was.path, w->now.path);
-        int in_old = order <= 0, in_new = order >= 0, kind;
-        const char *path = in_new ? w->now.path : w->was.path;
-        int ot = in_old ? (int)w->was.at : -1, nt = in_new ? (int)w->now.at : -1;
-        int old_file = in_old && ak_equal(oj, ak_member(oj, ot, "type"), "file");
-        int new_dir =
-            in_new && ak_equal(nj, ak_member(nj, nt, "type"), "directory");
-        int was_created, taken_elsewhere = 0, elsewhere_directory = 0;
+#define ADD(list, value)                                                       \
+    do {                                                                       \
+        code = list_add(&lists[list], value);                                  \
+        if (code)                                                              \
+            goto done;                                                         \
+    } while (0)
+    while (!code && (io < was.count || in < now.count)) {
+        int order = io >= was.count   ? 1
+                    : in >= now.count ? -1
+                                      : strcmp(was.rows[io].fold,
+                                               now.rows[in].fold);
+        const row *o = order <= 0 ? &was.rows[io] : NULL,
+                  *n = order >= 0 ? &now.rows[in] : NULL;
+        const char *path = n ? n->path : o->path, *fold = n ? n->fold : o->fold;
+        const row *elsewhere = table_find(&foreign, fold);
+        int old_file = o && !o->directory, kind, inside = 0;
+        int was_created = table_find(&created, fold) != NULL;
         char live[65], sha[65] = "", before[65] = "";
         uint64_t live_size, size = 0;
-        if (in_new && ak_member(nj, nt, "amiga") >= 0) {
+        if (order <= 0)
+            io++;
+        if (order >= 0)
+            in++;
+        if (n && ak_member(nj, n->token, "amiga") >= 0) {
             code = refuse(e, APKG_UNSUPPORTED,
                           "system packages carry no amiga metadata", path);
-            goto done;
+            break;
         }
-        code = live_read(c->root, path, w->full, &kind, live, &live_size);
+        for (size_t r = 0; r < nretyped && !inside; r++) {
+            size_t length = strlen(retyped[r]);
+            inside = !strncmp(fold, retyped[r], length) && fold[length] == '/';
+        }
+        code = live_read(c->root, path, full, &kind, live, &live_size);
         if (code)
-            goto done;
+            break;
         pkg_sha256_update(&observed, (const unsigned char *)path,
                           strlen(path) + 1);
         pkg_sha256_update(&observed, (const unsigned char *)"adfo" + kind, 1);
         pkg_sha256_update(&observed, (const unsigned char *)live,
                           strlen(live) + 1);
-        was_created = cursor_seek(&w->created, path);
-        if (was_created < 0) {
+        if (old_file &&
+            ak_string(oj, ak_member(oj, o->token, "sha256"), before,
+                      sizeof before)) {
             code = APKG_INVALID;
-            goto done;
+            break;
         }
-        while (at < nforeign && strcmp(foreign[at].path, path) < 0)
-            at++;
-        if (at < nforeign && !strcmp(foreign[at].path, path)) {
-            taken_elsewhere = 1;
-            elsewhere_directory = foreign[at].directory;
-        }
-        if (in_new && taken_elsewhere && !(new_dir && elsewhere_directory)) {
+        if (n && elsewhere && !(n->directory && elsewhere->directory)) {
             code = refuse(e, APKG_CONFLICT,
                           "another installed system package owns this path",
                           path);
-            goto done;
+            break;
         }
-        if (new_dir) {
-            if (kind == LIVE_ABSENT) {
-                list_add(&w->lists[L_DIRECTORIES], path);
-                list_add(&w->lists[L_PLACEMENT], path);
+        if (n && n->directory) {
+            if (kind == LIVE_FILE && old_file && !strcmp(live, before)) {
+                /* The old version's own file makes way for the directory. */
+                ADD(L_CLEAR, path);
+                ADD(L_DIRECTORIES, path);
+                ADD(L_PLACEMENT, path);
+            } else if (kind == LIVE_ABSENT) {
+                ADD(L_DIRECTORIES, path);
+                ADD(L_PLACEMENT, path);
             } else if (kind != LIVE_DIRECTORY) {
                 code = refuse(e, APKG_CONFLICT,
                               "a system directory path holds something else",
                               path);
-                goto done;
+                break;
             } else if (was_created)
-                list_add(&w->lists[L_PLACEMENT], path);
-        } else if (in_new) {
-            if (ak_string(nj, ak_member(nj, nt, "sha256"), sha, sizeof sha) ||
-                ak_u64(nj, ak_member(nj, nt, "size"), &size) ||
-                (old_file &&
-                 ak_string(oj, ak_member(oj, ot, "sha256"), before,
-                           sizeof before))) {
+                ADD(L_PLACEMENT, path);
+        } else if (n) {
+            int preserve =
+                ak_equal(nj, ak_member(nj, n->token, "config"), "preserve");
+            if (ak_string(nj, ak_member(nj, n->token, "sha256"), sha,
+                          sizeof sha) ||
+                ak_u64(nj, ak_member(nj, n->token, "size"), &size)) {
                 code = APKG_INVALID;
-                goto done;
+                break;
             }
-            if (kind == LIVE_DIRECTORY || kind == LIVE_OTHER) {
+            if (kind == LIVE_DIRECTORY && o && o->directory) {
+                /* The old version's directory makes way for the file when
+                 * all it holds is that version's own, unmodified. */
+                code = only_listed(c->root, path, &was, scratch, e);
+                if (code)
+                    break;
+                retyped[nretyped++] = fold;
+                ADD(L_CLEAR, path);
+                ADD(L_WRITE, path);
+                bytes += size;
+            } else if (kind == LIVE_DIRECTORY || kind == LIVE_OTHER) {
                 code = refuse(e, APKG_CONFLICT,
                               "a system file path holds something else", path);
-                goto done;
-            }
-            if (kind == LIVE_ABSENT) {
-                list_add(&w->lists[L_WRITE], path);
+                break;
+            } else if (kind == LIVE_ABSENT) {
+                ADD(L_WRITE, path);
                 bytes += size;
             } else if (!strcmp(live, sha)) {
                 /* Already the signed bytes: owned without a write. */
             } else if (old_file) {
                 if (!repair && !strcmp(live, before)) {
-                    list_add(&w->lists[L_WRITE], path);
+                    ADD(L_WRITE, path);
                     bytes += size;
-                } else if (ak_equal(nj, ak_member(nj, nt, "config"),
-                                    "preserve"))
-                    list_add(&w->lists[L_KEEP], path);
+                } else if (preserve)
+                    ADD(L_KEEP, path);
                 else {
-                    list_add(&w->lists[L_OVERWRITE], path);
+                    ADD(L_OVERWRITE, path);
                     bytes += size;
                 }
-            } else if (takeover) {
-                list_add(&w->lists[L_TAKEN], path);
-                bytes += size;
-            } else {
+            } else if (!takeover) {
                 code = refuse(e, APKG_CONFLICT,
                               "an unowned file with other content is in the "
                               "way; takeover was not requested",
                               path);
-                goto done;
+                break;
+            } else if (preserve) {
+                /* A volume someone already configured: their settings are
+                 * adopted as they are, never replaced by the defaults. */
+                ADD(L_KEEP, path);
+            } else {
+                ADD(L_TAKEN, path);
+                bytes += size;
             }
+        } else if (inside) {
+            /* Under a directory that becomes a file: it goes first, and only
+             * as the old version left it. */
+            if (kind == LIVE_ABSENT)
+                continue;
+            if ((o->directory && kind != LIVE_DIRECTORY) ||
+                (!o->directory &&
+                 (kind != LIVE_FILE || strcmp(live, before)))) {
+                code = refuse(e, APKG_CONFLICT,
+                              "a directory that becomes a file holds a "
+                              "modified entry",
+                              path);
+                break;
+            }
+            ADD(L_CLEAR, path);
+        } else if (elsewhere) {
+            /* Handed over to another package of this plan: not dropped. */
         } else if (old_file) {
-            if (ak_string(oj, ak_member(oj, ot, "sha256"), before,
-                          sizeof before)) {
+            if (kind == LIVE_FILE)
+                ADD(strcmp(live, before) ? L_RELEASE : L_DELETE, path);
+        } else if (was_created && kind == LIVE_DIRECTORY)
+            ADD(L_RMDIR, path);
+    }
+#undef ADD
+    if (code)
+        goto done;
+    /* Bytes to place must be in the store. Inline bytes of a development
+     * descriptor arrive there when the transaction is prepared. */
+    for (int l = 0; l < 3 && !code; l++) {
+        const pathlist *list = &lists[l == 0 ? L_OVERWRITE : l == 1 ? L_TAKEN : L_WRITE];
+        for (size_t i = 0; i < list->count && !code; i++) {
+            const row *n = table_find_path(&now, list->paths[i], scratch);
+            struct stat st;
+            if (!n || ak_member(nj, n->token, "blob") < 0)
+                continue;
+            if (ak_string(nj, ak_member(nj, n->token, "sha256"), hex,
+                          sizeof hex))
                 code = APKG_INVALID;
-                goto done;
-            }
-            /* A path another package of the same plan now lists is handed
-             * over, not dropped: deleting it would take that package's file. */
-            if (kind == LIVE_FILE && !taken_elsewhere)
-                list_add(&w->lists[strcmp(live, before) ? L_RELEASE : L_DELETE],
-                         path);
-        } else if (was_created && kind == LIVE_DIRECTORY && !taken_elsewhere)
-            list_add(&w->lists[L_RMDIR], path);
-        if ((order <= 0 && cursor_next(&w->was)) ||
-            (order >= 0 && cursor_next(&w->now))) {
-            code = APKG_INVALID;
-            goto done;
+            else if (ak_blob_path(c, hex, full) || lstat(full, &st))
+                code = refuse(e, APKG_NOT_FOUND,
+                              "the store holds no bytes for this file: fetch "
+                              "the package again, or name the store it was "
+                              "installed with",
+                              list->paths[i]);
         }
     }
+    if (code)
+        goto done;
     pkg_sha256_final(&observed, digest);
     ak_tohex(digest, 32, hex);
-    for (int i = 0; i < L_COUNT; i++)
-        if (w->lists[i].bad) {
-            code = (apkg_status)w->lists[i].bad;
-            goto done;
-        }
-#define LIST(i) (w->lists[i].data ? w->lists[i].data : "")
-    ak_buf_add(record,
-               "%s{\"bytes\":\"%" PRIu64 "\",\"delete\":[%s],\"directories\":"
-               "[%s],\"keep\":[%s],\"name\":\"%s\",\"observed\":\"%s\","
-               "\"operation\":\"%s\",\"overwrite\":[%s],\"release\":[%s],"
-               "\"rmdir\":[%s],\"taken\":[%s],\"takeover\":\"%d\",\"write\":"
-               "[%s]}",
-               record->size > 1 ? "," : "", bytes, LIST(L_DELETE),
-               LIST(L_DIRECTORIES), LIST(L_KEEP), name, hex, operation,
-               LIST(L_OVERWRITE), LIST(L_RELEASE), LIST(L_RMDIR),
-               LIST(L_TAKEN), !!takeover, LIST(L_WRITE));
-    ak_buf_add(placement, "{\"directories\":[%s]}", LIST(L_PLACEMENT));
-#undef LIST
-    code = record->bad      ? (apkg_status)record->bad
+    out.max = max;
+    ak_buf_add(&out, "%s{\"bytes\":\"%" PRIu64 "\",\"clear\":[",
+               record->size > 1 ? "," : "", bytes);
+    list_write(&out, &lists[L_CLEAR]);
+    ak_buf_add(&out, "],\"delete\":[");
+    list_write(&out, &lists[L_DELETE]);
+    ak_buf_add(&out, "],\"directories\":[");
+    list_write(&out, &lists[L_DIRECTORIES]);
+    ak_buf_add(&out, "],\"keep\":[");
+    list_write(&out, &lists[L_KEEP]);
+    ak_buf_add(&out,
+               "],\"name\":\"%s\",\"observed\":\"%s\",\"operation\":\"%s\","
+               "\"overwrite\":[",
+               name, hex, operation);
+    list_write(&out, &lists[L_OVERWRITE]);
+    ak_buf_add(&out, "],\"release\":[");
+    list_write(&out, &lists[L_RELEASE]);
+    ak_buf_add(&out, "],\"rmdir\":[");
+    list_write(&out, &lists[L_RMDIR]);
+    ak_buf_add(&out, "],\"taken\":[");
+    list_write(&out, &lists[L_TAKEN]);
+    ak_buf_add(&out, "],\"takeover\":\"%d\",\"write\":[", !!takeover);
+    list_write(&out, &lists[L_WRITE]);
+    ak_buf_add(&out, "]}");
+    ak_buf_add(placement, "{\"directories\":[");
+    list_write(placement, &lists[L_PLACEMENT]);
+    ak_buf_add(placement, "]}");
+    if (!out.bad)
+        ak_buf_add(record, "%s", out.data);
+    code = out.bad          ? (apkg_status)out.bad
+           : record->bad    ? (apkg_status)record->bad
            : placement->bad ? (apkg_status)placement->bad
                             : APKG_OK;
 done:
     for (int i = 0; i < L_COUNT; i++)
-        free(w->lists[i].data);
-    owned_free(foreign, nforeign);
-    free(w);
+        free(lists[i].paths);
+    free(out.data);
+    free(retyped);
+    free(full);
+    free(scratch);
+    table_free(&was);
+    table_free(&now);
+    table_free(&created);
+    table_free(&foreign);
     return code;
 }
 /* A bundle is the folder ROOT/<name>: no system file may live under a name a
@@ -606,8 +819,11 @@ apkg_status ak_place_plan(apkg_ctx *c, ak_installed old, ak_installed next,
     ak_buf_add(&installed, "[");
     if (policy) {
         int parsed = ak_json_parse(policy, strlen(policy), &trust);
-        if (parsed)
+        if (parsed) {
+            free(records.data);
+            free(installed.data);
             return parsed == -2 ? APKG_NOMEM : APKG_TRUST;
+        }
     }
     for (size_t i = (size_t)next.array + 1;
          i < nj->tokens[next.array].next && !code; i = nj->tokens[i].next) {
@@ -718,12 +934,13 @@ apkg_status ak_place_plan(apkg_ctx *c, ak_installed old, ak_installed next,
 /* The record names only paths; shapes are checked before anything acts. */
 int ak_place_records_valid(const ak_json *j, int array) {
     static const char *const fields[] = {
-        "bytes",     "delete",    "directories", "keep",     "name",
-        "observed",  "operation", "overwrite",   "release",  "rmdir",
-        "takeover",  "taken",     "write"};
-    static const char *const lists[] = {"delete",    "directories", "keep",
-                                        "overwrite", "release",     "rmdir",
-                                        "taken",     "write"};
+        "bytes",   "clear",    "delete",    "directories", "keep",
+        "name",    "observed", "operation", "overwrite",   "release",
+        "rmdir",   "takeover", "taken",     "write"};
+    static const char *const lists[] = {"clear",       "delete", "directories",
+                                        "keep",        "overwrite",
+                                        "release",     "rmdir",  "taken",
+                                        "write"};
     char *path, *previous;
     int valid = 0;
     if (array < 0)
@@ -739,7 +956,7 @@ int ak_place_records_valid(const ak_json *j, int array) {
         char name[256], text[65];
         unsigned char digest[32];
         uint64_t bytes;
-        if (!ak_fields(j, (int)i, fields, 13) ||
+        if (!ak_fields(j, (int)i, fields, 14) ||
             ak_string(j, ak_member(j, (int)i, "name"), name, sizeof name) ||
             !ak_valid_name(name) ||
             ak_u64(j, ak_member(j, (int)i, "bytes"), &bytes) ||
@@ -754,7 +971,7 @@ int ak_place_records_valid(const ak_json *j, int array) {
         for (size_t x = (size_t)array + 1; x < i; x = j->tokens[x].next)
             if (ak_equal(j, ak_member(j, (int)x, "name"), name))
                 goto done;
-        for (size_t k = 0; k < 8; k++) {
+        for (size_t k = 0; k < 9; k++) {
             int list = ak_member(j, (int)i, lists[k]);
             *previous = 0;
             if (j->tokens[list].type != '[')
@@ -844,12 +1061,178 @@ static void progress(const ak_place_progress *p, const char *subject,
     if (p->observer->event(p->observer->user, &event) == APKG_REQUEST_CANCEL)
         p->result->view.cancellation_requested = 1;
 }
+static int regular(const char *path, struct stat *st) {
+    if (lstat(path, st))
+        return errno == ENOENT || errno == ENOTDIR ? 0 : -1;
+    return S_ISREG(st->st_mode) ? 1 : -1;
+}
+/* The paths of one list of a record, in the record's ascending order. */
+typedef struct {
+    char **paths;
+    size_t count;
+} strings;
+static void strings_free(strings *l) {
+    if (l->paths)
+        for (size_t i = 0; i < l->count; i++)
+            free(l->paths[i]);
+    free(l->paths);
+    l->paths = NULL;
+    l->count = 0;
+}
+static apkg_status strings_load(strings *l, const ak_json *j, int record,
+                                const char *name) {
+    int list = ak_member(j, record, name);
+    size_t n = 0;
+    char *path;
+    l->paths = NULL;
+    l->count = 0;
+    if (list < 0 || j->tokens[list].type != '[')
+        return APKG_INVALID;
+    for (size_t i = (size_t)list + 1; i < j->tokens[list].next;
+         i = j->tokens[i].next)
+        n++;
+    if (!n)
+        return APKG_OK;
+    l->paths = calloc(n, sizeof *l->paths);
+    path = malloc(AK_PATH);
+    if (!l->paths || !path) {
+        free(path);
+        strings_free(l);
+        return APKG_NOMEM;
+    }
+    for (size_t i = (size_t)list + 1; i < j->tokens[list].next;
+         i = j->tokens[i].next) {
+        if (ak_string(j, (int)i, path, AK_PATH) ||
+            !(l->paths[l->count] = ak_copy(path, strlen(path)))) {
+            free(path);
+            strings_free(l);
+            return APKG_INVALID;
+        }
+        l->count++;
+    }
+    free(path);
+    return APKG_OK;
+}
+static int plan_arrays(const ak_json *plan, int *system, ak_installed *next);
+static int state_installed(const void *state, size_t size, ak_json *j,
+                           ak_installed *out);
+static const char *const placed_lists[] = {"overwrite", "taken", "write"};
+/* The last check before the commit decision, after which nothing can be
+ * taken back: every object to place is in the store with its signed bytes,
+ * and the destination volume has room. An in-place replacement needs the new
+ * file beside the old one until it takes the name, so the room needed is the
+ * highest point of that sequence, not the net growth. */
+apkg_status ak_place_ready(apkg_ctx *c, const ak_json *plan, apkg_error **e) {
+    ak_installed next;
+    table now = {0};
+    strings list = {0};
+    char *full = malloc(AK_PATH), *scratch = malloc(AK_PATH), name[256];
+    unsigned long long available = 0, unit = 0;
+    int64_t running = 0, peak = 0;
+    uint64_t entries = 0, state_size;
+    int system;
+    apkg_status code = full && scratch ? APKG_OK : APKG_NOMEM;
+    if (!code && plan_arrays(plan, &system, &next))
+        code = APKG_INVALID;
+    if (code || system < 0)
+        goto done;
+    for (size_t r = (size_t)system + 1; r < plan->tokens[system].next && !code;
+         r = plan->tokens[r].next) {
+        int entry;
+        if (ak_string(plan, ak_member(plan, (int)r, "name"), name,
+                      sizeof name) ||
+            (entry = entry_find(next, name)) < 0) {
+            code = APKG_INVALID;
+            break;
+        }
+        code = table_load(&now, plan, entry_files(plan, entry), 0,
+                          c->memory_max);
+        if (!code)
+            code = strings_load(&list, plan, (int)r, "directories");
+        entries += list.count;
+        strings_free(&list);
+        for (size_t k = 0; k < 3 && !code; k++) {
+            code = strings_load(&list, plan, (int)r, placed_lists[k]);
+            for (size_t i = 0; i < list.count && !code; i++) {
+                const row *n = table_find_path(&now, list.paths[i], scratch);
+                struct stat st;
+                char sha[65];
+                uint64_t size;
+                if (!n ||
+                    ak_string(plan, ak_member(plan, n->token, "sha256"), sha,
+                              sizeof sha) ||
+                    ak_u64(plan, ak_member(plan, n->token, "size"), &size) ||
+                    ak_path(full, c->root, list.paths[i])) {
+                    code = APKG_INVALID;
+                    break;
+                }
+                code = ak_blob_check(c, sha, size, NULL);
+                if (code) {
+                    refuse(e, code,
+                           code == APKG_NOT_FOUND
+                               ? "the store no longer holds the bytes of a "
+                                 "file to place; nothing was written"
+                               : "a stored object does not match its signed "
+                                 "hash; nothing was written",
+                           list.paths[i]);
+                    break;
+                }
+                if (running + (int64_t)size > peak)
+                    peak = running + (int64_t)size;
+                running += (int64_t)size;
+                if (regular(full, &st) == 1)
+                    running -= (int64_t)st.st_size;
+                entries++;
+            }
+            strings_free(&list);
+        }
+        table_free(&now);
+    }
+    if (code)
+        goto done;
+    {
+        int state = ak_member(plan, ak_member(plan, 0, "body"), "new_state");
+        state_size = plan->tokens[state].end - plan->tokens[state].start;
+    }
+    if (pkg_fs_free_bytes(c->root, &available, &unit)) {
+        code = APKG_IO;
+        goto done;
+    }
+    {
+        /* Every file and directory may round up to one allocation unit; the
+         * state is written beside the old one before it replaces it. */
+        uint64_t needed = (uint64_t)peak + (entries + 4) * unit +
+                          2 * state_size + 262144u;
+        if (needed > available) {
+            char detail[96];
+            snprintf(detail, sizeof detail,
+                     "%" PRIu64 " bytes needed, %llu free", needed, available);
+            code = refuse(e, APKG_LIMIT,
+                          "the destination volume has too little free space "
+                          "for this placement; nothing was written",
+                          detail);
+        }
+    }
+done:
+    strings_free(&list);
+    table_free(&now);
+    free(full);
+    free(scratch);
+    return code;
+}
+typedef struct {
+    char *path;
+    mode_t mode;
+} restore;
 typedef struct {
     apkg_ctx *c;
     const ak_place_progress *progress;
     unsigned char *buffer;
     uint64_t bytes, total_bytes, files, total_files;
-    char *full, *temp, *blob, *directory, *synced;
+    char *full, *temp, *blob, *directory, *synced, *writable, *scratch;
+    restore *restores;
+    size_t nrestores, crestores;
+    ak_buf kept;
 } apply;
 static apkg_status sync_change(apply *a, const char *full) {
     if (ak_parent(full, a->directory))
@@ -864,50 +1247,101 @@ static apkg_status sync_last(apply *a) {
     *a->synced = 0;
     return code;
 }
-static int regular(const char *path, struct stat *st) {
-    if (lstat(path, st))
-        return errno == ENOENT || errno == ENOTDIR ? 0 : -1;
-    return S_ISREG(st->st_mode) ? 1 : -1;
+/* A signed directory mode may withhold owner write. The directory that is
+ * about to change is opened for the duration and gets its mode back last. */
+static apkg_status writable(apply *a, const char *full) {
+    struct stat st;
+    if (ak_parent(full, a->directory))
+        return APKG_IO;
+    if (!strcmp(a->writable, a->directory))
+        return APKG_OK;
+    if (stat(a->directory, &st))
+        return APKG_IO;
+    if (S_ISDIR(st.st_mode) && !(st.st_mode & 0200)) {
+        if (a->nrestores == a->crestores) {
+            size_t capacity = a->crestores ? a->crestores * 2 : 16;
+            restore *grown = calloc(capacity, sizeof *grown);
+            if (!grown)
+                return APKG_NOMEM;
+            if (a->nrestores)
+                memcpy(grown, a->restores, a->nrestores * sizeof *grown);
+            free(a->restores);
+            a->restores = grown;
+            a->crestores = capacity;
+        }
+        a->restores[a->nrestores].path =
+            ak_copy(a->directory, strlen(a->directory));
+        if (!a->restores[a->nrestores].path)
+            return APKG_NOMEM;
+        a->restores[a->nrestores++].mode = st.st_mode & 0777;
+        if (chmod(a->directory, (st.st_mode & 0777) | 0200))
+            return APKG_IO;
+    }
+    strcpy(a->writable, a->directory);
+    return APKG_OK;
 }
 /* Stream one retained object into the destination directory under the
- * reserved name, check its bytes, then put it in place. */
+ * reserved name, check its bytes, then put it in place. Unless the plan
+ * said to replace whatever is there (`force`), a file that holds neither the
+ * new nor the old signed bytes was edited after the approval: it stays, and
+ * the journal records it as kept. */
 static apkg_status place(apply *a, const char *relative, const char *sha,
-                         uint64_t size, uint64_t mode) {
+                         uint64_t size, uint64_t mode, const char *old_sha,
+                         int force) {
     struct stat st;
     struct pkg_sha256 hash;
     unsigned char digest[32];
-    char actual[65];
+    char actual[65], aside[AK_PATH + 24];
     uint64_t copied = 0, reported = a->bytes;
-    int present, input = -1, output = -1;
+    int present, input = -1, output = -1, has_aside;
     apkg_status code;
     if (ak_path(a->full, a->c->root, relative) ||
         ak_parent(a->full, a->directory) ||
-        ak_path(a->temp, a->directory, PLACING))
+        ak_path(a->temp, a->directory, PLACING) ||
+        pkg_fs_aside_name(a->full, aside, sizeof aside))
         return APKG_LIMIT;
     present = regular(a->full, &st);
     if (present < 0)
         return APKG_IO;
-    if (present && (uint64_t)st.st_size == size) {
+    if (present && (!force || (uint64_t)st.st_size == size)) {
         unsigned char head[64];
         size_t head_size = 0;
         uint64_t n;
+        mode_t live_mode = st.st_mode & 0777;
         code = ak_stream_hash(a->full, &n, actual, head, &head_size);
         if (code)
             return code;
         if (!strcmp(actual, sha)) {
             /* Done by an earlier attempt; a replacement interrupted after
              * its second step leaves the old bytes aside. */
-            char aside[AK_PATH + 24];
-            if ((st.st_mode & 0777) != (mode_t)mode &&
-                chmod(a->full, (mode_t)mode))
-                return APKG_IO;
-            if (!pkg_fs_aside_name(a->full, aside, sizeof aside) &&
-                regular(aside, &st) == 1 && unlink(aside))
-                return APKG_IO;
+            if (live_mode != (mode_t)mode) {
+                code = writable(a, a->full);
+                if (code)
+                    return code;
+                if (chmod(a->full, (mode_t)mode))
+                    return APKG_IO;
+            }
+            if (regular(aside, &st) == 1) {
+                code = writable(a, a->full);
+                if (code)
+                    return code;
+                if (unlink(aside))
+                    return APKG_IO;
+            }
             a->bytes += size;
             return APKG_OK;
         }
+        if (!force && !(old_sha && !strcmp(actual, old_sha))) {
+            ak_buf_add(&a->kept, "%s\n", relative);
+            a->bytes += size;
+            return a->kept.bad ? (apkg_status)a->kept.bad : APKG_OK;
+        }
     }
+    /* Absent with an aside: a replacement stopped between its two renames.
+     * Placing the new file finishes it. */
+    code = writable(a, a->full);
+    if (code)
+        return code;
     present = regular(a->temp, &st);
     if (present < 0 || (present && unlink(a->temp)))
         return APKG_IO;
@@ -950,6 +1384,8 @@ static apkg_status place(apply *a, const char *relative, const char *sha,
             }
             done += (size_t)w;
         }
+        if (!code && ak_fault(208))
+            code = APKG_IO;
         if (code)
             break;
         copied += (uint64_t)n;
@@ -982,67 +1418,84 @@ static apkg_status place(apply *a, const char *relative, const char *sha,
     }
     if (!code && ak_fault(202))
         code = APKG_IO;
+    has_aside = regular(aside, &st) == 1;
     if (!code && pkg_fs_replace(a->temp, a->full))
         code = APKG_IO;
     if (code) {
         unlink(a->temp);
         return code;
     }
+    /* Where the replacement was one atomic step it left an older aside. */
+    if (has_aside && regular(aside, &st) == 1 && unlink(aside))
+        return APKG_IO;
     if (ak_fault(203))
         return APKG_IO;
     a->bytes += size;
     return sync_change(a, a->full);
 }
-static apkg_status place_list(apply *a, const ak_json *plan, int record,
-                              const char *list, ak_installed next, int entry,
-                              cursor *paths, cursor *files) {
-    const ak_json *nj = next.j;
-    if (cursor_open(paths, plan, ak_member(plan, record, list), 1) ||
-        cursor_open(files, nj, entry_files(nj, entry), 0))
+static apkg_status remove_file(apply *a, const ak_json *oj, const table *was,
+                               const char *relative, int strict) {
+    const row *o = table_find_path(was, relative, a->scratch);
+    struct stat st;
+    char sha[65], actual[65];
+    unsigned char head[64];
+    size_t head_size = 0;
+    uint64_t n;
+    apkg_status code;
+    if (!o || ak_path(a->full, a->c->root, relative))
         return APKG_INVALID;
-    for (; paths->valid;) {
-        char sha[65];
-        uint64_t size, mode;
-        int token;
-        apkg_status code;
-        if (cursor_seek(files, paths->path) != 1)
-            return APKG_INVALID;
-        token = (int)files->at;
-        if (!ak_equal(nj, ak_member(nj, token, "type"), "file") ||
-            ak_string(nj, ak_member(nj, token, "sha256"), sha, sizeof sha) ||
-            ak_u64(nj, ak_member(nj, token, "size"), &size) ||
-            ak_u64(nj, ak_member(nj, token, "mode"), &mode) || mode > 0777)
-            return APKG_INVALID;
-        code = place(a, paths->path, sha, size, mode);
+    if (lstat(a->full, &st))
+        return errno == ENOENT || errno == ENOTDIR ? APKG_OK : APKG_IO;
+    if (o->directory) {
+        if (!S_ISDIR(st.st_mode))
+            return APKG_OK; /* already what the new version lists */
+        /* Its own pending flush and write permission end with it. */
+        if (!strcmp(a->synced, a->full)) {
+            code = sync_last(a);
+            if (code)
+                return code;
+        }
+        if (!strcmp(a->writable, a->full))
+            *a->writable = 0;
+        code = writable(a, a->full);
         if (code)
             return code;
-        a->files++;
-        progress(a->progress, paths->path, "bytes", a->bytes, a->total_bytes);
-        progress(a->progress, paths->path, "files", a->files, a->total_files);
-        if (cursor_next(paths))
-            return APKG_INVALID;
+        if (rmdir(a->full))
+            return strict ? APKG_CONFLICT : APKG_OK;
+        return ak_parent(a->full, a->directory) || ak_sync_dir(a->directory)
+                   ? APKG_IO
+                   : APKG_OK;
     }
-    return APKG_OK;
-}
-static size_t list_count(const ak_json *j, int list) {
-    size_t n = 0;
-    if (list >= 0)
-        for (size_t i = (size_t)list + 1; i < j->tokens[list].next;
-             i = j->tokens[i].next)
-            n++;
-    return n;
+    if (!S_ISREG(st.st_mode))
+        return APKG_OK;
+    if (ak_string(oj, ak_member(oj, o->token, "sha256"), sha, sizeof sha))
+        return APKG_INVALID;
+    code = ak_stream_hash(a->full, &n, actual, head, &head_size);
+    if (code)
+        return code;
+    if (strcmp(actual, sha))
+        /* No longer the old signed bytes: it is someone's file now. Where
+         * a directory must take its place, that blocks the placement. */
+        return strict ? APKG_CONFLICT : APKG_OK;
+    code = writable(a, a->full);
+    if (code)
+        return code;
+    if (unlink(a->full))
+        return APKG_IO;
+    return sync_change(a, a->full);
 }
 /* Every step leaves the root one step closer and can run again: a file that
  * already holds the signed bytes is done, a dropped file that no longer
  * holds its old bytes stays, a directory that is not empty stays. */
 apkg_status ak_place_apply(apkg_ctx *c, const ak_json *plan,
-                            const void *old_state, size_t old_size,
-                            const ak_place_progress *observer) {
-    static const char *const writes[] = {"overwrite", "taken", "write"};
+                           const void *old_state, size_t old_size,
+                           const char *journal,
+                           const ak_place_progress *observer) {
     ak_json before = {0};
     ak_installed old = {0}, next;
     apply a = {0};
-    cursor *paths = NULL, *files = NULL;
+    table now = {0}, was = {0};
+    strings list = {0};
     char name[256];
     int system, parsed;
     apkg_status code = APKG_OK;
@@ -1057,16 +1510,17 @@ apkg_status ak_place_apply(apkg_ctx *c, const ak_json *plan,
     }
     a.c = c;
     a.progress = observer;
+    a.kept.max = c->object_max;
     a.buffer = malloc(CHUNK);
     a.full = malloc(AK_PATH);
     a.temp = malloc(AK_PATH);
     a.blob = malloc(AK_PATH);
     a.directory = malloc(AK_PATH);
     a.synced = calloc(1, AK_PATH);
-    paths = malloc(sizeof *paths);
-    files = malloc(sizeof *files);
+    a.writable = calloc(1, AK_PATH);
+    a.scratch = malloc(AK_PATH);
     if (!a.buffer || !a.full || !a.temp || !a.blob || !a.directory ||
-        !a.synced || !paths || !files) {
+        !a.synced || !a.writable || !a.scratch) {
         code = APKG_NOMEM;
         goto done;
     }
@@ -1079,169 +1533,201 @@ apkg_status ak_place_apply(apkg_ctx *c, const ak_json *plan,
             goto done;
         }
         a.total_bytes += bytes;
-        for (size_t k = 0; k < 3; k++)
-            a.total_files +=
-                list_count(plan, ak_member(plan, (int)r, writes[k]));
+        for (size_t k = 0; k < 3; k++) {
+            int l = ak_member(plan, (int)r, placed_lists[k]);
+            if (l < 0) {
+                code = APKG_INVALID;
+                goto done;
+            }
+            for (size_t i = (size_t)l + 1; i < plan->tokens[l].next;
+                 i = plan->tokens[i].next)
+                a.total_files++;
+        }
     }
     progress(observer, c->root, "bytes", 0, a.total_bytes);
-    for (size_t r = (size_t)system + 1; r < plan->tokens[system].next;
-         r = plan->tokens[r].next) {
-        const ak_json *nj = next.j;
-        int entry;
-        if (ak_string(plan, ak_member(plan, (int)r, "name"), name,
-                      sizeof name) ||
-            (entry = entry_find(next, name)) < 0 ||
-            cursor_open(paths, plan, ak_member(plan, (int)r, "directories"),
-                        1) ||
-            cursor_open(files, nj, entry_files(nj, entry), 0)) {
-            code = APKG_INVALID;
-            goto done;
-        }
-        for (; paths->valid;) {
-            struct stat st;
-            uint64_t mode = 0700;
-            int token;
-            if (cursor_seek(files, paths->path) != 1 ||
-                ak_path(a.full, c->root, paths->path)) {
+    for (int pass = 0; pass < 3; pass++) {
+        /* 0: make way and place; 1: delete what the new list dropped, once
+         * every new file of every package is in place; 2: signed modes. */
+        for (size_t r = (size_t)system + 1; r < plan->tokens[system].next;
+             r = plan->tokens[r].next) {
+            const ak_json *nj = next.j, *oj = old.j;
+            int entry, was_entry;
+            if (ak_string(plan, ak_member(plan, (int)r, "name"), name,
+                          sizeof name) ||
+                (entry = entry_find(next, name)) < 0) {
                 code = APKG_INVALID;
                 goto done;
             }
-            token = ak_member(nj, (int)files->at, "mode");
-            if (token >= 0 && (ak_u64(nj, token, &mode) || mode > 0777)) {
-                code = APKG_INVALID;
+            was_entry = entry_find(old, name);
+            code = table_load(&now, nj, entry_files(nj, entry), 0,
+                              c->memory_max);
+            if (!code)
+                code = table_load(&was, oj,
+                                  was_entry < 0 ? -1
+                                                : entry_files(oj, was_entry),
+                                  0, c->memory_max);
+            if (code)
                 goto done;
-            }
-            /* Presence is tested, never read from mkdir's errno: AROS posixc
-             * does not report an existing directory as EEXIST. */
-            if (lstat(a.full, &st)) {
-                if (errno != ENOENT || mkdir(a.full, (mode_t)mode)) {
-                    code = APKG_IO;
-                    goto done;
+            if (pass == 0) {
+                /* A path that changes type goes first, children before
+                 * their directory, and only as the old version left it. */
+                code = strings_load(&list, plan, (int)r, "clear");
+                for (size_t i = list.count; !code && i > 0; i--) {
+                    code = remove_file(&a, oj, &was, list.paths[i - 1], 1);
+                    if (!code && ak_fault(207))
+                        code = APKG_IO;
                 }
-                code = sync_change(&a, a.full);
-                if (code)
-                    goto done;
-            } else if (!S_ISDIR(st.st_mode)) {
-                code = APKG_IO;
-                goto done;
+                strings_free(&list);
+                if (!code)
+                    code = sync_last(&a);
+                if (!code)
+                    code = strings_load(&list, plan, (int)r, "directories");
+                for (size_t i = 0; !code && i < list.count; i++) {
+                    struct stat st;
+                    uint64_t mode = 0700;
+                    const row *n = table_find_path(&now, list.paths[i], a.scratch);
+                    int token = n ? ak_member(nj, n->token, "mode") : -1;
+                    if (!n || ak_path(a.full, c->root, list.paths[i]) ||
+                        (token >= 0 &&
+                         (ak_u64(nj, token, &mode) || mode > 0777))) {
+                        code = APKG_INVALID;
+                        break;
+                    }
+                    /* Created writable whatever its signed mode, which is
+                     * applied when nothing is left to put inside. Presence
+                     * is tested, never read from mkdir's errno: AROS posixc
+                     * does not report an existing directory as EEXIST. */
+                    if (lstat(a.full, &st)) {
+                        code = errno == ENOENT ? writable(&a, a.full) : APKG_IO;
+                        if (!code && mkdir(a.full, (mode_t)mode | 0700))
+                            code = APKG_IO;
+                        if (!code)
+                            code = sync_change(&a, a.full);
+                    } else if (!S_ISDIR(st.st_mode))
+                        code = APKG_IO;
+                    else if ((st.st_mode & 0700) != 0700 &&
+                             chmod(a.full, (st.st_mode & 0777) | 0700))
+                        code = APKG_IO;
+                }
+                strings_free(&list);
+                if (!code && ak_fault(201))
+                    code = APKG_IO;
+                for (size_t k = 0; k < 3 && !code; k++) {
+                    code = strings_load(&list, plan, (int)r, placed_lists[k]);
+                    for (size_t i = 0; !code && i < list.count; i++) {
+                        const row *n = table_find_path(&now, list.paths[i],
+                                                       a.scratch),
+                                  *o;
+                        char sha[65], old_sha[65];
+                        uint64_t size, mode;
+                        if (!n || n->directory ||
+                            ak_string(nj, ak_member(nj, n->token, "sha256"),
+                                      sha, sizeof sha) ||
+                            ak_u64(nj, ak_member(nj, n->token, "size"),
+                                   &size) ||
+                            ak_u64(nj, ak_member(nj, n->token, "mode"),
+                                   &mode) ||
+                            mode > 0777) {
+                            code = APKG_INVALID;
+                            break;
+                        }
+                        o = table_find(&was, n->fold);
+                        if (o && !o->directory &&
+                            ak_string(oj, ak_member(oj, o->token, "sha256"),
+                                      old_sha, sizeof old_sha)) {
+                            code = APKG_INVALID;
+                            break;
+                        }
+                        code = place(&a, list.paths[i], sha, size, mode,
+                                     o && !o->directory ? old_sha : NULL,
+                                     k < 2);
+                        if (code)
+                            break;
+                        a.files++;
+                        progress(observer, list.paths[i], "bytes", a.bytes,
+                                 a.total_bytes);
+                        progress(observer, list.paths[i], "files", a.files,
+                                 a.total_files);
+                    }
+                    strings_free(&list);
+                }
+            } else if (pass == 1) {
+                code = strings_load(&list, plan, (int)r, "delete");
+                for (size_t i = 0; !code && i < list.count; i++) {
+                    code = remove_file(&a, oj, &was, list.paths[i], 0);
+                    if (!code && ak_fault(205))
+                        code = APKG_IO;
+                }
+                strings_free(&list);
+                /* A flushed directory may be the next to go. */
+                if (!code)
+                    code = sync_last(&a);
+                if (!code && ak_fault(209))
+                    code = APKG_IO;
+                /* Children sort after their parents: remove from the far
+                 * end. A directory that is not empty, or already gone,
+                 * simply stays. */
+                if (!code)
+                    code = strings_load(&list, plan, (int)r, "rmdir");
+                for (size_t i = list.count; !code && i > 0; i--)
+                    code = remove_file(&a, oj, &was, list.paths[i - 1], 0);
+                strings_free(&list);
+            } else {
+                code = strings_load(&list, plan, (int)r, "directories");
+                for (size_t i = 0; !code && i < list.count; i++) {
+                    uint64_t mode = 0700;
+                    const row *n = table_find_path(&now, list.paths[i], a.scratch);
+                    int token = n ? ak_member(nj, n->token, "mode") : -1;
+                    if (!n || ak_path(a.full, c->root, list.paths[i]) ||
+                        (token >= 0 && ak_u64(nj, token, &mode)))
+                        code = APKG_INVALID;
+                    else if (chmod(a.full, (mode_t)mode))
+                        code = APKG_IO;
+                }
+                strings_free(&list);
             }
-            if (cursor_next(paths)) {
-                code = APKG_INVALID;
-                goto done;
-            }
-        }
-        if (ak_fault(201)) {
-            code = APKG_IO;
-            goto done;
-        }
-        for (size_t k = 0; k < 3; k++) {
-            code = place_list(&a, plan, (int)r, writes[k], next, entry, paths,
-                              files);
+            table_free(&now);
+            table_free(&was);
             if (code)
                 goto done;
         }
-    }
-    code = sync_last(&a);
-    if (!code && ak_fault(204))
-        code = APKG_IO;
-    if (code)
-        goto done;
-    /* Nothing goes before every new file is in place. */
-    for (size_t r = (size_t)system + 1; r < plan->tokens[system].next;
-         r = plan->tokens[r].next) {
-        const ak_json *oj = old.j;
-        int entry, list = ak_member(plan, (int)r, "rmdir");
-        size_t count = list_count(plan, list);
-        if (ak_string(plan, ak_member(plan, (int)r, "name"), name,
-                      sizeof name) ||
-            cursor_open(paths, plan, ak_member(plan, (int)r, "delete"), 1)) {
-            code = APKG_INVALID;
-            goto done;
-        }
-        entry = entry_find(old, name);
-        if (cursor_open(files, oj, entry < 0 ? -1 : entry_files(oj, entry),
-                        0)) {
-            code = APKG_INVALID;
-            goto done;
-        }
-        for (; paths->valid;) {
-            struct stat st;
-            char sha[65], actual[65];
-            unsigned char head[64];
-            size_t head_size = 0;
-            uint64_t n;
-            int present;
-            if (cursor_seek(files, paths->path) != 1 ||
-                ak_string(oj, ak_member(oj, (int)files->at, "sha256"), sha,
-                          sizeof sha) ||
-                ak_path(a.full, c->root, paths->path)) {
-                code = APKG_INVALID;
-                goto done;
-            }
-            present = regular(a.full, &st);
-            if (present == 1) {
-                code = ak_stream_hash(a.full, &n, actual, head, &head_size);
-                if (code)
-                    goto done;
-                if (!strcmp(actual, sha)) {
-                    if (unlink(a.full)) {
-                        code = APKG_IO;
-                        goto done;
-                    }
-                    code = sync_change(&a, a.full);
-                    if (code)
-                        goto done;
-                }
-            }
-            if (ak_fault(205)) {
-                code = APKG_IO;
-                goto done;
-            }
-            if (cursor_next(paths)) {
-                code = APKG_INVALID;
-                goto done;
-            }
-        }
-        /* Children sort after their parents: remove from the far end. A
-         * directory that is not empty, or already gone, simply stays. */
-        code = sync_last(&a); /* a flushed directory may be the next to go */
+        code = sync_last(&a);
+        if (!code && pass == 0 && ak_fault(204))
+            code = APKG_IO;
         if (code)
             goto done;
-        if (count) {
-            size_t *at = calloc(count, sizeof *at), k = 0;
-            if (!at) {
-                code = APKG_NOMEM;
-                goto done;
-            }
-            for (size_t t = (size_t)list + 1; t < plan->tokens[list].next;
-                 t = plan->tokens[t].next)
-                at[k++] = t;
-            while (k-- > 0 && !code) {
-                if (ak_string(plan, (int)at[k], paths->path, AK_PATH) ||
-                    ak_path(a.full, c->root, paths->path))
-                    code = APKG_INVALID;
-                else if (!rmdir(a.full) &&
-                         (ak_parent(a.full, a.directory) ||
-                          ak_sync_dir(a.directory)))
-                    code = APKG_IO;
-            }
-            free(at);
-            if (code)
-                goto done;
-        }
     }
-    code = sync_last(&a);
+    for (size_t i = a.nrestores; i > 0; i--)
+        if (chmod(a.restores[i - 1].path, a.restores[i - 1].mode) &&
+            errno != ENOENT) /* it may have been one of those removed */
+            code = APKG_IO;
+    if (!code && a.kept.size && journal) {
+        /* What recovery left as its user had edited it meanwhile. */
+        char path[AK_PATH];
+        if (ak_path(path, journal, "kept") ||
+            (ak_exists(path) == 1 && unlink(path)) ||
+            ak_write(path, a.kept.data, a.kept.size, 1) ||
+            ak_sync_dir(journal))
+            code = APKG_IO;
+    }
     if (!code && ak_fault(206))
         code = APKG_IO;
 done:
+    strings_free(&list);
+    table_free(&now);
+    table_free(&was);
+    for (size_t i = 0; i < a.nrestores; i++)
+        free(a.restores[i].path);
+    free(a.restores);
+    free(a.kept.data);
     free(a.buffer);
     free(a.full);
     free(a.temp);
     free(a.blob);
     free(a.directory);
     free(a.synced);
-    free(paths);
-    free(files);
+    free(a.writable);
+    free(a.scratch);
     ak_json_free(&before);
     return code;
 }
@@ -1250,7 +1736,7 @@ done:
 apkg_status ak_place_format(const apkg_plan *p, ak_buf *b) {
     static const char *const lists[] = {"directories", "write",   "overwrite",
                                         "taken",       "keep",    "delete",
-                                        "release",     "rmdir"};
+                                        "release",     "rmdir",   "clear"};
     static const char *const labels[] = {
         "Create directory",
         "Write",
@@ -1259,7 +1745,8 @@ apkg_status ak_place_format(const apkg_plan *p, ak_buf *b) {
         "Keep edited configuration",
         "Delete",
         "Release (kept, no longer owned)",
-        "Remove directory if empty"};
+        "Remove directory if empty",
+        "Remove first (its path changes type)"};
     ak_json system = {0}, state = {0};
     ak_installed next;
     cursor *paths = NULL, *files = NULL;
@@ -1301,7 +1788,7 @@ apkg_status ak_place_format(const apkg_plan *p, ak_buf *b) {
                        ? "requested"
                        : "not requested",
                    bytes);
-        for (size_t k = 0; k < 8; k++) {
+        for (size_t k = 0; k < 9; k++) {
             if (cursor_open(paths, &system,
                             ak_member(&system, (int)r, lists[k]), 1) ||
                 cursor_open(files, &state, entry_files(&state, entry), 0)) {

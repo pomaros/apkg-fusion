@@ -13,7 +13,7 @@ static apkg_status cache_dir(apkg_ctx *ctx, char out[AK_PATH]) {
     char parent[AK_PATH];
     if (!ak_physical(ctx->anchor, &ctx->binding))
         return APKG_STALE;
-    if (snprintf(out, AK_PATH, "%s.apkg-archives", ctx->root) >= AK_PATH)
+    if (ak_store_path(ctx, "archives", out))
         return APKG_LIMIT;
     if (lstat(out, &st)) {
         if (errno != ENOENT)
@@ -324,3 +324,273 @@ done:
         ak_fail(error, code, "selected channel archive refused", "");
     return code;
 }
+
+/* ---- restoring objects a root already approved ------------------------ */
+
+static int digest_order(const void *a, const void *b) { return strcmp(a, b); }
+static apkg_status channel_document(apkg_ctx *ctx, const char *endpoint,
+                                    const apkg_observer *observer,
+                                    unsigned char **document, size_t *size) {
+    char path[AK_PATH], member[128];
+    unsigned char *reference = NULL;
+    size_t rn = 0;
+    ak_import_progress progress = {0};
+    apkg_status code;
+    progress.observer = observer;
+    progress.unknown_total = 1;
+    progress.total = (uint64_t)ctx->object_max + 130;
+    if (observer && pkg_fs_random(progress.operation_id.bytes, 16))
+        return APKG_IO;
+    if (ak_http_url(endpoint)) {
+        code = ak_http_path(endpoint, "current", path);
+        if (!code)
+            code = ak_http_get(path, 65, -1, &reference, &rn, &progress);
+    } else
+        code = ak_path(path, endpoint, "current")
+                   ? APKG_LIMIT
+                   : ak_read(path, &reference, &rn, 65) ? APKG_NOT_FOUND
+                                                         : APKG_OK;
+    if (!code && (rn != 65 || reference[64] != '\n'))
+        code = APKG_INVALID;
+    if (!code) {
+        unsigned char digest[32];
+        reference[64] = 0;
+        if (ak_hex((char *)reference, digest, 32))
+            code = APKG_INVALID;
+    }
+    if (!code) {
+        snprintf(member, sizeof member, "snapshots/%s/channel.json",
+                 (char *)reference);
+        if (ak_http_url(endpoint)) {
+            code = ak_http_path(endpoint, member, path);
+            if (!code)
+                code = ak_http_get(path, ctx->object_max, -1, document, size,
+                                   &progress);
+        } else if (ak_path(path, endpoint, member))
+            code = APKG_LIMIT;
+        else if (ak_read(path, document, size, ctx->object_max))
+            code = errno == ENOMEM ? APKG_NOMEM : APKG_NOT_FOUND;
+    }
+    free(reference);
+    return code;
+}
+/* Make every object of one approved descriptor present and whole again: a
+ * corrupt object is dropped, inline bytes are written back from the
+ * descriptor itself, and the rest comes from the archive the channel at
+ * `endpoint` offers for exactly this descriptor. The channel is only a place
+ * to find bytes: what is admitted is checked against the digests the root
+ * approved, so this works on a pending root, where nothing new may be
+ * planned. Without an endpoint only the first two happen. */
+apkg_status ak_objects_restore(apkg_ctx *ctx, const ak_json *j, int descriptor,
+                               const char *endpoint,
+                               const apkg_observer *observer, apkg_error **e) {
+    int files = ak_member(j, ak_member(j, descriptor, "body"), "files");
+    char (*wanted)[65] = NULL, path[AK_PATH], archive[AK_PATH], temp[AK_PATH] = "";
+    size_t count = 0, capacity = 0, restored = 0, dn = 0;
+    unsigned char *document = NULL;
+    ak_json channel = {0};
+    apkg_status code = APKG_OK;
+    if (ctx->mode != APKG_WRITE)
+        return APKG_POLICY;
+    if (files < 0)
+        return APKG_INVALID;
+    for (size_t f = (size_t)files + 1; f < j->tokens[files].next && !code;
+         f = j->tokens[f].next) {
+        char sha[65];
+        uint64_t size;
+        apkg_status held;
+        if (!ak_equal(j, ak_member(j, (int)f, "type"), "file"))
+            continue;
+        if (ak_cancelled(observer)) {
+            code = APKG_CANCELLED;
+            break;
+        }
+        if (ak_string(j, ak_member(j, (int)f, "sha256"), sha, sizeof sha) ||
+            ak_u64(j, ak_member(j, (int)f, "size"), &size)) {
+            code = APKG_INVALID;
+            break;
+        }
+        held = ak_blob_check(ctx, sha, size, NULL);
+        if (held == APKG_OK)
+            continue;
+        if (held == APKG_INTEGRITY) {
+            /* Ours, by its name in our store, and not what it claims. */
+            if (ak_blob_path(ctx, sha, path) || unlink(path)) {
+                code = APKG_IO;
+                break;
+            }
+        } else if (held != APKG_NOT_FOUND) {
+            code = held;
+            break;
+        }
+        if (ak_member(j, (int)f, "data") >= 0) {
+            code = ak_blob_inline(ctx, j, (int)f);
+            continue;
+        }
+        if (count == capacity) {
+            size_t grown = capacity ? capacity * 2 : 64;
+            char (*next)[65] = calloc(grown, 65);
+            if (!next) {
+                code = APKG_NOMEM;
+                break;
+            }
+            if (count)
+                memcpy(next, wanted, count * 65);
+            free(wanted);
+            wanted = next;
+            capacity = grown;
+        }
+        strcpy(wanted[count++], sha);
+    }
+    if (code || !count)
+        goto done;
+    if (!endpoint) {
+        code = ak_fail(e, APKG_NOT_FOUND,
+                       "the store lacks objects of this package and no "
+                       "channel was given to fetch them from",
+                       wanted[0]);
+        goto done;
+    }
+    qsort(wanted, count, 65, digest_order);
+    code = channel_document(ctx, endpoint, observer, &document, &dn);
+    if (!code && ak_json_parse(document, dn, &channel))
+        code = APKG_INVALID;
+    if (!code) {
+        int entries = ak_member(&channel, ak_member(&channel, 0, "body"),
+                                "entries"),
+            found = -1;
+        size_t length = j->tokens[descriptor].end - j->tokens[descriptor].start;
+        if (entries >= 0 && channel.tokens[entries].type == '[')
+            for (size_t i = (size_t)entries + 1;
+                 i < channel.tokens[entries].next; i = channel.tokens[i].next) {
+                int d = ak_member(&channel, (int)i, "descriptor");
+                if (d >= 0 &&
+                    channel.tokens[d].end - channel.tokens[d].start == length &&
+                    !memcmp(channel.text + channel.tokens[d].start,
+                            j->text + j->tokens[descriptor].start, length))
+                    found = ak_member(&channel, (int)i, "archive");
+            }
+        char sha[65];
+        uint64_t size = 0;
+        unsigned char digest[32];
+        if (found < 0)
+            code = ak_fail(e, APKG_NOT_FOUND,
+                           "the channel no longer offers the build whose "
+                           "objects are missing",
+                           endpoint);
+        else if (ak_string(&channel, ak_member(&channel, found, "sha256"), sha,
+                           sizeof sha) ||
+                 ak_hex(sha, digest, 32) ||
+                 ak_u64(&channel, ak_member(&channel, found, "size"), &size))
+            code = APKG_INVALID;
+        if (!code) {
+            char leaf[128];
+            snprintf(leaf, sizeof leaf, "archives/%s.pkg", sha);
+            if (!ak_http_url(endpoint)) {
+                if (ak_path(archive, endpoint, leaf))
+                    code = APKG_LIMIT;
+            } else {
+                /* Fetched into the archive cache under a transfer name and
+                 * removed again: only its objects are wanted. */
+                unsigned char random[16];
+                char id[33], directory[AK_PATH], url[AK_PATH];
+                ak_import_progress progress = {0};
+                int fd = -1;
+                progress.observer = observer;
+                progress.total = size;
+                progress.subject = endpoint;
+                progress.has_phase = 1;
+                progress.phase = APKG_PHASE_FETCH;
+                code = cache_dir(ctx, directory);
+                if (!code && (pkg_fs_random(random, 16) ||
+                              (observer &&
+                               pkg_fs_random(progress.operation_id.bytes, 16))))
+                    code = APKG_IO;
+                if (!code) {
+                    char name[64];
+                    ak_tohex(random, 16, id);
+                    snprintf(name, sizeof name, ".incoming.%s", id);
+                    if (ak_path(temp, directory, name))
+                        code = APKG_LIMIT;
+                }
+                if (!code)
+                    code = ak_http_path(endpoint, leaf, url);
+                if (!code &&
+                    (fd = open(temp, O_CREAT | O_EXCL | O_WRONLY, 0600)) < 0)
+                    code = APKG_IO;
+                if (!code)
+                    code = ak_http_get(url, size, fd, NULL, NULL, &progress);
+                if (fd >= 0 && (fsync(fd) | close(fd)) && !code)
+                    code = APKG_IO;
+                strcpy(archive, temp);
+            }
+        }
+        if (!code)
+            code = ak_archive_restore(ctx, archive, (const char (*)[65])wanted,
+                                      count, &restored);
+        if (!code && restored != count)
+            code = ak_fail(e, APKG_INTEGRITY,
+                           "the channel's archive does not carry every "
+                           "missing object",
+                           endpoint);
+    }
+done:
+    if (*temp)
+        unlink(temp);
+    free(document);
+    free(wanted);
+    ak_json_free(&channel);
+    if (code && e && !*e)
+        ak_fail(e, code, "the package's objects could not be restored", "");
+    return code;
+}
+/* The objects the pending transaction of this root still has to place. */
+apkg_status ak_pending_restore(apkg_ctx *ctx, const char *endpoint,
+                               const apkg_observer *observer, apkg_error **e) {
+    char txn[AK_PATH], path[AK_PATH], name[256];
+    unsigned char *raw = NULL;
+    size_t n = 0;
+    ak_json plan = {0};
+    int body, system, installed;
+    apkg_status code = APKG_OK;
+    if (snprintf(txn, sizeof txn, "%s.apkg-transaction", ctx->root) >=
+            (int)sizeof txn ||
+        ak_path(path, txn, "plan"))
+        return APKG_LIMIT;
+    if (ak_read(path, &raw, &n, ctx->object_max))
+        return errno == ENOENT ? APKG_NOT_FOUND : APKG_IO;
+    if (ak_json_parse(raw, n, &plan) || !ak_object(&plan, "plan")) {
+        free(raw);
+        ak_json_free(&plan);
+        return APKG_INVALID;
+    }
+    body = ak_member(&plan, 0, "body");
+    system = ak_member(&plan, body, "system");
+    installed = ak_member(
+        &plan, ak_member(&plan, ak_member(&plan, body, "new_state"), "body"),
+        "installed");
+    if (system >= 0 && installed >= 0)
+        for (size_t r = (size_t)system + 1;
+             r < plan.tokens[system].next && !code; r = plan.tokens[r].next) {
+            if (ak_string(&plan, ak_member(&plan, (int)r, "name"), name,
+                          sizeof name)) {
+                code = APKG_INVALID;
+                break;
+            }
+            for (size_t i = (size_t)installed + 1;
+                 i < plan.tokens[installed].next && !code;
+                 i = plan.tokens[i].next) {
+                int d = ak_member(&plan, (int)i, "descriptor");
+                if (ak_equal(&plan,
+                             ak_member(&plan, ak_member(&plan, d, "body"),
+                                       "name"),
+                             name))
+                    code = ak_objects_restore(ctx, &plan, d, endpoint, observer,
+                                              e);
+            }
+        }
+    free(raw);
+    ak_json_free(&plan);
+    return code;
+}
+

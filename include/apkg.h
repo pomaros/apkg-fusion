@@ -8,7 +8,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define APKG_CONTRACT_VERSION 1u
+/* The C API contract: options structures and signatures. 2 added the store
+ * directory to apkg_open_options. */
+#define APKG_CONTRACT_VERSION 2u
 
 typedef struct apkg_ctx apkg_ctx;
 typedef struct apkg_snapshot apkg_snapshot;
@@ -90,6 +92,13 @@ typedef struct {
     apkg_mode mode;
     uint64_t max_object_bytes,
         max_memory_bytes; /* 0 selects documented defaults */
+    /* Optional existing directory for the verified objects (DIR/objects) and
+     * the fetched archives (DIR/archives) of this root, for instance on
+     * another volume. Empty keeps them beside the root, in ROOT.apkg-objects
+     * and ROOT.apkg-archives. State, journal and history stay with the root.
+     * The root does not record the choice: a context opened without it looks
+     * in the default place and finds no object stored elsewhere. */
+    apkg_text store;
 } apkg_open_options;
 /* No initialization, locking, recovery, download or path creation at open. */
 apkg_status apkg_open(const apkg_open_options *, apkg_ctx **, apkg_error **);
@@ -567,6 +576,16 @@ typedef struct {
 } apkg_result_view;
 apkg_status apkg_execute(apkg_ctx *, const apkg_plan *, apkg_approval *,
                          const apkg_observer *, apkg_result **, apkg_error **);
+/* Remove from the context's store every object that no installed descriptor
+ * of the committed state references, every fetched archive and every
+ * unfinished transfer file. What repair of the installed versions needs
+ * stays; bytes kept only for the rollback of an earlier bundle transaction
+ * go, and that rollback then refuses. WRITE mode and a READY root: a pending
+ * transaction is never pruned under. Only regular files of the two store
+ * directories with the names the engine gives them are touched. Counters may
+ * be NULL. apkg_execute does this itself after committing a system package. */
+apkg_status apkg_store_prune(apkg_ctx *, uint64_t *files_removed,
+                             uint64_t *bytes_removed, apkg_error **);
 /* Explicit recovery only; does not install new packages or expand authority. */
 apkg_status apkg_recover(apkg_ctx *, const apkg_observer *, apkg_result **,
                          apkg_error **);

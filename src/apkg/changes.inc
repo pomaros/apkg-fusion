@@ -254,7 +254,7 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
              * file that already holds its signed bytes is done. */
             uint64_t sequence = 0;
             ak_place_progress placing = {o, r, &sequence, APKG_PHASE_RECOVER};
-            if (ak_place_apply(c, plan, old, on, o ? &placing : NULL) ||
+            if (ak_place_apply(c, plan, old, on, txn, o ? &placing : NULL) ||
                 state_publish(state, txn, change_limit(c)))
                 goto done;
         }
@@ -276,6 +276,11 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
     }
     result_set(r, APKG_OK, decision ? APKG_COMMITTED : APKG_RESTORED);
     code = APKG_OK;
+    /* A placed system has no rollback, and after it nothing earlier can be
+     * rolled back either: the store keeps only what the installed versions
+     * list. A failure here leaves a larger store, nothing else. */
+    if (decision && ak_member(plan, b, "system") >= 0)
+        (void)ak_store_prune(c, NULL, NULL);
 done:
     free(old);
     free(next);
@@ -335,7 +340,7 @@ static int changes_preflight(apkg_ctx *c, const apkg_plan *p, const ak_json *j,
 static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
                                           const apkg_snapshot *s,
                                           const apkg_observer *o,
-                                          apkg_result *r) {
+                                          apkg_result *r, apkg_error **e) {
     ak_json j = {0};
     char txn[AK_PATH], active[AK_PATH], state[AK_PATH], hex[65], id[33];
     ak_identity preparation;
@@ -511,6 +516,8 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
          * back: this is the last boundary where the live root is compared
          * with the approved records and a cancellation is honoured. */
         code = ak_place_recheck(c, &j, s->raw, s->view.source_record.size);
+        if (!code)
+            code = ak_place_ready(c, &j, e);
         if (code)
             goto fail;
         if (emit(o, r, &seq, APKG_PHASE_APPLY, 1, c->root)) {
@@ -527,7 +534,7 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         goto fail;
     {
         ak_place_progress placing = {o, r, &seq, APKG_PHASE_APPLY};
-        if (ak_place_apply(c, &j, s->raw, s->view.source_record.size,
+        if (ak_place_apply(c, &j, s->raw, s->view.source_record.size, txn,
                            &placing))
             goto fail;
     }

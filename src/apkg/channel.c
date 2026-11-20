@@ -212,9 +212,13 @@ static apkg_status channel_read(apkg_ctx *c, const apkg_snapshot *captured,
     channel = calloc(1, sizeof *channel);
     if (!channel)
         return APKG_NOMEM;
-    int parsed = ak_json_parse(object.data, object.size, &channel->json);
+    /* The token array of a large snapshot is working memory too. */
+    int parsed = ak_json_parse_within(object.data, object.size, &channel->json,
+                                      c ? c->memory_max : SIZE_MAX);
     if (parsed) {
-        code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+        code = parsed == -2   ? APKG_NOMEM
+               : parsed == -3 ? APKG_LIMIT
+                              : APKG_INVALID;
         goto done;
     }
     code = ak_signature_check(object, signature, "channel", key,
@@ -1137,8 +1141,9 @@ apkg_status ak_channel_inspect(const char *root, const char *dir,
     *out = NULL;
     if (ak_hex(identity, id.bytes, 16))
         return APKG_INVALID;
-    options.contract_version = 1;
+    options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
+    ak_client_store(&options, NULL);
     options.root.data = root;
     options.root.size = strlen(root);
     options.mode = APKG_READ;

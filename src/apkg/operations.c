@@ -567,16 +567,18 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
             if (x < s->nrows)
                 continue;
         }
+        if (ak_package_system(old) || ak_package_system(nw)) {
+            /* No folder of its own, and only the objects of the files to
+             * place are needed: see ak_place_plan above. */
+            apkg_package_free(old);
+            continue;
+        }
         if (nw) {
             code = ak_package_payload_check(c, nw);
             if (code) {
                 apkg_package_free(old);
                 goto done;
             }
-        }
-        if (ak_package_system(old) || ak_package_system(nw)) {
-            apkg_package_free(old);
-            continue; /* no folder of its own: see ak_place_plan above */
         }
         if (ak_path(path, c->root, name)) {
             apkg_package_free(old);

@@ -9,13 +9,14 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
-static apkg_status open_root(const char *root, apkg_mode mode, apkg_ctx **c,
-                             apkg_error **e) {
+static apkg_status open_root(const char *root, apkg_mode mode,
+                             const char *store, apkg_ctx **c, apkg_error **e) {
     apkg_open_options o = {0};
     if (!root)
         return APKG_INVALID;
-    o.contract_version = 1;
+    o.contract_version = APKG_CONTRACT_VERSION;
     o.struct_size = sizeof o;
+    ak_client_store(&o, store);
     o.mode = mode;
     o.root.data = root;
     o.root.size = strlen(root);
@@ -79,18 +80,19 @@ static apkg_status read_adoptions(apkg_ctx *c, const char *path,
     return *count ? APKG_OK : APKG_INVALID;
 }
 apkg_status ak_client_apply(int, const char *, const char *, const char *, int,
-                            ak_confirm_fn, void *, const apkg_observer *,
+                            const char *, ak_confirm_fn, void *,
+                            const apkg_observer *,
                             apkg_result **, apkg_error **);
 apkg_status apkg_client_apply(apkg_client_action action, const char *root,
                               const char *arg, const char *pool,
                               apkg_confirm_fn confirm, void *user,
                               const apkg_observer *observer, apkg_result **out,
                               apkg_error **e) {
-    return ak_client_apply(action, root, arg, pool, 0, confirm, user, observer,
-                           out, e);
+    return ak_client_apply(action, root, arg, pool, 0, NULL, confirm, user,
+                           observer, out, e);
 }
 apkg_status ak_client_apply(int action, const char *root, const char *arg,
-                            const char *pool, int takeover,
+                            const char *pool, int takeover, const char *store,
                             apkg_confirm_fn confirm, void *user,
                             const apkg_observer *observer, apkg_result **out,
                             apkg_error **e) {
@@ -118,11 +120,11 @@ apkg_status ak_client_apply(int action, const char *root, const char *arg,
         return apkg_client_channel_accept(root, arg, pool, confirm, user,
                                           observer, out, e);
     if (action == APKG_CLIENT_CHANNEL)
-        return ak_client_channel_apply(root, arg, pool, 0, takeover, confirm,
-                                       user, observer, out, e);
+        return ak_client_channel_apply(root, arg, pool, 0, takeover, store,
+                                       confirm, user, observer, out, e);
     if (action == APKG_CLIENT_INSTALL)
-        return ak_client_install(root, arg, takeover, confirm, user, observer,
-                                 out, e);
+        return ak_client_install(root, arg, takeover, store, confirm, user,
+                                 observer, out, e);
     if (action < APKG_CLIENT_REMOVE ||
         (action > APKG_CLIENT_RECOVER && action != APKG_CLIENT_ADOPT &&
          action != APKG_CLIENT_ADOPT_SET && action != APKG_CLIENT_POLICY &&
@@ -133,7 +135,7 @@ apkg_status ak_client_apply(int action, const char *root, const char *arg,
         return APKG_INVALID;
     if (action == APKG_CLIENT_ROLLBACK_LAST && !*arg)
         return APKG_INVALID;
-    code = open_root(root, APKG_WRITE, &c, e);
+    code = open_root(root, APKG_WRITE, store, &c, e);
     if (code)
         goto done;
     apkg_plan_system_takeover(c, takeover);
@@ -264,7 +266,7 @@ apkg_status apkg_client_query(const char *root, const char *match, char **out,
     if (!out)
         return APKG_INVALID;
     *out = NULL;
-    code = open_root(root, APKG_READ, &c, e);
+    code = open_root(root, APKG_READ, NULL, &c, e);
     if (code)
         goto done;
     code = apkg_snapshot_read(c, &s, e);
@@ -589,7 +591,7 @@ apkg_status apkg_client_folder(const char *root, const char *name, char **out,
     *out = NULL;
     if (!name || !ak_valid_name(name))
         return APKG_INVALID;
-    code = open_root(root, APKG_READ, &c, e);
+    code = open_root(root, APKG_READ, NULL, &c, e);
     if (code)
         goto done;
     code = apkg_snapshot_read(c, &s, e);
@@ -746,7 +748,7 @@ apkg_status apkg_client_run(const char *root, const char *name,
     apkg_status code = apkg_client_folder(root, name, &folder, e);
     if (code)
         return code;
-    code = open_root(root, APKG_READ, &c, e);
+    code = open_root(root, APKG_READ, NULL, &c, e);
     if (!code)
         code = apkg_snapshot_read(c, &s, e);
     if (!code && s->view.state != APKG_ROOT_READY)

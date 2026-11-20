@@ -245,6 +245,7 @@ int ak_legacy_main(int argc, char **argv) {
     apkg_open_options options = {0};
     options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
+    ak_client_store(&options, NULL);
     options.root = (apkg_text){root, strlen(root)};
     apkg_ctx *ctx = NULL;
     apkg_snapshot *snapshot = NULL;

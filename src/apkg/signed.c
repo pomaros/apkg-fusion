@@ -95,9 +95,12 @@ apkg_status apkg_package_read(apkg_ctx *c, apkg_bytes descriptor,
     if (!p)
         return APKG_NOMEM;
     {
-        int parsed = ak_json_parse(descriptor.data, descriptor.size, &p->json);
+        int parsed = ak_json_parse_within(descriptor.data, descriptor.size,
+                                          &p->json, c->memory_max);
         if (parsed) {
-            r = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+            r = parsed == -2   ? APKG_NOMEM
+                : parsed == -3 ? APKG_LIMIT
+                               : APKG_INVALID;
             goto fail;
         }
     }

@@ -7,15 +7,17 @@
 #include <string.h>
 static apkg_status open_source(const char *root, const char *endpoint,
                                const char *identity, uint64_t floor,
-                               apkg_mode mode, const apkg_observer *observer,
-                               apkg_ctx **ctx, apkg_channel **channel,
+                               apkg_mode mode, const char *store,
+                               const apkg_observer *observer, apkg_ctx **ctx,
+                               apkg_channel **channel,
                                apkg_error **error) {
     apkg_id id;
     if (!root || !endpoint || !identity || ak_hex(identity, id.bytes, 16))
         return APKG_INVALID;
     apkg_open_options options = {0};
-    options.contract_version = 1;
+    options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
+    ak_client_store(&options, store);
     options.mode = mode;
     options.root.data = root;
     options.root.size = strlen(root);
@@ -43,7 +45,7 @@ apkg_status apkg_client_channel_open(const char *root, const char *endpoint,
     apkg_status code =
         ak_cancelled(observer)
             ? APKG_CANCELLED
-            : open_source(root, endpoint, identity, floor, APKG_READ, observer,
+            : open_source(root, endpoint, identity, floor, APKG_READ, NULL, observer,
                           &ctx, &channel, error);
     if (!code)
         *out = channel;
@@ -99,7 +101,7 @@ apkg_status apkg_client_channel_refresh(const char *root, const char *endpoint,
     apkg_status code =
         ak_cancelled(observer)
             ? APKG_CANCELLED
-            : open_source(root, endpoint, identity, floor, APKG_READ, observer,
+            : open_source(root, endpoint, identity, floor, APKG_READ, NULL, observer,
                           &ctx, &channel, error);
     if (!code)
         code = apkg_snapshot_read(ctx, &snapshot, error);
@@ -269,7 +271,7 @@ apkg_status apkg_client_channel_accept(const char *root, const char *endpoint,
     apkg_status code =
         ak_cancelled(observer)
             ? APKG_CANCELLED
-            : open_source(root, endpoint, identity, 0, APKG_WRITE, observer,
+            : open_source(root, endpoint, identity, 0, APKG_WRITE, NULL, observer,
                           &ctx, &channel, error);
     if (!code)
         code = apkg_snapshot_read(ctx, &snapshot, error);
@@ -299,12 +301,14 @@ apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,
                                       const apkg_observer *observer,
                                       apkg_result **out, apkg_error **error) {
     return ak_client_channel_apply(root, endpoint, selection, recommendations,
-                                   0, confirm, user, observer, out, error);
+                                   0, NULL, confirm, user, observer, out,
+                                   error);
 }
 apkg_status ak_client_channel_apply(const char *root, const char *endpoint,
                                     const char *selection, int recommendations,
-                                    int takeover, apkg_confirm_fn confirm,
-                                    void *user, const apkg_observer *observer,
+                                    int takeover, const char *store,
+                                    apkg_confirm_fn confirm, void *user,
+                                    const apkg_observer *observer,
                                     apkg_result **out, apkg_error **error) {
     if (error)
         *error = NULL;
@@ -335,7 +339,7 @@ apkg_status ak_client_channel_apply(const char *root, const char *endpoint,
     apkg_status code =
         ak_cancelled(observer)
             ? APKG_CANCELLED
-            : open_source(root, endpoint, identity, 0, APKG_WRITE, observer,
+            : open_source(root, endpoint, identity, 0, APKG_WRITE, store, observer,
                           &ctx, &channel, error);
     if (!code && memcmp(observed.bytes,
                         apkg_channel_get(channel)->snapshot_digest.bytes, 32))
@@ -412,7 +416,7 @@ apkg_status apkg_client_requirements(const char *root, const char *endpoint,
     *out = NULL;
     apkg_ctx *ctx = NULL;
     apkg_channel *channel = NULL;
-    apkg_status code = open_source(root, endpoint, identity, 0, APKG_READ,
+    apkg_status code = open_source(root, endpoint, identity, 0, APKG_READ, NULL,
                                    NULL, &ctx, &channel, error);
     if (!code) code = apkg_channel_requirements(ctx, channel, name, out, error);
     apkg_channel_free(channel);

@@ -13,7 +13,7 @@ int main(void) {
     apkg_ctx *c = NULL;
     apkg_snapshot *s = NULL;
     assert(mkdtemp(path));
-    o.contract_version = 1;
+    o.contract_version = APKG_CONTRACT_VERSION;
     o.struct_size = sizeof o;
     o.root.data = path;
     o.root.size = strlen(path);

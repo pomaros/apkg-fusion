@@ -195,14 +195,30 @@ limit:
     return APKG_LIMIT;
 }
 void apkg_client_text_free(char *s) { free(s); }
+/* The store directory of every context this process's client calls open,
+ * unless a call names its own. Set once, before the calls it is meant for. */
+static char client_store[AK_PATH];
+apkg_status apkg_client_store(const char *directory) {
+    if (directory && strlen(directory) >= sizeof client_store)
+        return APKG_LIMIT;
+    strcpy(client_store, directory ? directory : "");
+    return APKG_OK;
+}
+void ak_client_store(apkg_open_options *options, const char *store) {
+    if (!store || !*store)
+        store = client_store;
+    options->store = (apkg_text){*store ? store : NULL, strlen(store)};
+}
 apkg_status apkg_client_install(const char *root, const char *dir,
                                 apkg_confirm_fn confirm, void *user,
                                 const apkg_observer *observer,
                                 apkg_result **out, apkg_error **e) {
-    return ak_client_install(root, dir, 0, confirm, user, observer, out, e);
+    return ak_client_install(root, dir, 0, NULL, confirm, user, observer, out,
+                             e);
 }
 apkg_status ak_client_install(const char *root, const char *dir, int takeover,
-                              apkg_confirm_fn confirm, void *user,
+                              const char *store, apkg_confirm_fn confirm,
+                              void *user,
                               const apkg_observer *observer, apkg_result **out,
                               apkg_error **e) {
     apkg_open_options options = {0};
@@ -220,8 +236,9 @@ apkg_status ak_client_install(const char *root, const char *dir, int takeover,
     *out = NULL;
     if (!root || !dir || !confirm || (takeover != 0 && takeover != 1))
         return APKG_INVALID;
-    options.contract_version = 1;
+    options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
+    ak_client_store(&options, store);
     options.mode = APKG_WRITE;
     options.root.data = root;
     options.root.size = strlen(root);

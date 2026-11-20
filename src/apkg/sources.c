@@ -249,11 +249,13 @@ apkg_status apkg_plan_sources(apkg_ctx *c, const apkg_snapshot *s,
 
 /* ---- client operations ---------------------------------------------- */
 
-static apkg_status open_root(const char *root, apkg_mode mode, apkg_ctx **c,
+static apkg_status open_root(const char *root, apkg_mode mode,
+                             const char *store, apkg_ctx **c,
                              apkg_snapshot **s, apkg_error **e) {
     apkg_open_options o = {0};
     o.contract_version = APKG_CONTRACT_VERSION;
     o.struct_size = sizeof o;
+    ak_client_store(&o, store);
     o.mode = mode;
     o.root = (apkg_text){root, strlen(root)};
     apkg_status code = apkg_open(&o, c, e);
@@ -323,7 +325,7 @@ apkg_status apkg_client_source_add(const char *root, const char *name,
     rows = malloc(AK_SOURCES * sizeof *rows);
     if (!rows)
         return APKG_NOMEM;
-    code = open_root(root, APKG_WRITE, &c, &s, e);
+    code = open_root(root, APKG_WRITE, NULL, &c, &s, e);
     if (!code && state_list(s->raw, rows, &count))
         code = APKG_INVALID;
     for (size_t i = 0; !code && i < count; i++)
@@ -369,7 +371,7 @@ apkg_status apkg_client_source_remove(const char *root, const char *name,
     rows = malloc(AK_SOURCES * sizeof *rows);
     if (!rows)
         return APKG_NOMEM;
-    code = open_root(root, APKG_WRITE, &c, &s, e);
+    code = open_root(root, APKG_WRITE, NULL, &c, &s, e);
     if (!code && state_list(s->raw, rows, &count))
         code = APKG_INVALID;
     for (size_t i = 0; !code && i < count; i++) {
@@ -406,7 +408,7 @@ apkg_status apkg_client_source_list(const char *root, char **text,
     rows = malloc(AK_SOURCES * sizeof *rows);
     if (!rows)
         return APKG_NOMEM;
-    code = open_root(root, APKG_READ, &c, &s, e);
+    code = open_root(root, APKG_READ, NULL, &c, &s, e);
     if (!code && state_list(s->raw, rows, &count))
         code = APKG_INVALID;
     b.max = AK_SOURCES * (AK_PATH + 160);
@@ -541,7 +543,8 @@ apkg_status ak_channels_install_named(apkg_ctx *c, const apkg_snapshot *s,
 }
 apkg_status ak_client_source_install(const char *root, const char *name,
                                      int recommendations, int takeover,
-                                     apkg_confirm_fn confirm, void *user,
+                                     const char *store, apkg_confirm_fn confirm,
+                                     void *user,
                                      const apkg_observer *observer,
                                      apkg_result **out, apkg_error **e) {
     apkg_ctx *c = NULL;
@@ -561,7 +564,7 @@ apkg_status ak_client_source_install(const char *root, const char *name,
     rows = malloc(AK_SOURCES * sizeof *rows);
     if (!rows)
         return APKG_NOMEM;
-    code = open_root(root, APKG_WRITE, &c, &s, e);
+    code = open_root(root, APKG_WRITE, store, &c, &s, e);
     if (!code)
         code = apkg_plan_system_takeover(c, takeover);
     if (!code && state_list(s->raw, rows, &count))
@@ -591,6 +594,6 @@ apkg_status apkg_client_source_install(const char *root, const char *name,
                                        apkg_confirm_fn confirm, void *user,
                                        const apkg_observer *observer,
                                        apkg_result **out, apkg_error **e) {
-    return ak_client_source_install(root, name, recommendations, 0, confirm,
-                                    user, observer, out, e);
+    return ak_client_source_install(root, name, recommendations, 0, NULL,
+                                    confirm, user, observer, out, e);
 }

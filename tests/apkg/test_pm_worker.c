@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
         assert(apkg_source_config_read(argv[4],&old,NULL)==APKG_OK);
         assert(apkg_client_channel_refresh(argv[1],argv[2],argv[5],0,NULL,&snapshot,&current,NULL)==APKG_OK);
         const apkg_source_config_view *v=apkg_source_config_get(old);
-        apkg_open_options options={0};options.contract_version=1;options.struct_size=sizeof options;
+        apkg_open_options options={0};options.contract_version = APKG_CONTRACT_VERSION;options.struct_size=sizeof options;
         options.root=(apkg_text){argv[1],strlen(argv[1])};apkg_ctx *ctx=NULL;
         assert(apkg_open(&options,&ctx,NULL)==APKG_OK);
         assert(apkg_channel_read(ctx,&v->id,0,v->observation,v->signature,&active,NULL)==APKG_STALE&&!active);

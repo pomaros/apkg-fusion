@@ -826,6 +826,37 @@ apkg_status apkg_recover(apkg_ctx *c, const apkg_observer *o, apkg_result **out,
     lock_drop(&lock);
     return code;
 }
+apkg_status apkg_store_prune(apkg_ctx *c, uint64_t *files, uint64_t *bytes,
+                             apkg_error **e) {
+    mutation_lock lock;
+    apkg_status code;
+    int l;
+    if (e)
+        *e = NULL;
+    if (files)
+        *files = 0;
+    if (bytes)
+        *bytes = 0;
+    if (!c)
+        return APKG_INVALID;
+    if (c->mode != APKG_WRITE)
+        return APKG_POLICY;
+    if (!ak_physical(c->anchor, &c->binding))
+        return APKG_STALE;
+    l = lock_take(c, &lock);
+    if (l)
+        return l == 1 ? APKG_BUSY : APKG_IO;
+    code = ak_store_prune(c, files, bytes);
+    lock_drop(&lock);
+    if (code)
+        ak_fail(e, code,
+                code == APKG_RECOVERY_REQUIRED
+                    ? "a pending transaction still needs the store; recover "
+                      "first"
+                    : "the store could not be pruned",
+                c->root);
+    return code;
+}
 static int emit(const apkg_observer *o, apkg_result *r, uint64_t *seq,
                 apkg_phase phase, int cancellable, const char *subject) {
     apkg_event ev = {0};
@@ -947,7 +978,7 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
     if (code)
         goto done;
     if (p->changes) {
-        code = execute_changes_locked(c, p, s, o, r);
+        code = execute_changes_locked(c, p, s, o, r, e);
         goto done;
     }
     if (!p->absent) {

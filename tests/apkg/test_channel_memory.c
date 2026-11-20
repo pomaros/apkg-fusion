@@ -17,7 +17,7 @@ static int prepared_plan(char **argv) {
     apkg_result *result = NULL;
     apkg_id id;
     assert(!ak_hex(argv[3], id.bytes, 16));
-    options.contract_version = 1;
+    options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
     options.mode = APKG_WRITE;
     options.root.data = argv[1];
@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
         assert(!ak_read(argv[2], &document, &dn, AK_MAX / 8));
         assert(!ak_read(argv[3], &signature, &sn, 16384));
     }
-    options.contract_version = 1;
+    options.contract_version = APKG_CONTRACT_VERSION;
     options.struct_size = sizeof options;
     options.root.data = argv[1];
     options.root.size = strlen(argv[1]);
