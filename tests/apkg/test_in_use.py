@@ -112,6 +112,7 @@ class InUse(unittest.TestCase):
                 self.assertEqual(subject, str(root.resolve() / 'demo'))
                 self.assertIn('in use', message)
                 self.assertIn('close', message)
+                self.assertIn('restarting the system', message)
                 # No draft, no journal, no archive: nothing to recover.
                 self.assertEqual(siblings(root), names)
                 self.assertEqual((root / '.apkg/state').read_bytes(), state)
