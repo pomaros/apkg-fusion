@@ -124,6 +124,12 @@ apkg_status apkg_plan_format(const apkg_plan *p, char **out) {
                                labels[role], authority, key))
                         goto limit;
                 }
+                if (!role && ak_member(&j, (int)i, "permissions") >= 0 &&
+                    append(text, cap, &used,
+                           "Allow publisher %s to place system packages in "
+                           "the root\n",
+                           authority))
+                    goto limit;
             }
         }
     }
@@ -193,6 +199,12 @@ apkg_status apkg_client_install(const char *root, const char *dir,
                                 apkg_confirm_fn confirm, void *user,
                                 const apkg_observer *observer,
                                 apkg_result **out, apkg_error **e) {
+    return ak_client_install(root, dir, 0, confirm, user, observer, out, e);
+}
+apkg_status ak_client_install(const char *root, const char *dir, int takeover,
+                              apkg_confirm_fn confirm, void *user,
+                              const apkg_observer *observer, apkg_result **out,
+                              apkg_error **e) {
     apkg_open_options options = {0};
     apkg_ctx *c = NULL;
     apkg_snapshot *s = NULL;
@@ -206,7 +218,7 @@ apkg_status apkg_client_install(const char *root, const char *dir,
     if (!out)
         return APKG_INVALID;
     *out = NULL;
-    if (!root || !dir || !confirm)
+    if (!root || !dir || !confirm || (takeover != 0 && takeover != 1))
         return APKG_INVALID;
     options.contract_version = 1;
     options.struct_size = sizeof options;
@@ -216,6 +228,7 @@ apkg_status apkg_client_install(const char *root, const char *dir,
     code = apkg_open(&options, &c, e);
     if (code)
         goto done;
+    apkg_plan_system_takeover(c, takeover);
     code = apkg_snapshot_read(c, &s, e);
     if (code)
         goto done;

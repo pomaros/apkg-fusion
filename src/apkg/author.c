@@ -89,7 +89,7 @@ apkg_status ak_author_command(int argc, char **argv, char **out) {
         code = APKG_UNSUPPORTED;
         goto done;
     }
-    if (ak_read(argv[4], &bytes, &size, AK_MAX / 8)) {
+    if (ak_read(argv[4], &bytes, &size, AK_MAX)) {
         code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
         goto done;
     }
@@ -196,7 +196,7 @@ apkg_status ak_verify_command(int argc, char **argv, char **out) {
     if (strcmp(argv[2], "descriptor") && strcmp(argv[2], "channel") &&
         strcmp(argv[2], "attestation"))
         return APKG_UNSUPPORTED;
-    if (ak_read(argv[3], &document, &dn, AK_MAX / 8) ||
+    if (ak_read(argv[3], &document, &dn, AK_MAX) ||
         ak_read(argv[4], &envelope, &sn, 16384)) {
         code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
         goto done;

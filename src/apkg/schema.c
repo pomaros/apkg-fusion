@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 int ak_valid_name(const char *s) {
     size_t i, n = strlen(s);
     if (!n || n > 255 || !strcmp(s, "db") || !isalnum((unsigned char)*s))
@@ -41,7 +42,40 @@ int ak_valid_path(const char *s) {
     }
     return 1;
 }
-static int grants_valid(const ak_json *j, int arr) {
+/* A system package places files across the root itself, so its paths must
+ * stay clear of the names the engine keeps there: the database, the journal,
+ * staging and caches of a volume root (".apkg*"), replacement asides
+ * (".pkgold*") and the legacy databases that make a root read as legacy. */
+int ak_system_path_reserved(const char *path) {
+    const char *p = path;
+    if (!strncasecmp(path, "db", 2) && (!path[2] || path[2] == '/'))
+        return 1;
+    if (!strncasecmp(path, ".pkg", 4) && (!path[4] || path[4] == '/'))
+        return 1;
+    while (*p) {
+        if (!strncasecmp(p, ".apkg", 5) || !strncasecmp(p, ".pkgold", 7))
+            return 1;
+        p = strchr(p, '/');
+        if (!p)
+            break;
+        p++;
+    }
+    return 0;
+}
+/* Rights an authority holds beyond signing bundles. "system" is the only
+ * one: without it a root never places that authority's system packages. */
+static int permissions_valid(const ak_json *j, int arr) {
+    size_t i, count = 0;
+    if (arr < 0)
+        return 1;
+    if (j->tokens[arr].type != '[')
+        return 0;
+    for (i = (size_t)arr + 1; i < j->tokens[arr].next; i = j->tokens[i].next)
+        if (++count > 1 || !ak_equal(j, (int)i, "system"))
+            return 0;
+    return count == 1;
+}
+static int grants_valid(const ak_json *j, int arr, int permissions) {
     size_t i;
     char last[33] = "", id[33];
     static const char *const af[] = {"id", "keys"}, *const kf[] = {
@@ -54,7 +88,10 @@ static int grants_valid(const ak_json *j, int arr) {
         size_t k;
         char prev[65] = "", key[65];
         unsigned char bytes[32];
-        if (!ak_fields(j, (int)i, af, 2) ||
+        if (!ak_fields_optional(j, (int)i, af, 2,
+                                (const char *const[]){"permissions"},
+                                permissions ? 1 : 0) ||
+            !permissions_valid(j, ak_member(j, (int)i, "permissions")) ||
             ak_string(j, ak_member(j, (int)i, "id"), id, sizeof id) ||
             ak_hex(id, bytes, 16) || (*last && strcmp(last, id) >= 0))
             return 0;
@@ -82,11 +119,11 @@ int ak_policy_valid(const ak_json *j) {
     const char *roles[] = {"channels", "reviewers", "testers"};
     if (!ak_fields_optional(j, b, (const char *const[]){"authorities"}, 1,
                             roles, 3) ||
-        !grants_valid(j, ak_member(j, b, "authorities")))
+        !grants_valid(j, ak_member(j, b, "authorities"), 1))
         return 0;
     for (size_t i = 0; i < 3; i++) {
         int role = ak_member(j, b, roles[i]);
-        if (role >= 0 && !grants_valid(j, role))
+        if (role >= 0 && !grants_valid(j, role, 0))
             return 0;
     }
     return 1;
@@ -115,6 +152,22 @@ int ak_policy(const ak_json *j, int unused, const char *authority,
               const char *key) {
     (void)unused;
     return role_key(j, "authorities", authority, key);
+}
+/* The authority's entry carries the system permission. */
+int ak_policy_permission(const ak_json *j, const char *authority) {
+    int arr = ak_member(j, ak_member(j, 0, "body"), "authorities");
+    size_t i;
+    if (arr < 0)
+        return 0;
+    for (i = (size_t)arr + 1; i < j->tokens[arr].next; i = j->tokens[i].next)
+        if (ak_equal(j, ak_member(j, (int)i, "id"), authority))
+            return ak_member(j, (int)i, "permissions") >= 0;
+    return 0;
+}
+/* The authority signs with a granted key and holds the system permission. */
+int ak_policy_system(const ak_json *j, const char *authority, const char *key) {
+    return role_key(j, "authorities", authority, key) &&
+           ak_policy_permission(j, authority);
 }
 int ak_channel_policy(const ak_json *j, const char *id, const char *key) {
     return role_key(j, "channels", id, key);
@@ -228,7 +281,8 @@ int ak_descriptor(const ak_json *j) {
         ak_string(j, ak_member(j, b, "target"), s, sizeof s) ||
         pkg_target_parse(s, NULL, NULL, 0))
         return 0;
-    if (!ak_equal(j, ak_member(j, b, "kind"), "data") &&
+    int system = ak_equal(j, ak_member(j, b, "kind"), "system");
+    if (!system && !ak_equal(j, ak_member(j, b, "kind"), "data") &&
         !ak_equal(j, ak_member(j, b, "kind"), "application") &&
         !ak_equal(j, ak_member(j, b, "kind"), "tool"))
         return 0;
@@ -244,7 +298,8 @@ int ak_descriptor(const ak_json *j) {
         char hex[65];
         uint64_t mode;
         if (ak_string(j, ak_member(j, (int)i, "path"), s, sizeof s) ||
-            !ak_valid_path(s) || (*previous && strcmp(previous, s) >= 0))
+            !ak_valid_path(s) || (*previous && strcmp(previous, s) >= 0) ||
+            (system && ak_system_path_reserved(s)))
             return 0;
         strcpy(previous, s);
         if (ak_equal(j, ak_member(j, (int)i, "type"), "directory")) {

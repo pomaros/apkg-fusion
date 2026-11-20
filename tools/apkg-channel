@@ -26,7 +26,9 @@ import sys
 import tempfile
 
 HERE = Path(__file__).resolve().parents[1]
-META_MAX = 2 * 1024 * 1024
+# One canonical object: the engine's object limit. A snapshot embeds the full
+# descriptor of every retained build, thousands of files for a system package.
+META_MAX = 16 * 1024 * 1024
 ARCHIVE_MAX = 2147483647
 
 class Refusal(Exception):
@@ -336,7 +338,7 @@ def publish(args):
             candidate = dict(body=dict(entries=entries, id=args.id, sequence=str(sequence + 1), published_on=reported_day), format='apkg-json-1', requires=[], schema='1', type='channel')
             document = encode(candidate)
             if len(document) > META_MAX:
-                raise Refusal('channel metadata exceeds 2 MiB')
+                raise Refusal('channel metadata exceeds 16 MiB')
             description = temporary / 'channel.json'
             description.write_bytes(document)
             envelope = encode(json.loads(engine_run(args.engine, 'sign-object', key, 'channel', description)))

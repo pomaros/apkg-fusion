@@ -42,6 +42,12 @@ static int missing(const ak_json *from, const ak_json *in, size_t role,
                 ak_buf_add(out, "%s %s %s key %s\n", sign, labels[role], id,
                            key);
         }
+        if (!role && ak_member(from, (int)i, "permissions") >= 0 &&
+            !ak_policy_permission(in, id))
+            ak_buf_add(out,
+                       "%s %s %s the right to place system packages in the "
+                       "root\n",
+                       sign, labels[role], id);
     }
     return 0;
 }

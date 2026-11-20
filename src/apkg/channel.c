@@ -203,8 +203,10 @@ static apkg_status channel_read(apkg_ctx *c, const apkg_snapshot *captured,
     *out = NULL;
     if ((!c && (!origin || !captured)) || !expected)
         return APKG_INVALID;
-    size_t max = c ? (c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32)
-                   : origin->read_max;
+    /* A snapshot embeds the full descriptor of every retained build, and a
+     * system package lists thousands of files: the bound is the context's
+     * object limit, not the smaller working reserve of plans and state. */
+    size_t max = c ? c->object_max : origin->read_max;
     if (object.size > max || signature.size > max)
         return APKG_LIMIT;
     channel = calloc(1, sizeof *channel);
@@ -663,7 +665,7 @@ apkg_status apkg_channel_open_http(apkg_ctx *ctx, apkg_text endpoint,
         return APKG_INVALID;
     progress.observer = observer;
     progress.unknown_total = 1;
-    progress.total = AK_MAX / 8 + 16384 + 130;
+    progress.total = (uint64_t)ctx->object_max + 16384 + 130;
     if (observer && pkg_fs_random(progress.operation_id.bytes, 16))
         return APKG_IO;
     code = ak_http_path(base, "current", url);
@@ -687,7 +689,7 @@ apkg_status apkg_channel_open_http(apkg_ctx *ctx, apkg_text endpoint,
     code = ak_http_path(base, member, url);
     if (code)
         goto done;
-    code = ak_http_get(url, AK_MAX / 8, -1, &document, &dn, &progress);
+    code = ak_http_get(url, ctx->object_max, -1, &document, &dn, &progress);
     if (code)
         goto done;
     snprintf(member, sizeof member, "snapshots/%s/channel.signature.json",
@@ -767,7 +769,7 @@ apkg_status apkg_channel_open_file(apkg_ctx *ctx, apkg_text directory,
         code = APKG_LIMIT;
         goto done;
     }
-    if (ak_read(path, &document, &dn, AK_MAX / 8) ||
+    if (ak_read(path, &document, &dn, ctx->object_max) ||
         ak_path(path, snapshot, "channel.signature.json") ||
         ak_read(path, &envelope, &sn, 16384)) {
         code = errno == ENOMEM  ? APKG_NOMEM
@@ -927,10 +929,10 @@ apkg_status ak_origin_check(apkg_ctx *ctx, const ak_json *j, int row,
     if (bound.remote) {
         ak_import_progress progress = {0};
         progress.observer = &silent;
-        progress.total = AK_MAX / 8 + 16384;
+        progress.total = (uint64_t)ctx->object_max + 16384;
         code = ak_http_path(endpoint, member, path);
         if (!code)
-            code = ak_http_get(path, AK_MAX / 8, -1, &document, &dn, &progress);
+            code = ak_http_get(path, ctx->object_max, -1, &document, &dn, &progress);
         snprintf(member, sizeof member, "snapshots/%s/channel.signature.json",
                  text);
         if (!code)
@@ -939,7 +941,7 @@ apkg_status ak_origin_check(apkg_ctx *ctx, const ak_json *j, int row,
             code = ak_http_get(path, 16384, -1, &signature, &sn, &progress);
     } else {
         if (ak_path(path, endpoint, member) ||
-            ak_read(path, &document, &dn, AK_MAX / 8))
+            ak_read(path, &document, &dn, ctx->object_max))
             code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;
         snprintf(member, sizeof member, "snapshots/%s/channel.signature.json",
                  text);
@@ -1154,7 +1156,7 @@ apkg_status ak_channel_inspect(const char *root, const char *dir,
             goto done;
     } else {
         if (ak_path(path, dir, "channel.json") ||
-            ak_read(path, &object, &dn, AK_MAX / 8) ||
+            ak_read(path, &object, &dn, ctx->object_max) ||
             ak_path(path, dir, "channel.signature.json") ||
             ak_read(path, &signature, &sn, 16384)) {
             code = errno == ENOMEM ? APKG_NOMEM : APKG_IO;

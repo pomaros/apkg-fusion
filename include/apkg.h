@@ -534,6 +534,13 @@ apkg_status apkg_plan_channel_accept(apkg_ctx *, const apkg_snapshot *,
 apkg_status apkg_plan_channel_install(apkg_ctx *, const apkg_snapshot *,
     const apkg_channel *, const apkg_digest *descriptor, int recommendations,
     const apkg_observer *, apkg_plan **, apkg_error **);
+/* Planning input for system packages (descriptor kind "system"), whose
+ * files are placed one by one in the root itself. Without it, a listed path
+ * that already holds other bytes and belongs to no package is a CONFLICT.
+ * With it, every later plan of this context replaces such files and takes
+ * them over; each plan records the request and lists the files, so the digest
+ * the caller approves covers it. Paths of another package are never taken. */
+apkg_status apkg_plan_system_takeover(apkg_ctx *, int enabled);
 const apkg_plan_view *apkg_plan_get(const apkg_plan *);
 apkg_status apkg_plan_effect_at(const apkg_plan *, uint64_t,
                                 const apkg_effect_view **, apkg_error **);

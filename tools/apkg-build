@@ -110,11 +110,16 @@ def build(args):
  if unknown:raise Refusal('unsupported author fields: '+', '.join(sorted(unknown)))
  for key in ('installs_on','runs_on','does_not_run_on','post_install_notes'):
   if m.get(key):raise Refusal(f'{key}: common execution/presentation is not implemented')
- if m.get('kind') not in ('app','tool','data'):raise Refusal('system package destinations are not implemented')
+ if m.get('kind') not in ('app','tool','data','system'):raise Refusal('kind must be app, tool, data or system')
+ system=m['kind']=='system'
+ if system:
+  # The drawer's content is the root itself: no folder, icon or launcher.
+  for key in ('subdir','icon','launch'):
+   if key in m:raise Refusal(f'{key}: does not apply to a system package, whose drawer maps to the root itself')
  if 'source' in m and (not isinstance(m['source'],dict) or set(m['source'])-{'repository'} or not isinstance(m['source'].get('repository',''),str)):raise Refusal('source: only source.repository is implemented')
  with contextlib.redirect_stdout(sys.stderr):errors=RULES.check(m,'author',string_validator=common_strings)
  if errors:raise Refusal('; '.join(errors))
- if m.get('subdir')!=source.name:raise Refusal('subdir must name the source drawer')
+ if not system and m.get('subdir')!=source.name:raise Refusal('subdir must name the source drawer')
  if not re.fullmatch('[0-9a-f]{32}',args.authority):raise Refusal('authority must be 32 lowercase hex digits')
  target=f"{m['arch']}-aros-{m['abi']}-{args.runtime}"
  if args.runtime=='raspi' and m['arch'] not in ('arm','aarch64'):raise Refusal('raspi requires an ARM target')
@@ -123,14 +128,15 @@ def build(args):
  output=output.parent.resolve(strict=True)/output.name
  if output.exists() or output.is_symlink():raise Refusal('output already exists')
  if output.is_relative_to(source) or key.is_relative_to(source):raise Refusal('key and output must be outside the source drawer')
- if (source/RESERVED).exists() or (source/RESERVED).is_symlink():raise Refusal(f'{RESERVED} is reserved for unchanged author provenance')
+ if not system and ((source/RESERVED).exists() or (source/RESERVED).is_symlink()):raise Refusal(f'{RESERVED} is reserved for unchanged author provenance')
  # The initial inventory refuses links, unknown host attributes and malformed
  # controls before copying; the staged inventory catches changes during copy.
- root_entry=selected_entry(args.engine,source)
+ # A system drawer stands for the root itself and is no payload entry.
+ root_entry=None if system else selected_entry(args.engine,source)
  original=inventory(args.engine,source)
  icon=m.get('icon')
  if icon and icon!=source.name+'.info':raise Refusal('icon must name the drawer sibling NAME.info')
- selected={source.name:root_entry}
+ selected={} if system else {source.name:root_entry}
  if icon:
   regular(source.parent/icon)
   selected[icon]=selected_entry(args.engine,source.parent/icon)
@@ -142,6 +148,7 @@ def build(args):
   copied=inventory(args.engine,drawer)
   verify_snapshot(original,copied)
   if inventory(args.engine,source)!=original:raise Refusal('source changed during its snapshot')
+  if system:return system_archive(args,m,author,source,drawer,original,copied,configs,target,key,output,temp)
   if icon:shutil.copy2(source.parent/icon,payload/icon,follow_symlinks=False)
   drawer_mode=drawer.stat().st_mode&0o777
   drawer.chmod(drawer_mode|0o700)
@@ -180,54 +187,82 @@ def build(args):
   names={entry['path']+('/' if entry['type']=='directory' else '') for entry in files}
   errors=RULES.check_members(m,names,'the payload')
   if errors:raise Refusal('; '.join(errors))
-  def requirement(name,version=None):
-   # Existing TOML has no authority/target qualifier: bind every relation to
-   # this explicitly selected publisher and target rather than inventing one.
-   return dict(authority=args.authority,name=name,min_version=version or '',min_revision='0',target=target)
-  relations={family:[] for family in ('conflicts','depends','recommends','replaces')}
-  for family in relations:
-   for value in m.get(family,[]):
-    if family=='recommends':item=requirement(value['id'],value.get('min_version'))
-    else:
-     parsed=RULES.parse_depend(value)
-     if not parsed:raise Refusal(f'{family}: unsupported relation')
-     item=requirement(*parsed)
-    relations[family].append(item)
-   relations[family].sort(key=lambda r:(r['authority'],r['name']))
-  body=dict(authority=args.authority,files=files,kind={'app':'application','tool':'tool','data':'data'}[m['kind']],name=m['id'],relations=relations,revision=str(m.get('revision',1)),target=target,version=m['version'])
-  system=system_requirements(m.get('requires_system',[]))
-  if system:body['requires_system']=system
-  presentation={field:m[field] for field in ('summary','category','license') if field in m}
-  if 'repository' in m.get('source',{}):presentation['repository']=m['source']['repository']
-  if presentation:body['presentation']=presentation
-  descriptor=encode(dict(body=body,format='apkg-json-1',requires=[],schema='1',type='descriptor'))
-  descriptor_path=temp/'descriptor.json';descriptor_path.write_bytes(descriptor)
-  signature=json.loads(run(args.engine,'sign-object',key,'descriptor',descriptor_path));signature_bytes=encode(signature)
-  members=[('descriptor.json',descriptor),('signature.json',signature_bytes)]+[('objects/'+sha,path) for sha,path in sorted(objects.items())]
-  def size(value):return value.stat().st_size if isinstance(value,Path) else len(value)
-  total=8+sum(9+len(name.encode())+size(value) for name,value in members)
-  if total>2147483647:raise Refusal('PKG/1 archive exceeds its 2 GiB envelope limit')
-  # Publish only a fully written, flushed artifact, without replacing an old
-  # output. A failed build leaves neither a partial artifact nor source edits.
-  fd,stage=tempfile.mkstemp(prefix='.apkg-build-',dir=output.parent)
-  stage=Path(stage)
-  try:
-   with os.fdopen(fd,'wb') as out:
-    out.write(b'PKG\1'+struct.pack('>I',total))
-    for name,value in members:
-     encoded_name=name.encode();out.write(struct.pack('>I',len(encoded_name))+encoded_name+b'\0'+struct.pack('>I',size(value)))
-     if isinstance(value,Path):
-      digest=hashlib.sha256()
-      with value.open('rb') as src:
-       for chunk in iter(lambda:src.read(65536),b''):digest.update(chunk);out.write(chunk)
-      if digest.hexdigest()!=name.removeprefix('objects/'):raise Refusal('staged payload changed during archive writing')
-     else:out.write(value)
-    out.flush();os.fsync(out.fileno())
-   os.link(stage,output)
-   directory=os.open(output.parent,os.O_RDONLY)
-   try:os.fsync(directory)
-   finally:os.close(directory)
-  finally:stage.unlink(missing_ok=True)
+  return write_archive(args,m,files,objects,target,key,output,temp)
+
+def reserved_system_path(path):
+ """Names the engine keeps in a root: its database, journal, caches, the
+ asides of an interrupted replacement and the legacy databases."""
+ parts=path.split('/')
+ return parts[0].lower() in ('db','.pkg') or any(part.lower().startswith(('.apkg','.pkgold')) for part in parts)
+
+def system_archive(args,m,author,source,drawer,original,copied,configs,target,key,output,temp):
+ """kind = "system": every path is relative to the root itself, and the
+ engine places each file where it is listed, among files it does not own."""
+ files=copied['files'];found=set();objects={}
+ if 'amiga' in original or any('amiga' in entry for entry in original['files']+files):
+  raise Refusal('a system package carries no Amiga metadata yet: remove the .ameta controls and semantic attributes')
+ for entry in files:
+  if reserved_system_path(entry['path']):raise Refusal(f"{entry['path']}: the engine keeps this name in a root")
+  if len(entry['path'].split('/'))>32:raise Refusal(f"{entry['path']}: deeper than 32 components")
+  if entry['type']!='file':continue
+  path=drawer/entry['path'];cpu=header_cpu(path)
+  if cpu and cpu!=m['arch']:raise Refusal(f"{entry['path']}: executable CPU {cpu} differs from {m['arch']}")
+  if entry['path'] in configs:
+   entry['config']='preserve';found.add(entry['path'])
+  objects.setdefault(entry['blob'],path)
+ if found!=set(configs):raise Refusal('config names a missing, directory or authoring-control entry')
+ if not any(entry['type']=='file' for entry in files):raise Refusal('a system package lists at least one file')
+ return write_archive(args,m,files,objects,target,key,output,temp)
+
+def write_archive(args,m,files,objects,target,key,output,temp):
+ def requirement(name,version=None):
+  # Existing TOML has no authority/target qualifier: bind every relation to
+  # this explicitly selected publisher and target rather than inventing one.
+  return dict(authority=args.authority,name=name,min_version=version or '',min_revision='0',target=target)
+ relations={family:[] for family in ('conflicts','depends','recommends','replaces')}
+ for family in relations:
+  for value in m.get(family,[]):
+   if family=='recommends':item=requirement(value['id'],value.get('min_version'))
+   else:
+    parsed=RULES.parse_depend(value)
+    if not parsed:raise Refusal(f'{family}: unsupported relation')
+    item=requirement(*parsed)
+   relations[family].append(item)
+  relations[family].sort(key=lambda r:(r['authority'],r['name']))
+ body=dict(authority=args.authority,files=files,kind={'app':'application','tool':'tool','data':'data','system':'system'}[m['kind']],name=m['id'],relations=relations,revision=str(m.get('revision',1)),target=target,version=m['version'])
+ system=system_requirements(m.get('requires_system',[]))
+ if system:body['requires_system']=system
+ presentation={field:m[field] for field in ('summary','category','license') if field in m}
+ if 'repository' in m.get('source',{}):presentation['repository']=m['source']['repository']
+ if presentation:body['presentation']=presentation
+ descriptor=encode(dict(body=body,format='apkg-json-1',requires=[],schema='1',type='descriptor'))
+ descriptor_path=temp/'descriptor.json';descriptor_path.write_bytes(descriptor)
+ signature=json.loads(run(args.engine,'sign-object',key,'descriptor',descriptor_path));signature_bytes=encode(signature)
+ members=[('descriptor.json',descriptor),('signature.json',signature_bytes)]+[('objects/'+sha,path) for sha,path in sorted(objects.items())]
+ def size(value):return value.stat().st_size if isinstance(value,Path) else len(value)
+ total=8+sum(9+len(name.encode())+size(value) for name,value in members)
+ if total>2147483647:raise Refusal('PKG/1 archive exceeds its 2 GiB envelope limit')
+ # Publish only a fully written, flushed artifact, without replacing an old
+ # output. A failed build leaves neither a partial artifact nor source edits.
+ fd,stage=tempfile.mkstemp(prefix='.apkg-build-',dir=output.parent)
+ stage=Path(stage)
+ try:
+  with os.fdopen(fd,'wb') as out:
+   out.write(b'PKG\1'+struct.pack('>I',total))
+   for name,value in members:
+    encoded_name=name.encode();out.write(struct.pack('>I',len(encoded_name))+encoded_name+b'\0'+struct.pack('>I',size(value)))
+    if isinstance(value,Path):
+     digest=hashlib.sha256()
+     with value.open('rb') as src:
+      for chunk in iter(lambda:src.read(65536),b''):digest.update(chunk);out.write(chunk)
+     if digest.hexdigest()!=name.removeprefix('objects/'):raise Refusal('staged payload changed during archive writing')
+    else:out.write(value)
+   out.flush();os.fsync(out.fileno())
+  os.link(stage,output)
+  directory=os.open(output.parent,os.O_RDONLY)
+  try:os.fsync(directory)
+  finally:os.close(directory)
+ finally:stage.unlink(missing_ok=True)
  return dict(archive=str(output),descriptor_sha256=signature['sha256'],public_key=signature['public_key'],target=target,publication_mode='unpublished',review='not-asserted')
 
 def main():

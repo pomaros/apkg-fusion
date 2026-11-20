@@ -62,6 +62,17 @@ static apkg_status metadata(int fd, uint64_t *left, const char *expected,
     *left -= size;
     return APKG_OK;
 }
+/* Object references of a descriptor, sorted by digest: a system package has
+ * thousands of members and each is matched without rescanning the list. */
+typedef struct {
+    char sha[65];
+    size_t token;
+} blob_row;
+static int blob_compare(const void *a, const void *b) {
+    const blob_row *x = a, *y = b;
+    int order = strcmp(x->sha, y->sha);
+    return order ? order : (x->token > y->token) - (x->token < y->token);
+}
 apkg_status apkg_package_import(apkg_ctx *c, apkg_text archive,
                                 const apkg_observer *observer,
                                 apkg_package **out, apkg_error **e) {
@@ -74,7 +85,8 @@ apkg_status apkg_package_import(apkg_ctx *c, apkg_text archive,
     apkg_package *p = NULL;
     apkg_status code = APKG_INVALID;
     unsigned char *seen = NULL;
-    size_t entries = 0, i;
+    blob_row *blobs = NULL;
+    size_t entries = 0, i, nblobs = 0;
     ak_import_progress progress = {0};
     progress.observer = observer;
     if (e)
@@ -157,6 +169,29 @@ apkg_status apkg_package_import(apkg_ctx *c, apkg_text archive,
         code = APKG_NOMEM;
         goto done;
     }
+    for (i = (size_t)arr + 1; i < p->json.tokens[arr].next;
+         i = p->json.tokens[i].next)
+        if (ak_member(&p->json, (int)i, "blob") >= 0)
+            nblobs++;
+    blobs = calloc(nblobs ? nblobs : 1, sizeof *blobs);
+    if (!blobs) {
+        code = APKG_NOMEM;
+        goto done;
+    }
+    nblobs = 0;
+    for (i = (size_t)arr + 1; i < p->json.tokens[arr].next;
+         i = p->json.tokens[i].next) {
+        int blob = ak_member(&p->json, (int)i, "blob");
+        if (blob < 0)
+            continue;
+        if (ak_string(&p->json, blob, blobs[nblobs].sha,
+                      sizeof blobs[nblobs].sha)) {
+            code = APKG_INVALID;
+            goto done;
+        }
+        blobs[nblobs++].token = i;
+    }
+    qsort(blobs, nblobs, sizeof *blobs, blob_compare);
     while (remaining) {
         char name[129], sha[65];
         uint64_t n;
@@ -174,23 +209,31 @@ apkg_status apkg_package_import(apkg_ctx *c, apkg_text archive,
             code = APKG_INVALID;
             goto done;
         }
-        for (i = (size_t)arr + 1; i < p->json.tokens[arr].next;
-             i = p->json.tokens[i].next)
-            if (ak_equal(&p->json, ak_member(&p->json, (int)i, "blob"), sha)) {
-                uint64_t expected;
-                if (ak_u64(&p->json, ak_member(&p->json, (int)i, "size"),
-                           &expected) ||
-                    expected != n) {
-                    code = APKG_INTEGRITY;
-                    goto done;
-                }
-                if (seen[i]) {
-                    code = APKG_INVALID;
-                    goto done;
-                }
-                seen[i] = 1;
-                found = 1;
+        /* Every entry that references this object, by the sorted index. */
+        size_t low = 0, high = nblobs;
+        while (low < high) {
+            size_t middle = low + (high - low) / 2;
+            if (strcmp(blobs[middle].sha, sha) < 0)
+                low = middle + 1;
+            else
+                high = middle;
+        }
+        for (; low < nblobs && !strcmp(blobs[low].sha, sha); low++) {
+            uint64_t expected;
+            i = blobs[low].token;
+            if (ak_u64(&p->json, ak_member(&p->json, (int)i, "size"),
+                       &expected) ||
+                expected != n) {
+                code = APKG_INTEGRITY;
+                goto done;
             }
+            if (seen[i]) {
+                code = APKG_INVALID;
+                goto done;
+            }
+            seen[i] = 1;
+            found = 1;
+        }
         if (!found || ++entries > AK_TOKENS) {
             code = APKG_INVALID;
             goto done;
@@ -225,6 +268,7 @@ done:
     free(descriptor);
     free(signature);
     free(seen);
+    free(blobs);
     apkg_package_free(p);
     if (code && e && !*e)
         ak_fail(e, code, "signed package archive refused", path);

@@ -298,6 +298,14 @@ apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,
                                       apkg_confirm_fn confirm, void *user,
                                       const apkg_observer *observer,
                                       apkg_result **out, apkg_error **error) {
+    return ak_client_channel_apply(root, endpoint, selection, recommendations,
+                                   0, confirm, user, observer, out, error);
+}
+apkg_status ak_client_channel_apply(const char *root, const char *endpoint,
+                                    const char *selection, int recommendations,
+                                    int takeover, apkg_confirm_fn confirm,
+                                    void *user, const apkg_observer *observer,
+                                    apkg_result **out, apkg_error **error) {
     if (error)
         *error = NULL;
     if (!out)
@@ -305,7 +313,8 @@ apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,
     *out = NULL;
     if (!selection || strlen(selection) != 162 || selection[97] != '/' ||
         selection[32] != '/' || !confirm ||
-        (recommendations != 0 && recommendations != 1))
+        (recommendations != 0 && recommendations != 1) ||
+        (takeover != 0 && takeover != 1))
         return APKG_INVALID;
     char identity[33];
     memcpy(identity, selection, 32);
@@ -331,6 +340,8 @@ apkg_status apkg_client_channel_apply(const char *root, const char *endpoint,
     if (!code && memcmp(observed.bytes,
                         apkg_channel_get(channel)->snapshot_digest.bytes, 32))
         code = APKG_STALE;
+    if (!code)
+        code = apkg_plan_system_takeover(ctx, takeover);
     if (!code)
         code = apkg_snapshot_read(ctx, &snapshot, error);
     if (!code)

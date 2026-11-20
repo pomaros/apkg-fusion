@@ -78,11 +78,22 @@ static apkg_status read_adoptions(apkg_ctx *c, const char *path,
     }
     return *count ? APKG_OK : APKG_INVALID;
 }
+apkg_status ak_client_apply(int, const char *, const char *, const char *, int,
+                            ak_confirm_fn, void *, const apkg_observer *,
+                            apkg_result **, apkg_error **);
 apkg_status apkg_client_apply(apkg_client_action action, const char *root,
                               const char *arg, const char *pool,
                               apkg_confirm_fn confirm, void *user,
                               const apkg_observer *observer, apkg_result **out,
                               apkg_error **e) {
+    return ak_client_apply(action, root, arg, pool, 0, confirm, user, observer,
+                           out, e);
+}
+apkg_status ak_client_apply(int action, const char *root, const char *arg,
+                            const char *pool, int takeover,
+                            apkg_confirm_fn confirm, void *user,
+                            const apkg_observer *observer, apkg_result **out,
+                            apkg_error **e) {
     apkg_ctx *c = NULL;
     apkg_snapshot *snapshot = NULL;
     apkg_package *package = NULL, *candidates[128] = {0};
@@ -101,14 +112,17 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     if (!out)
         return APKG_INVALID;
     *out = NULL;
+    if (takeover != 0 && takeover != 1)
+        return APKG_INVALID;
     if (action == APKG_CLIENT_CHANNEL_ACCEPT)
         return apkg_client_channel_accept(root, arg, pool, confirm, user,
                                           observer, out, e);
     if (action == APKG_CLIENT_CHANNEL)
-        return apkg_client_channel_apply(root, arg, pool, 0, confirm, user,
-                                         observer, out, e);
+        return ak_client_channel_apply(root, arg, pool, 0, takeover, confirm,
+                                       user, observer, out, e);
     if (action == APKG_CLIENT_INSTALL)
-        return apkg_client_install(root, arg, confirm, user, observer, out, e);
+        return ak_client_install(root, arg, takeover, confirm, user, observer,
+                                 out, e);
     if (action < APKG_CLIENT_REMOVE ||
         (action > APKG_CLIENT_RECOVER && action != APKG_CLIENT_ADOPT &&
          action != APKG_CLIENT_ADOPT_SET && action != APKG_CLIENT_POLICY &&
@@ -122,6 +136,7 @@ apkg_status apkg_client_apply(apkg_client_action action, const char *root,
     code = open_root(root, APKG_WRITE, &c, e);
     if (code)
         goto done;
+    apkg_plan_system_takeover(c, takeover);
     if (action == APKG_CLIENT_RECOVER) {
         code = apkg_recover(c, observer, out, e);
         goto done;
@@ -542,6 +557,11 @@ apkg_status ak_changes_format(const apkg_plan *p, char **out) {
         ak_json_free(&before);
         ak_json_free(&next);
     }
+    {
+        apkg_status placed = ak_place_format(p, &b);
+        if (placed && !b.bad)
+            b.bad = placed;
+    }
 finish:
     ak_buf_add(&b, "\nCommit .apkg/state at generation %" PRIu64 "\n",
                p->view.generation + 1);
@@ -587,6 +607,25 @@ apkg_status apkg_client_folder(const char *root, const char *name, char **out,
     if (matches != 1) {
         code = matches ? APKG_CONFLICT : APKG_NOT_FOUND;
         goto done;
+    }
+    {
+        /* A system package has no folder of its own: its files are in the
+         * root. */
+        apkg_package *installed = NULL;
+        int system = 0;
+        for (i = 0; i < s->nrows; i++)
+            if (!strcmp(name, s->rows[i].name.value.data)) {
+                code = ak_verified_entry(c, s->records[i], &installed);
+                if (code)
+                    goto done;
+                system = ak_package_system(installed);
+                apkg_package_free(installed);
+            }
+        if (system) {
+            *out = ak_copy(c->root, strlen(c->root));
+            code = *out ? APKG_OK : APKG_NOMEM;
+            goto done;
+        }
     }
     if (ak_path(path, c->root, name) || pkg_fs_path_is_link(path) != 0) {
         code = APKG_INVALID;

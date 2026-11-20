@@ -130,8 +130,28 @@ static int parse(ak_json *j, size_t *p, unsigned depth) {
     size_t id = j->count++, last = 0;
     char prev[256], key[256];
     int have = 0;
-    if (depth > 32 || id >= j->capacity || *p >= j->size)
+    if (depth > 32 || *p >= j->size)
         return -1;
+    if (id >= j->capacity) {
+        /* No object holds more tokens than half its bytes plus one. */
+        size_t most = j->size / 2 + 1, cap = j->capacity * 4;
+        ak_token *grown;
+        if (most > AK_TOKENS)
+            most = AK_TOKENS;
+        if (cap > most)
+            cap = most;
+        if (id >= cap)
+            return -1;
+        grown = calloc(cap, sizeof *grown);
+        if (!grown) {
+            j->nomem = 1;
+            return -1;
+        }
+        memcpy(grown, j->tokens, j->capacity * sizeof *grown);
+        free(j->tokens);
+        j->tokens = grown;
+        j->capacity = cap;
+    }
     j->tokens[id].start = *p;
     j->tokens[id].type = j->text[*p];
     if (j->text[*p] == '"') {
@@ -194,8 +214,8 @@ int ak_json_parse(const void *v, size_t n, ak_json *j) {
         return -1;
     j->text = ak_copy(v, n);
     j->capacity = n / 2 + 1;
-    if (j->capacity > AK_TOKENS)
-        j->capacity = AK_TOKENS;
+    if (j->capacity > 4096)
+        j->capacity = 4096; /* grows in parse() up to AK_TOKENS */
     j->tokens = calloc(j->capacity, sizeof *j->tokens);
     j->size = n;
     if (!j->text || !j->tokens) {
@@ -204,8 +224,11 @@ int ak_json_parse(const void *v, size_t n, ak_json *j) {
         return -2;
     }
     if (parse(j, &p, 1) < 0 || p != n) {
+        int nomem = j->nomem;
         ak_json_free(j);
-        return -1;
+        if (nomem)
+            errno = ENOMEM;
+        return nomem ? -2 : -1;
     }
     return 0;
 }

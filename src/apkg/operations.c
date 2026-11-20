@@ -372,6 +372,7 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
         policy = s ? s->policy : NULL;
     apkg_snapshot *current = NULL;
     ak_json list = {0};
+    char *placed = NULL, *placed_installed = NULL;
     ak_buf state = {0}, changes = {0}, raw = {0};
     char id[33], roothex[AK_PATH * 2 + 1], before[65];
     apkg_plan *p = NULL;
@@ -466,6 +467,25 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
         code = APKG_NOMEM;
         goto done;
     }
+    if (!state_only) {
+        /* System packages are placed per file; their decisions, and the
+         * directories recorded as created, come from the live root. */
+        ak_json before = {0};
+        int parsed = ak_json_parse(s->raw, s->view.source_record.size, &before);
+        if (parsed) {
+            code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
+            goto done;
+        }
+        ak_installed was = {&before, ak_member(&before,
+                                               ak_member(&before, 0, "body"),
+                                               "installed")},
+                     next = {&list, 0};
+        code = ak_place_plan(c, was, next, policy, kind, focus, NULL, -1,
+                             &placed, &placed_installed, e);
+        ak_json_free(&before);
+        if (code)
+            goto done;
+    }
     state.max = changes.max = raw.max =
         c->object_max < c->memory_max / 32 ? c->object_max : c->memory_max / 32;
     ak_tohex(s->view.root_id.bytes, 16, id);
@@ -476,7 +496,8 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
                "s\"%s,\"target\":"
                "\"%s\"},\"format\":\"apkg-json-1\",\"requires\":[],\"schema\":"
                "\"1\",\"type\":\"root\"}",
-               heads, s->view.generation.value + 1, entries,
+               heads, s->view.generation.value + 1,
+               placed_installed ? placed_installed : entries,
                s->package_generation + !state_only, policy, qualifications,
                id, sources_field ? sources_field : s->sources_field, s->target);
     ak_buf_add(&changes, "[");
@@ -553,6 +574,10 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
                 goto done;
             }
         }
+        if (ak_package_system(old) || ak_package_system(nw)) {
+            apkg_package_free(old);
+            continue; /* no folder of its own: see ak_place_plan above */
+        }
         if (ak_path(path, c->root, name)) {
             apkg_package_free(old);
             code = APKG_LIMIT;
@@ -625,11 +650,13 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
         "{\"body\":{\"action\":\"changes\",\"anchor_dev\":\"%llu\",\"anchor_"
         "ino\":\"%llu\",\"before\":\"%s\",\"changes\":%s,\"generation\":"
         "\"%" PRIu64
-        "\",\"kind\":\"%u\",\"new_state\":%s,\"root_path\":\"%s\"},\"format\":"
+        "\",\"kind\":\"%u\",\"new_state\":%s,\"root_path\":\"%s\"%s%s},"
+        "\"format\":"
         "\"apkg-json-1\",\"requires\":[],\"schema\":\"1\",\"type\":\"plan\"}",
         (unsigned long long)c->binding.st_dev,
         (unsigned long long)c->binding.st_ino, before, p->changes,
-        p->view.generation, (unsigned)kind, p->root_record, roothex);
+        p->view.generation, (unsigned)kind, p->root_record, roothex,
+        placed ? ",\"system\":" : "", placed ? placed : "");
     if (raw.bad) {
         code = raw.bad;
         goto done;
@@ -646,10 +673,38 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
     p->effects[0].destination.size = strlen(p->effects[0].destination.data);
     p->effects[0].record.data = (unsigned char *)p->changes;
     p->effects[0].record.size = strlen(p->changes);
+    if (placed) {
+        /* One more effect: the exact per-file records the digest covers. */
+        apkg_effect_view *effects =
+            calloc((size_t)p->view.effect_count + 1, sizeof *effects);
+        static const char text[] =
+            "System files placed in the root (per-file records)";
+        char *label = ak_copy(text, sizeof text - 1);
+        if (!effects || !label) {
+            free(effects);
+            free(label);
+            code = APKG_NOMEM;
+            goto done;
+        }
+        memcpy(effects, p->effects,
+               (size_t)p->view.effect_count * sizeof *effects);
+        free(p->effects);
+        p->effects = effects;
+        p->system = placed;
+        placed = NULL;
+        effects[p->view.effect_count].kind = APKG_EFFECT_REPLACE;
+        effects[p->view.effect_count].destination.data = label;
+        effects[p->view.effect_count].destination.size = strlen(label);
+        effects[p->view.effect_count].record.data = (unsigned char *)p->system;
+        effects[p->view.effect_count].record.size = strlen(p->system);
+        p->view.effect_count++;
+    }
     *out = p;
     p = NULL;
     code = APKG_OK;
 done:
+    free(placed);
+    free(placed_installed);
     free(sources_field);
     for (i = 0; i < n; i++)
         if (packages)
@@ -929,6 +984,13 @@ apkg_status apkg_plan_rollback(apkg_ctx *c, const apkg_snapshot *s,
         code = APKG_POLICY;
         goto done;
     }
+    if (ak_member(&plan, b, "system") >= 0) {
+        /* Placement kept no before-image: there is nothing to go back to. */
+        code = ak_fail(e, APKG_UNSUPPORTED,
+                       "a system package transaction cannot be rolled back",
+                       path);
+        goto done;
+    }
     int recorded_after = ak_member(&plan, b, "new_state");
     if (recorded_after < 0 ||
         plan.tokens[recorded_after].end - plan.tokens[recorded_after].start !=
@@ -1184,6 +1246,12 @@ apkg_status apkg_plan_rollback_last(apkg_ctx *c, const apkg_snapshot *s,
         if (changes >= 0 && plan.tokens[changes].type == '[') {
             for (size_t i = (size_t)changes + 1; i < plan.tokens[changes].next; i = plan.tokens[i].next)
                 if (ak_equal(&plan, ak_member(&plan, (int)i, "name"), wanted)) selected_matches = 1;
+            /* A system package takes part through its placement records;
+             * naming it finds the transaction, which then refuses. */
+            int placed = ak_member(&plan, body, "system");
+            if (placed >= 0 && plan.tokens[placed].type == '[')
+                for (size_t i = (size_t)placed + 1; i < plan.tokens[placed].next; i = plan.tokens[i].next)
+                    if (ak_equal(&plan, ak_member(&plan, (int)i, "name"), wanted)) selected_matches = 1;
         } else {
             int package = ak_member(&plan, body, "package");
             int pb = ak_member(&plan, package, "body");

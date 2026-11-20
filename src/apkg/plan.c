@@ -300,7 +300,9 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
         return APKG_TRUST;
     }
     ak_json_free(&policy);
+    /* A system package has no folder to stage: it takes the changes path. */
     int related =
+        ak_package_system(p) ||
         ak_member(&p->json, ak_member(&p->json, 0, "body"), "relations") >= 0;
     int payload_files =
         ak_member(&p->json, ak_member(&p->json, 0, "body"), "files");
@@ -399,6 +401,12 @@ apkg_status apkg_plan_install(apkg_ctx *c, const apkg_snapshot *s,
     ak_json_free(&j);
     return r;
 }
+apkg_status apkg_plan_system_takeover(apkg_ctx *c, int enabled) {
+    if (!c || (enabled != 0 && enabled != 1))
+        return APKG_INVALID;
+    c->takeover = enabled;
+    return APKG_OK;
+}
 const apkg_plan_view *apkg_plan_get(const apkg_plan *p) { return &p->view; }
 apkg_status apkg_plan_effect_at(const apkg_plan *p, uint64_t i,
                                 const apkg_effect_view **out, apkg_error **e) {
@@ -430,6 +438,7 @@ void apkg_plan_free(apkg_plan *p) {
     free(p->before_state);
     free(p->origins);
     free(p->requirements);
+    free(p->system);
     free(p);
 }
 apkg_status apkg_plan_approve(apkg_ctx *c, const apkg_plan *p,

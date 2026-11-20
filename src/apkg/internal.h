@@ -15,7 +15,10 @@ typedef struct {
 } ak_identity;
 #define AK_PATH 4096
 #define AK_MAX 16777216u
-#define AK_TOKENS 100000u
+/* Tokens of one canonical object. A 16 MiB channel snapshot of system
+ * packages (about 13 tokens per listed file) stays under it; the token array
+ * grows with the object, so small objects never pay for the bound. */
+#define AK_TOKENS 1048576u
 /* Total declared file bytes of one descriptor, shared blob references
  * counted once per entry: the materialized tree never exceeds the largest
  * PKG/1 envelope. */
@@ -28,6 +31,7 @@ typedef struct {
     char *text;
     size_t size, count, capacity;
     ak_token *tokens;
+    int nomem; /* the token array could not grow */
 } ak_json;
 typedef struct {
     char *data;
@@ -182,6 +186,62 @@ apkg_status ak_system_observe(const apkg_package *const *, size_t, size_t,
 int ak_requirements_valid(const ak_json *, int);
 apkg_status ak_plan_system_check(const apkg_plan *);
 apkg_status ak_system_format(const char *, ak_buf *);
+/* System packages: per-file placement in the root (system_place.c). */
+typedef struct {
+    const ak_json *j;
+    int array; /* the "installed" array token */
+} ak_installed;
+typedef struct {
+    const apkg_observer *observer;
+    apkg_result *result;
+    uint64_t *sequence;
+    apkg_phase phase; /* APPLY while executing, RECOVER while recovering */
+} ak_place_progress;
+int ak_system_path_reserved(const char *);
+int ak_policy_system(const ak_json *, const char *, const char *);
+int ak_policy_permission(const ak_json *, const char *);
+int ak_package_system(const apkg_package *);
+int ak_placement_valid(const ak_json *, int);
+int ak_place_records_valid(const ak_json *, int);
+/* approved NULL plans from the context's policy and takeover input; an
+ * approved array rebuilds the same records from the live root and returns
+ * STALE when they differ. Outputs are NULL when no system package changes. */
+apkg_status ak_place_plan(apkg_ctx *, ak_installed old, ak_installed next,
+                          const char *policy, apkg_plan_kind, const char *focus,
+                          const ak_json *approved, int approved_array,
+                          char **system, char **installed, apkg_error **);
+apkg_status ak_place_recheck(apkg_ctx *, const ak_json *plan,
+                             const void *old_state, size_t old_size);
+apkg_status ak_place_apply(apkg_ctx *, const ak_json *plan,
+                           const void *old_state, size_t old_size,
+                           const ak_place_progress *);
+apkg_status ak_place_format(const apkg_plan *, ak_buf *);
+apkg_status ak_place_verify(apkg_ctx *, const ak_json *descriptor,
+                            const apkg_observer *, uint64_t counts[4],
+                            ak_buf *rows);
+/* Client entry points with the takeover planning input (apkg_client.h keeps
+ * the forms without it). */
+typedef int (*ak_confirm_fn)(void *, const apkg_plan *, const char *);
+apkg_status ak_client_install(const char *root, const char *source,
+                              int takeover, ak_confirm_fn, void *,
+                              const apkg_observer *, apkg_result **,
+                              apkg_error **);
+apkg_status ak_client_channel_apply(const char *root, const char *endpoint,
+                                    const char *selection, int recommendations,
+                                    int takeover, ak_confirm_fn, void *,
+                                    const apkg_observer *, apkg_result **,
+                                    apkg_error **);
+apkg_status ak_client_source_install(const char *root, const char *name,
+                                     int recommendations, int takeover,
+                                     ak_confirm_fn, void *,
+                                     const apkg_observer *, apkg_result **,
+                                     apkg_error **);
+apkg_status ak_channels_install_named(apkg_ctx *, const apkg_snapshot *,
+                                      apkg_channel *const *, size_t,
+                                      const char *name, int recommendations,
+                                      ak_confirm_fn, void *,
+                                      const apkg_observer *, apkg_result **,
+                                      apkg_error **);
 struct apkg_ctx {
     char root[AK_PATH], anchor[AK_PATH];
     ak_identity binding;
@@ -192,6 +252,9 @@ struct apkg_ctx {
      * the last set verified by this context is not re-verified. */
     int records_verified;
     apkg_digest records_digest;
+    /* Planning input: later plans may replace unowned files that stand in
+     * the way of a system package. Recorded in every such plan. */
+    int takeover;
 };
 struct apkg_snapshot {
     apkg_root_view view;
@@ -252,6 +315,7 @@ struct apkg_plan {
     int absent;
     char *changes, *before_state, *origins;
     char *requirements; /* system requirement observations, or NULL */
+    char *system;       /* per-file system placement records, or NULL */
 };
 struct apkg_approval {
     unsigned char session[16];

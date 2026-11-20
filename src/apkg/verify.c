@@ -97,6 +97,36 @@ apkg_status apkg_client_verify(const char *root, const char *name,
         if (parsed)
             code = parsed == -2 ? APKG_NOMEM : APKG_INVALID;
     }
+    if (!code && view->kind.size == 6 && !memcmp(view->kind.data, "system", 6)) {
+        /* Placed per file in the root: only the signed list is compared,
+         * neighbours in shared directories are not this package's. */
+        uint64_t counts[4] = {0};
+        rows.max = report.max = ctx->object_max;
+        code = ak_place_verify(ctx, &expected, observer, counts, &rows);
+        if (!code && rows.bad)
+            code = (apkg_status)rows.bad;
+        if (!code)
+            code = apkg_snapshot_read(ctx, &after, error);
+        if (!code && (after->view.state != APKG_ROOT_READY ||
+                      memcmp(after->view.snapshot_digest.bytes,
+                             snapshot->view.snapshot_digest.bytes, 32)))
+            code = APKG_STALE;
+        if (!code) {
+            ak_buf_add(&report,
+                       "Verification of %s/%s %s (revision %" PRIu64
+                       ")\nSignature: verified\nAuthor trust: %s\nok %" PRIu64
+                       "\nchanged %" PRIu64 "\nedited %" PRIu64
+                       "\nmissing %" PRIu64 "\n%s",
+                       view->authority.data, view->name.data,
+                       view->version.data, view->revision,
+                       view->author_trust == APKG_TRUST_ACCEPTED ? "accepted"
+                                                                 : "rejected",
+                       counts[0], counts[1], counts[2], counts[3],
+                       rows.data ? rows.data : "");
+            code = report.bad ? (apkg_status)report.bad : APKG_OK;
+        }
+        goto finish;
+    }
     if (!code && ak_path(path, ctx->root, name))
         code = APKG_LIMIT;
     if (!code)
@@ -181,6 +211,7 @@ apkg_status apkg_client_verify(const char *root, const char *name,
                    ok, changed, missing, unknown, rows.data ? rows.data : "");
         code = report.bad ? (apkg_status)report.bad : APKG_OK;
     }
+finish:
     if (!code) {
         *out = report.data;
         report.data = NULL;

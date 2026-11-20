@@ -34,7 +34,8 @@ typedef enum {
     APKG_CLIENT_ADOPT,
     APKG_CLIENT_ADOPT_SET,
     APKG_CLIENT_POLICY, /* argument: a complete policy object file */
-    APKG_CLIENT_ROLLBACK_LAST /* argument: package name, or "-" for any */
+    APKG_CLIENT_ROLLBACK_LAST, /* argument: package name, or "-" for any */
+    APKG_CLIENT_SOURCE_INSTALL /* request form only; argument: package name */
 } apkg_client_action;
 /* ADOPT: argument=artifact, pool=evidence file. ADOPT_SET: argument=canonical
  * adoption-set manifest. Both use the same exact confirmation and journal. */
@@ -42,6 +43,49 @@ apkg_status apkg_client_apply(apkg_client_action, const char *root,
                               const char *argument, const char *pool,
                               apkg_confirm_fn, void *, const apkg_observer *,
                               apkg_result **, apkg_error **);
+/* The same client actions with their planning inputs spelled out. INSTALL,
+ * UPGRADE, RESOLVE and REPAIR take argument/pool as apkg_client_apply does;
+ * CHANNEL takes argument=endpoint and pool=selection; SOURCE_INSTALL takes
+ * argument=package name. system_takeover is the planning input of
+ * apkg_plan_system_takeover: a system package may then replace unowned files
+ * that stand in its way, and the presented plan lists each of them. */
+typedef struct {
+    uint32_t contract_version; /* must be APKG_CONTRACT_VERSION */
+    size_t struct_size;        /* must be sizeof(apkg_client_request) */
+    apkg_client_action action;
+    const char *root, *argument, *pool;
+    int recommendations, system_takeover;
+    apkg_confirm_fn confirm;
+    void *user;
+    const apkg_observer *observer;
+} apkg_client_request;
+apkg_status apkg_client_request_apply(const apkg_client_request *,
+                                      apkg_result **, apkg_error **);
+/* Unattended install or upgrade of one named package from one channel, a
+ * local directory or an http(s) endpoint. identity is the channel id in
+ * lowercase hex. policy is the pinned canonical trust policy: a ready root
+ * must hold exactly these bytes or the call refuses with APKG_POLICY, and
+ * nothing here grants a key. An absent root is initialized with the pinned
+ * policy when target is given; without a target it refuses. An interrupted
+ * transaction is recovered first. The newest trusted candidate of the name
+ * is planned as apkg_client_source_install does for a one-source list; a
+ * current package yields an UNCHANGED result. A NULL confirm approves each
+ * plan as made, which is the unattended form; a confirm sees every plan,
+ * initialization included. Budgets of zero select the context defaults. */
+typedef struct {
+    uint32_t contract_version; /* must be APKG_CONTRACT_VERSION */
+    size_t struct_size;        /* must be sizeof(apkg_client_update) */
+    const char *root, *endpoint, *identity, *name;
+    apkg_bytes policy;
+    const char *target; /* NULL: never initialize */
+    int takeover, recommendations;
+    uint64_t max_object_bytes, max_memory_bytes;
+    apkg_confirm_fn confirm;
+    void *user;
+    const apkg_observer *observer;
+} apkg_client_update;
+apkg_status apkg_client_channel_update(const apkg_client_update *,
+                                       apkg_result **, apkg_error **);
 /* Endpoint-bound discovery and exact selection shared by CLI/PkgManager.
  * selection is CHANNEL-ID/SNAPSHOT-SHA256/DESCRIPTOR-SHA256, with lowercase hex identities.
  * Apply prepares selected archives, then approves one immutable package/floor

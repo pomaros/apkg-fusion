@@ -268,6 +268,13 @@ apkg_status apkg_plan_adopt_many(apkg_ctx *c, const apkg_snapshot *s,
         packages[i] = inputs[i].package;
         if (!packages[i])
             goto done;
+        if (ak_package_system(packages[i])) {
+            /* Its files are spread over the root; a bundle is one folder. */
+            code = ak_fail(error, APKG_UNSUPPORTED,
+                           "a system package cannot be adopted as a bundle",
+                           packages[i]->name);
+            goto done;
+        }
         for (size_t k = 0; k < i; k++)
             if (!strcmp(packages[k]->name, packages[i]->name)) {
                 code = APKG_CONFLICT;

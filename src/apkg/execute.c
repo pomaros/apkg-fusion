@@ -23,14 +23,26 @@
 #include <proto/dos.h>
 #endif
 #ifdef APKG_TESTING
-static int test_point, test_action;
+static int test_point, test_action, test_skip;
 void apkg_test_fault(int point, int action) {
     test_point = point;
     test_action = action;
+    test_skip = 0;
+}
+/* Let `skip` passes through the point go by first: a step that repeats per
+ * file is then interrupted in the middle of its list. */
+void apkg_test_fault_after(int point, int action, int skip) {
+    test_point = point;
+    test_action = action;
+    test_skip = skip;
 }
 int ak_fault(int point) {
     if (point != test_point)
         return 0;
+    if (test_skip > 0) {
+        test_skip--;
+        return 0;
+    }
     if (test_action == 2)
         _exit(99);
 #ifndef __AROS__
@@ -515,7 +527,8 @@ static int emit(const apkg_observer *, apkg_result *, uint64_t *, apkg_phase,
                 int, const char *);
 #include "changes.inc"
 /* Caller holds the parent lock. No parser accepts an arbitrary write path. */
-static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
+static apkg_status recover_locked(apkg_ctx *c, apkg_result *result,
+                                  const apkg_observer *o) {
     char txn[AK_PATH], state[AK_PATH], tree[AK_PATH], live[AK_PATH], name[256],
         root_hex[AK_PATH * 2 + 1], expected_root[AK_PATH * 2 + 1], before[65],
         sha[65], actual[65];
@@ -569,7 +582,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result) {
         goto done;
     body = ak_member(&plan, 0, "body");
     if (ak_equal(&plan, ak_member(&plan, body, "action"), "changes")) {
-        r = recover_changes_locked(c, result, txn, &plan);
+        r = recover_changes_locked(c, result, txn, &plan, o);
         goto done;
     }
     {
@@ -809,7 +822,7 @@ apkg_status apkg_recover(apkg_ctx *c, const apkg_observer *o, apkg_result **out,
         result_set(r, code, APKG_UNCHANGED);
         return code;
     }
-    code = recover_locked(c, r);
+    code = recover_locked(c, r, o);
     lock_drop(&lock);
     return code;
 }
@@ -1062,7 +1075,7 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
             goto fail;
     }
     {
-        apkg_status completed = recover_locked(c, r);
+        apkg_status completed = recover_locked(c, r, NULL);
         if (completed != APKG_OK) {
             code = completed;
             goto done;
@@ -1088,7 +1101,7 @@ prepare_fail: /* No managed publication has occurred. */
     goto done;
 fail:
     if (!decision && ready) {
-        apkg_status recovered = recover_locked(c, r);
+        apkg_status recovered = recover_locked(c, r, NULL);
         if (recovered == APKG_OK)
             result_set(r, code, APKG_RESTORED);
         else

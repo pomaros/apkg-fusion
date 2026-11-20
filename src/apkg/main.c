@@ -40,6 +40,30 @@ static void report(apkg_status code, apkg_result *result, apkg_error *error) {
         printf("record=%.*s\n", (int)apkg_result_get(result)->record.size,
                apkg_result_get(result)->record.data);
 }
+static apkg_status request(apkg_client_action action, const char *root,
+                           const char *argument, const char *pool,
+                           int recommendations, int takeover,
+                           const char *confirmation, apkg_result **result,
+                           apkg_error **error) {
+    apkg_client_request r = {0};
+    r.contract_version = APKG_CONTRACT_VERSION;
+    r.struct_size = sizeof r;
+    r.action = action;
+    r.root = root;
+    r.argument = argument;
+    r.pool = pool;
+    r.recommendations = recommendations;
+    r.system_takeover = takeover;
+    r.confirm = confirm;
+    r.user = (void *)confirmation;
+    return apkg_client_request_apply(&r, result, error);
+}
+static int approve_all(void *user, const apkg_plan *plan, const char *text) {
+    (void)user;
+    (void)plan;
+    puts(text);
+    return 1;
+}
 static int apkg_main(int argc, char **argv) {
     const char *base = strrchr(argv[0], '/'); base = base ? base + 1 : argv[0];
     const char *dos = strrchr(base, ':'); if (dos) base = dos + 1;
@@ -72,10 +96,10 @@ static int apkg_main(int argc, char **argv) {
             "Usage: apkg legacy [--help] | inspect ROOT | recover ROOT | init ROOT TARGET "
             "POLICY "
             "[--yes] | install ROOT "
-            "PACKAGE-DIRECTORY [--confirm "
-            "DIGEST]\nadopt-set ROOT MANIFEST [--json | --confirm DIGEST]\nadopt ROOT ARTIFACT --evidence FILE [--confirm DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY "
+            "PACKAGE-DIRECTORY [--takeover] [--confirm "
+            "DIGEST]\nadopt-set ROOT MANIFEST [--json | --confirm DIGEST]\nadopt ROOT ARTIFACT --evidence FILE [--confirm DIGEST]\nremove|repair ROOT NAME | upgrade ROOT PACKAGE-DIRECTORY [--takeover] "
             "| rollback ROOT HISTORY | rollback-last ROOT NAME|-\nresolve ROOT PACKAGE-DIRECTORY [--pool "
-            "DIRECTORY] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | requirements ROOT ENDPOINT CHANNEL-ID NAME | verify ROOT NAME | "
+            "DIRECTORY] [--takeover] [--confirm DIGEST]\nlist|show ROOT [MATCH] | info ROOT NAME [FIELD] | requirements ROOT ENDPOINT CHANNEL-ID NAME | verify ROOT NAME | "
             "bundle-check|run-bundle FOLDER TARGET\nsource-inventory FOLDER | "
             "source-entry PATH | "
             "channel-inspect|channel-open|channel-updates ROOT ENDPOINT CHANNEL-ID "
@@ -90,22 +114,28 @@ static int apkg_main(int argc, char **argv) {
             "archive-check ROOT ARCHIVE\nchannel-fetch ROOT ENDPOINT "
             "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-install ROOT ENDPOINT "
             "CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256 [--recommends] "
-            "[--confirm DIGEST]\nchannel-accept ROOT ENDPOINT "
+            "[--takeover] [--confirm DIGEST]\nchannel-update ROOT ENDPOINT "
+            "CHANNEL-ID NAME --policy FILE [--target TARGET] [--takeover] "
+            "[--yes | --confirm DIGEST]\nchannel-accept ROOT ENDPOINT "
             "CHANNEL-ID [--confirm DIGEST]\nself-update ROOT ENDPOINT "
             "CHANNEL-ID EXECUTABLE [--check] [--confirm DIGEST]\npolicy ROOT "
             "POLICY-FILE [--confirm DIGEST]\nsource-add ROOT NAME ENDPOINT "
             "CHANNEL-ID | source-remove ROOT NAME | source-install ROOT NAME "
-            "[--recommends], each [--confirm DIGEST]\nsource-list ROOT\n");
+            "[--recommends] [--takeover], each [--confirm DIGEST]\nsource-list "
+            "ROOT\n--takeover lets a system package replace unowned files in "
+            "its way; the plan lists each one.\n");
         return argc == 2 && !strcmp(argv[1], "--help") ? APKG_OK : APKG_INVALID;
     }
     if (!strcmp(argv[1], "channel-install")) {
-        if (argc < 7 || argc > 10 || strlen(argv[4]) != 32 ||
+        if (argc < 7 || argc > 11 || strlen(argv[4]) != 32 ||
             strlen(argv[5]) != 64 || strlen(argv[6]) != 64)
             return APKG_INVALID;
-        int recommendations = 0;
+        int recommendations = 0, takeover = 0;
         for (int i = 7; i < argc; i++) {
             if (!strcmp(argv[i], "--recommends") && !recommendations)
                 recommendations = 1;
+            else if (!strcmp(argv[i], "--takeover") && !takeover)
+                takeover = 1;
             else if (!strcmp(argv[i], "--confirm") && !confirmation &&
                      i + 1 < argc)
                 confirmation = argv[++i];
@@ -115,9 +145,52 @@ static int apkg_main(int argc, char **argv) {
         char selection[163];
         snprintf(selection, sizeof selection, "%s/%s/%s", argv[4], argv[5],
                  argv[6]);
-        code = apkg_client_channel_apply(argv[2], argv[3], selection,
-                                         recommendations, confirm,
-                                         (void *)confirmation, NULL, &r, &e);
+        code = request(APKG_CLIENT_CHANNEL, argv[2], argv[3], selection,
+                       recommendations, takeover, confirmation, &r, &e);
+        goto done;
+    }
+    if (!strcmp(argv[1], "channel-update")) {
+        /* channel-update ROOT ENDPOINT CHANNEL-ID NAME --policy FILE
+         *   [--target TARGET] [--takeover] [--yes | --confirm DIGEST]
+         * One call for an updater: recover, initialize an absent root when a
+         * target is given, then install or upgrade NAME under the pinned
+         * policy. */
+        apkg_client_update u = {0};
+        const char *pinned = NULL;
+        int yes = 0;
+        if (argc < 8)
+            return APKG_INVALID;
+        for (int i = 6; i < argc; i++) {
+            if (!strcmp(argv[i], "--policy") && !pinned && i + 1 < argc)
+                pinned = argv[++i];
+            else if (!strcmp(argv[i], "--target") && !u.target && i + 1 < argc)
+                u.target = argv[++i];
+            else if (!strcmp(argv[i], "--takeover") && !u.takeover)
+                u.takeover = 1;
+            else if (!strcmp(argv[i], "--yes") && !yes && !confirmation)
+                yes = 1;
+            else if (!strcmp(argv[i], "--confirm") && !confirmation && !yes &&
+                     i + 1 < argc)
+                confirmation = argv[++i];
+            else
+                return APKG_INVALID;
+        }
+        if (!pinned)
+            return APKG_INVALID;
+        if (ak_read(pinned, &policy, &size, AK_MAX)) {
+            code = APKG_IO;
+            goto done;
+        }
+        u.contract_version = APKG_CONTRACT_VERSION;
+        u.struct_size = sizeof u;
+        u.root = argv[2];
+        u.endpoint = argv[3];
+        u.identity = argv[4];
+        u.name = argv[5];
+        u.policy = (apkg_bytes){policy, size};
+        u.confirm = yes ? approve_all : confirm;
+        u.user = (void *)confirmation;
+        code = apkg_client_channel_update(&u, &r, &e);
         goto done;
     }
     if (!strcmp(argv[1], "source-list")) {
@@ -135,13 +208,16 @@ static int apkg_main(int argc, char **argv) {
         /* source-add ROOT NAME ENDPOINT CHANNEL-ID | source-remove ROOT NAME |
          * source-install ROOT NAME [--recommends]; then [--confirm DIGEST] */
         int add = !strcmp(argv[1], "source-add"),
-            install = !strcmp(argv[1], "source-install"), recommends = 0;
+            install = !strcmp(argv[1], "source-install"), recommends = 0,
+            takeover = 0;
         int fixed = add ? 6 : 4;
         if (argc < fixed)
             return APKG_INVALID;
         for (int i = fixed; i < argc; i++) {
             if (install && !strcmp(argv[i], "--recommends") && !recommends)
                 recommends = 1;
+            else if (install && !strcmp(argv[i], "--takeover") && !takeover)
+                takeover = 1;
             else if (!strcmp(argv[i], "--confirm") && !confirmation &&
                      i + 1 < argc)
                 confirmation = argv[++i];
@@ -152,9 +228,8 @@ static int apkg_main(int argc, char **argv) {
                                             confirm, (void *)confirmation, NULL,
                                             &r, &e)
                : install
-                   ? apkg_client_source_install(argv[2], argv[3], recommends,
-                                                confirm, (void *)confirmation,
-                                                NULL, &r, &e)
+                   ? request(APKG_CLIENT_SOURCE_INSTALL, argv[2], argv[3],
+                             NULL, recommends, takeover, confirmation, &r, &e)
                    : apkg_client_source_remove(argv[2], argv[3], confirm,
                                                (void *)confirmation, NULL, &r,
                                                &e);
@@ -339,7 +414,7 @@ static int apkg_main(int argc, char **argv) {
     if (!strcmp(argv[1], "channel-validate")) {
         if (argc!=3) return APKG_INVALID;
         unsigned char *bytes=NULL; size_t size=0; ak_json object={0};
-        if (ak_read(argv[2],&bytes,&size,AK_MAX/8)) code=errno==ENOMEM ? APKG_NOMEM : errno==EFBIG ? APKG_LIMIT : APKG_IO;
+        if (ak_read(argv[2],&bytes,&size,AK_MAX)) code=errno==ENOMEM ? APKG_NOMEM : errno==EFBIG ? APKG_LIMIT : APKG_IO;
         else { int parsed=ak_json_parse(bytes,size,&object); code=parsed ? (parsed==-2 ? APKG_NOMEM : APKG_INVALID) : ak_channel_validate(&object); }
         ak_json_free(&object); free(bytes); report(code,NULL,NULL); return code;
     }
@@ -559,7 +634,14 @@ static int apkg_main(int argc, char **argv) {
         if (argc < 4)
             goto done;
         const char *pool = NULL;
+        int takeover = 0;
         for (int i = 4; i < argc; i += 2) {
+            if (!strcmp(argv[i], "--takeover") && !takeover &&
+                (!strcmp(argv[1], "upgrade") || !strcmp(argv[1], "resolve"))) {
+                takeover = 1;
+                i--;
+                continue;
+            }
             if (i + 1 >= argc)
                 goto done;
             if (!strcmp(argv[i], "--confirm") && !confirmation)
@@ -580,20 +662,26 @@ static int apkg_main(int argc, char **argv) {
                                            : !strcmp(argv[1], "adopt") ? APKG_CLIENT_ADOPT
                                            : !strcmp(argv[1], "policy") ? APKG_CLIENT_POLICY
                                                                         : APKG_CLIENT_RESOLVE;
-        code = apkg_client_apply(action, argv[2], argv[3], pool, confirm,
-                                 (void *)confirmation, NULL, &r, &e);
+        code = takeover ? request(action, argv[2], argv[3], pool, 0, 1,
+                                  confirmation, &r, &e)
+                        : apkg_client_apply(action, argv[2], argv[3], pool,
+                                            confirm, (void *)confirmation, NULL,
+                                            &r, &e);
         goto done;
     }
     if (!strcmp(argv[1], "install")) {
-        if (argc != 4 && argc != 6)
-            goto done;
-        if (argc == 6) {
-            if (strcmp(argv[4], "--confirm"))
+        int takeover = 0;
+        for (int i = 4; i < argc; i++) {
+            if (!strcmp(argv[i], "--takeover") && !takeover)
+                takeover = 1;
+            else if (!strcmp(argv[i], "--confirm") && !confirmation &&
+                     i + 1 < argc)
+                confirmation = argv[++i];
+            else
                 goto done;
-            confirmation = argv[5];
         }
-        code = apkg_client_install(argv[2], argv[3], confirm,
-                                   (void *)confirmation, NULL, &r, &e);
+        code = request(APKG_CLIENT_INSTALL, argv[2], argv[3], NULL, 0, takeover,
+                       confirmation, &r, &e);
         goto done;
     }
     o.contract_version = 1;

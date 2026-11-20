@@ -97,7 +97,7 @@ def read_author(path):
     if not isinstance(version, str) or not re.fullmatch(r"[0-9]{1,9}(?:\.[0-9]{1,9}){0,7}", version):
         refuse("version: the signed bridge supports dotted numeric versions; prereleases need the common version model")
     if manifest.get("kind") not in ("app", "tool", "data"):
-        refuse("kind: this bridge supports app, tool and data drawers; system packages need explicit shared destinations")
+        refuse("kind: this bridge supports app, tool and data drawers; publish a system package with the default common workflow")
     source = manifest.get("source")
     if source is not None and (not isinstance(source, dict) or set(source) - {"repository"}
                                or not isinstance(source.get("repository", ""), str)):

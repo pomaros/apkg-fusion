@@ -106,8 +106,10 @@ static int changes_validate(apkg_ctx *c, const ak_json *plan, int *array) {
         ak_path(legacy, c->root, ".pkg") || ak_exists(legacy) != 0)
         return -1;
     if (!ak_fields_optional(plan, b, fields, 9,
-                            (const char *const[]){"origins", "requirements"},
-                            2) ||
+                            (const char *const[]){"origins", "requirements",
+                                                  "system"},
+                            3) ||
+        !ak_place_records_valid(plan, ak_member(plan, b, "system")) ||
         !ak_origins_valid(plan, ak_member(plan, b, "origins")) ||
         !ak_requirements_valid(plan, ak_member(plan, b, "requirements")) ||
         ak_u64(plan, ak_member(plan, b, "anchor_dev"), &dev) ||
@@ -141,8 +143,8 @@ static int changes_validate(apkg_ctx *c, const ak_json *plan, int *array) {
     return 0;
 }
 static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
-                                          const char *txn,
-                                          const ak_json *plan) {
+                                          const char *txn, const ak_json *plan,
+                                          const apkg_observer *o) {
     unsigned char *old = NULL, *next = NULL, *id = NULL;
     size_t on = 0, nn = 0, idn = 0, i, index = 0;
     int arr, decision, b = ak_member(plan, 0, "body");
@@ -245,10 +247,20 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
             if (ak_fault(106))
                 goto done;
         }
-    } else if ((exact_state(state, next, nn) &&
-                state_publish(state, txn, change_limit(c))) ||
-               aside_clear(state))
-        goto done;
+    } else {
+        if (exact_state(state, next, nn)) {
+            /* The state is published last: until it holds the new record,
+             * system files may be partly placed. Finish them forward; a
+             * file that already holds its signed bytes is done. */
+            uint64_t sequence = 0;
+            ak_place_progress placing = {o, r, &sequence, APKG_PHASE_RECOVER};
+            if (ak_place_apply(c, plan, old, on, o ? &placing : NULL) ||
+                state_publish(state, txn, change_limit(c)))
+                goto done;
+        }
+        if (aside_clear(state))
+            goto done;
+    }
     if (ak_sync_dir(c->root) || ak_fault(7))
         goto done;
     {
@@ -351,6 +363,10 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         code = errno == ENOMEM ? APKG_NOMEM : APKG_STALE;
         goto done;
     }
+    code = ak_place_recheck(c, &j, s->raw, s->view.source_record.size);
+    if (code)
+        goto done;
+    code = APKG_IO;
     if (preparation_start(c, r, txn, active, &preparation)) {
         code = errno == EEXIST || errno == ESTALE ? APKG_STALE
                : errno == ENAMETOOLONG            ? APKG_LIMIT
@@ -490,14 +506,34 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         code = errno == ENOMEM ? APKG_NOMEM : APKG_STALE;
         goto fail;
     }
+    if (p->system) {
+        /* System files are written after the decision and never taken
+         * back: this is the last boundary where the live root is compared
+         * with the approved records and a cancellation is honoured. */
+        code = ak_place_recheck(c, &j, s->raw, s->view.source_record.size);
+        if (code)
+            goto fail;
+        if (emit(o, r, &seq, APKG_PHASE_APPLY, 1, c->root)) {
+            code = APKG_CANCELLED;
+            goto fail;
+        }
+        code = APKG_IO;
+    }
     decided = 1;
     if (marker(txn, "decision"))
         goto fail;
     emit(o, r, &seq, APKG_PHASE_COMMIT, 0, c->root);
-    if (changes_preflight(c, p, &j, arr, 1) || ak_fault(4) ||
-        state_publish(state, txn, change_limit(c)) || ak_fault(5))
+    if (changes_preflight(c, p, &j, arr, 1) || ak_fault(4))
         goto fail;
-    code = recover_changes_locked(c, r, txn, &j);
+    {
+        ak_place_progress placing = {o, r, &seq, APKG_PHASE_APPLY};
+        if (ak_place_apply(c, &j, s->raw, s->view.source_record.size,
+                           &placing))
+            goto fail;
+    }
+    if (state_publish(state, txn, change_limit(c)) || ak_fault(5))
+        goto fail;
+    code = recover_changes_locked(c, r, txn, &j, NULL);
     if (!code) {
         r->view.committed_generation.state = APKG_KNOWN;
         r->view.committed_generation.value = p->view.generation + 1;
@@ -519,7 +555,7 @@ prepare_fail:
     goto done;
 fail:
     if (!decided && ready) {
-        apkg_status recovered = recover_changes_locked(c, r, txn, &j);
+        apkg_status recovered = recover_changes_locked(c, r, txn, &j, NULL);
         if (!recovered)
             result_set(r, code, APKG_RESTORED);
         else {

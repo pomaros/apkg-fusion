@@ -430,44 +430,23 @@ apkg_status apkg_client_source_list(const char *root, char **text,
 static int text_equal(apkg_text t, const char *s) {
     return t.size == strlen(s) && !memcmp(t.data, s, t.size);
 }
-apkg_status apkg_client_source_install(const char *root, const char *name,
-                                       int recommendations,
-                                       apkg_confirm_fn confirm, void *user,
-                                       const apkg_observer *observer,
-                                       apkg_result **out, apkg_error **e) {
-    apkg_ctx *c = NULL;
-    apkg_snapshot *s = NULL;
-    apkg_channel *channels[AK_SOURCES] = {0};
+/* Install or upgrade `name` from the opened channels, in precedence order.
+ * A NULL confirm approves the plan as made: the caller is unattended and has
+ * fixed its inputs (source, policy, takeover) beforehand. */
+apkg_status ak_channels_install_named(apkg_ctx *c, const apkg_snapshot *s,
+                                      apkg_channel *const *channels,
+                                      size_t count, const char *name,
+                                      int recommendations,
+                                      apkg_confirm_fn confirm, void *user,
+                                      const apkg_observer *observer,
+                                      apkg_result **out, apkg_error **e) {
     apkg_plan *p = NULL;
     apkg_approval *a = NULL;
-    source *rows = NULL;
     char *text = NULL;
-    size_t count = 0, best_k = 0;
+    size_t best_k = 0;
     const apkg_channel_entry_view *best = NULL;
     int current = 0;
-    apkg_status code;
-    if (e)
-        *e = NULL;
-    if (out)
-        *out = NULL;
-    if (!root || !name || !*name || !confirm || !out ||
-        (recommendations != 0 && recommendations != 1))
-        return APKG_INVALID;
-    rows = malloc(AK_SOURCES * sizeof *rows);
-    if (!rows)
-        return APKG_NOMEM;
-    code = open_root(root, APKG_WRITE, &c, &s, e);
-    if (!code && state_list(s->raw, rows, &count))
-        code = APKG_INVALID;
-    if (!code && !count)
-        code = ak_fail(e, APKG_NOT_FOUND, "the root lists no sources", root);
-    /* Every source is read; one that cannot be read refuses rather than
-     * silently narrowing the choice. */
-    for (size_t k = 0; !code && k < count; k++) {
-        code = open_channel(c, &rows[k], observer, &channels[k], e);
-        if (code && e && !*e)
-            ak_fail(e, code, "a listed source cannot be read", rows[k].name);
-    }
+    apkg_status code = APKG_OK;
     for (size_t k = 0; !code && k < count; k++) {
         const apkg_channel_view *view = apkg_channel_get(channels[k]);
         for (uint64_t i = 0; !code && i < view->entry_count; i++) {
@@ -548,7 +527,7 @@ apkg_status apkg_client_source_install(const char *root, const char *name,
             &best->descriptor_digest, recommendations, observer, &p, e);
         if (!code)
             code = apkg_plan_format(p, &text);
-        if (!code && (!confirm(user, p, text) || ak_cancelled(observer)))
+        if (!code && ((confirm && !confirm(user, p, text)) || ak_cancelled(observer)))
             code = APKG_CANCELLED;
         if (!code)
             code = apkg_plan_approve(c, p, &p->view.plan_digest, &a, e);
@@ -558,10 +537,60 @@ apkg_status apkg_client_source_install(const char *root, const char *name,
     apkg_client_text_free(text);
     apkg_approval_free(a);
     apkg_plan_free(p);
+    return code;
+}
+apkg_status ak_client_source_install(const char *root, const char *name,
+                                     int recommendations, int takeover,
+                                     apkg_confirm_fn confirm, void *user,
+                                     const apkg_observer *observer,
+                                     apkg_result **out, apkg_error **e) {
+    apkg_ctx *c = NULL;
+    apkg_snapshot *s = NULL;
+    apkg_channel *channels[AK_SOURCES] = {0};
+    source *rows = NULL;
+    size_t count = 0;
+    apkg_status code;
+    if (e)
+        *e = NULL;
+    if (out)
+        *out = NULL;
+    if (!root || !name || !*name || !confirm || !out ||
+        (recommendations != 0 && recommendations != 1) ||
+        (takeover != 0 && takeover != 1))
+        return APKG_INVALID;
+    rows = malloc(AK_SOURCES * sizeof *rows);
+    if (!rows)
+        return APKG_NOMEM;
+    code = open_root(root, APKG_WRITE, &c, &s, e);
+    if (!code)
+        code = apkg_plan_system_takeover(c, takeover);
+    if (!code && state_list(s->raw, rows, &count))
+        code = APKG_INVALID;
+    if (!code && !count)
+        code = ak_fail(e, APKG_NOT_FOUND, "the root lists no sources", root);
+    /* Every source is read; one that cannot be read refuses rather than
+     * silently narrowing the choice. */
+    for (size_t k = 0; !code && k < count; k++) {
+        code = open_channel(c, &rows[k], observer, &channels[k], e);
+        if (code && e && !*e)
+            ak_fail(e, code, "a listed source cannot be read", rows[k].name);
+    }
+    if (!code)
+        code = ak_channels_install_named(c, s, channels, count, name,
+                                         recommendations, confirm, user,
+                                         observer, out, e);
     for (size_t k = 0; k < AK_SOURCES; k++)
         apkg_channel_free(channels[k]);
     apkg_snapshot_free(s);
     apkg_close(c);
     free(rows);
     return code;
+}
+apkg_status apkg_client_source_install(const char *root, const char *name,
+                                       int recommendations,
+                                       apkg_confirm_fn confirm, void *user,
+                                       const apkg_observer *observer,
+                                       apkg_result **out, apkg_error **e) {
+    return ak_client_source_install(root, name, recommendations, 0, confirm,
+                                    user, observer, out, e);
 }

@@ -611,8 +611,10 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
             if (!ak_fields_optional(
                     &j, (int)i,
                     (const char *const[]){"descriptor", "signature"}, 2,
-                    (const char *const[]){"adoption", "reason"}, 2) ||
-                desc < 0)
+                    (const char *const[]){"adoption", "placement", "reason"},
+                    3) ||
+                desc < 0 ||
+                !ak_placement_valid(&j, ak_member(&j, (int)i, "placement")))
                 goto invalid;
             {
                 ak_json d = {0};
