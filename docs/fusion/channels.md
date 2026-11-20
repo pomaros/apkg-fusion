@@ -43,8 +43,11 @@ cannot manufacture qualification through this schema.
 A separate detached signature uses the existing 83-byte APKG-SIG transcript,
 domain 2 (`channel`). Descriptor signatures remain domain 1. Signing and
 verification share the same framing rules; no format/domain fallback occurs.
-Metadata uses the context's object and working-memory bounds, with a maximum
-of 4,096 entries. This is not an archive-content verifier: authenticating an
+A snapshot is bounded by the context's object limit (16 MiB by default) and
+holds at most 4,096 entries. It embeds the complete descriptor of every
+retained build, so the object limit, not the smaller working reserve of plans
+and state records, bounds it: a [system package](system-packages.md#limits)
+lists thousands of files in each build. This is not an archive-content verifier: authenticating an
 archive reference does not prove that its bytes have been fetched or retained.
 
 ## Root policy and role separation
@@ -56,11 +59,15 @@ root-initialization confirmation and persisted in the exact approved policy.
 Existing authority-only policies remain valid and grant no channel trust.
 The [attestation profile](attestations.md) adds optional `reviewers`/`testers`
 arrays with the same grant shape; every supplied role is displayed for approval.
+An `authorities` entry may also carry `"permissions":["system"]`, the right to
+place [system packages](system-packages.md#authorization) in the root; the
+field is refused on every other role and with any other value.
 
 A channel key authorizes discovery for its named channel id. It does not
 approve package authors, targets, system writes, review or runtime testing.
 An authority key authorizes package signatures for its named authority and does
-not grant channel privileges. The operator may explicitly grant both roles to
+not grant channel privileges; it authorizes system packages only with the
+`system` permission. The operator may explicitly grant both roles to
 one key/id; possession of one role never creates the other. Nothing updates
 the policy implicitly, and no subscription installs keys.
 
@@ -69,8 +76,8 @@ the policy implicitly, and no subscription installs keys.
 Rotation, reset and revocation are one operation: `apkg_plan_policy`, or
 `apkg policy ROOT POLICY-FILE`, replaces the whole policy with a complete
 canonical policy object. Its presentation lists every grant added and revoked,
-role by role, and every installed package whose signing key loses its
-authority grant. Those packages stay installed; their author trust reads as
+role by role, the `system` permission included, and every installed package
+whose signing key loses its authority grant. Those packages stay installed; their author trust reads as
 untrusted. The plan rewrites root state only, through the common journal:
 installed records, channel floors and retained observations are unchanged, and
 a plan made before any other change is stale. A rollback never crosses a policy
@@ -161,7 +168,8 @@ CHANNEL/.publish.lock
 ```
 
 Archive transfer uses 64 KiB chunks, with length and SHA-256 checks during copy.
-Metadata retains its 2 MiB bound. Objects and metadata files are flushed and
+Channel metadata is bounded to 16 MiB, the engine's object limit; a signature
+envelope to 16 KiB. Objects and metadata files are flushed and
 published exclusively; existing immutable files must match instead of being
 replaced. Parent directories are flushed, including on retry. A partial,
 unreferenced snapshot may have missing files after process death; retry fills

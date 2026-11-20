@@ -270,9 +270,12 @@ cannot own, replace or traverse them. Shared directories may have multiple claim
 ownership is exclusive initially, even when two packages offer identical bytes.
 Unknown legacy inventory coverage cannot justify deleting unrecorded entries.
 
-Package kind is explicit: application, tool, data, system or image. System
-placement uses declared logical destinations resolved through authorized root
-mappings; it does not embed arbitrary host absolute paths in author metadata.
+Package kind is explicit: application, tool, data, system or image. A bundle
+kind (application, tool, data) owns the folder `ROOT/<name>/`. A
+[system package](system-packages.md) lists paths relative to the root itself,
+never host absolute paths, owns only the regular files it lists and is placed
+file by file; a root accepts one only from an authority its policy grants the
+`system` permission. Image kinds are not implemented.
 Images bind both image bytes and any declared inner inventory. Generated
 `application.json`, icons and author-source copies must be included in the signed
 inventory when shipped; live changes retain separate observations.

@@ -107,12 +107,13 @@ descriptor and retained records. It is not a replacement for large-package
 container/archive authoring. Package kinds accepted here are data, tool and
 application; dependency/recommendation/provider changes, system placement,
 image semantics and richer attributes were outside this initial tranche.
+[System packages](system-packages.md) have since been added.
 Later operation and ownership work, including [existing-bundle adoption](adoption.md),
 is tracked in the implementation status.
 The old bridge restrictions are not removed by this implementation.
 
 The parser enforces canonical encoding, Unicode scalar validity, sorted unique
-keys, uint64 overflow checks, depth 32 and 100,000 tokens. This backend additionally
+keys, uint64 overflow checks, depth 32 and 1,048,576 tokens. This backend additionally
 limits keys to 255 bytes, payload paths to printable ASCII/4095 bytes and 32
 components. Default object/working-memory budgets remain 16/64 MiB, with an
 initial conservative per-envelope reserve of 32 times serialized size during

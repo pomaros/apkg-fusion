@@ -72,6 +72,26 @@ root metadata is supported as an explicitly named authored drawer in the
 payload. The engine-managed outer package folder remains a separate boundary;
 this authoring change does not authorize arbitrary metadata on that container.
 
+## System packages
+
+`kind = "system"` builds a [system package](system-packages.md). The drawer
+stands for the root itself: `Drawer/C/Copy` becomes the signed path `C/Copy`,
+which the engine places at `ROOT/C/Copy`. The single-drawer rule therefore
+does not apply: `subdir`, `icon` and `launch` refuse, the drawer is no payload
+entry of its own, and no `Package.arospkg.toml` copy is added to the payload.
+`config` names files relative to the drawer and maps to `preserve` as for
+bundles; directories, empty ones included, are explicit entries with their
+modes.
+
+The builder refuses what such a package cannot carry: a path the engine keeps
+for itself in a root (`db` or `.pkg` at the top, any component beginning with
+`.apkg` or `.pkgold`), a path deeper than 32 components, `.ameta` controls or
+semantic attributes, and a drawer without a file. The legacy catalogue bound of
+2,048 files per package does not apply to this kind; the source inventory's
+2 MiB bound does, which is about 8,000 files. `tools/apkg-publish` publishes
+the artifact as any other in its default mode; its `--legacy` bridge refuses
+the kind.
+
 ## TOML and signatures
 
 The builder reuses apkg-pack's application-description generator and catalogue

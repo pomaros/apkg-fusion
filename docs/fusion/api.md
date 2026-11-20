@@ -102,7 +102,7 @@ from the working-memory budget and each remains object-budget bounded. Query
 materialization charges all rows/backing bytes against working memory before
 ownership transfer. A resource limit is LIMIT; allocator failure is NOMEM.
 
-Framing limits are depth 32, 100,000 members/elements total, 4096 UTF-8 bytes per
+Framing limits are depth 32, 1,048,576 tokens per object, 4096 UTF-8 bytes per
 path, 255 per package name/version, 1 MiB per other text field. These are explicit
 initial implementation limits, not truncation rules. Larger legacy data remains
 preserved as source evidence but cannot be presented as fully decoded or mutated
@@ -139,6 +139,12 @@ The initial tranche covered one signed package without dependency changes,
 trust changes, root initialization or system takeovers. The current engine also
 provides dependency-aware resolution through `apkg_plan_resolve` and common
 channel clients; see [operations](operations.md) and [channels](channels.md).
+A package of kind `system` goes through the same plan functions and is placed
+per file; `apkg_plan_system_takeover` sets the context's takeover input, which
+every later plan of that context records. `apkg_client_request_apply` and
+`apkg_client_channel_update` are the client forms; see
+[system packages](system-packages.md#clients). These are additions to contract
+version 1: no existing structure or signature changed.
 Unsupported work returns
 UNSUPPORTED or a non-executable plan with structured blockers, never a weaker
 plan. PENDING returns RECOVERY_REQUIRED; missing/uninitialized root returns

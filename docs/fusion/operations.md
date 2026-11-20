@@ -13,6 +13,11 @@ does not deploy the portal or migrate a live legacy installation.
 
 ## Operation semantics
 
+This section describes bundles: packages of kind application, tool or data,
+each in its folder `ROOT/<name>/`. [System packages](system-packages.md) share
+the planner, approval, journal and clients, but are placed file by file in the
+root itself, keep no before-image, and refuse removal and rollback.
+
 Every operation is a pure plan followed by same-session digest approval and the
 common executor. Plans retain the complete observed affected trees, modes,
 physical identities and exact resulting database. A live edit after preview
@@ -85,7 +90,8 @@ inline data; a large plan returns LIMIT rather than truncating its effects.
 Initialization and the first-install journal remain readable. The common journal
 also accepts action `changes`, with a strict body containing `action`,
 `anchor_dev`, `anchor_ino`, `before`, `changes`, `generation`, `kind`, `new_state`
-and `root_path`. Each participant has `before`, `dev`, `ino`, `name`, `next`.
+and `root_path`, and optionally `origins`, `requirements` and the
+[`system` records](system-packages.md#plan-record) of system packages. Each participant has `before`, `dev`, `ino`, `name`, `next`.
 Tree values are null for absence or canonical `files`/`mode` inventories. Names
 are validated and unique; no participant chooses an arbitrary host destination.
 
@@ -141,14 +147,20 @@ apkg-core list ROOT [MATCH]
 apkg-core show ROOT [MATCH]
 apkg-core folder ROOT NAME
 apkg-core run ROOT NAME
+apkg-core install ROOT SIGNED-FOLDER|ARCHIVE [--takeover] [--confirm DIGEST]
 apkg-core remove ROOT NAME [--confirm DIGEST]
 apkg-core repair ROOT NAME [--confirm DIGEST]
-apkg-core upgrade ROOT SIGNED-FOLDER [--confirm DIGEST]
+apkg-core upgrade ROOT SIGNED-FOLDER [--takeover] [--confirm DIGEST]
 apkg-core rollback ROOT RETAINED-HISTORY [--confirm DIGEST]
-apkg-core resolve ROOT SIGNED-FOLDER [--pool SIGNED-FOLDERS] [--confirm DIGEST]
+apkg-core resolve ROOT SIGNED-FOLDER [--pool SIGNED-FOLDERS] [--takeover] [--confirm DIGEST]
+apkg-core channel-update ROOT ENDPOINT CHANNEL-ID NAME --policy FILE [--target TARGET] [--takeover] [--yes | --confirm DIGEST]
 apkg-core bundle-check FOLDER TARGET
 apkg-core run-bundle FOLDER TARGET
 ```
+
+`--takeover` and `channel-update` belong to
+[system packages](system-packages.md#clients); `--takeover` changes nothing for
+a bundle.
 
 The public client helper owns verification, planning, complete effect formatting,
 confirmation and execution for both CLI and PkgManager. No wildcard approval or

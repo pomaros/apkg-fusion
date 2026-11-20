@@ -72,8 +72,9 @@ the approved new state. Legacy metadata and a pre-existing journal are refusals.
 Fault checkpoints: 1 private preparation, 1201–1204 draft creation/records/staging/
 ready-before-publication, 1205 active publication before parent flush, 2 ready, 3 payload published, 4 decision,
 5 state published, 6 recovery start, 7 recovery completion before cleanup.
-The test build supports injected I/O failure or process termination at these
-points. Production builds have no environment-driven fault injection. Tests
+[System package placement](system-packages.md#recovery) adds 201–206 after the
+decision. The test build supports injected I/O failure or process termination
+at these points. Production builds have no environment-driven fault injection. Tests
 must cover recovery interrupted again, changed live files, offline recovery,
 competing processes, stale approvals and late cancellation. Process tests prove
 process-death behavior only. Power-loss/DOS-handler claims require independent
@@ -189,5 +190,7 @@ arospkg self-updater is not used by the fusion build.
 
 The implemented `changes` action extends this same journal to removal, repair,
 upgrade, rollback and multi-package installation; see the
-[participant protocol](operations.md#one-journal-multiple-participants).
+[participant protocol](operations.md#one-journal-multiple-participants). The
+same action carries [system packages](system-packages.md#execution-and-journal),
+whose files are placed after the decision and recovered forward only.
 Old initialization/install records remain recoverable.

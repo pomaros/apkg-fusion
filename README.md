@@ -123,7 +123,8 @@ real installations; the current fixture rehearsal does not qualify a live upgrad
 - [Acceptance](docs/fusion/acceptance.md): preserved capabilities and evidence.
 - [Status](docs/fusion/status.md): tested checkpoints and remaining work.
 - [Provenance](docs/fusion/provenance.md): pinned inputs and attribution.
-- [Common API](docs/fusion/api.md), [operations](docs/fusion/operations.md) and
+- [Common API](docs/fusion/api.md), [operations](docs/fusion/operations.md),
+  [system packages](docs/fusion/system-packages.md) and
   [initial engine background](docs/fusion/initial-engine.md).
 - [Imported pkg guide](components/pkg-guide.md) and [arospkg guide](components/arospkg/README.md): inherited baselines.
 - [Portal guide](portal/README.md): current portal service and tests.
