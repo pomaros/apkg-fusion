@@ -64,7 +64,7 @@ public sealed partial class PushService(IOptions<PortalOptions> options, ILogger
             var why = Refusal(p.Path) ?? LinkOnly(who, p.Path, o.Policy);
             if (why is not null) { r.Add("refused", $"{p.Path} 20 {why}"); refused++; continue; }
             if (ChannelPaths.Classify(p.Path) == ChannelPaths.Kind.Snapshot &&
-                p.Size > (p.Path.EndsWith(".signature.json", StringComparison.Ordinal) ? 16384 : 2 * 1024 * 1024))
+                p.Size > (p.Path.EndsWith(".signature.json", StringComparison.Ordinal) ? 16384 : CommonPublication.MetadataMax))
             { r.Add("refused", $"{p.Path} 20 common metadata exceeds its contract bound"); refused++; continue; }
             if (ChannelPaths.PromisedDigest(p.Path) is { } promised && promised != p.Sha)
             {

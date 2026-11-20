@@ -88,7 +88,7 @@ public sealed partial class CommonChannels(IOptions<PortalOptions> options, Comm
     async Task<CommonChannel> ReadSnapshot(string directory, string digest, CancellationToken ct)
     {
         var snapshot = Path.Combine(directory, "snapshots", digest);
-        var document = await Read(Path.Combine(snapshot, "channel.json"), 2 * 1024 * 1024, ct);
+        var document = await Read(Path.Combine(snapshot, "channel.json"), Portal.Push.CommonPublication.MetadataMax, ct);
         var signature = await Read(Path.Combine(snapshot, "channel.signature.json"), 16384, ct);
         if (Convert.ToHexStringLower(SHA256.HashData(document)) != digest)
             throw new InvalidDataException("common snapshot digest mismatch");

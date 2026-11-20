@@ -11,7 +11,9 @@ public sealed class PublicationRefusal(string code,string message):Exception(mes
 /// Account ownership and immutable publication; package semantics stay in apkg.
 public sealed class CommonPublication(PortalOptions options,CommonEngine engine,CommonPublicationFiles files)
 {
-    const int MetadataMax=2*1024*1024;
+    /// A channel snapshot embeds the full descriptor of every retained build; the bound is the
+    /// common engine's object limit, so that system packages listing thousands of files fit.
+    public const int MetadataMax=16*1024*1024;
     readonly string root=options.DataDir;
     static void Refuse(string code,string reason)=>throw new PublicationRefusal(code,reason);
     string Find(string endpoint,string staging,string relative)

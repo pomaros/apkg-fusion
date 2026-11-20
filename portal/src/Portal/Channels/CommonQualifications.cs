@@ -27,7 +27,7 @@ public sealed class CommonQualifications(IOptions<PortalOptions> options,CommonE
             await File.WriteAllBytesAsync(seed,CommonJson.Encode(evaluation),token);
             var directory=Path.Combine(settings.ChannelsDir,view.Channel,"snapshots",view.Snapshot);
             var captured=Path.Combine(scratch.FullName,"channel","snapshots",view.Snapshot);Directory.CreateDirectory(captured);
-            var bytes=await files.ReadBounded(Path.Combine(directory,"channel.json"),2*1024*1024,settings.DataDir,token);
+            var bytes=await files.ReadBounded(Path.Combine(directory,"channel.json"),Portal.Push.CommonPublication.MetadataMax,settings.DataDir,token);
             var signature=await files.ReadBounded(Path.Combine(directory,"channel.signature.json"),16384,settings.DataDir,token);
             if(CommonJson.Digest(bytes)!=view.Snapshot)throw new InvalidDataException("Snapshot changed");
             await File.WriteAllBytesAsync(Path.Combine(captured,"channel.json"),bytes,token);

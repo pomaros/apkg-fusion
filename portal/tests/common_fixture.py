@@ -10,6 +10,8 @@ import sys
 
 repository, directory, engine = map(Path, sys.argv[1:4])
 rich = '--rich' in sys.argv[4:]
+# --system=N adds two builds of a system package listing N files each.
+system_files = next((int(arg.split('=')[1]) for arg in sys.argv[4:] if arg.startswith('--system=')), 0)
 
 def run(*args):
     result = subprocess.run(list(map(str, args)), capture_output=True, text=True)
@@ -81,3 +83,23 @@ for index in (1, 2):
 
     run(sys.executable, repository / 'tools/apkg-channel', archive, '--engine', engine,
         '--directory', channel, '--id', 'cd' * 16, '--sign', channel_key, *observations)
+
+if system_files:
+    key = directory / 'author-key-system'
+    run(engine, 'keygen', key)
+    for version in ('1.0', '2.0'):
+        base = directory / ('system-' + version)
+        source = base / 'Sys'
+        for number in range(system_files):
+            path = source / f'D{number // 100:03d}' / f'file-{number:05d}.library'
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f'{number} {version if number < 3 else "1.0"}')
+        (base / 'Sys.arospkg.toml').write_text(
+            f'id = "base-system"\nversion = "{version}"\nrevision = 1\nsummary = "System test"\n'
+            'category = "System"\nlicense = "MIT"\nkind = "system"\narch = "x86_64"\nabi = "v11"\n'
+            'depends_checked = true\n')
+        archive = directory / f'system-{version}.pkg'
+        run(sys.executable, repository / 'tools/apkg-build', source, '--engine', engine,
+            '--output', archive, '--sign', key, '--authority', '3' * 32, '--runtime', 'native')
+        run(sys.executable, repository / 'tools/apkg-channel', archive, '--engine', engine,
+            '--directory', channel, '--id', 'cd' * 16, '--sign', channel_key)

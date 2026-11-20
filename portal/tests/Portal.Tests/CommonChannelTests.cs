@@ -25,7 +25,7 @@ public sealed class CommonChannelTests
 
         public readonly Dictionary<string, string> Settings = [];
 
-        public Fixture(bool rich = false)
+        public Fixture(bool rich = false, int systemFiles = 0)
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
             while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "tools", "apkg-channel"))) dir = dir.Parent;
@@ -33,7 +33,7 @@ public sealed class CommonChannelTests
             Engine = Path.Combine(Repository, "build", "apkg-core");
             // Required dependency: fail rather than silently skipping the common acceptance tests.
             Assert.True(File.Exists(Engine), "build common verifier with make build/apkg-core");
-            Run("python3", Path.Combine(Repository, "portal", "tests", "common_fixture.py"), Repository, Data, Engine, rich ? "--rich" : "--plain");
+            Run("python3", Path.Combine(Repository, "portal", "tests", "common_fixture.py"), Repository, Data, Engine, rich ? "--rich" : "--plain", "--system=" + systemFiles);
         }
         public static string Run(string executable, params string[] args)
         {
@@ -121,6 +121,27 @@ public sealed class CommonChannelTests
         var partial = await client.SendAsync(range);
         Assert.Equal(HttpStatusCode.PartialContent, partial.StatusCode);
         Assert.Equal(File.ReadAllBytes(member)[..16], await partial.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task System_package_builds_fit_the_snapshot_bound()
+    {
+        // A snapshot embeds every retained build's whole descriptor: two builds of a system package
+        // listing 5,000 files each pass the former 2 MiB bound and stay inside the engine's object limit.
+        using var fixture = new Fixture(systemFiles: 5000);
+        var size = new FileInfo(Path.Combine(fixture.Snapshot, "channel.json")).Length;
+        Assert.InRange(size, 2 * 1024 * 1024 + 1, Portal.Push.CommonPublication.MetadataMax);
+        using var client = fixture.CreateClient();
+        var response = await client.GetAsync("/api/channels/common");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("verified", doc.RootElement.GetProperty("signature").GetString());
+        var entries = doc.RootElement.GetProperty("document").GetProperty("body").GetProperty("entries");
+        var system = entries.EnumerateArray().Select(e => e.GetProperty("descriptor").GetProperty("body"))
+            .Where(body => body.GetProperty("kind").GetString() == "system").ToList();
+        Assert.Equal(2, system.Count);
+        Assert.All(system, body => Assert.Equal(5000, body.GetProperty("files").EnumerateArray().Count(f => f.GetProperty("type").GetString() == "file")));
+        Assert.All(system, body => Assert.Contains(body.GetProperty("files").EnumerateArray(), f => f.GetProperty("path").GetString() == "D000/file-00000.library"));
     }
 
     [Theory]
