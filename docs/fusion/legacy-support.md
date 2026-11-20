@@ -3,11 +3,11 @@
 
 # Legacy support choices and deferred work
 
-CLI-CONTINUITY (batch 3), IMPORT-PROFILES (4) and PRIOR-VERSIONS (5) are deferred
-at the operator's request. Their completion no longer gates qualification of
-the current candidate on macOS/Linux and M1 or the report before the portal.
-This deferral does not qualify migration of an existing installation. Existing
-adapters and tests remain intact.
+CLI-CONTINUITY (batch 3) and PRIOR-VERSIONS (5) are deferred at the operator's
+request. IMPORT-PROFILES (4) is open for work and remains incomplete. None of
+the three gates qualification of the current candidate on macOS/Linux and M1
+or the report before the portal. This does not qualify migration of an
+existing installation. Existing adapters and tests remain intact.
 
 [Status](status.md) owns measured results; the
 [plan](../../PLAN.md#closure-batches-before-the-portal) owns the execution sequence.

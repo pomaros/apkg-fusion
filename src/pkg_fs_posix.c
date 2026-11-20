@@ -498,6 +498,7 @@ int pkg_fs_random_typed(void *buf, size_t len)
 
 #ifndef PKG_FS_LOCAL_ONLY
 void (*pkg_fs_on_transfer)(long long done, long long total);
+int (*pkg_net_on_body)(long long total);
 void (*pkg_fs_on_wait)(const char *host);
 void (*pkg_fs_on_tick)(void);
 #endif
@@ -1826,6 +1827,7 @@ static int body_put(struct sink_body *b, const char *buf, size_t n)
 {
     b->total += (long long)n;
     if (b->fd >= 0) {
+        if (pkg_net_on_body && pkg_net_on_body(b->total)) { errno = ECANCELED; return -1; }
         size_t at = 0;
         while (at < n) {
             ssize_t w = write(b->fd, buf + at, n - at);
@@ -2193,6 +2195,12 @@ int pkg_net_get(const char *url, const char *dest, char *err, size_t errlen)
             size_t prefix = h ? (size_t)(h - cur) : strlen(cur);
             snprintf(cur + prefix, sizeof cur - prefix, "%s", loc);
         } else {
+            /* A page asked for over https is never fetched in the clear. */
+            if (tls && strncmp(loc, "https://", 8) != 0) {
+                snprintf(err, errlen, "%s redirects away from https", cur);
+                rc = -1;
+                break;
+            }
             snprintf(cur, sizeof cur, "%s", loc);
         }
         rc = -1;

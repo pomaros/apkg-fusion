@@ -8,7 +8,16 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#if defined(__APPLE__) || defined(__linux__)
+/* A system with no curl to hand the transfer to reads the channel with the
+ * inherited HTTP client, which carries its own TLS on AROS. APKG_HTTP_CLIENT
+ * selects that path on a host too, so that its bounds can be tested there. */
+#if !defined(PKG_FS_LOCAL_ONLY) && (defined(__AROS__) || defined(APKG_HTTP_CLIENT))
+#define AK_HTTP_CLIENT 1
+#include <fcntl.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#elif defined(__APPLE__) || defined(__linux__)
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
@@ -50,10 +59,131 @@ apkg_status ak_http_path(const char *base, const char *member,
     int count = snprintf(out, AK_PATH, "%.*s/%s", (int)n, base, member);
     return count < 0 || count >= AK_PATH ? APKG_LIMIT : APKG_OK;
 }
+#ifdef AK_HTTP_CLIENT
+/* One transfer at a time: the inherited client reports through process-wide
+ * hooks, as its own callers expect. */
+static struct {
+    uint64_t maximum, seen;
+    ak_import_progress *progress;
+    apkg_status stopped;
+} ak_transfer;
+static int ak_transfer_body(long long total) {
+    uint64_t now = (uint64_t)total;
+    if (now > ak_transfer.maximum) {
+        ak_transfer.stopped = APKG_LIMIT;
+        return 1;
+    }
+    if (ak_transfer.progress) {
+        apkg_status code =
+            ak_import_tick(ak_transfer.progress, now - ak_transfer.seen);
+        if (code) {
+            ak_transfer.stopped = code;
+            return 1;
+        }
+    }
+    ak_transfer.seen = now;
+    return 0;
+}
+static void ak_transfer_path(char out[AK_PATH]) {
+    static unsigned serial;
+    const char *folder = getenv("TMPDIR");
+#ifdef __AROS__
+    if (!folder || !*folder)
+        folder = "T:";
+    snprintf(out, AK_PATH, "%sapkg-http-%lx-%u", folder,
+             (unsigned long)getpid(), ++serial);
+#else
+    if (!folder || !*folder)
+        folder = "/tmp";
+    snprintf(out, AK_PATH, "%s/apkg-http-%lx-%u", folder,
+             (unsigned long)getpid(), ++serial);
+#endif
+}
+#endif
 apkg_status ak_http_get(const char *url, uint64_t maximum, int output,
                         unsigned char **bytes, size_t *size,
                         ak_import_progress *progress) {
-#if defined(__APPLE__) || defined(__linux__)
+#ifdef AK_HTTP_CLIENT
+    char path[AK_PATH], why[240];
+    apkg_status code = APKG_OK;
+    unsigned char *memory = NULL;
+    struct stat info;
+    int file = -1, fetched;
+    if (bytes)
+        *bytes = NULL;
+    if (size)
+        *size = 0;
+    if (!ak_http_url(url) || (!bytes && output < 0) || maximum > 2147483647u)
+        return APKG_INVALID;
+    if (progress) {
+        progress->subject = url;
+        code = ak_import_tick(progress, 0);
+        if (code)
+            return code;
+    }
+    ak_transfer_path(path);
+    ak_transfer.maximum = maximum;
+    ak_transfer.seen = 0;
+    ak_transfer.progress = progress;
+    ak_transfer.stopped = APKG_OK;
+    pkg_net_on_body = ak_transfer_body;
+    why[0] = 0;
+    fetched = pkg_net_get(url, path, why, sizeof why);
+    pkg_net_on_body = NULL;
+    if (fetched) {
+        code = ak_transfer.stopped ? ak_transfer.stopped
+               : fetched == 1      ? APKG_NOT_FOUND
+                                   : APKG_NETWORK;
+        goto done;
+    }
+    file = open(path, O_RDONLY);
+    if (file < 0 || fstat(file, &info) || info.st_size < 0 ||
+        (uint64_t)info.st_size > maximum) {
+        code = file < 0 ? APKG_IO : APKG_LIMIT;
+        goto done;
+    }
+    if (output < 0) {
+        memory = malloc((size_t)info.st_size + 1);
+        if (!memory) {
+            code = APKG_NOMEM;
+            goto done;
+        }
+    }
+    for (uint64_t at = 0; at < (uint64_t)info.st_size;) {
+        unsigned char buffer[65536];
+        size_t want = sizeof buffer;
+        if (want > (uint64_t)info.st_size - at)
+            want = (size_t)((uint64_t)info.st_size - at);
+        ssize_t got = read(file, memory ? memory + at : buffer, want);
+        if (got <= 0) {
+            code = APKG_IO;
+            goto done;
+        }
+        for (size_t sent = 0; !memory && sent < (size_t)got;) {
+            ssize_t written = write(output, buffer + sent, (size_t)got - sent);
+            if (written <= 0) {
+                code = APKG_IO;
+                goto done;
+            }
+            sent += (size_t)written;
+        }
+        at += (uint64_t)got;
+    }
+    if (memory) {
+        /* Binary metadata; the terminator only serves text readers. */
+        memory[info.st_size] = 0;
+        *bytes = memory;
+        memory = NULL;
+    }
+    if (size)
+        *size = (size_t)info.st_size;
+done:
+    if (file >= 0)
+        close(file);
+    unlink(path);
+    free(memory);
+    return code;
+#elif defined(__APPLE__) || defined(__linux__)
     int body[2] = {-1, -1}, errors[2] = {-1, -1}, status = 0, live = 0;
     pid_t child = 0;
     posix_spawn_file_actions_t actions;

@@ -266,9 +266,19 @@ TLS certificate verification, limits redirects to five, connection time to ten
 seconds and each request to 120 seconds. HTTPS redirects cannot downgrade to
 HTTP. The parent independently enforces byte bounds, polls cancellation, drains
 bounded diagnostics and reaps its own subprocess. Metadata is bounded in memory;
-archive data streams through 64 KiB buffers. Windows and AROS HTTP adapters are
+archive data streams through 64 KiB buffers. The Windows HTTP adapter is
 explicitly unsupported. Local fixtures qualify HTTP behavior, not HTTPS server
 interoperability or native networking.
+
+AROS has no `curl`. Its adapter reads a channel with the inherited HTTP client
+over `bsdsocket.library`, with Mbed TLS and the bundled certificate authorities
+carried in the program. The client reports each received body length before
+keeping it, which is where the adapter enforces the byte bound and polls
+cancellation; a response is spooled to a private temporary file and then
+checked against the same bound. Redirects stop at five, and an HTTPS request
+never follows a redirect to another scheme. `make test-apkg-http-client` runs
+the HTTP channel suite through this client on a host, over plain HTTP; TLS and
+`bsdsocket` behavior are established only by a run on AROS.
 
 `apkg_channel_fetch` requires a write context and a file/HTTP-bound channel.
 It rechecks current source/root policy/target, transfers exactly the selected

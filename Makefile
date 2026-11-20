@@ -35,7 +35,7 @@ build/apkg: build/apkg-core
 test-contract:
 	python3 tests/contracts/check.py
 
-test-fusion: test-contract test-apkg test-apkg-aside build/apkg build/apkg-provisional build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
+test-fusion: test-contract test-apkg test-apkg-aside test-apkg-http-client build/apkg build/apkg-provisional build/pkg build/test_target build/test_application build/test_first_install build/test_arospkg_read
 	python3 tests/test_http_fixture.py
 	./build/test_target
 	./build/test_application
@@ -400,6 +400,15 @@ test-apkg: build/test_preparation_memory build/test_channel_memory build/libapkg
 	./build/test_pm_rexx
 	./build/test_pm_dispatch
 	python3 -m unittest discover -s tests/apkg -v
+
+# The HTTP channel suite through the inherited client, the transport of a
+# system with no curl (AROS), on plain http here: TLS is that system's own.
+build/libapkg-test-client.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/pkg_ameta.h include/pkg_fs.h src/apkg/internal.h src/apkg/changes.inc
+	@mkdir -p build
+	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DAPKG_HTTP_CLIENT -DAPKG_TESTING -fPIC -shared -Iinclude -Isrc/apkg $(APKG_ENGINE) $(APKG_SERVICES) -o $@
+.PHONY: test-apkg-http-client
+test-apkg-http-client: build/libapkg-test-client.dylib build/apkg build/apkg-core
+	cd tests/apkg && APKG_TEST_LIBRARY=$(CURDIR)/build/libapkg-test-client.dylib python3 -m unittest -v test_http_channel
 
 # The same suite on a modelled DOS without ReplaceObject.
 .PHONY: test-apkg-aside
