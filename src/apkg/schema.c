@@ -93,7 +93,8 @@ static int grants_valid(const ak_json *j, int arr, int permissions) {
                                 permissions ? 1 : 0) ||
             !permissions_valid(j, ak_member(j, (int)i, "permissions")) ||
             ak_string(j, ak_member(j, (int)i, "id"), id, sizeof id) ||
-            ak_hex(id, bytes, 16) || (*last && strcmp(last, id) >= 0))
+            ak_hex(id, bytes, 16) || (*last && strcmp(last, id) >= 0) ||
+            ak_authority_reserved(id))
             return 0;
         strcpy(last, id);
         keys = ak_member(j, (int)i, "keys");

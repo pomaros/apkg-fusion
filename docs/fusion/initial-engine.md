@@ -183,9 +183,14 @@ explicitly before using the GUI.
 
 For an aarch64 hosted cross-build, configure `APKG_AROS_SDK` and
 `APKG_AROS_TOOLS`, then run `APKG_AROS_GUI=1 sh tools/build-apkg-aros.sh`.
-`APKG_AROS_RUNTIME=native` builds for native AROS (no x18 reservation); a
-native SDK keeps `collect-aros` with its build's host tools, named by
-`APKG_AROS_HOST_TOOLS`.
+The default runtime, `hosted`, is for hosted AROS on aarch64 (Macaros on
+macOS, Pomaros on Linux), which reserve x18. `APKG_AROS_RUNTIME=native` builds
+for native AROS such as the Raspberry Pi (no x18 reservation); a native SDK
+keeps `collect-aros` with its build's host tools, named by
+`APKG_AROS_HOST_TOOLS`. The script links without
+`--allow-multiple-definition`; it repeats a link with the option only for an
+SDK that defines `AROS_LIBREQ` symbols as global, and only when those are the
+sole duplicates.
 It writes under this checkout's build directory by default. `APKG_AROS_OUT`
 selects a separate output directory for an SDK/runtime cohort; use a fresh
 directory or `APKG_AROS_REBUILD=1` when changing SDKs. It does not launch or

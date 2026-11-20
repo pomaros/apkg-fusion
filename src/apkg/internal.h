@@ -66,6 +66,11 @@ apkg_status ak_tree_entry(const char *, const char *, char **);
 apkg_status ak_tree_source_read(const char *, size_t, char **, ak_identity *);
 apkg_status ak_source_inventory(const char *, char **, apkg_error **);
 int ak_legacy_main(int, char **);
+/* Inspect and copy a root of the classic client (migrate.c). */
+int ak_migrate_manifest(const char *, char *, size_t);
+int ak_migrate_main(int, char **);
+/* Whether ownership and extended metadata of a node can be round-tripped. */
+int ak_metadata_supported(const char *, const struct stat *);
 apkg_status ak_verify_command(int, char **, char **);
 apkg_status ak_author_command(int, char **, char **);
 apkg_status ak_push_verify_command(int, char **, char **);
@@ -142,10 +147,13 @@ int ak_object(const ak_json *, const char *);
 int ak_fields(const ak_json *, int, const char *const *, size_t);
 int ak_empty(const ak_json *, int);
 apkg_status ak_fail(apkg_error **, apkg_status, const char *, const char *);
+/* 0 free, 1 held (the held drawer or file is named), -1 failure. */
+int ak_in_use(const char *tree, char *held, size_t size);
 char *ak_copy(const void *, size_t);
 int ak_path(char *, const char *, const char *);
 int ak_read(const char *, unsigned char **, size_t *, size_t);
 int ak_write(const char *, const void *, size_t, int);
+int ak_sync_file(const char *);
 int ak_sync_dir(const char *);
 int ak_remove_tree(const char *);
 int ak_parent(const char *, char *);
@@ -327,6 +335,14 @@ struct apkg_package {
     apkg_digest digest;
 };
 int ak_adoption_valid(const ak_json *, int, const ak_json *);
+/* Unsigned entries of a migrated classic installation (unsigned.c). */
+#define AK_UNSIGNED_AUTHORITY "00000000000000000000000000000000"
+int ak_entry_unsigned(const ak_json *, int);
+int ak_authority_reserved(const char *);
+int ak_unsigned_descriptor(const ak_json *);
+int ak_unsigned_entry_valid(const ak_json *, int);
+int ak_package_unsigned(const apkg_package *);
+apkg_status ak_unsigned_package(apkg_ctx *, apkg_bytes, apkg_package **);
 int ak_adoption_protected(const ak_json *, const char *);
 void ak_entry_write(ak_buf *, const apkg_package *, const char *,
                     const apkg_package *);

@@ -225,9 +225,10 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
             int oldtok = ak_member(plan, (int)i, "before");
             int was_absent = plan->tokens[oldtok].type == 'n';
             ak_string(plan, ak_member(plan, (int)i, "name"), name, sizeof name);
-            ak_path(live, c->root, name);
-            change_path(backup, txn, "old", index);
-            change_path(restored, txn, "restored", index);
+            if (ak_path(live, c->root, name) ||
+                change_path(backup, txn, "old", index) ||
+                change_path(restored, txn, "restored", index))
+                goto done;
             int held_old = ak_exists(backup), present = ak_exists(live);
             if (held_old < 0 || present < 0)
                 goto done;
@@ -337,6 +338,32 @@ static int changes_preflight(apkg_ctx *c, const apkg_plan *p, const ak_json *j,
     }
     return 0;
 }
+/* Refuse while something holds the live tree of participant i, which the
+ * change would rename into the journal. 0 free or nothing to move. */
+static apkg_status change_in_use(apkg_ctx *c, const ak_json *j, size_t i,
+                                 int point, apkg_error **e) {
+    char name[256], live[AK_PATH], held[AK_PATH];
+    int before = ak_member(j, (int)i, "before"), busy;
+    if (before < 0 || j->tokens[before].type == 'n')
+        return APKG_OK;
+    if (ak_string(j, ak_member(j, (int)i, "name"), name, sizeof name) ||
+        ak_path(live, c->root, name))
+        return APKG_IO;
+    busy = ak_in_use(live, held, sizeof held);
+    if (!busy && ak_fault(point)) {
+        snprintf(held, sizeof held, "%s", live);
+        busy = 1;
+    }
+    if (busy < 0)
+        return APKG_IO;
+    if (!busy)
+        return APKG_OK;
+    return ak_fail(e, APKG_BUSY,
+                   "in use; close what uses it and repeat the operation. If "
+                   "no program using it is running, a library or driver may "
+                   "still hold it; restarting the system releases it",
+                   held);
+}
 static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
                                           const apkg_snapshot *s,
                                           const apkg_observer *o,
@@ -371,6 +398,12 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
     code = ak_place_recheck(c, &j, s->raw, s->view.source_record.size);
     if (code)
         goto done;
+    /* First check, before anything is written: a refusal leaves nothing. */
+    for (i = (size_t)arr + 1; i < j.tokens[arr].next; i = j.tokens[i].next) {
+        code = change_in_use(c, &j, i, 1301, e);
+        if (code)
+            goto done;
+    }
     code = APKG_IO;
     if (preparation_start(c, r, txn, active, &preparation)) {
         code = errno == EEXIST || errno == ESTALE ? APKG_STALE
@@ -486,6 +519,12 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         ak_path(live, c->root, name);
         change_path(backup, txn, "old", index);
         change_path(staged, txn, "new", index);
+        /* Second check, right before this tree leaves its name. Trees
+         * already moved go back through the journal. */
+        code = change_in_use(c, &j, i, index ? 1303 : 1302, e);
+        if (code)
+            goto fail;
+        code = APKG_IO;
         if (j.tokens[before].type != 'n' &&
             (ak_publish(live, backup) || ak_sync_dir(c->root) ||
              ak_sync_dir(txn)))

@@ -23,7 +23,7 @@ def package(output,engine):
     if output.exists():raise ValueError('output must not exist')
     output.parent.mkdir(parents=True,exist_ok=True)
     info=json.loads(subprocess.check_output([str(engine),'engine-info'],text=True))
-    if info.get('engine')!='apkg-common' or info.get('contract')!='1':raise ValueError('common engine contract required')
+    if info.get('engine')!='apkg-common' or info.get('contract')!='2':raise ValueError('common engine contract required')
     with tempfile.TemporaryDirectory(prefix='.apkg-portal-package-',dir=output.parent) as temporary:
         destination=Path(temporary)/'app'
         run('dotnet','publish',ROOT/'portal/src/Portal/Portal.csproj','-c','Release','--self-contained','false','-o',destination)

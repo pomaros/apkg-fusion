@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build PkgManager, the Zune front end, for native AROS on the Raspberry Pi
 # (raspi-aarch64, ABIv1): the toolchain and SDK of build-raspi.sh, the sources
-# of build-gui.sh. The Pi's own Developer SDK, never the hosted Macaros one.
+# of build-gui.sh. The Pi's own Developer SDK, never a hosted aarch64 one.
 set -e
 RPI=${RPI:-$HOME/Work/AROS/toolchains/raspi-aarch64}
 SDK=${SDK:-$RPI/sdk}
@@ -10,19 +10,32 @@ OUT=${OUT:-$HERE/../PkgManager-raspi}
 
 CC="$RPI/bin/aarch64-aros-clang"; AR="$RPI/bin/aarch64-aros-ar"; TAG=raspi-aarch64; ENTROPY=getentropy
 . "$HERE/tls/tls.sh"
+# APKG_FUSION=1 builds the common-engine client, as in build-gui.sh.
+set --
+FUSION_FLAGS=""
+if [ "${APKG_FUSION:-0}" = 1 ]; then
+    FUSION_ROOT=$(cd "$HERE/../../.." && pwd)
+    for source in $(make -s -C "$FUSION_ROOT" print-apkg-sources); do
+        set -- "$@" "$FUSION_ROOT/$source"
+    done
+    FUSION_FLAGS="-DAPKG_FUSION -DPKG_FS_LOCAL_ONLY"
+    set -- "$@" "-I$FUSION_ROOT/include" "-I$FUSION_ROOT/src/apkg"
+fi
 BUILD_ID=$(cat "$HERE"/libpkg/*.c "$HERE"/libpkg/*.h $TLS_SRC "$HERE"/pkgmanager/*.c "$HERE"/pkgmanager/*.h \
+               "$HERE"/../third_party/zunekit/*.c "$HERE"/../third_party/zunekit/*.h \
            | shasum -a 256 | cut -c1-16)
 echo "build id $BUILD_ID  (PkgManager, raspi-aarch64 / ABIv1)"
 
-"$CC" -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS \
+"$CC" -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS $FUSION_FLAGS \
     -DPKG_BUILD_ID='"'"$BUILD_ID"'"' \
-    -DPKG_TOOLCHAIN='"'"$RPI"'"' \
+    -DPKG_TOOLCHAIN='"'"$(echo "$RPI" | sed "s|^$HOME|~|")"'"' \
     -DPKG_ABI='"v1"' \
     -DPKG_TARGET='"aarch64-aros-raspi"' \
-    -DPKG_SDK='"'"$SDK"'"' \
+    -DPKG_SDK='"'"$(echo "$SDK" | sed "s|^$HOME|~|")"'"' \
     -DPKG_CC="\"clang $("$CC" -dumpversion)\"" \
     $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \
-    "$HERE"/libpkg/*.c "$HERE"/pkgmanager/*.c $TLS_SRC \
+    -DLINKTEXT_EMBEDDED -I"$HERE/../third_party/zunekit" \
+    "$HERE"/libpkg/*.c "$HERE"/pkgmanager/*.c "$HERE"/../third_party/zunekit/*.c "$@" $TLS_SRC \
     "$SDK/lib/libz.static.a" $TLS_LIBS \
     -o "$OUT"
 ls -l "$OUT"

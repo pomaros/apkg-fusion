@@ -138,7 +138,10 @@ typedef enum {
 typedef enum {
     APKG_SIGNATURE_UNKNOWN = 0,
     APKG_SIGNATURE_VALID,
-    APKG_SIGNATURE_INVALID
+    APKG_SIGNATURE_INVALID,
+    /* No signature exists: the entry was migrated from the classic client
+     * and its original installation was never authenticated. */
+    APKG_SIGNATURE_ABSENT
 } apkg_signature_state;
 typedef enum {
     APKG_TRUST_UNKNOWN = 0,

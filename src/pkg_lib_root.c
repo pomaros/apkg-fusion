@@ -1919,7 +1919,7 @@ static int apply_steps(const char *root, const struct pkg_manifest *old, const s
     if (st != PKG_OK || wc.i != m->nfiles)
         return refuse_c(12, "the payload of %s %s is refused: %s; nothing was changed", m->name, m->version,
                       st == PKG_E_STOPPED ? wc.err
-                      : st != PKG_OK ? pkg_strstatus(st) : "the manifest lists files the container lacks");
+                      : st != PKG_OK ? pkg_container_strstatus(st) : "the manifest lists files the container lacks");
     ev_end(PKG_OUTCOME_OK);
 
     keep = calloc(m->nfiles ? m->nfiles : 1, 1);

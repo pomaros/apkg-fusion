@@ -216,6 +216,27 @@ int ak_write(const char *p, const void *v, size_t n, int exclusive) {
     }
     return close(fd);
 }
+/* Write a finished file's bytes and attributes back before it is published.
+ * On AROS this does nothing by itself: fsync() of a descriptor opened for
+ * reading fails with EBADF in the mainline C library (through nightly
+ * 20261110), and the handler's flush covers the whole volume, so one flush per
+ * file would repeat the same work. Every caller follows its files with
+ * ak_sync_dir() on the drawer that holds them, and that single flush writes
+ * them back. */
+int ak_sync_file(const char *p) {
+#ifdef __AROS__
+    (void)p;
+    return 0;
+#else
+    int fd = open(p, O_RDONLY), r;
+    if (fd < 0)
+        return -1;
+    r = fsync(fd);
+    if (close(fd))
+        r = -1;
+    return r;
+#endif
+}
 int ak_sync_dir(const char *p) {
 #ifdef __AROS__
     return pkg_fs_flush_root(p) ? 0 : -1;
@@ -654,7 +675,22 @@ apkg_status ak_snapshot(apkg_ctx *c, apkg_snapshot **out, apkg_error **err) {
                         goto nomem;
                     goto invalid;
                 }
+                /* An entry is either signed or has exactly the unsigned
+                 * form; the reserved authority belongs to that form only. */
+                int reserved = ak_equal(
+                    &d, ak_member(&d, ak_member(&d, 0, "body"), "authority"),
+                    AK_UNSIGNED_AUTHORITY);
                 ak_json_free(&d);
+                if (ak_entry_unsigned(&j, (int)i)) {
+                    if (!ak_unsigned_entry_valid(&j, (int)i)) {
+                        if (errno == ENOMEM)
+                            goto nomem;
+                        goto invalid;
+                    }
+                } else if (reserved ||
+                           j.tokens[ak_member(&j, (int)i, "signature")]
+                                   .type != '{')
+                    goto invalid;
             }
             body = ak_member(&j, desc, "body");
             ak_hash(j.text + j.tokens[desc].start,

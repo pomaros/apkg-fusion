@@ -478,8 +478,11 @@ static int extract(const char *archive, const char *dest, const char *strip,
         else if (striplen) continue;
         if (!*use) continue;
         snprintf(rel, sizeof rel, "%s", use);
+        /* A cut-off path would write the member under another name. */
+        if (u_join(full, sizeof full, dest, rel) != 0) {
+            snprintf(why, 160, "member path too long: %.100s", e.name); goto out;
+        }
         mk_parents(dest, rel);
-        u_join(full, sizeof full, dest, rel);
         if (e.is_dir) {
             /* An -lhd- member is a directory the archive means to exist even
                when nothing is in it. Skipping these left OpenLoco without its

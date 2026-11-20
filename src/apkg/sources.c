@@ -447,7 +447,7 @@ apkg_status ak_channels_install_named(apkg_ctx *c, const apkg_snapshot *s,
     char *text = NULL;
     size_t best_k = 0;
     const apkg_channel_entry_view *best = NULL;
-    int current = 0;
+    int current = 0, other_target = 0;
     apkg_status code = APKG_OK;
     for (size_t k = 0; !code && k < count; k++) {
         const apkg_channel_view *view = apkg_channel_get(channels[k]);
@@ -461,6 +461,8 @@ apkg_status ak_channels_install_named(apkg_ctx *c, const apkg_snapshot *s,
                 continue;
             if (state.state == APKG_CANDIDATE_CURRENT)
                 current = 1;
+            if (row->author_trust == APKG_TRUST_ACCEPTED && !row->target_matches)
+                other_target = 1;
             if ((state.state != APKG_CANDIDATE_NOT_INSTALLED &&
                  state.state != APKG_CANDIDATE_NEWER) ||
                 row->author_trust != APKG_TRUST_ACCEPTED || !row->target_matches)
@@ -519,7 +521,11 @@ apkg_status ak_channels_install_named(apkg_ctx *c, const apkg_snapshot *s,
                 r->view.outcome = APKG_UNCHANGED;
                 *out = r;
             }
-        } else
+        } else if (other_target)
+            code = ak_fail(e, APKG_TARGET,
+                           "the listed sources have this package built only "
+                           "for another system", name);
+        else
             code = ak_fail(e, APKG_NOT_FOUND,
                            "no listed source offers a trusted candidate", name);
     }

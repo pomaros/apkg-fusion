@@ -17,6 +17,13 @@ host tests. Fusion adaptations extend link collection to common reports and
 keep GUI event IDs separate. This is not a complete repin or a merged upstream
 release; see the [overlay review](upstream-0.7.2.md).
 
+A review branch takes the PkgManager link presentation of
+[arospkg `2af02a4`](https://github.com/tomaszstaniak/arospkg/tree/2af02a4)
+(v0.7.4 plus its links merge) and the Linktext class of
+[zunekit `03f6549`](https://github.com/tomaszstaniak/zunekit/tree/03f654960b064baeb30f76d7ec08411ecd47d6df),
+MIT, Tomasz Staniak, pinned by file hash in
+`components/arospkg/third_party/zunekit/PIN`; see the [0.7.4 review](upstream-0.7.4.md).
+
 Both projects publish their own code under MIT. John Knipper's and Tomasz
 Staniak's original notices are retained. Third-party code retains its licences;
 repository-level MIT licensing does not relicense dependencies. See the

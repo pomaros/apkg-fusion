@@ -70,92 +70,96 @@ int main(void)
     lk_label("https://e.org/", buf, sizeof buf, 32);
     check(!strcmp(buf, "https://e.org/"), "short address unchanged");
 
-    lk_shorten("failed (https://example.invalid/a/very/long/name-1.0.x86_64-aros-v11.zip) -- why",
-               buf, sizeof buf, 30);
-    check(strlen(buf) < 80 && strstr(buf, "failed (https://") == buf && strstr(buf, ") -- why"),
-          "shorten keeps the text around");
-    lk_shorten("no address here", buf, sizeof buf, 10);
-    check(!strcmp(buf, "no address here"), "shorten without address");
-    lk_shorten("abc https://a.org/1234567890", buf, 8, 40);
-    check(strlen(buf) == 7, "shorten respects the buffer");
-
     /* Running text: <address> is taken as written. */
     found("get it from <https://example.org/download?token=abc!>.", "https://example.org/download?token=abc!");
     found("<https://e.org/a.> and https://e.org/b.", "https://e.org/a. | https://e.org/b");
 
     /* A field that is an address is used exactly as it is. */
     {
-        lk_list l = {0};
         const char *f = "https://example.org/download?token=abc!";
+        lk_doc d = {0};
+        lk_field fd;
         check(lk_exact(f), "field with final ! is an address");
-        check(lk_list_url(&l, f) && l.n == 1 && !strcmp(l.v[0], f), "field kept whole, final ! included");
-        check(lk_list_url(&l, "https://example.org/x.") && !strcmp(l.v[1], "https://example.org/x."),
-              "field kept whole, final . included");
+        fd.label = NULL; fd.url = f;
+        lk_doc_markup(&d, "from \1 now", 72, &fd, 1);
+        check(d.np == 1 && !strcmp(d.p[0].target, f), "field kept whole, final ! included");
+        check(!strcmp(d.text, "from https://example.org/download?token=abc! now"), "field shown in its sentence");
+        lk_doc_free(&d);
+        fd.label = "Project website"; fd.url = "https://example.org/x.";
+        lk_doc_markup(&d, "\1", 72, &fd, 1);
+        check(!strcmp(d.text, "Project website") && d.np == 1 && !strcmp(d.p[0].target, "https://example.org/x."),
+              "label shown, target kept whole, final . included");
+        lk_doc_free(&d);
+        fd.label = NULL; fd.url = "/local/path";
+        lk_doc_markup(&d, "x \1", 72, &fd, 1);
+        check(!strcmp(d.text, "x /local/path") && d.np == 0, "a field that is no address is text");
+        lk_doc_free(&d);
         check(!lk_exact("https://"), "scheme alone is no address");
         check(!lk_exact("https://a.org/b c"), "space: not one address");
         check(!lk_exact("ftp://a.org/"), "ftp is not linked");
         check(!lk_exact(""), "empty field");
-        check(!lk_list_url(&l, "/local/path") && l.n == 2, "not an address: nothing added");
-        lk_list_free(&l);
     }
 
-    /* Fusion reports preserve exact fields without scanning raw JSON twice. */
+    /* Running text: links where they stand; repeats too; ends as read. */
     {
-        lk_list l = {0};
-        lk_list_report(&l, "Source repository: https://e.org/release!\n"
-            "{\"presentation\":{\"repository\":\"https://e.org/release!\"}}\n"
-            "Notes: see https://e.org/help.\nrepository https://e.org/other;\n");
-        check(l.n == 3, "report has exact fields and prose, no raw JSON links");
-        check(l.n == 3 && !strcmp(l.v[0], "https://e.org/release!") &&
-            !strcmp(l.v[1], "https://e.org/help") &&
-            !strcmp(l.v[2], "https://e.org/other;"), "report punctuation retained only for fields");
-        lk_list_free(&l);
-        lk_list_report(&l, NULL);
-        lk_list_report(&l, "repository unknown\nSource repository: /local/tree\n");
-        check(l.n == 0, "missing and non-web repositories add no link");
-        lk_list_free(&l);
-    }
-
-    /* Every address of a text, however many: nine here, in order, no repeats. */
-    {
-        lk_list l = {0};
+        lk_doc d = {0};
         char text[1024];
         size_t k = 0; int i;
         for (i = 1; i <= 9; i++)
             k += (size_t)snprintf(text + k, sizeof text - k, "link %d: https://e.org/%d, ", i, i);
-        lk_list_text(&l, text, (size_t)-1);
-        lk_list_text(&l, "again https://e.org/3", (size_t)-1);
-        check(l.n == 9, "nine addresses, the repeat once");
-        check(l.n == 9 && !strcmp(l.v[0], "https://e.org/1") && !strcmp(l.v[8], "https://e.org/9"), "in order");
-        lk_list_free(&l);
+        snprintf(text + k, sizeof text - k, "again https://e.org/3.");
+        lk_doc_markup(&d, text, 72, NULL, 0);
+        check(d.np == 10, "ten links, the repeat its own");
+        check(!strcmp(d.p[0].target, "https://e.org/1") && !strcmp(d.p[8].target, "https://e.org/9"), "in order");
+        check(!strcmp(d.p[9].target, "https://e.org/3"), "final . is left to the sentence");
+        for (i = 0; i < d.np; i++)
+            check(!memcmp(d.text + d.p[i].start, d.p[i].target, d.p[i].len), "the link stands on its address");
+        lk_doc_free(&d);
     }
 
-    /* Only the first n characters: an address must end inside them. */
+    /* Floattext's bold, a link inside it, spans in order and apart. */
     {
-        lk_list l = {0};
-        const char *t = "a https://e.org/one b https://e.org/two";
-        lk_list_text(&l, t, 19);
-        check(l.n == 1 && !strcmp(l.v[0], "https://e.org/one"), "part of a text");
-        lk_list_text(&l, t, 0);
-        check(l.n == 1, "an empty part adds nothing");
-        lk_list_free(&l);
+        lk_doc d = {0}, e = {0};
+        lk_doc_markup(&d, "\33bNotes\33n\nsee <https://e.org/a!>, \33bbold https://e.org/b tail\33n plain\33x", 72, NULL, 0);
+        check(!strcmp(d.text, "Notes\nsee <https://e.org/a!>, bold https://e.org/b tail plain"), "codes are gone");
+        check(d.np == 5, "five pieces");
+        check(d.p[0].bold && !d.p[0].target && d.p[0].len == 5, "bold text");
+        check(!d.p[1].bold && !strcmp(d.p[1].target, "https://e.org/a!"), "<address> exact");
+        check(d.p[2].bold && !d.p[2].target, "bold before the link");
+        check(d.p[3].bold && !strcmp(d.p[3].target, "https://e.org/b"), "the link stays bold");
+        check(d.p[4].bold && !d.p[4].target, "bold after the link");
+        {
+            int i;
+            for (i = 1; i < d.np; i++)
+                check(d.p[i].start >= d.p[i - 1].start + d.p[i - 1].len, "pieces in order, apart");
+        }
+        lk_doc_markup(&e, "\33bNotes\33n\nsee <https://e.org/a!>, \33bbold https://e.org/b tail\33n plain\33x", 72, NULL, 0);
+        check(lk_doc_same(&d, &e), "same content");
+        lk_doc_free(&e);
+        lk_doc_markup(&e, "\33bNotes\33n\nsee <https://e.org/a?>, \33bbold https://e.org/b tail\33n plain\33x", 72, NULL, 0);
+        check(!lk_doc_same(&d, &e), "another target is another content");
+        lk_doc_free(&e);
+        lk_doc_free(&d);
     }
 
-    /* Long addresses (5000 characters) are listed whole, labelled short. */
+    /* Long addresses (5000 characters) stay whole, shown short. */
     {
-        lk_list l = {0}, m = {0};
+        lk_doc d = {0}, e = {0};
+        lk_field fd;
         size_t len = 5000, i;
-        char *u = malloc(len + 40), *t = malloc(len + 80), *sh = malloc(len + 80);
+        char *u = malloc(len + 40), *t = malloc(len + 80);
         strcpy(u, "https://example.org/");
         for (i = strlen(u); i < len; i++) u[i] = (char)('a' + i % 26);
         u[len - 1] = '!'; u[len] = 0;
-        check(lk_list_url(&l, u) && strlen(l.v[0]) == len && !strcmp(l.v[0], u), "5000-character field whole");
+        fd.label = NULL; fd.url = u;
+        lk_doc_markup(&d, "\1", 48, &fd, 1);
+        check(d.np == 1 && strlen(d.p[0].target) == len && !strcmp(d.p[0].target, u), "5000-character field whole");
+        check(d.n <= 48 && strstr(d.text, "...") != NULL, "5000-character address shortened on screen");
         snprintf(t, len + 80, "see <%s> or", u);
-        lk_list_text(&m, t, (size_t)-1);
-        check(m.n == 1 && !strcmp(m.v[0], u), "5000-character <address> in text whole");
-        check(lk_list_same(&l, &m), "same lists");
-        lk_shorten(t, sh, len + 80, 40);
-        check(strlen(sh) < 60 && strstr(sh, "...") != NULL, "5000-character address shortened on screen");
+        lk_doc_markup(&e, t, 48, NULL, 0);
+        check(e.np == 1 && !strcmp(e.p[0].target, u), "5000-character <address> in text whole");
+        check(strstr(e.text, " or") != NULL && e.n < 70, "the sentence goes on after it");
+        lk_doc_free(&d); lk_doc_free(&e);
         check(lk_openable(u) == LK_OPEN_LONG, "5000 characters: copied, not opened");
         u[LK_OPEN_MAX] = 0;
         check(lk_openable(u) == LK_OPEN_OK, "LK_OPEN_MAX characters may be opened");
@@ -165,8 +169,26 @@ int main(void)
         check(lk_openable("https://e.org/a;b") == LK_OPEN_CHARS, "; copied only");
         lk_label(u, buf, sizeof buf, 50);
         check(strlen(buf) == 50 && buf[49] == '!', "label of a long address keeps its end");
-        lk_list_free(&l); lk_list_free(&m);
-        free(u); free(t); free(sh);
+        free(u); free(t);
+    }
+
+    /* Common reports: repository fields exact, raw JSON not searched,
+       running text by the usual rules. */
+    {
+        lk_doc d = {0};
+        lk_doc_report(&d, "Source repository: https://e.org/release!\n"
+            "{\"presentation\":{\"repository\":\"https://e.org/json\"}}\n"
+            "Notes: see https://e.org/help.\nrepository https://e.org/other;\n", 72);
+        check(!d.failed && d.np == 3, "report: two fields and one address in prose, none from JSON");
+        check(d.np == 3 && !strcmp(d.p[0].target, "https://e.org/release!") &&
+              !strcmp(d.p[1].target, "https://e.org/help") &&
+              !strcmp(d.p[2].target, "https://e.org/other;"), "report: punctuation kept only for fields");
+        check(d.text && strstr(d.text, "\"repository\":\"https://e.org/json\"") != NULL, "report: the JSON line is shown as written");
+        lk_doc_free(&d);
+        lk_doc_report(&d, NULL, 72);
+        lk_doc_report(&d, "repository unknown\nSource repository: /local/tree\n", 72);
+        check(d.np == 0 && d.text && strstr(d.text, "/local/tree") != NULL, "report: missing and non-web repositories stay text");
+        lk_doc_free(&d);
     }
 
     if (fails) { printf("test_linktext: %d FAILED\n", fails); return 1; }

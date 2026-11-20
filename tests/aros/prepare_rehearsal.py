@@ -43,6 +43,13 @@ def confirmed(*args):
 def prepare(args):
     namespace = args.namespace
     bundle = args.runtime_dir
+    target = args.target
+    match = re.fullmatch(r'(aarch64|x86_64)-aros-(v1|v11)-native', target)
+    if not match:
+        raise ValueError('target must be aarch64-aros-v1-native, x86_64-aros-v1-native or x86_64-aros-v11-native')
+    arch, abi = match[1], match[2]
+    if arch == 'aarch64' and abi != 'v1':
+        raise ValueError('no aarch64 ABIv11 target')
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9]{0,23}', namespace):
         raise ValueError('namespace must contain 1 to 24 ASCII letters/digits, starting with a letter')
     if (not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*:[A-Za-z0-9_./-]+', bundle)
@@ -66,7 +73,7 @@ def prepare(args):
             source = Path('drawer-' + version); source.mkdir()
             drawer = source / 'Drawer'
             manifest = author_fixture(drawer, name='trial', version=version, revision=1)
-            manifest.write_text(manifest.read_text().replace('arch = "x86_64"', 'arch = "aarch64"').replace('abi = "v11"', 'abi = "v1"'))
+            manifest.write_text(manifest.read_text().replace('arch = "x86_64"', 'arch = "' + arch + '"').replace('abi = "v11"', 'abi = "' + abi + '"'))
             (drawer / '.ameta').unlink()  # basic native filesystem profile first
             (drawer / 'program').write_bytes(('payload-' + version + '\n').encode())
             package = source / 'package.pkg'
@@ -77,7 +84,7 @@ def prepare(args):
             shutil.copy2(channel / 'current', payload / ('current-' + version))
         policy = workspace / 'policy.json'; policy.write_bytes(seed())
         root = workspace / 'unused-root'
-        run('init', root, 'aarch64-aros-v1-native', policy, '--yes')
+        run('init', root, target, policy, '--yes')
         confirmed('source-add', root, 'trial-source', channel_path, CHANNEL)
         shutil.copy2(root / '.apkg/state', payload / 'root-state')
         shutil.copy2(policy, payload / 'policy.json')
@@ -107,7 +114,7 @@ def prepare(args):
                       '  Echo "FAIL ' + label + ' rc=$APKGRC" >>' + report, '  Quit 20', 'EndIf'])
     step('no-requesters', bundle + '/NoRequesters')
     step('version', exe + ' --version')
-    step('initialize', exe + ' init ' + fresh + ' aarch64-aros-v1-native ' + bundle + '/policy.json --yes')
+    step('initialize', exe + ' init ' + fresh + ' ' + target + ' ' + bundle + '/policy.json --yes')
     step('make-fixture', 'MakeDir ' + root + ' ' + root + '/.apkg ' + channel_path)
     step('copy-state', 'Copy ' + bundle + '/root-state ' + root + '/.apkg/state QUIET')
     step('copy-channel', 'Copy ' + bundle + '/channel/#? ' + channel_path + '/ ALL QUIET')
@@ -135,7 +142,7 @@ def prepare(args):
     (payload / 'StartGUI').write_text(bundle + '/Launch "' + bundle + '/PkgManager --root ' + gui_root + ' --source-profile RAM:' + namespace + 'Trial.source --log RAM:' + namespace + 'Manager.log"\n')
     inventory = {str(p.relative_to(out / 'payload')): hashlib.sha256(p.read_bytes()).hexdigest()
                  for p in (out / 'payload').rglob('*') if p.is_file()}
-    receipt = dict(format='apkg-aros-rehearsal-1', nonce=nonce, target='aarch64-aros-v1-native',
+    receipt = dict(format='apkg-aros-rehearsal-1', nonce=nonce, target=target,
                    steps=steps, files=inventory, native_execution='not-performed', roots=[fresh, root, gui_root], runtime_dir=bundle, namespace=namespace, report=report)
     (out / 'prepared.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print(json.dumps(dict(result='PREPARED', steps=len(steps), files=len(inventory), output=str(out))))
@@ -144,6 +151,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--namespace', default='APKG', help='unique RAM fixture prefix for an isolated attempt')
     p.add_argument('--runtime-dir', default='SYS:APKGTrial', help='explicit target test directory containing the payload')
+    p.add_argument('--target', default='aarch64-aros-v1-native', help='CPU, ABI and runtime of the native CLI')
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--cli', type=Path, required=True)
     p.add_argument('--gui', type=Path, required=True)

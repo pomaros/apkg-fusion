@@ -329,7 +329,14 @@ apkg_status ak_verified_entry(apkg_ctx *c, const char *entry,
     else {
         apkg_bytes db = {(unsigned char *)d, strlen(d)},
                    sb = {(unsigned char *)s, strlen(s)};
-        code = apkg_package_read(c, db, sb, out, NULL);
+        if (ak_entry_unsigned(&j, 0)) {
+            errno = 0;
+            if (!ak_unsigned_entry_valid(&j, 0))
+                code = errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
+            else
+                code = ak_unsigned_package(c, db, out);
+        } else
+            code = apkg_package_read(c, db, sb, out, NULL);
         int a = ak_member(&j, 0, "adoption");
         if (!code && a >= 0) {
             if (!ak_adoption_valid(&j, a, NULL))
@@ -554,6 +561,13 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
             if (code)
                 goto done;
             if (nw && strcmp(old->authority, nw->authority)) {
+                if (ak_package_unsigned(old))
+                    ak_fail(e, APKG_TRUST,
+                            "the installed package was migrated from the "
+                            "classic client and is not authenticated; a "
+                            "signed package of the same name does not "
+                            "replace it",
+                            name);
                 apkg_package_free(old);
                 code = APKG_TRUST;
                 goto done;
@@ -573,7 +587,15 @@ apkg_status ak_plan_records_heads(apkg_ctx *c, const apkg_snapshot *s,
             apkg_package_free(old);
             continue;
         }
-        if (nw) {
+        if (nw && ak_package_unsigned(nw)) {
+            /* An unsigned entry holds no bytes. It enters state through
+             * adoption only; no other plan may add or change one. */
+            if (kind != APKG_PLAN_ADOPT) {
+                apkg_package_free(old);
+                code = APKG_TRUST;
+                goto done;
+            }
+        } else if (nw) {
             code = ak_package_payload_check(c, nw);
             if (code) {
                 apkg_package_free(old);
@@ -790,6 +812,17 @@ static apkg_status one(apkg_ctx *c, const apkg_snapshot *s, apkg_text name,
                     free(entries.data);
                     return code;
                 }
+                if (ak_package_unsigned(old) &&
+                    strcmp(old->authority, nw->authority)) {
+                    apkg_package_free(old);
+                    free(entries.data);
+                    return ak_fail(
+                        e, APKG_TRUST,
+                        "the installed package was migrated from the classic "
+                        "client and is not authenticated; a signed package "
+                        "of the same name does not replace it",
+                        key);
+                }
                 int cmp = ak_version_compare(old->version, nw->version);
                 int newer =
                     cmp == -1 || (cmp == 0 && nw->revision > old->revision);
@@ -807,9 +840,29 @@ static apkg_status one(apkg_ctx *c, const apkg_snapshot *s, apkg_text name,
                                                                : "explicit",
                     old);
                 apkg_package_free(old);
-            } else if (kind == APKG_PLAN_REPAIR)
+            } else if (kind == APKG_PLAN_REPAIR) {
+                ak_json entry = {0};
+                int unsigned_entry;
+                if (ak_json_parse(s->records[i], strlen(s->records[i]),
+                                  &entry)) {
+                    free(entries.data);
+                    return errno == ENOMEM ? APKG_NOMEM : APKG_INVALID;
+                }
+                unsigned_entry = ak_entry_unsigned(&entry, 0);
+                ak_json_free(&entry);
+                if (unsigned_entry) {
+                    /* Nothing authenticated exists to restore from. */
+                    free(entries.data);
+                    return ak_fail(
+                        e, APKG_POLICY,
+                        "the package was migrated from the classic client; "
+                        "its delivered files were never retained, so it "
+                        "cannot be repaired",
+                        key);
+                }
                 ak_buf_add(&entries, "%s%s", entries.size > 1 ? "," : "",
                            s->records[i]);
+            }
         } else
             ak_buf_add(&entries, "%s%s", entries.size > 1 ? "," : "",
                        s->records[i]);

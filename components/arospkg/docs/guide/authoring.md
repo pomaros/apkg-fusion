@@ -83,7 +83,7 @@ In a release script, give every field as an option and add
 
 Optional lines shown to the user after installation:
 
-<!-- validate: fragment -->
+<!-- validate: none -->
 ```toml
 post_install_notes = [
   "This port needs the data files of the original game.",

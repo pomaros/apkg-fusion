@@ -49,6 +49,16 @@ write("/tmp/arospkg-lha-absolute.lha",
       (b"Drawer\xffok.txt", b"fine\n"))
 write("/tmp/arospkg-lha-parent.lha",
       (b"..\xff..\xffevil.txt", b"should never be written\n"))
+# Member names that only fit when the destination is short: under the long
+# destination test_longpath uses, "dest/Drawer/<200 n>" is over 511 bytes and
+# must be refused, not written under a cut-off name.
+write("/tmp/arospkg-lha-longname.lha",
+      (b"Drawer\xff" + b"n" * 200, b"long name\n"))
+import zipfile
+with zipfile.ZipFile("/tmp/arospkg-zip-longname.zip", "w", zipfile.ZIP_STORED) as z:
+    z.writestr("Drawer/", b"")
+    z.writestr("Drawer/" + "n" * 200, b"long name\n")
+    z.writestr("Drawer/short.txt", b"fits\n")
 with open("/tmp/arospkg-lha-notanarchive", "wb") as f:
     f.write(b"this is not an archive at all, just some bytes\n")
 

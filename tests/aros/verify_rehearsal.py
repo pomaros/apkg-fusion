@@ -12,6 +12,12 @@ def verify(prepared, report):
     if prepared.get('format') != 'apkg-aros-rehearsal-1':
         raise ValueError('unknown preparation format')
     nonce = prepared['nonce']
+    # Receipts before the target option name no target; they are aarch64.
+    target = prepared.get('target', 'aarch64-aros-v1-native')
+    match = re.fullmatch(r'(aarch64|x86_64)-aros-(v1|v11)-native', target)
+    if not match:
+        raise ValueError('unsupported rehearsal target')
+    arch, abi = match[1], match[2]
     lines = report.splitlines()
     if not lines or lines[0] != 'APKG-REHEARSAL ' + nonce:
         raise ValueError('missing or mismatched report identity')
@@ -38,7 +44,7 @@ def verify(prepared, report):
         if (info.get('name'), info.get('version'), info.get('revision'),
             info.get('arch'), info.get('abi'), info.get('signature'),
             info.get('authortrust'), info.get('installed')) != (
-                'trial', version, 1, 'aarch64', 'v1', 'verified', 'accepted', True):
+                'trial', version, 1, arch, abi, 'verified', 'accepted', True):
             raise ValueError('unexpected installed identity: ' + label)
     for label in ('edit-config', 'config', 'kept-config'):
         if output[label] != 'personal-configuration':

@@ -24,9 +24,9 @@ BUILD_ID=$(cat "$HERE"/libpkg/*.c "$HERE"/libpkg/*.h $TLS_SRC "$HERE"/pkg/*.c "$
 echo "build id $BUILD_ID  (i386 / ABIv0, not released)"
 $CC -O2 -Wall -Wextra -std=gnu99 $EXTRA_CFLAGS \
     -DPKG_BUILD_ID='"'"$BUILD_ID"'"' \
-    -DPKG_TOOLCHAIN='"'"$TC"'"' \
+    -DPKG_TOOLCHAIN='"'"$(echo "$TC" | sed "s|^$HOME|~|")"'"' \
     -DPKG_ABI='"v0"' \
-    -DPKG_SDK='"'"$SDK"'"' \
+    -DPKG_SDK='"'"$(echo "$SDK" | sed "s|^$HOME|~|")"'"' \
     -DPKG_CC="\"$($CC -dumpversion)\"" \
     -I"$SDK/include" -I"$ZSRC" $TLS_CFLAGS -DPKG_TLS='"'"$TLS"'"' \
     "$HERE"/libpkg/*.c "$HERE"/pkg/*.c "$HERE"/../third_party/aros-xterm/aros_tty_client.c $TLS_SRC \

@@ -575,6 +575,25 @@ static void waiting(const char *host)
 
 #endif
 
+#if defined(__AROS__) && defined(PKG_ENTROPY_JENT)
+/* ABIv11 and i386 systems have no getentropy(); their builds link the
+ * jitterentropy collector of the TLS layer (tls/entropy_jent.c), which
+ * answers through the Mbed TLS hardware-poll hook. A failed health test is
+ * a failure here too: there is no fallback to weaker randomness. */
+int mbedtls_hardware_poll(void *data, unsigned char *output, size_t len, size_t *olen);
+int pkg_fs_random(void *buf, size_t len)
+{
+    unsigned char *p = (unsigned char *)buf;
+    while (len > 0) {
+        size_t k = len > 256 ? 256 : len, got = 0;
+        if (mbedtls_hardware_poll(NULL, p, k, &got) != 0 || got != k)
+            return -1;
+        p += k;
+        len -= k;
+    }
+    return 0;
+}
+#else
 int pkg_fs_random(void *buf, size_t len)
 {
 #ifdef __AROS__
@@ -600,6 +619,7 @@ int pkg_fs_random(void *buf, size_t len)
     return got == len ? 0 : -1;
 #endif
 }
+#endif
 
 /* A temporary name beside `path`, short whatever the file's name: FFS takes
  * names of 30 characters at most, and a file's own name may already be that

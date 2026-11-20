@@ -8,6 +8,7 @@ not a second transaction coordinator. A partial preparation is never reused.
 """
 import argparse
 import ctypes
+import datetime
 import hashlib
 import json
 import os
@@ -210,7 +211,7 @@ def legacy_system(record):
     require(len(found) == len(items), 'duplicate legacy system requirement')
     return found
 
-def package_evidence(record, raw):
+def package_evidence(record, raw, icons='refuse'):
     allowed = {'schema','name','version','revision','arch','abi','subdir','installed',
                'origin','archive_sha256','archive_size','reason','relations_schema','dir',
                'requires_system','icon','previous','launch','contents','post_install_notes',
@@ -228,12 +229,21 @@ def package_evidence(record, raw):
     require('abi' not in record or isinstance(record['abi'], str), 'invalid ABI fact')
     require(isinstance(record.get('archive_sha256'), str) and SHA.fullmatch(record['archive_sha256']) and
             type(record.get('archive_size')) is int and 0 <= record['archive_size'] < 2**64, 'invalid original archive identity')
-    for field in ('origin','subdir','installed'):
+    for field in ('origin','installed'):
         require(isinstance(record.get(field), str), 'invalid legacy text field: ' + field)
+    # The 0.1 line wrote no subdir (the archive's top drawer); later lines do.
+    # The installed drawer is always <root>/<dir>, so its absence is history.
+    require('subdir' not in record or isinstance(record['subdir'], str), 'invalid legacy text field: subdir')
     legacy_system(record)
     legacy_relations(record)
     icon = record.get('icon', {})
-    require(isinstance(icon, dict) and icon.get('state', 'none') in ('none','kept-existing'),
+    require(isinstance(icon, dict) and icon.get('state', 'none') in ('none','kept-existing','installed'),
+            'unknown legacy icon state')
+    # The classic client owns the drawer icon it installed at <root>/<id>.info,
+    # outside the package drawer. The common engine has no owned placement at
+    # a shared root destination, so such an icon is refused unless the mapping
+    # chooses explicitly to keep it as unowned user state.
+    require(icon.get('state', 'none') != 'installed' or icons == 'unowned',
             'owned root icon placement is not mapped')
     contents = record.get('contents')
     require(isinstance(contents, list), 'recorded payload baseline is unavailable')
@@ -249,6 +259,25 @@ def package_evidence(record, raw):
                           record=raw.hex(), source='arospkg-v1'),
                 format='apkg-json-1', requires=[], schema='1', type='adoption')
 
+def icon_observation(source, name, record):
+    """What became of a drawer icon the classic client recorded. An installed
+    icon is kept in place as unowned user state; whether the user changed it
+    is reported, never decided from the file's name."""
+    icon = record.get('icon', {})
+    state = icon.get('state', 'none')
+    if state != 'installed':
+        return state
+    path = source/(name + '.info')
+    if not path.exists():
+        return 'installed; missing from the root'
+    current = file_facts(path)['sha256']
+    recorded = icon.get('sha256', '')
+    change = ('delivered bytes unchanged' if current == recorded else
+              'changed since installation' if SHA.fullmatch(recorded or '') else 'delivered hash unrecorded')
+    # Kept is not managed: no later operation of the package touches it.
+    return ('installed; ' + change + '; kept as unowned user state, not managed by the package: '
+            'removing the package leaves it behind and an upgrade does not replace it')
+
 def inspect_source(source, mapping):
     rows = inventory(source)
     for name in ('.pkg','.apkg','.apkg-legacy'):
@@ -256,10 +285,18 @@ def inspect_source(source, mapping):
     require(not (source/'db/lock.owner').exists(), 'legacy lock owner requires inspection')
     transactions = source/'db/transactions'
     require(not transactions.exists() or not any(transactions.iterdir()), 'legacy transactions require recovery')
+    # arospkg 0.6.0 and later record a replacement before its new package is
+    # installed and delete the record once the replaced packages are gone. A
+    # record left behind is an operation the classic client still has to
+    # finish (any writing command does) or report; it is not migratable state.
+    require(not (source/'db/replace.json').exists() and not (source/'db/replace.json').is_symlink(),
+            'an unfinished legacy replacement (db/replace.json) requires recovery by the classic client first')
     require(not any(Path(r['path']).name == 'self-update.json' for r in rows), 'self-update state requires recovery inspection')
-    require(isinstance(mapping, dict) and {'format','legacy_root','packages'} <= set(mapping) and not set(mapping) - {'format','legacy_root','packages','identities'} and
+    require(isinstance(mapping, dict) and {'format','legacy_root','packages'} <= set(mapping) and not set(mapping) - {'format','legacy_root','packages','identities','icons'} and
             mapping['format'] == 'apkg-legacy-import-1' and isinstance(mapping['legacy_root'], str), 'invalid explicit mapping')
     require(isinstance(mapping['packages'], list) and 0 < len(mapping['packages']) <= 128, 'mapping count outside 1..128')
+    icons = mapping.get('icons', 'refuse')
+    require(icons in ('refuse', 'unowned'), 'invalid icon mapping policy')
     identities = mapping.get('identities', [])
     require(isinstance(identities,list) and len(identities)<=128,'invalid identity mapping')
     seen=set()
@@ -282,7 +319,7 @@ def inspect_source(source, mapping):
     installed = source/'db/installed'
     require(installed.is_dir(), 'legacy installed registry is unavailable')
     for path in sorted(installed.iterdir()):
-        raw = regular_bytes(path); record = decode(raw); evidence = package_evidence(record, raw)
+        raw = regular_bytes(path); record = decode(raw); evidence = package_evidence(record, raw, icons)
         name = record['name']
         require(path.name == name + '.json' and name not in records and name in mapped, 'unmapped or ambiguous registry file')
         require((source/name).is_dir(), 'installed bundle directory is missing')
@@ -301,9 +338,10 @@ def inspect_source(source, mapping):
             relative = ref[len(prefix):] if mapping['legacy_root'] and ref.startswith(prefix) else None
             retained = bool(relative and path_ok(relative) and (source/relative).is_file())
             history[key] = dict(reference=ref, bytes='retained-unverified' if retained else 'unavailable-or-unresolved')
-        observations.append(dict(name=name, original_authentication='unknown',
+        observations.append(dict(name=name, original_authentication='unknown', icon=icon_observation(source, name, record),
             abi='recorded' if record.get('abi') else 'unrecorded',
             revision='recorded' if 'revision' in record else 'unrecorded; compatibility default 0',
+            subdir='recorded' if 'subdir' in record else 'unrecorded',
             relations=('recorded-empty' if not any(legacy_relations(record).values()) else 'recorded')
                 if 'relations_schema' in record else 'unrecorded',
             system=('recorded; installation-time outcomes retained as history' if record.get('requires_system')
@@ -321,6 +359,51 @@ def inspect_source(source, mapping):
                 require(other not in records, 'recorded %s names an installed package: %s, %s' % (family, name, other))
     manifest = dict(body=dict(packages=packages), format='apkg-json-1', requires=[], schema='1', type='adoption-set')
     return rows, records, artifacts, observations, manifest
+
+ENV_MEANING = ('the state of the copy handed over, as read at inspected_at; it does not show '
+               'that no self-update runs now on the machine it came from')
+
+def legacy_drawer(path, which):
+    """One drawer of the classic client's environment, from a copy the
+    operator handed over (arospkg selfup.h, selfup_io.c, util.c). Without a
+    copy it says not-inspected."""
+    if path is None:
+        return dict(state='not-inspected')
+    require(path.is_dir() and not path.is_symlink(), 'legacy %s copy is not a physical directory' % which)
+    names = sorted(p.name for p in path.iterdir())
+    checked = dict(ENVARC=['self-update.json', '*.new', 'copies.json'],
+                   ENV=['self-update.lock', 'self-update.<nonce>', '*.new', 'self-update-result.json'])[which]
+    found = dict(state='inspected', drawer=which + ':arospkg', checked=checked,
+                 inspected_at=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+    partial = [n for n in names if n.endswith('.new')]
+    require(not partial, 'partial writes in %s:arospkg require recovery by the classic client first: %s'
+            % (which, ', '.join(partial)))
+    if which == 'ENVARC':
+        require('self-update.json' not in names,
+                'an unfinished self-update (ENVARC:arospkg/self-update.json) requires recovery by the classic client first')
+        if 'copies.json' in names:
+            raw = regular_bytes(path/'copies.json'); decode(raw)
+            found.update(copies='retained-not-converted', copies_record=raw.hex())
+        else:
+            found.update(copies='none')
+    else:
+        # The lock, and the nonce file it is taken through. ENV: is cleared
+        # by a reboot, so either one means a self-update was running, or its
+        # holder died, when the copy was taken.
+        held = [n for n in names if n.startswith('self-update.') and n != 'self-update-result.json']
+        require(not held, 'a self-update held its lock (ENV:arospkg/%s) when the copy was taken; '
+                'let it finish or restart, then capture again' % ', '.join(held))
+        found.update(unread_result='self-update-result.json' in names)
+    return found
+
+def legacy_environment(envarc, env):
+    """The self-update journal and the copies record live in ENVARC:arospkg,
+    the self-update lock in ENV:arospkg. Each is reported on its own; the
+    whole is inspected only when both copies were."""
+    parts = dict(envarc=legacy_drawer(envarc, 'ENVARC'), env=legacy_drawer(env, 'ENV'))
+    states = {parts['envarc']['state'], parts['env']['state']}
+    state = 'inspected' if states == {'inspected'} else 'not-inspected' if states == {'not-inspected'} else 'partial'
+    return dict(state=state, meaning=ENV_MEANING, **parts)
 
 def run(apkg, *args, expected=0):
     result = subprocess.run([str(apkg), *map(str,args)], capture_output=True)
@@ -391,6 +474,7 @@ def prepare(args):
     require(not destination.exists() and not destination.is_symlink(), 'destination already exists; use a fresh copy')
     mapping = decode(regular_bytes(args.mapping)); policy = regular_bytes(args.policy)
     rows, records, artifacts, observations, manifest = inspect_source(source,mapping)
+    environment = legacy_environment(getattr(args, 'legacy_envarc', None), getattr(args, 'legacy_env', None))
     source_id = identity(source)
     copy_inventory(source,destination,rows)
     require(identity(source) == source_id and inventory(source) == rows, 'source changed during copying')
@@ -407,12 +491,14 @@ def prepare(args):
     body = dict(source=str(source),source_identity=source_id,source_inventory=rows,
                 destination=str(destination),destination_identity=identity(destination),
                 artifacts=artifacts,observations=observations,plan=plan,
-                copied_inventory=inventory(destination), quiescent_operator_assertion=True)
+                copied_inventory=inventory(destination), quiescent_operator_assertion=True,
+                legacy_environment=environment)
     receipt = canonical(dict(format='apkg-legacy-copy-1',body=body))
     require(len(receipt) <= MAX,'prepared receipt exceeds bound')
     write_new(destination/RECEIPT,receipt)
     return dict(status='prepared',destination=str(destination),approval=digest(receipt),
-                observations=observations,plan_sha256=digest(raw_plan))
+                observations=observations,plan_sha256=digest(raw_plan),
+                legacy_environment=environment['state'])
 
 def commit(args):
     destination = args.destination.resolve(strict=True)
@@ -454,6 +540,8 @@ def main():
     commands = parser.add_subparsers(dest='command',required=True)
     p = commands.add_parser('prepare');p.add_argument('source',type=Path);p.add_argument('destination',type=Path)
     p.add_argument('mapping',type=Path);p.add_argument('policy',type=Path);p.add_argument('target');p.add_argument('--quiescent',action='store_true')
+    p.add_argument('--legacy-envarc',type=Path,help='a copy of ENVARC:arospkg: the self-update journal and the copies record')
+    p.add_argument('--legacy-env',type=Path,help='a copy of ENV:arospkg: the self-update lock')
     p = commands.add_parser('commit');p.add_argument('destination',type=Path);p.add_argument('--confirm',required=True)
     args = parser.parse_args()
     try:

@@ -11,7 +11,7 @@
 /* The stream caps every length at what a big-endian LONG can carry. */
 #define PKG_MAX_LEN 0xFFFFFFFFu
 
-const char *pkg_strstatus(enum pkg_status s)
+const char *pkg_container_strstatus(enum pkg_status s)
 {
     switch (s) {
     case PKG_OK:           return "ok";

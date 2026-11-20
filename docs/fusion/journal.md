@@ -73,8 +73,9 @@ Fault checkpoints: 1 private preparation, 1201–1204 draft creation/records/sta
 ready-before-publication, 1205 active publication before parent flush, 2 ready, 3 payload published, 4 decision,
 5 state published, 6 recovery start, 7 recovery completion before cleanup.
 [System package placement](system-packages.md#recovery) adds 201–209 after the
-decision. The test build supports injected I/O failure or process termination
-at these points. Production builds have no environment-driven fault injection. Tests
+decision. The [in-use check](#a-live-tree-in-use) adds 1301, 1302 and 1303.
+The test build supports injected I/O failure or process termination at these
+points. Production builds have no environment-driven fault injection. Tests
 must cover recovery interrupted again, changed live files, offline recovery,
 competing processes, stale approvals and late cancellation. Process tests prove
 process-death behavior only. Power-loss/DOS-handler claims require independent
@@ -121,6 +122,74 @@ of an authoritative journal is allowed: a death during recursive deletion could
 otherwise leave an unparseable active transaction. Rollback moves an owned tree
 into the retained journal instead of deleting its bytes. Garbage collection is
 an explicit future retention-policy operation; this subset does not prune.
+
+## A live tree in use
+
+A change renames the live tree of a package into the journal. On AROS a lock
+follows its object through a rename: an assign, a Shell's current directory,
+the `PROGDIR:` of a running program or an open file that names the tree goes
+on naming the old one inside the history archive, and a program that keeps a
+data file open would go on writing there. The executor therefore refuses while
+the tree is held.
+
+The test is an exclusive lock, released at once. DOS grants it only when
+nobody else holds a lock on the object. It is tried on the package drawer, on
+every drawer below it and on every file; links are not followed. Nothing is
+changed by it. The refusal is `APKG_BUSY`; its error names the held drawer,
+sub-drawer or file as the subject and says to close what uses it and repeat
+the operation. It adds that when no program using it is running, a library or
+driver may still hold it, and that restarting the system releases it: on
+mainline x86_64 a program that opened OpenGL leaves files of its drawer in use
+after it exits. That is a defect of the system, and archiving a tree something
+still holds would hide it, so the engine refuses there too.
+
+Every participant whose existing tree leaves its name is checked: upgrade,
+remove, repair, rollback and a replacement chosen by resolution. A participant
+that was absent before is not, since nothing live is moved.
+
+| Check | When | A refusal |
+|---|---|---|
+| First | After the stale-plan checks, before the private draft exists | UNCHANGED: no draft, no journal, no archive, nothing to recover |
+| Second | After `ready`, for each participant right before its tree is renamed | Goes through the journal: trees already moved are put back, the result is RESTORED and the attempt is archived like any restored one |
+
+The drawer the running client was started from is held by that process for as
+long as it runs. Updating the package that carries the client is an ordinary
+change, so that one lock does not count: when the exclusive lock fails on the
+client's own program drawer, the walk continues below it. Another holder of
+that same drawer is then not seen.
+
+Limits. The check is a moment, not a hold: a lock taken between the second
+check and the rename is not seen. A handler that answers an exclusive lock
+with anything but success or `ERROR_OBJECT_IN_USE` fails the operation with
+`APKG_IO` before anything is written. A host has no such lock and no check;
+there the refusal and its recovery are exercised through fault points 1301
+(first check), 1302 (second check, first participant) and 1303 (second check,
+a later participant), which stand for the answer "held" or stop the process.
+
+Measured on mainline x86_64 (`dos.library` 50.89, 2026-11-18), with a second
+process holding the file open through `Open()`:
+
+| Volume | File open `MODE_OLDFILE`, `MODE_READWRITE` or `MODE_NEWFILE` | Its drawer meanwhile | 400 exclusive locks |
+|---|---|---|---|
+| `RAM:` | refused, `ERROR_OBJECT_IN_USE` (202) | granted | 0.02 s |
+| SFS | refused, 202 | granted | 0.04 s |
+| FAT32 | refused, 202 | granted | 0.96 s |
+
+An open file does not hold its drawer, which is why files are tried as well.
+The same answers came from ABIv11 x86_64 (AROS One, `dos.library` 50.77:
+`RAM:`, SFS, FAT32) and from the Raspberry Pi AArch64 (`dos.library` 50.89:
+`RAM:`, FAT32), with the same times on `RAM:` and SFS. FFS has not been
+measured.
+
+On all three systems (`RAM:` everywhere, SFS on both x86_64 systems)
+`upgrade` refused with an assign on a sub-drawer, with a Shell's current
+directory in the package drawer and with a file held open, leaving no draft or
+archive; `remove` refused with an assign on the package drawer; the same
+commands succeeded once the holder was gone, and a client started from inside
+the package drawer removed its package. On mainline and the Pi the error named
+the held object each time; the ABIv11 Shell has no error redirection, so only
+the refusals were recorded there. Repair and rollback take the same path and
+are covered by the host tests only.
 
 ## Single-root self-update
 

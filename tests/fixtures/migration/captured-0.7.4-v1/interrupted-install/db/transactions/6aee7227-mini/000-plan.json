@@ -1,0 +1,15 @@
+{
+  "op":"install",
+  "package":"mini",
+  "dir":"SYS:MigB/mini",
+  "dir_before":"absent",
+  "staging":"SYS:MigB/tmp/6aee7227-mini/mini",
+  "registry":"SYS:MigB/db/installed/mini.json",
+  "registry_before":"absent",
+  "icon": { "path":"SYS:MigB/mini.info", "staged":"SYS:MigB/tmp/6aee7227-mini/mini.info", "sha256":"61697beed5e5aaee900a810119dfc19e5594e2e66a598a5b273de1e3c93c44e0", "managed":1 },
+  "contents": [
+    { "path":"application.json", "sha256":"44dbab22a89df49a609e12e758d0be101a597407a3ba2c071fcab96631d4f7e2", "size":153 },
+    { "path":"Mini.cfg", "sha256":"bc0235967d302a5a18975a1c5f90f86b0dd0118a3affadfb61a8f5c58f44372e", "size":14 },
+    { "path":"Mini", "sha256":"e3dea6e33bd35c5d115851e1bd944f4a3caa21269a136c4ad19b89c5aa0a0af8", "size":17 }
+  ]
+}

@@ -25,6 +25,13 @@ ar=$APKG_AROS_TOOLS/bin/llvm-ar
 out=${APKG_AROS_OUT:-$repo/build/aros-common/$target-$abi-$runtime}
 # collect-aros lives in the SDK's tools, or beside a native build's host tools.
 export COMPILER_PATH="${APKG_AROS_HOST_TOOLS:-$sdk/tools}:$APKG_AROS_TOOLS/bin"
+# A build tree keeps generated headers and posixc under gen/; a published SDK
+# (PomAROS-SDK-aarch64) has posixc under AROS/Developer/include and no gen/.
+if [ -d "$sdk/gen/include" ]; then
+    gen_include="-isystem $sdk/gen/include"; posixc=$sdk/gen/include/aros/posixc
+else
+    gen_include=; posixc=$dev/include/aros/posixc
+fi
 for need in "$cc" "$ar" "$dev/lib/startup.o"; do [ -e "$need" ] || { echo "missing $need" >&2; exit 2; }; done
 mkdir -p "$out"
 cd "$repo"
@@ -36,7 +43,7 @@ import hashlib
 import subprocess
 from pathlib import Path
 paths = set()
-for folder in ('src/apkg', 'components/arospkg/src/libpkg', 'components/arospkg/src/pkgmanager', 'components/arospkg/src/tls'):
+for folder in ('src/apkg', 'components/arospkg/src/libpkg', 'components/arospkg/src/pkgmanager', 'components/arospkg/src/tls', 'components/arospkg/third_party/zunekit'):
     for pattern in ('*.c', '*.h'): paths.update(Path(folder).glob(pattern))
 paths.update(Path('include').glob('*.h'))
 paths.update(Path(p) for p in subprocess.check_output(['make', '-s', 'print-apkg-sources'], text=True).split())
@@ -46,8 +53,29 @@ for p in sorted(paths): h.update(str(p).encode()+b'\0'+p.read_bytes())
 print(h.hexdigest()[:16])
 BUILDID
 )
+# Links without --allow-multiple-definition, so a duplicate symbol in our
+# code fails the build. SDKs whose <aros/symbolsets.h> still defines
+# AROS_LIBREQ with ".global" (mainline before it became ".weak", such as the
+# Macaros SDK of 2026-09) emit __aros_libreq_<base>.<version> in every unit
+# that calls a library; only when those are the sole duplicates is the link
+# repeated with the option, and the symbols are listed.
+link_checked() {
+    log=$out/link-$(basename "$1").log
+    shift
+    if "$@" -Wl,--error-limit=0 2>"$log"; then cat "$log" >&2; return 0; fi
+    dups=$(sed -n 's/^ld\.lld: error: duplicate symbol: //p' "$log" | sort -u)
+    other=$(grep ': error:' "$log" | grep -v ': error: duplicate symbol: ' | grep -v 'linker command failed' || true)
+    if [ -n "$dups" ] && [ -z "$other" ] && ! printf '%s\n' "$dups" | grep -qv '^__aros_libreq_' &&
+        grep -q '\.global __aros_libreq_' "$dev/include/aros/symbolsets.h"; then
+        echo "note: this SDK defines AROS_LIBREQ symbols as global; relinking with --allow-multiple-definition for:" $dups >&2
+        "$@" -Wl,--allow-multiple-definition
+        return
+    fi
+    cat "$log" >&2
+    return 1
+}
 # shellcheck disable=SC2086
-set -- "--target=$target" "-DPKG_ABI=\"$abi\"" "-DPKG_RUNTIME=\"$runtime\"" "-DPKG_BUILD_ID=\"$build_id\"" -mcmodel=large $runtime_flags -O2 -std=gnu11 -isystem "$dev/include" -isystem "$sdk/gen/include" -isystem "$sdk/gen/include/aros/posixc" -isystem "$dev/include/aros/stdc" -Iinclude -Isrc/apkg
+set -- "--target=$target" "-DPKG_ABI=\"$abi\"" "-DPKG_RUNTIME=\"$runtime\"" "-DPKG_BUILD_ID=\"$build_id\"" -mcmodel=large $runtime_flags -O2 -std=gnu11 -isystem "$dev/include" $gen_include -isystem "$posixc" -isystem "$dev/include/aros/stdc" -Iinclude -Isrc/apkg
 sources=$(make -s print-apkg-sources)
 # AROS has no curl: the engine reads a channel with the inherited HTTP client,
 # whose https is Mbed TLS carried in the program, checked against the bundled
@@ -63,7 +91,7 @@ done
 "$ar" rcs "$out/libpkgtls.a" "$out"/tls/*.o
 # The source list consists of repository-owned relative paths without spaces.
 # shellcheck disable=SC2086
-"$cc" "$@" -DMBEDTLS_CONFIG_FILE='"pkg_mbedtls_config.h"' -isystem "$tls" -isystem "$tls/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" src/apkg/main.c $sources src/pkg_tls_aros.c "$out/pkg_cabundle.c" "$out/libpkgtls.a" -o "$out/apkg-core" -Wl,--allow-multiple-definition -Wl,--start-group -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
+link_checked apkg-core "$cc" "$@" -DMBEDTLS_CONFIG_FILE='"pkg_mbedtls_config.h"' -isystem "$tls" -isystem "$tls/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" src/apkg/main.c $sources src/pkg_tls_aros.c "$out/pkg_cabundle.c" "$out/libpkgtls.a" -o "$out/apkg-core" -Wl,--start-group -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
 # AROS programs are relocatable ELF. A successful link with garbage collection
 # can silently discard main/startup, so verify real program roots explicitly.
 "$APKG_AROS_TOOLS/bin/llvm-nm" --defined-only "$out/apkg-core" > "$out/core-symbols.txt"
@@ -81,8 +109,13 @@ for source in "$mb"/library/*.c; do
     "$cc" "$@" -Os -w -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -DMBEDTLS_TEST_SW_INET_PTON -Icomponents/arospkg/src/tls -I"$mb/include" -I"$mb/library" -c "$source" -o "$object"
 done
 "$ar" rcs "$out/libmbedtls.a" "$out"/mbedtls/*.o
+# The engine's TLS glue (src/pkg_tls_aros.c) and the inherited client's
+# (components/arospkg/src/tls) both define mbedtls_hardware_poll and
+# mbedtls_ms_time, and SocketBase is defined in the client's net.c and in
+# src/pkg_fs_posix.c. Until one of each goes, this link accepts duplicates
+# and the first definition on the command line is used.
 # shellcheck disable=SC2086
-"$cc" "$@" -DAPKG_FUSION -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -Icomponents/arospkg/src/tls -I"$mb/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" components/arospkg/src/libpkg/*.c components/arospkg/src/pkgmanager/*.c components/arospkg/src/tls/mbedtls.c components/arospkg/src/tls/platform_aros.c components/arospkg/src/tls/entropy_getentropy.c $sources src/pkg_tls_aros.c "$out/pkg_cabundle.c" "$out/libmbedtls.a" "$dev/lib/libz.static.a" -o "$out/PkgManager" -Wl,--allow-multiple-definition -Wl,--start-group -lmui -lmuimaster -lintuition -lgraphics -lworkbench -licon -ldatatypes -lasl -lrexxsyslib -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
+"$cc" "$@" -Wl,--allow-multiple-definition -DAPKG_FUSION -DMBEDTLS_CONFIG_FILE='<mbedtls_config.h>' -Icomponents/arospkg/src/tls -I"$mb/include" -nostartfiles -nodefaultlibs -L "$dev/lib" -L "$APKG_AROS_TOOLS/lib/generic" "$dev/lib/startup.o" -DLINKTEXT_EMBEDDED -Icomponents/arospkg/third_party/zunekit components/arospkg/src/libpkg/*.c components/arospkg/src/pkgmanager/*.c components/arospkg/third_party/zunekit/*.c components/arospkg/src/tls/mbedtls.c components/arospkg/src/tls/platform_aros.c components/arospkg/src/tls/entropy_getentropy.c $sources src/pkg_tls_aros.c "$out/pkg_cabundle.c" "$out/libmbedtls.a" "$dev/lib/libz.static.a" -o "$out/PkgManager" -Wl,--start-group -lmui -lmuimaster -lintuition -lgraphics -lworkbench -licon -ldatatypes -lasl -lrexxsyslib -lworkbench -licon -lpthread -lposixc -lstdc -lstdcio -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport -Wl,--end-group -lclang_rt.builtins-aarch64
 "$APKG_AROS_TOOLS/bin/llvm-nm" --defined-only "$out/PkgManager" > "$out/gui-symbols.txt"
 for symbol in main __startup_entry pm_common_install apkg_execute; do
     awk -v symbol="$symbol" '$NF==symbol {found=1} END {exit !found}' "$out/gui-symbols.txt" || { echo "missing GUI program symbol $symbol" >&2; exit 1; }

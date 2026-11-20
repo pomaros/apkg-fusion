@@ -1,0 +1,20 @@
+{
+  "schema":1,
+  "name":"mini",
+  "version":"1.0",
+  "arch":"x86_64",
+  "installed":"2026-11-08T00:17:10Z",
+  "origin":"https://example.invalid/mini-1.0.zip",
+  "archive_sha256":"be2fdf9a96b2451331266b95834877d42efaee02aabdc963c25acbf7d5c18e29",
+  "archive_size":687,
+  "reason":"explicit",
+  "dir":"mini",
+  "requires_system": [ ],
+  "icon": { "state":"installed", "sha256":"87e68d8ac179018fc2273310c4f397f725fed7118b77c270d8e0c2040604b4e1", "size":500 },
+  "contents": [
+    { "path":"Mini", "sha256":"e3dea6e33bd35c5d115851e1bd944f4a3caa21269a136c4ad19b89c5aa0a0af8", "size":17 },
+    { "path":"ReadMe", "sha256":"c1afc014e01d590769cd415015088cc7947a7d471c0850e44e611761316d24f5", "size":9 },
+    { "path":"mini.prefs", "sha256":"6961b83c466843fea5bebf4a417df990004954345285af2b8da3b84c7198b45a", "size":12 },
+    { "path":"OldOnly", "sha256":"b1585b462ad58facc762e065a719a2303e50801bc656f247e5c349ec0f9a261c", "size":15 }
+  ]
+}

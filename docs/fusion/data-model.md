@@ -144,6 +144,43 @@ name/version/archive facts for inspection. Binding them to a signed authority
 requires an explicit adoption plan and verified matching evidence; a matching
 name or URL alone cannot claim them.
 
+### Unsigned entries of a migrated installation
+
+A package installed by the classic client came from an unsigned catalogue
+archive. Native migration registers it as an installed entry without a
+signature. The entry has exactly this form:
+
+- `"signature": null`;
+- a descriptor whose `authority` is the reserved all-zero id
+  `00000000000000000000000000000000`, whose files are named by hash only
+  (`blob`, no inline `data`, no `config`, no `amiga`), made from the record
+  the classic client wrote;
+- an `adoption` object whose evidence has `source` `arospkg-v1` and carries
+  that record byte for byte.
+
+The form is recognised from the structure of the entry before any signature
+code runs. The reserved authority never reaches Ed25519 verification: a
+signed descriptor that names it is refused, and a policy that grants it is
+not a valid policy. Root state holding a null signature in any other form, or
+the reserved authority under a signature, is invalid state.
+
+An unsigned entry states what the classic client recorded, not who published
+it. Queries report signature `none` and author trust `unknown`; no query
+reports it as verified. `verify` compares live files with the recorded
+hashes. The engine holds no delivered bytes for it, so `repair` refuses.
+Removal follows the adoption guards: files the user changed and files the
+record never listed stay. `kind` is `application` when the record carries
+launch data and `data` otherwise; the launch data itself stays in the
+evidence and `application.json` stays in the drawer, and nothing is run or
+chosen during registration.
+
+An unsigned entry enters state through an adoption plan only. A signed
+package of the same name belongs to another identity and does not replace
+it: direct upgrade, channel upgrade and dependency resolution refuse. Taking
+an unsigned entry over with a signed package is a separate, explicit
+operation that shows the change of authority in its plan and needs its own
+approval; it is not implemented yet.
+
 ## Version and revision ordering
 
 Store upstream version text unchanged, a comparison scheme and separate

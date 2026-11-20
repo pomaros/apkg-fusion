@@ -26,7 +26,11 @@ from unknown authentication of the original installation.
 explicit set in one plan/journal, including mutually dependent bundles. The
 canonical `adoption-set` envelope has `body.packages` rows with exactly
 `artifact` (a local folder/archive path) and `evidence` (the adoption envelope
-below). The limit is 128 inputs plus aggregate context tree/metadata budgets.
+below). A row may instead have exactly `descriptor` and `evidence`: the unsigned
+descriptor of a package migrated from the classic client, accepted only in
+the form the [data model](data-model.md#unsigned-entries-of-a-migrated-installation)
+defines. `apkg migrate register` writes such a set.
+The limit is 128 inputs plus aggregate context tree/metadata budgets.
 The desktop action takes the manifest path in its package input. CLI `--json`
 previews exact canonical plan bytes and returns the normal declined status 16;
 it never approves. [Legacy copy import](legacy-copy.md) uses this interface and

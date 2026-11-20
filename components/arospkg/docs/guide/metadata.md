@@ -239,10 +239,15 @@ comment or a reformatted line is no change, a changed value is), the
 make the entry Listed until it is reviewed again.
 
 A pull request that changes an entry's data has the changed variants
-reviewed; one that only changes comments has none. A pull request that
-edits `review/` or `history.json` fails. After a merge the publish workflow
-reviews again and commits the records. Its *review_all* run reviews every
-entry; an entry that no longer passes stays Listed, and the run goes on.
+reviewed; one that only changes comments has none. A pull request that edits
+`review/` or `history.json` fails. After a merge the publish workflow
+reviews every entry changed since the last published catalogue and commits
+the records. That catalogue's commit is the branch `published`, which only
+the workflow moves, in the same push as `main`; a run whose push is refused
+because `main` moved leaves it in place and tries again on the new `main`,
+so two merges in quick succession are both reviewed. Its *review_all* run
+reviews every entry; an entry that no longer passes stays Listed, and the
+run goes on.
 
 <a id="runtime-tests"></a>**Runtime tests**, one file per variant:
 

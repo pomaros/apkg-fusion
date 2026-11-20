@@ -27,7 +27,7 @@ int u_deltree(const char *p) { (void)p; writes++; return 0; }
 int u_exists(const char *p) { struct stat st; return stat(p,&st)==0; }
 int u_isdir(const char *p) { struct stat st; return stat(p,&st)==0 && S_ISDIR(st.st_mode); }
 long u_size(const char *p) { struct stat st; return stat(p,&st)==0 ? (long)st.st_size : -1; }
-void u_join(char *o,size_t n,const char *a,const char *b) { snprintf(o,n,"%s/%s",a,b); }
+int u_join(char *o,size_t n,const char *a,const char *b) { int r=snprintf(o,n,"%s/%s",a,b); return r<0||(size_t)r>=n?-1:0; }
 char *u_read_all(const char *p,size_t *n) { (void)p; (void)n; return NULL; }
 int u_listdir(const char *p,char ***out,int *count)
 {

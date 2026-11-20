@@ -146,10 +146,12 @@ static apkg_status rows(const apkg_snapshot *snapshot, const char *name,
                        ",\"signature\":\"%s\",\"signature_scope\":"
                        "\"descriptor\",\"authortrust\":\"%s\","
                        "\"unrecorded\":[%s%s\"size\"]}",
-                       v->signature == APKG_SIGNATURE_VALID ? "verified"
-                                                            : "invalid",
-                       v->author_trust == APKG_TRUST_ACCEPTED ? "accepted"
-                                                              : "rejected",
+                       v->signature == APKG_SIGNATURE_VALID    ? "verified"
+                       : v->signature == APKG_SIGNATURE_ABSENT ? "none"
+                                                               : "invalid",
+                       v->author_trust == APKG_TRUST_ACCEPTED  ? "accepted"
+                       : v->author_trust == APKG_TRUST_UNKNOWN ? "unknown"
+                                                               : "rejected",
                        summary ? "" : "\"summary\",",
                        category ? "" : "\"category\",");
             found++;

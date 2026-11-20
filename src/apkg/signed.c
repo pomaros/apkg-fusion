@@ -104,6 +104,15 @@ apkg_status apkg_package_read(apkg_ctx *c, apkg_bytes descriptor,
             goto fail;
         }
     }
+    /* The reserved authority of unsigned entries is refused before any
+     * signature code runs: no key can speak for it. */
+    if (ak_equal(&p->json,
+                 ak_member(&p->json, ak_member(&p->json, 0, "body"),
+                           "authority"),
+                 AK_UNSIGNED_AUTHORITY)) {
+        r = APKG_TRUST;
+        goto fail;
+    }
     r = ak_signature_check(descriptor, signature, "descriptor", p->key,
                            &p->digest);
     if (r)

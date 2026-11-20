@@ -1,0 +1,26 @@
+{
+  "schema":1,
+  "name":"mini",
+  "version":"1.1",
+  "revision":1,
+  "arch":"x86_64",
+  "abi":"v11",
+  "subdir":"Mini",
+  "installed":"2026-11-08T00:15:51Z",
+  "origin":"https://example.invalid/mini-1.1.zip",
+  "archive_sha256":"5249a89723a311fc78fcfe91a4ef6a6e980bd11853f39154e82a8182b54f4d12",
+  "archive_size":8113,
+  "reason":"explicit",
+  "relations_schema":1,
+  "depends": ["minilib"],
+  "dir":"mini",
+  "requires_system": [ ],
+  "icon": { "state":"installed", "sha256":"7f4602ad57e4748e9171351e933244f2ff4905fe8b6c5230a200d8784d05b9cf", "size":7578, "member":"Mini.info" },
+  "previous": { "registry":"SYS:Packages/db/previous/mini.json", "archive":"SYS:Packages/cache/previous/mini.zip" },
+  "contents": [
+    { "path":"Mini", "sha256":"7dd7a9381f4a2515e89f9d04ff2c15e93dc2ef635aca85d41bceb116a9a9d96f", "size":17 },
+    { "path":"ReadMe", "sha256":"fe62323728f7bbae514b80bc0299a10b02ed8ca798ff672b1ad2019be2a54955", "size":9 },
+    { "path":"NewIn11", "sha256":"59f8a71f681eb7d1deedb69df30508582b19e005a33d78348f73fcecde3974f5", "size":13 },
+    { "path":"mini.prefs", "sha256":"6961b83c466843fea5bebf4a417df990004954345285af2b8da3b84c7198b45a", "size":12 }
+  ]
+}

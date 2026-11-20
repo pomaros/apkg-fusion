@@ -1,0 +1,23 @@
+{
+  "schema":1,
+  "name":"minilib",
+  "version":"1.0",
+  "revision":1,
+  "arch":"x86_64",
+  "abi":"v11",
+  "subdir":"MiniLib",
+  "installed":"2026-11-08T00:15:52Z",
+  "origin":"https://example.invalid/minilib-1.0.zip",
+  "archive_sha256":"29d249ecf61c430bca41160c408a2fc10f538b8f123efe8a8f6684da1863a681",
+  "archive_size":272,
+  "reason":"dependency",
+  "relations_schema":1,
+  "dir":"minilib",
+  "requires_system": [ ],
+  "icon": { "state":"none", "sha256":"", "size":-1, "member":"" },
+  "previous": { "registry":"", "archive":"" },
+  "contents": [
+    { "path":"ReadMe", "sha256":"3d6ddda2122feffb2fcc0796e7dc2b6099c32b5b0ee4ce334d1159f91f9513bf", "size":8 },
+    { "path":"minilib.library", "sha256":"70fdc753bd60896b012a87a3463564c3d59aaac37cf83cec8aea09be2798bfa7", "size":12 }
+  ]
+}
