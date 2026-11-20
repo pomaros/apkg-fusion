@@ -70,7 +70,9 @@ operation id.
 
 ## Local retention and transaction use
 
-Verified objects live beside the root in `<root>.apkg-objects/<SHA-256>`.
+Verified objects live beside the root in `<root>.apkg-objects/<SHA-256>`, or
+in `DIR/objects` when the context names a
+[store directory](system-packages.md#store-and-pruning).
 Creation is explicit preparation, never a side effect of opening a context,
 reading a snapshot or making a pure plan. Client archive previews perform this
 explicit import, so an unconfirmed preview can retain verified cache objects

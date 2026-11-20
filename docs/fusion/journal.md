@@ -72,7 +72,7 @@ the approved new state. Legacy metadata and a pre-existing journal are refusals.
 Fault checkpoints: 1 private preparation, 1201–1204 draft creation/records/staging/
 ready-before-publication, 1205 active publication before parent flush, 2 ready, 3 payload published, 4 decision,
 5 state published, 6 recovery start, 7 recovery completion before cleanup.
-[System package placement](system-packages.md#recovery) adds 201–206 after the
+[System package placement](system-packages.md#recovery) adds 201–209 after the
 decision. The test build supports injected I/O failure or process termination
 at these points. Production builds have no environment-driven fault injection. Tests
 must cover recovery interrupted again, changed live files, offline recovery,

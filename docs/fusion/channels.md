@@ -247,6 +247,40 @@ verified blobs beside that root but changes no managed generation. The publisher
 uses it only with its private validation root. No implicit root initialization or
 trust expansion is performed by the importer.
 
+## Verified mirror
+
+`apkg channel-mirror ROOT ENDPOINT CHANNEL-ID NAME DIRECTORY`
+(`apkg_client_channel_mirror`) turns `DIRECTORY` into a file channel that
+holds what the next update of one package needs, for an updater that applies
+[where there is no network](system-packages.md#fetch-then-apply).
+
+The channel at `ENDPOINT` is opened as `channel-open` opens it: under the
+root's policy, with its replay floor, the root read-only. The mirror then
+holds:
+
+```text
+DIRECTORY/current
+DIRECTORY/snapshots/SNAPSHOT-SHA256/channel.json
+DIRECTORY/snapshots/SNAPSHOT-SHA256/channel.signature.json
+DIRECTORY/archives/ARCHIVE-SHA256.pkg
+```
+
+The snapshot files are the bytes that were served and verified, unchanged:
+the mirror is authenticated by the same channel signature as its source, and
+a reader checks it as it checks any file channel. Only the archive of the
+selected build is copied, the newest one of `NAME` that the root's policy
+trusts for the root's target; the snapshot still lists the channel's other
+builds, whose archives the mirror does not hold.
+
+Every file is written under a transfer name and renamed once whole; the
+archive takes its name only with the size and SHA-256 the signed snapshot
+gives it. `current` is replaced last, in one step, so a reader sees the
+previous complete mirror or the new one. A transfer does not resume. After
+`current` is switched, archives and snapshot directories it no longer
+references are removed. A mirror that already holds the snapshot and a
+verified archive is left as it is and reported unchanged. One mirror
+directory has one writer at a time.
+
 ## Remaining batches
 
 1. Independent signed review/runtime facts, issuer policy and stale/revoked

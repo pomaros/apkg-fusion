@@ -143,8 +143,14 @@ A package of kind `system` goes through the same plan functions and is placed
 per file; `apkg_plan_system_takeover` sets the context's takeover input, which
 every later plan of that context records. `apkg_client_request_apply` and
 `apkg_client_channel_update` are the client forms; see
-[system packages](system-packages.md#clients). These are additions to contract
-version 1: no existing structure or signature changed.
+[system packages](system-packages.md#clients).
+
+`APKG_CONTRACT_VERSION` is 2: `apkg_open_options` gained `store`, the
+directory of a root's [objects and archives](system-packages.md#store-and-pruning),
+and every options structure checks the version and its exact size as before.
+`apkg_store_prune` prunes that store. The `contract` field of `apkg
+engine-info` and `--version` is the command and wire contract the portal
+checks; it is unchanged at 1.
 Unsupported work returns
 UNSUPPORTED or a non-executable plan with structured blockers, never a weaker
 plan. PENDING returns RECOVERY_REQUIRED; missing/uninitialized root returns

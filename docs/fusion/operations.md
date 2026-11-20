@@ -153,14 +153,19 @@ apkg-core repair ROOT NAME [--confirm DIGEST]
 apkg-core upgrade ROOT SIGNED-FOLDER [--takeover] [--confirm DIGEST]
 apkg-core rollback ROOT RETAINED-HISTORY [--confirm DIGEST]
 apkg-core resolve ROOT SIGNED-FOLDER [--pool SIGNED-FOLDERS] [--takeover] [--confirm DIGEST]
-apkg-core channel-update ROOT ENDPOINT CHANNEL-ID NAME --policy FILE [--target TARGET] [--takeover] [--yes | --confirm DIGEST]
+apkg-core channel-update ROOT ENDPOINT CHANNEL-ID NAME --policy FILE [--target TARGET] [--takeover] [--repair] [--yes | --confirm DIGEST]
+apkg-core channel-mirror ROOT ENDPOINT CHANNEL-ID NAME DIRECTORY
+apkg-core prune ROOT
 apkg-core bundle-check FOLDER TARGET
 apkg-core run-bundle FOLDER TARGET
 ```
 
-`--takeover` and `channel-update` belong to
+`--takeover`, `channel-update` and `channel-mirror` belong to
 [system packages](system-packages.md#clients); `--takeover` changes nothing for
-a bundle.
+a bundle. Every command accepts `--store DIR`, the directory that holds the
+root's objects and archives instead of the default beside the root, and
+`prune` [empties that store](system-packages.md#store-and-pruning) of what no
+installed package references.
 
 The public client helper owns verification, planning, complete effect formatting,
 confirmation and execution for both CLI and PkgManager. No wildcard approval or

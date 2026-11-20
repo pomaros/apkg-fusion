@@ -43,7 +43,7 @@ compatibility/conversion was explicitly removed by the operator; see the
 | Authoring | Real TOML/.ameta → signed package → atomic publication works | Complete remaining broader authoring/target semantics before their release claims |
 | Channels/trust | File/HTTP channels, exact selection, signed review/runtime observations and accepted memory use the common journal; explicit journaled trust-policy change for rotation, reset and revocation; a root-owned ordered source list with install by name across sources | Remote revocation/freshness policy, a signed key-endorsement format |
 | Clients/default product | Shared CLI/worker, explicit source settings, persistent current/previous observations, last-refresh comparison, combined typed rows, recent publications and installed/catalogue INFO/SHOW; default CLI/library/tools use the common engine | Broader native desktop/platform qualification; historical continuity is deferred |
-| System packages | Kind `system`: a signed file list placed per file in the root itself, with an explicit authority permission, three-way upgrade, explicit takeover, repair, verify and roll-forward recovery; builder, channel producer, CLI and an unattended client call | Storage of the object and archive stores for a volume root, native metadata, target handlers and power loss; see [system packages](#system-packages) |
+| System packages | Kind `system`: a signed file list placed per file in the root itself, with an explicit authority permission, three-way upgrade, explicit takeover, repair, verify and roll-forward recovery; a caller-chosen store with pruning; a verified channel mirror and an unattended client call that applies from it without a network | Native metadata, target handlers, power loss and any run on AROS; see [system packages](#system-packages) |
 | Self-update | Single-root self-update of a managed client through the shared channel plan and journal, from the CLI and the PkgManager worker; legacy journals and recorded copies refuse | Multi-root participants for copies such as `C:apkg`; native qualification |
 | Legacy migration | Schema-1 host copy import with recorded relations and system requirements, immutable approval and common recovery on pinned synthetic fixtures; a native command-profile rehearsal operates on the imported copy | Deferred: placements, active settings/launch/history conversion, broader script/JSON compatibility and distribution qualification; see support choices above |
 | Portal | Clean common-only catalogue, signed stored/link-only publication, resumable publisher client, optional policy-based independent qualification and private backup/restore tools implemented | Linux/macOS published-artifact lifecycle, real-process recovery and live HTTPS application cycle pass; live GitHub consent and joint governance remain open |
@@ -2138,68 +2138,100 @@ only by the M1 rehearsal.
 [System packages](system-packages.md) add the `system` kind to the common
 engine: a signed file list relative to the root, placed file by file among
 files the package does not own, through the common plan, approval, journal and
-clients. `src/apkg/system_place.c` holds the per-file planner, the placement
-and its recovery; `src/apkg/client_update.c` the request form with the takeover
-input and the unattended `apkg_client_channel_update`.
+clients.
 
-`tests/apkg/test_system_packages.py` has 34 host cases:
+| Source | Holds |
+|---|---|
+| `src/apkg/system_place.c` | the per-file planner, the readiness check, placement and its recovery |
+| `src/apkg/store.c` | pruning of the object and archive stores |
+| `src/apkg/client_update.c` | the request form and the unattended `apkg_client_channel_update` |
+| `src/apkg/client_mirror.c` | the verified channel mirror |
+
+`tests/apkg/test_system_packages.py` has 61 host cases:
 
 - engine (18): placement among a user's files with modes and no staged tree;
   ownership of identical bytes without a write; conflict, takeover as a plan
   input and part of the digest; no takeover of another package's path; a file
-  handed from one system package to another in one plan; every
-  upgrade case of the [decision table](system-packages.md#per-file-decisions);
-  directories removed only when created and empty; type conflicts and links;
-  the missing permission and the strict permission schema; reserved paths;
-  refused removal, rollback, rollback-last and adoption; verify and repair;
-  bundles beside a system package in both directions; a live edit after the
-  preview; cancellation at each cancellable boundary and byte/file events;
-- recovery (8): process death at each preparation point and at each of the
-  twelve points after the decision (201–206 with passes skipped, 4, 5, 7),
-  recovery interrupted a second time, injected write failures, both aside
-  steps, a missing retained object, a first installation, and recovery
-  progress events;
+  handed from one system package to another in one plan; every upgrade case of
+  the [decision table](system-packages.md#per-file-decisions); directories
+  removed only when created and empty; type conflicts and links; the missing
+  permission and the strict permission schema; reserved paths; refused
+  removal, rollback, rollback-last and adoption; verify and repair; bundles
+  beside a system package in both directions; a live edit after the preview;
+  cancellation at each cancellable boundary and byte/file events;
+- review regressions (13): a case-only rename of a file and of a created
+  directory; paths that fold alike within a descriptor and across packages; a
+  missing, a corrupt and a same-length corrupt object refused before the
+  decision with the root READY; too little free space, with the exact amount
+  asked for; directories without owner write created, filled, upgraded and
+  recovered; an edit made while pending kept by recovery and recorded; files
+  the plan said to replace still replaced in recovery; takeover that adopts an
+  existing preserved configuration; a file that becomes a directory and back,
+  its refusals and its recovery at each step; the token array charged to
+  working memory;
+- recovery (12): process death at each preparation point and at each point
+  after the decision (201–209 with passes skipped, 4, 5, 7), within the write
+  of a temporary file, across several deletions and between the deletions and
+  the directory removals; recovery itself interrupted at each of those points;
+  injected write failures; both aside steps, alone and combined with an
+  interrupted recovery; a replacement stopped between its renames finished
+  under either primitive; a missing retained object; a first installation;
+  recovery progress events;
 - scale (1): 4,000 files in 80 directories installed, verified and upgraded
   with default budgets, in about 4 s on the development host;
 - builder and clients (7): the drawer mapped to the root, builder refusals,
   the CLI with `--takeover`, repair, verify and upgrade, the unattended
   `channel-update` from an absent root through an upgrade with the pinned
   policy, the same call over HTTP, its recovery of an interrupted transaction,
-  and a channel that
-  retains three 4,000-file builds (2.7 MB of metadata).
+  and a channel that retains three 4,000-file builds (2.7 MB of metadata);
+- store (6): a store on another directory with nothing created in or beside
+  the root but state, system files and journal history, pruned to the
+  installed version after install and after upgrade; explicit pruning that
+  removes only engine-named unreferenced files; refusal under a pending
+  transaction; repair that names the missing bytes without the store and the
+  updater that fetches them again; the updater finishing a pending placement
+  whose objects were lost or corrupted; the library form;
+- mirror (4): a mirror made over the HTTP fixture and an install and an
+  upgrade applied from it with the server stopped, the root untouched by
+  mirroring and nothing fetched twice; process death within the archive, after
+  it and before `current` moves; a damaged archive, a leftover partial file, a
+  stale `current` and an altered snapshot replaced; a tampered transfer and a
+  cancelled one publishing nothing.
 
 The whole common suite, these cases included, also runs with
-`APKG_TEST_REPLACE_ASIDE=1`. The builder and client cases run against the
-ASan/UBSan CLI. The portal reads snapshots up to the engine's 16 MiB object
-limit; one portal case serves a 2.5 MB snapshot holding two 5,000-file system
-builds.
+`APKG_TEST_REPLACE_ASIDE=1`. The builder, client, store and mirror cases run
+against the ASan/UBSan CLI. The portal reads snapshots up to the engine's
+16 MiB object limit; one portal case serves a 2.5 MB snapshot holding two
+5,000-file system builds.
 
-One manual host measurement, not a test: a 4,001-file, 461 MB system package
-built by `apkg-build`, published by `apkg-channel` and installed by
-`channel-update` took 10 s to install, 14.5 s to upgrade to a build changing
-401 files, and 1.2 s to verify; its state record is 0.9 MB and its plan
-1.0 MB, inside the default 2 MiB reserve.
+One manual host measurement, not a test, made before the store work: a
+4,001-file, 461 MB system package built by `apkg-build`, published by
+`apkg-channel` and installed by `channel-update` took 10 s to install, 14.5 s
+to upgrade to a build changing 401 files, and 1.2 s to verify; its state
+record is 0.9 MB and its plan 1.0 MB, inside the default 2 MiB reserve. The
+readiness check added since hashes each object to place once more.
 
 Limits and open work:
 
-- **Storage for a volume root.** Placement stages nothing, but the engine
-  retains every verified object in `<root>.apkg-objects` and every fetched
-  archive in `<root>.apkg-archives`, and prunes neither. After the two builds
-  of the measurement the root held 462 MB, the object store 507 MB and the
-  archive cache 924 MB. For a root that is a volume these stores are inside
-  the volume, so a volume that cannot hold its system twice cannot be updated
-  this way until the stores can live elsewhere or be pruned. That needs a
-  decision on where a root records its store location; it is not implemented.
 - An upgrade fetches and verifies the whole archive of the new build, not
-  only the objects that changed.
+  only the objects that changed. With the store on the system volume, the
+  archive and the new objects are there together until the commit prunes
+  them; a volume that cannot hold that needs its store, and its
+  [mirror](system-packages.md#fetch-then-apply), elsewhere.
+- Neither transport resumes a transfer. On AROS the inherited HTTP client
+  writes a transfer to its own temporary file before the engine copies it to
+  its destination, so a fetched archive briefly exists twice.
 - `amiga` metadata on a system package refuses, on hosts and natively; file
   identity is the content hash and modes of unchanged files are not corrected.
+- A mirror carries one package; its dependencies are not mirrored.
 - PkgManager installs and upgrades system packages through the shared client
-  but has no control for the takeover input.
-- Host tests only. Nothing here was run on AROS: the code keeps to the POSIX
-  calls the engine already uses, and its AROS cross-build was not attempted.
-  Handler behavior, flush cost of per-directory syncs and power-loss
-  durability need target evidence.
+  but has no control for the takeover input, the store or the mirror.
+- Host tests only. Nothing here was run on AROS and its cross-build was not
+  attempted: the free-space query (`Info()`), the per-directory flushes, the
+  aside window on handlers without `ReplaceObject` and power-loss durability
+  need target evidence. The AROS transport now closes its `bsdsocket.library`
+  base at exit, which is the reasoned cause of the Shell's "unfreed signal"
+  report after a network command; that fix is unverified.
 
 ## Replacement without ReplaceObject
 

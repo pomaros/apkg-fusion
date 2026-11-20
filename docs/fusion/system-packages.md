@@ -44,10 +44,16 @@ Ownership is per regular file, from the signed list.
   same directory. A path that one package drops and another lists in the same
   plan is handed over: the first neither deletes the file nor removes the
   directory.
+- AROS volumes do not tell case apart, so ownership does not either. Paths are
+  compared by their case-folded form everywhere: between the old and the new
+  list of one package, between packages, and against bundle folders. `C/copy`
+  renamed to `C/Copy` in a new version is the same path, never a file to
+  delete and another to create. A descriptor that lists two paths folding
+  alike is not a valid descriptor.
 - A bundle is the folder `ROOT/<name>/`. A system package cannot list a path
   whose first component is the name of a bundle of the resulting root, and a
   bundle cannot be installed under a name that a system package's paths
-  occupy. The comparison ignores case.
+  occupy.
 - The engine keeps names of its own in a root, which a volume root holds
   beside the system's files. A system descriptor that lists `db` or `.pkg` at
   the top, or any component beginning with `.apkg` or `.pkgold`, is not a
@@ -67,7 +73,9 @@ identity is the SHA-256 of the file.
 |---|---|---|---|
 | Listed, not owned before | absent | write it | `write` |
 | | the new signed bytes | owned without a write | none |
-| | other bytes | CONFLICT; with takeover, replace and own | `taken` |
+| | other bytes | CONFLICT without takeover | |
+| | other bytes, takeover, `config: preserve` | keep the live file; it is owned from now on | `keep` |
+| | other bytes, takeover, ordinary file | replace and own | `taken` |
 | Listed, owned before | the new signed bytes | nothing to do | none |
 | | the old signed bytes, or absent | write the new bytes | `write` |
 | | other bytes, `config: preserve` | keep the live file | `keep` |
@@ -78,11 +86,23 @@ identity is the SHA-256 of the file.
 | | absent | create, and record as created | `directories` |
 | Dropped directory | created by the package | remove if empty after the deletions | `rmdir` |
 
-A path that holds a link, a device or the other type (a directory where a
-file is listed, a file where a directory is listed) is a CONFLICT that takeover
-does not lift. `config: preserve` is read from the new signed list. A system
-file that is not configuration must be the signed one, so an upgrade replaces
-a modified ordinary file and says so in the plan.
+`config: preserve` is read from the new signed list. A system file that is not
+configuration must be the signed one, so an upgrade replaces a modified
+ordinary file and says so in the plan. Takeover never replaces a preserved
+configuration file: the first adoption of a volume a person has already
+configured keeps their settings and reports each one under `keep`.
+
+A path may change type between two versions when what stands there is the old
+version's own, unmodified:
+
+| Old list | New list | Accepted when | Plan |
+|---|---|---|---|
+| file | directory | the live file holds the old signed bytes | `clear` the file, then `directories` |
+| directory | file | everything under the live directory is listed by the old version, and every such file holds its old signed bytes | `clear` the children and the directory, then `write` |
+
+Anything unlisted or modified in the way is a CONFLICT that takeover does not
+lift, as is a link, a device, or a file or directory where the package never
+listed the other type.
 
 **Install** treats every listed path as not owned before. **Upgrade** requires
 a newer version or revision from the same authority, as for bundles.
@@ -101,7 +121,7 @@ A plan that changes a system package is the common `changes` plan with one
 more body field, `system`: an array with one record per package.
 
 ```json
-{"bytes":"8","delete":["Libs/Extras/gone.library"],"directories":[],
+{"bytes":"8","clear":[],"delete":["Libs/Extras/gone.library"],"directories":[],
  "keep":["S/Startup"],"name":"aros-system","observed":"<sha256>",
  "operation":"upgrade","overwrite":["C/Copy"],"release":["Libs/old.library"],
  "rmdir":["Libs/Extras"],"taken":[],"takeover":"0","write":["C/New"]}
@@ -131,25 +151,51 @@ same plan keep their staged and retained trees.
    the [journal](journal.md). Nothing of a system package is written yet. A
    failure or a cancellation up to here restores the bundles and leaves the
    root unchanged.
-2. The live root is compared with the approved records, a last cancellable
-   `APPLY` event is emitted, and the `decision` marker is written.
-3. Directories of `directories` are created.
-4. Each file of `overwrite`, `taken` and `write` is streamed from the retained
-   object `<root>.apkg-objects/<sha256>` into `.apkg-placing` in its
-   destination directory, hashed while it is written, flushed, given its mode,
-   and put in place by the engine's replacement primitive: atomically where
-   the filesystem can, otherwise through the
-   [aside](journal.md#replacement-without-replaceobject). A file whose bytes
-   do not match its signed hash is never put in place.
-5. After every placement, each file of `delete` that still holds its old
+2. The last checks, after which nothing can be taken back:
+   - the live root is compared with the approved records;
+   - every object to place is read from the store and hashed: a missing or
+     altered object refuses with `APKG_NOT_FOUND` or `APKG_INTEGRITY`;
+   - the destination volume must have room: `APKG_LIMIT` otherwise. An
+     in-place replacement needs the new file beside the old one until it takes
+     the name, so the room counted is the highest point of the placement
+     sequence (each new file in full, each replaced file's size given back
+     once it is replaced), plus one allocation unit per file and directory,
+     twice the size of the state record, and 256 KiB.
+
+   Each refusal names the path or the bytes needed and available, and leaves
+   the root READY with nothing written. A last cancellable `APPLY` event is
+   emitted, then the `decision` marker is written.
+3. Paths of `clear` are removed, children before their directory, each only
+   while it still is what the old version left.
+4. Directories of `directories` are created with owner write, whatever their
+   signed mode says.
+5. Each file of `overwrite`, `taken` and `write` is streamed from the store
+   into `.apkg-placing` in its destination directory, hashed while it is
+   written, flushed, given its mode, and put in place by the engine's
+   replacement primitive. A file whose bytes do not match its signed hash is
+   never put in place.
+6. After every placement, each file of `delete` that still holds its old
    signed bytes is deleted, then each directory of `rmdir` is removed if it is
    empty, deepest first.
-6. The root state is published last, by the common state publication, and the
-   journal is archived.
+7. Created directories receive their signed modes. A directory that had no
+   owner write and had to be opened for a change gets its mode back.
+8. The root state is published last, by the common state publication, and the
+   journal is archived. The [store is pruned](#store-and-pruning).
 
-Bytes come only from the object store, which holds what the verified archive
+Bytes come only from the store, which holds what the verified archive
 delivered (or the inline bytes of a development descriptor). The file content
 is never held in memory: one 64 KiB buffer streams it.
+
+### Edits made after the approval
+
+A file of `write` is replaced only if it is absent or still holds the old
+signed bytes. If it holds anything else when its turn comes, someone edited or
+created it after the plan was approved, most likely while an interrupted
+transaction waited for recovery: it stays as it is, and the transaction's
+journal records its path in a `kept` file that is archived with the history.
+Files of `overwrite` and `taken` are replaced regardless: the approved plan
+said so. A kept ordinary file shows as `changed` in `verify`, and `repair`
+restores it; a kept configuration file shows as `edited`.
 
 ## Recovery
 
@@ -158,10 +204,15 @@ recovery rolls forward. From `ready` until the journal is archived the root
 reads as PENDING; ordinary plans refuse with `APKG_RECOVERY_REQUIRED`.
 
 `apkg_recover` on a decided transaction whose state is not yet the new one
-runs steps 3 to 6 again. Every step is idempotent:
+runs steps 3 to 8 again. Every step is idempotent:
 
+- a path of `clear` that already has the new type is done;
+- a directory that exists is opened for writing and gets its mode at the end;
 - a destination that already holds the new signed bytes is done; a leftover
   aside of an interrupted replacement beside it is removed;
+- a destination that is absent while its old bytes wait under the aside name
+  is a replacement stopped between its two renames: placing the new file
+  finishes it and removes the aside;
 - a leftover `.apkg-placing` is replaced by the next attempt;
 - a file to delete that no longer holds its old signed bytes stays;
 - a directory that is not empty, or already gone, stays.
@@ -169,17 +220,41 @@ runs steps 3 to 6 again. Every step is idempotent:
 The state is published only after all of them, so a root never reads as READY
 with a mix of old and new system files. A transaction interrupted before the
 decision is restored as any other: the system package had not been touched.
-Recovery needs the object store; while an object it has to place is missing it
-returns `APKG_RECOVERY_REQUIRED` and the root stays pending. It needs no
-network.
+
+Recovery needs the store and no network. While an object it has to place is
+missing or altered it returns `APKG_RECOVERY_REQUIRED` and the root stays
+pending, with what was placed so far in place. The updater call
+([clients](#clients)) then fetches the archive of that same build again,
+admits its objects under the digests the approved plan lists, and finishes the
+transaction. One case needs a person: a path of `clear` that was edited while
+the transaction was pending blocks the directory or file that must take its
+place, and recovery will not destroy it.
 
 Fault checkpoints of the test build, beside those of the
 [journal](journal.md): 201 directories created, 202 temporary file written,
 203 file replaced, 204 all placements done, 205 after a deletion, 206 all
-system steps done before state publication. `apkg_test_fault_after` lets a
-number of passes through a checkpoint go by first, to stop in the middle of a
-list. The tests stop the process at each of them and at each aside step, and
-interrupt recovery again.
+system steps done before state publication, 207 after a cleared path, 208
+within the write of a temporary file, 209 between the deletions and the
+directory removals. `apkg_test_fault_after` lets a number of passes through a
+checkpoint go by first, to stop in the middle of a list. The tests stop the
+process at each of them and at each aside step, during execution and again
+during recovery.
+
+### Replacement without an atomic primitive
+
+Where DOS offers `ReplaceObject` and the handler implements it, a file is
+replaced in one step. Elsewhere the engine uses the
+[aside](journal.md#replacement-without-replaceobject): the old file moves to
+`.pkgold<hash>`, the new one takes the name, the aside goes. Between the two
+renames **the file does not exist under its name**. Recovery finishes such a
+replacement, but a program that opens the file in that window does not find
+it, and a system that boots from the volume in that state may not start.
+
+A system root on such a handler is therefore updated from another running
+system: the RAM image the updater boots, not the installed system it
+replaces. An interruption then costs only a second run of the updater, which
+recovers before it does anything else. Updating the volume a system is
+running from is not supported on handlers without `ReplaceObject`.
 
 ## Events
 
@@ -205,6 +280,125 @@ under `APKG_PHASE_RECOVER`, counting the files an earlier attempt finished.
 
 Totals precede the rows. Files the list does not name are not reported.
 
+## Store and pruning
+
+The engine keeps the verified objects of a root and the archives it fetched
+in a store. By default the store is beside the root: `<root>.apkg-objects` and
+`<root>.apkg-archives`. For a root that is a volume (`SYS:`), "beside" is
+inside the volume, which a small system volume cannot afford.
+
+`apkg_open_options.store` names an existing directory instead, for instance
+on another volume: objects then live in `DIR/objects` and archives in
+`DIR/archives`. The CLI takes `--store DIR` on every command;
+`apkg_client_store` sets it for the client calls of a process, and
+`apkg_client_request` and `apkg_client_update` take it per call. State,
+journal and history always stay with the root. With a store elsewhere, an
+install creates nothing inside the root but `.apkg/state` and the system's own
+files, and nothing beside it but the journal.
+
+The root does not record where its store is. The choice belongs to the
+caller, like the memory budgets, and nothing depends on it for correctness: a
+context opened without the store looks in the default place, finds no object,
+and every operation that needs bytes refuses cleanly. Repair then says
+`the store holds no bytes for this file` and changes nothing; recovery keeps
+the root pending. The same caller with the right store, or the updater with a
+channel to fetch from, proceeds.
+
+Nothing but pruning removes from a store. `apkg prune ROOT`
+(`apkg_store_prune`) removes every object that no installed descriptor of the
+committed state references, every fetched archive and every unfinished
+transfer file; what repair of the installed versions needs stays. It runs
+under the mutation lock, refuses with `APKG_RECOVERY_REQUIRED` on a pending
+root so that a transaction never loses what it was approved with, and touches
+only regular files of the two store directories that carry the names the
+engine gives them. An interruption leaves a store that is merely less pruned.
+
+A committed system install, upgrade or repair prunes by itself, during
+execution or the recovery that finishes it. Nothing is lost by that: a system
+transaction cannot be rolled back, and no earlier transaction can be rolled
+back once a later one has committed. An explicit prune after a bundle
+transaction removes the bytes its rollback would need; that rollback then
+refuses with `APKG_NOT_FOUND`.
+
+## Clients
+
+`install`, `upgrade`, `resolve`, `repair`, `channel-install` and
+`source-install` handle a system package as any other; all but `repair` accept
+`--takeover`. `apkg_client_request_apply` is the library form with the
+takeover input and the store.
+
+### Fetch, then apply
+
+A system updater applies at boot, from a RAM image, before any network
+exists. The work is split in two.
+
+**While the installed system runs**, with the network up:
+
+```text
+apkg channel-mirror ROOT ENDPOINT CHANNEL-ID NAME DIRECTORY
+```
+
+`apkg_client_channel_mirror` opens the channel at `ENDPOINT`, an `http(s)` URL
+or a directory, under the root's policy and replay floor. The root is opened
+read-only: nothing in it or beside it changes. It selects the newest build of
+`NAME` whose author the policy trusts and whose target is the root's, and
+writes into `DIRECTORY` a [file channel](channels.md#verified-mirror): the
+signed snapshot exactly as served and that build's archive. Each file is
+written under a transfer name and takes its name only once whole, the archive
+only with the size and SHA-256 the signed snapshot states; `current` is
+replaced last, in one step. An interrupted mirror is therefore the previous
+complete mirror, or no mirror. A transfer does not resume: an unfinished or
+damaged archive is fetched again whole. Archives and snapshots the mirror no
+longer references are removed after `current` is switched.
+
+The command prints, and the call returns, the snapshot digest and sequence,
+the selected version and revision, the archive digest and size, and:
+
+| `update` | Meaning |
+|---|---|
+| `ready` | the build is newer than the installed one, or none is installed |
+| `current` | the build is the installed one: nothing to do |
+| `none` | the installed build is not older than anything the channel offers |
+
+`mirror=unchanged` says the directory already held this snapshot and a
+verified archive, and nothing was fetched.
+
+**At the next boot**, with no network:
+
+```text
+apkg channel-update ROOT DIRECTORY CHANNEL-ID NAME --policy FILE
+                    [--target TARGET] [--takeover] [--repair] [--store DIR]
+                    [--yes | --confirm DIGEST]
+```
+
+`apkg_client_channel_update` is one call for an unattended updater. In order:
+
+1. An interrupted transaction is recovered. If recovery lacks objects, they
+   are fetched again from the endpoint's archive of that build and recovery
+   is finished.
+2. An absent root is initialized with the pinned policy when a target is
+   given.
+3. A ready root whose policy is not byte for byte the pinned one refuses with
+   `APKG_POLICY`.
+4. The newest trusted candidate of `NAME` is installed or upgraded. A current
+   package returns an UNCHANGED result.
+5. With `--repair`, a current package is repaired when files are missing or
+   damaged, its objects fetched again if the store lost them. Nothing is
+   committed when nothing is wrong.
+
+The endpoint is the mirror directory, or any channel directory or URL. The
+library call takes an observer, a result, the takeover flag, the store and
+explicit budgets; without a confirm callback it approves each plan as made.
+A mirror carries one package: a dependency that only the original channel
+offers is not in it, and the update refuses rather than install without it.
+
+## Authoring
+
+A TOML with `kind = "system"` builds a system package: the drawer's content
+maps to the root itself, so `subdir`, `icon` and `launch` do not apply and no
+provenance copy of the TOML is added to the payload. `config` names files
+relative to the drawer. See [authoring](authoring.md#system-packages).
+
 ## Not supported
 
 These refuse with `APKG_UNSUPPORTED` and an error that names the package:
@@ -221,66 +415,31 @@ These refuse with `APKG_UNSUPPORTED` and an error that names the package:
 
 File identity is the content hash. An owned file with the signed bytes and a
 different mode is not rewritten; the mode is applied when a file is written.
-Timestamps are not preserved. Ownership checks between two system packages
-compare exact paths.
-
-## Clients
-
-`install`, `upgrade`, `resolve`, `repair`, `channel-install` and
-`source-install` handle a system package as any other; all but `repair` accept
-`--takeover`. `apkg_client_request_apply` is the library form with the
-takeover input.
-
-`apkg_client_channel_update` is the call for an unattended updater:
-
-```text
-apkg channel-update ROOT ENDPOINT CHANNEL-ID NAME --policy FILE
-                    [--target TARGET] [--takeover] [--yes | --confirm DIGEST]
-```
-
-It recovers an interrupted transaction first, initializes an absent root with
-the pinned policy when a target is given, refuses with `APKG_POLICY` when a
-ready root's policy is not byte for byte the pinned one, then installs or
-upgrades the newest trusted candidate of `NAME` from the endpoint, a local
-channel directory or an `http(s)` URL. A current package returns an UNCHANGED
-result. The library call takes an observer, a result, the takeover flag and
-explicit budgets; without a confirm callback it approves each plan as made.
-
-## Authoring
-
-A TOML with `kind = "system"` builds a system package: the drawer's content
-maps to the root itself, so `subdir`, `icon` and `launch` do not apply and no
-provenance copy of the TOML is added to the payload. `config` names files
-relative to the drawer. See [authoring](authoring.md#system-packages).
+Timestamps are not preserved. On a filesystem that does tell case apart, a
+path renamed by case only is written under its new spelling and the file under
+the old spelling is left in place, unowned.
 
 ## Limits
 
 | Bound | Value |
 |---|---|
 | Descriptor, state record and plan record | each within `min(max_object_bytes, max_memory_bytes / 32)`: 2 MiB with default budgets, about 8,000 listed files; up to the 16 MiB object ceiling with `max_memory_bytes` raised |
-| Tokens of one canonical object | 1,048,576 |
+| Tokens of one canonical object | 1,048,576, and no more than half of `max_memory_bytes` holds at 32 bytes each: `APKG_LIMIT` beyond |
 | Channel snapshot (`channel.json`) | the context's object limit, 16 MiB by default; it embeds the full descriptor of every retained build, about 250 bytes and 13 tokens per listed file |
 | Payload of one package | 2,147,483,647 bytes (PKG/1) |
 | Path | 4,095 bytes, 32 components, printable ASCII |
 
-Planning, execution and verification walk the sorted lists in step and sort
-once where they index: no step is quadratic in the number of files. A
+Planning, execution and verification index the lists by folded path once and
+look paths up in the index: no step is quadratic in the number of files. A
 4,000-file package plans, installs, verifies and upgrades within the default
 budgets.
 
-Each of planning and the two live checks of execution hashes every listed file
-that exists; execution reads each object once to place it.
+Planning and the two live checks of execution each hash every listed file
+that exists; the readiness check hashes every object to place, and placement
+reads each of them once more.
 
-### Storage beside the root
-
-The engine keeps its verified objects in `<root>.apkg-objects`, the fetched
-archive in `<root>.apkg-archives`, and the journal and its history beside the
-root. For a root that is a volume (`SYS:`), these names are inside the volume.
-Placement itself needs no second copy, but the retained objects are one, and a
-fetched archive is another until it is removed. Nothing in the engine prunes
-either store. A volume that cannot hold its system twice therefore needs these
-stores elsewhere or pruned, which the engine does not provide yet; see
-[status](status.md#system-packages).
+An upgrade fetches and verifies the whole archive of the new build, not only
+the objects that changed.
 
 Host tests establish the behavior above, process death included. Power-loss
 durability and the AROS handlers require evidence on the target.
