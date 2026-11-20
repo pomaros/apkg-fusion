@@ -136,7 +136,11 @@ nobody else holds a lock on the object. It is tried on the package drawer, on
 every drawer below it and on every file; links are not followed. Nothing is
 changed by it. The refusal is `APKG_BUSY`; its error names the held drawer,
 sub-drawer or file as the subject and says to close what uses it and repeat
-the operation.
+the operation. It adds that when no program using it is running, a library or
+driver may still hold it, and that restarting the system releases it: on
+mainline x86_64 a program that opened OpenGL leaves files of its drawer in use
+after it exits. That is a defect of the system, and archiving a tree something
+still holds would hide it, so the engine refuses there too.
 
 Every participant whose existing tree leaves its name is checked: upgrade,
 remove, repair, rollback and a replacement chosen by resolution. A participant

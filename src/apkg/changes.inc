@@ -342,7 +342,10 @@ static apkg_status change_in_use(apkg_ctx *c, const ak_json *j, size_t i,
     if (!busy)
         return APKG_OK;
     return ak_fail(e, APKG_BUSY,
-                   "in use; close what uses it and repeat the operation", held);
+                   "in use; close what uses it and repeat the operation. If "
+                   "no program using it is running, a library or driver may "
+                   "still hold it; restarting the system releases it",
+                   held);
 }
 static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
                                           const apkg_snapshot *s,
