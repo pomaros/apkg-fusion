@@ -417,7 +417,7 @@ test-apkg-aside: test-apkg
 
 build/test_pm_dispatch: tests/apkg/test_pm_dispatch.c components/arospkg/src/pkgmanager/worker.c components/arospkg/src/pkgmanager/job.h components/arospkg/src/pkgmanager/common_catalogue.h components/arospkg/src/pkgmanager/rexxcmd.h include/apkg.h include/apkg_client.h $(wildcard tests/pm_stubs/proto/*.h tests/pm_stubs/exec/*.h tests/pm_stubs/dos/*.h)
 	@mkdir -p build
-	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DAPKG_FUSION -Iinclude -Itests/pm_stubs tests/apkg/test_pm_dispatch.c -o $@
+	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DAPKG_FUSION -pthread -Iinclude -Itests/pm_stubs tests/apkg/test_pm_dispatch.c -o $@
 
 PM_REXX_SOURCES = components/arospkg/tests/test_rexxcmd.c components/arospkg/src/pkgmanager/rexxcmd.c $(addprefix components/arospkg/src/libpkg/,updates.c entries.c app.c json.c listing.c req.c upgrade.c err.c)
 build/test_pm_rexx: include/apkg.h $(PM_REXX_SOURCES) components/arospkg/src/pkgmanager/rexxcmd.h $(wildcard components/arospkg/src/libpkg/*.h)

@@ -17,7 +17,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef APKG_FUSION
+#include <pthread.h>
+static pthread_t worker_thread;
+static int worker_joinable;
+#else
 static job *current;
+#endif
 #define WORKER_NAME "PkgManager worker"
 
 /* Testing only, passed through from --slow: see pkg_test_slow. The knob is
@@ -58,9 +64,18 @@ static void on_progress(void *user, const pkg_progress_ev *ev, int *cancel)
 
 #endif
 
+#ifdef APKG_FUSION
+static void *worker_main(void *arg)
+{
+    job *j = arg;
+#ifdef __AROS__
+    pthread_setname_np(pthread_self(), WORKER_NAME);
+#endif
+#else
 static void worker_main(void)
 {
     job *j = current;
+#endif
 #ifndef APKG_FUSION
     pkg_ctx *c = NULL;
 #endif
@@ -184,13 +199,18 @@ static void worker_main(void)
        show that the window stays busy through it instead of starting the
        next job -- which then took over the record this message belongs to. */
     if (slow_ms) Delay(150);
+#ifndef APKG_FUSION
     /* Forbid, then send, then return: the classic way for a child to leave
        before its parent can act. The window may quit on PM_DONE, and quitting
        unloads the code this process is still running until it has exited.
        Under Forbid the parent does not get the CPU until this task is gone;
        the Forbid ends with the task. Nothing here is touched after PutMsg. */
     Forbid();
+#endif
     send(j, m);
+#ifdef APKG_FUSION
+    return NULL;
+#endif
 }
 
 /* "Done" is the operation's end, not the process's. Before the window
@@ -208,7 +228,15 @@ long job_wait_gone(long report_ms, void (*still)(long ms))
         Forbid();
         t = FindTask((STRPTR)WORKER_NAME);
         Permit();
-        if (!t) return waited;
+        if (!t) {
+#ifdef APKG_FUSION
+            if (worker_joinable) {
+                pthread_join(worker_thread, NULL);
+                worker_joinable = 0;
+            }
+#endif
+            return waited;
+        }
         if (still && waited >= next) { still(waited); next += report_ms; }
         Delay(1);              /* 1/50 s */
         waited += 20;
@@ -217,15 +245,41 @@ long job_wait_gone(long report_ms, void (*still)(long ms))
 
 int job_start(job *j)
 {
+#ifdef APKG_FUSION
+    pthread_attr_t attr;
+    int rc;
+    if (worker_joinable) {
+        pthread_join(worker_thread, NULL);
+        worker_joinable = 0;
+    }
+#else
     struct Process *p;
     BPTR nil_in, nil_out;
-
     current = j;
+#endif
     j->cancel = 0;
     j->done = (pm_msg *)AllocVec(sizeof *j->done, MEMF_PUBLIC | MEMF_CLEAR);
     if (test_nomem_start && j->done) { FreeVec(j->done); j->done = NULL; }
     if (!j->done) return -1;
     j->running = 1;
+#ifdef APKG_FUSION
+    /* pthread_create admits the worker to the creator's POSIX runtime.
+       The engine shares descriptors and transfers allocated catalogue rows
+       back to the window. Both require that runtime before the first call. */
+    rc = pthread_attr_init(&attr);
+    if (!rc) {
+        rc = pthread_attr_setstacksize(&attr, 262144);
+        if (!rc) rc = pthread_create(&worker_thread, &attr, worker_main, j);
+        pthread_attr_destroy(&attr);
+    }
+    if (rc) {
+        FreeVec(j->done);
+        j->done = NULL;
+        j->running = 0;
+        return -1;
+    }
+    worker_joinable = 1;
+#else
     /* libpkg prints its running commentary with printf. A process with no
        console would hand that to a NULL handle; give it NIL: instead. The
        window shows what matters through the messages. */
@@ -253,6 +307,7 @@ int job_start(job *j)
         j->running = 0;
         return -1;
     }
+#endif
     return 0;
 }
 
