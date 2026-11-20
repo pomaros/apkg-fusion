@@ -1151,9 +1151,30 @@ static void nettr(const char *fmt, ...)
 #include "pkg_tls.h"
 
 struct Library *SocketBase;
+static struct Task *net_task;           /* the task the base belongs to */
+
+/* bsdsocket.library hands every opener a base of its own, and the stack
+ * allocates that base's signal (the port its timer and events answer on) in
+ * the opening task. Only CloseLibrary gives it back: a program that returns
+ * with the base still open returns with that signal still allocated, and the
+ * Shell says so. The pooled connections live under the base, so they close
+ * first. Registered once, when the base is opened, and run by the C library
+ * when main returns or exit is called. A base opened by another task of the
+ * program (a worker process) is that task's to close and is left alone. */
+static void net_stop(void)
+{
+    if (net_task != FindTask(NULL))
+        return;
+    pkg_net_idle_close();
+    if (SocketBase != NULL) {
+        CloseLibrary(SocketBase);
+        SocketBase = NULL;
+    }
+}
 
 static int net_start(char *err, size_t errlen)
 {
+    static int registered;
     if (SocketBase != NULL)
         return 0;
     SocketBase = OpenLibrary((CONST_STRPTR)"bsdsocket.library", 3);
@@ -1161,6 +1182,12 @@ static int net_start(char *err, size_t errlen)
         snprintf(err, errlen, "this machine's network is not started: bsdsocket.library does not open. "
                  "Start the network (AROSTCP), or copy the channel to a volume and name that drawer");
         return -1;
+    }
+    net_task = FindTask(NULL);
+    if (!registered) {
+        registered = 1;
+        if (atexit(net_stop) != 0)
+            registered = 0;             /* tried again with the next open */
     }
     return 0;
 }
