@@ -13,6 +13,16 @@ void apkg_client_text_free(char *);
 apkg_status apkg_recent_format(const apkg_recent *, int json, char **,
     apkg_error **);
 apkg_status apkg_news_format(const apkg_news *, int json, char **, apkg_error **);
+/* Download one http:// or https:// URL to `output` (NULL: the URL's last
+ * path segment; "-": standard output), like curl -fLo, with no root or trust
+ * involved. The file takes its name only once complete and, with
+ * expected_sha256 (64 lowercase hex digits), only when it matches. maximum 0
+ * means 2 GiB - 1. A host uses the system's curl; AROS uses the built-in
+ * client and its TLS. digest and size may be NULL. */
+apkg_status apkg_client_fetch(const char *url, const char *output,
+                              const char *expected_sha256, uint64_t maximum,
+                              apkg_digest *digest, uint64_t *size,
+                              apkg_error **);
 typedef int (*apkg_confirm_fn)(void *, const apkg_plan *,
                                const char *presentation);
 /* The store directory (apkg_open_options.store) of every context the client

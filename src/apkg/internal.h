@@ -120,6 +120,9 @@ typedef struct {
 } ak_import_progress;
 int ak_http_url(const char *);
 apkg_status ak_http_path(const char *, const char *, char[AK_PATH]);
+int ak_http_url_open(const char *);
+/* A typed URL to an open file descriptor, bounded by stalls, not duration. */
+apkg_status ak_http_get_open(const char *, uint64_t, int, ak_import_progress *);
 apkg_status ak_http_get(const char *, uint64_t, int, unsigned char **, size_t *,
                         ak_import_progress *);
 apkg_status ak_channel_metadata(apkg_ctx *, const apkg_channel *, uint64_t,

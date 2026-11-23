@@ -389,7 +389,7 @@ clean:
 	rm -rf build
 
 # Common context engine, separate from the provisional global-state backend.
-APKG_ENGINE = src/apkg/client_mirror.c src/apkg/store.c src/apkg/system_place.c src/apkg/client_update.c src/apkg/inuse.c src/apkg/migrate.c src/apkg/unsigned.c src/apkg/news.c src/apkg/recent.c src/apkg/presentation.c src/apkg/legacy.c src/apkg/verify.c src/apkg/system.c src/apkg/sources.c src/apkg/policy.c src/apkg/self_update.c src/apkg/identity.c src/apkg/adopt.c src/apkg/qualification.c src/apkg/channel_attestation.c src/apkg/attestation.c src/apkg/source_config.c src/apkg/summary.c src/apkg/inspect.c src/apkg/client_channel.c src/apkg/channel_install.c src/apkg/heads.c src/apkg/origin.c src/apkg/transfer.c src/apkg/http.c src/apkg/channel.c src/apkg/author.c src/apkg/source.c src/apkg/attributes.c src/apkg/blob.c src/apkg/archive.c src/apkg/client_ops.c src/apkg/bundle.c src/apkg/relations.c src/apkg/version.c src/apkg/tree.c src/apkg/operations.c src/apkg/alloc.c src/apkg/json.c src/apkg/context.c src/apkg/schema.c src/apkg/signed.c src/apkg/plan.c src/apkg/events.c src/apkg/execute.c src/apkg/client.c
+APKG_ENGINE = src/apkg/fetch.c src/apkg/client_mirror.c src/apkg/store.c src/apkg/system_place.c src/apkg/client_update.c src/apkg/inuse.c src/apkg/migrate.c src/apkg/unsigned.c src/apkg/news.c src/apkg/recent.c src/apkg/presentation.c src/apkg/legacy.c src/apkg/verify.c src/apkg/system.c src/apkg/sources.c src/apkg/policy.c src/apkg/self_update.c src/apkg/identity.c src/apkg/adopt.c src/apkg/qualification.c src/apkg/channel_attestation.c src/apkg/attestation.c src/apkg/source_config.c src/apkg/summary.c src/apkg/inspect.c src/apkg/client_channel.c src/apkg/channel_install.c src/apkg/heads.c src/apkg/origin.c src/apkg/transfer.c src/apkg/http.c src/apkg/channel.c src/apkg/author.c src/apkg/source.c src/apkg/attributes.c src/apkg/blob.c src/apkg/archive.c src/apkg/client_ops.c src/apkg/bundle.c src/apkg/relations.c src/apkg/version.c src/apkg/tree.c src/apkg/operations.c src/apkg/alloc.c src/apkg/json.c src/apkg/context.c src/apkg/schema.c src/apkg/signed.c src/apkg/plan.c src/apkg/events.c src/apkg/execute.c src/apkg/client.c
 APKG_SERVICES = src/pkg_ameta.c src/pkg_container.c src/pkg_sha256.c src/pkg_sha512.c src/pkg_ed25519.c src/pkg_target.c src/pkg_application.c src/pkg_fs_posix.c
 build/libapkg-test.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h include/pkg_ameta.h src/apkg/internal.h src/apkg/changes.inc
 	@mkdir -p build
@@ -408,7 +408,7 @@ build/libapkg-test-client.dylib: $(APKG_ENGINE) $(APKG_SERVICES) include/apkg.h 
 	$(CC) -std=c99 -Wall -Wextra -Werror -O1 -DAPKG_HTTP_CLIENT -DAPKG_TESTING -fPIC -shared -Iinclude -Isrc/apkg $(APKG_ENGINE) $(APKG_SERVICES) -o $@
 .PHONY: test-apkg-http-client
 test-apkg-http-client: build/libapkg-test-client.dylib build/apkg build/apkg-core
-	cd tests/apkg && APKG_TEST_LIBRARY=$(CURDIR)/build/libapkg-test-client.dylib python3 -m unittest -v test_http_channel
+	cd tests/apkg && APKG_TEST_LIBRARY=$(CURDIR)/build/libapkg-test-client.dylib python3 -m unittest -v test_http_channel test_fetch.FetchThroughLibrary
 
 # The same suite on a modelled DOS without ReplaceObject.
 .PHONY: test-apkg-aside

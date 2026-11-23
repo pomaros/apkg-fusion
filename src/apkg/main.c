@@ -146,7 +146,7 @@ static int apkg_main(int argc, char **argv) {
             "channel-validate JSONFILE\nattestation-check ROOT FOLDER\nsource-outdated ROOT PROFILE [FIELD]\noutdated ROOT ENDPOINT CHANNEL-ID [FIELD]\n"
             "keygen|key-public KEYFILE | sign-object KEYFILE "
             "descriptor|channel|attestation "
-            "JSONFILE\npush-sign KEYFILE REQUESTFILE | push-verify PUBLIC-KEY SIGNATURE REQUESTFILE\nverify-object descriptor|channel|attestation JSONFILE SIGNATURE\n"
+            "JSONFILE\nfetch URL [OUTPUT|-] [--sha256 HEX] [--max-bytes N]\npush-sign KEYFILE REQUESTFILE | push-verify PUBLIC-KEY SIGNATURE REQUESTFILE\nverify-object descriptor|channel|attestation JSONFILE SIGNATURE\n"
             "archive-check ROOT ARCHIVE\nchannel-fetch ROOT ENDPOINT "
             "CHANNEL-ID INDEX [MIN-SEQUENCE]\nchannel-install ROOT ENDPOINT "
             "CHANNEL-ID SNAPSHOT-SHA256 DESCRIPTOR-SHA256 [--recommends] "
@@ -448,6 +448,53 @@ static int apkg_main(int argc, char **argv) {
         apkg_error_free(e);
         apkg_close(c);
         return (int)code;
+    }
+    if (!strcmp(argv[1], "fetch")) {
+        const char *url = NULL, *output = NULL, *sha = NULL;
+        unsigned long long limit = 0;
+        apkg_digest digest;
+        uint64_t size = 0;
+        apkg_error *e = NULL;
+        int bad = 0;
+        for (int i = 2; i < argc && !bad; i++) {
+            char *end = NULL;
+            if (!strcmp(argv[i], "--sha256") && i + 1 < argc && !sha)
+                sha = argv[++i];
+            else if (!strcmp(argv[i], "--max-bytes") && i + 1 < argc &&
+                     !limit) {
+                limit = strtoull(argv[++i], &end, 10);
+                bad = !*argv[i] || *end || !limit;
+            } else if (!strncmp(argv[i], "--", 2) || (url && output))
+                bad = 1;
+            else if (!url)
+                url = argv[i];
+            else
+                output = argv[i];
+        }
+        if (bad || !url) {
+            fprintf(stderr, "Usage: apkg fetch URL [OUTPUT|-] [--sha256 HEX] "
+                            "[--max-bytes N]\n");
+            return APKG_INVALID;
+        }
+        code = apkg_client_fetch(url, output, sha, (uint64_t)limit, &digest,
+                                 &size, &e);
+        if (code) {
+            const apkg_error_view *v = e ? apkg_error_get(e) : NULL;
+            fprintf(stderr, "apkg fetch: %.*s: %.*s (status %d)\n",
+                    v ? (int)v->message.size : 0,
+                    v && v->message.data ? v->message.data : "",
+                    v ? (int)v->subject.size : 0,
+                    v && v->subject.data ? v->subject.data : "", (int)code);
+            apkg_error_free(e);
+            return (int)code;
+        }
+        if (!output || strcmp(output, "-")) {
+            char hex[65];
+            ak_tohex(digest.bytes, 32, hex);
+            fprintf(stderr, "%llu bytes, SHA-256 %s\n",
+                    (unsigned long long)size, hex);
+        }
+        return APKG_OK;
     }
     if (!strcmp(argv[1], "verify-object") || !strcmp(argv[1], "push-verify")) {
         code = !strcmp(argv[1], "push-verify") ? ak_push_verify_command(argc, argv, &text) : ak_verify_command(argc, argv, &text);

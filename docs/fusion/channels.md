@@ -345,6 +345,29 @@ URL. Observer phases distinguish checking from transfer. Selected packages
 retain the source facts described below. The default common client uses this
 transport; the inherited backend remains an explicit regression baseline.
 
+## Plain download
+
+`apkg fetch URL [OUTPUT|-] [--sha256 HEX] [--max-bytes N]` downloads one file,
+as `curl -fLo` would, through the same transport as HTTP channels: the system's
+`curl` on Linux and macOS, the built-in client with its own TLS on AROS. No
+root, channel or trust policy is involved, and nothing is verified beyond an
+optional SHA-256 the caller supplies.
+
+| Argument | Effect |
+|---|---|
+| `URL` | `http://` or `https://`. A query is allowed; spaces, credentials and a `#fragment` are refused (percent-encode other characters). `[]` and `{}` are literal. |
+| `OUTPUT` | The file to write; without it, the last path segment of the URL in the current directory, the query left out. `-` writes standard output. A drawer or link refuses. |
+| `--sha256 HEX` | The file keeps its name only if its SHA-256 matches; otherwise nothing is kept (status 10). Not with `-`. |
+| `--max-bytes N` | Refuses a larger body (status 3). The default and ceiling is 2 GiB - 1. |
+
+The body goes to a temporary `.apkg-fetch` file beside the output, is flushed,
+then takes the output's name through the [replacement service](journal.md#replacement-without-replaceobject).
+A refused or interrupted fetch leaves an earlier file of that name unchanged.
+A fetch has no total time limit; on a host, curl ends a transfer slower than
+one byte per second for a minute. Redirects stop at five and never leave HTTPS.
+On success the size and SHA-256 are printed on standard error. The same call
+is `apkg_client_fetch` in the client API.
+
 ## Source-bound approved plans
 
 Packages selected from file/HTTP channels retain owned origin records. Fetch

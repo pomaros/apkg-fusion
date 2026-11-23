@@ -47,6 +47,30 @@ int ak_http_url(const char *url) {
             return 0;
     return 1;
 }
+/* A URL a person typed for apkg fetch: a query is allowed, a fragment,
+ * credentials, spaces and non-ASCII bytes are not (percent-encode them). */
+int ak_http_url_open(const char *url) {
+    size_t n = strlen(url);
+    const char *host, *end;
+    size_t length;
+    if (!n || n >= AK_PATH)
+        return 0;
+    if (!strncmp(url, "https://", 8))
+        host = url + 8;
+    else if (!strncmp(url, "http://", 7))
+        host = url + 7;
+    else
+        return 0;
+    end = host + strcspn(host, "/?");
+    length = (size_t)(end - host);
+    if (!length || memchr(host, '@', length) || strchr(url, '#') ||
+        strchr(url, '\\'))
+        return 0;
+    for (size_t i = 0; i < n; i++)
+        if ((unsigned char)url[i] <= 32 || (unsigned char)url[i] > 126)
+            return 0;
+    return 1;
+}
 /* Only fixed protocol members or a validated digest are supplied as suffixes.
  */
 apkg_status ak_http_path(const char *base, const char *member,
@@ -100,10 +124,13 @@ static void ak_transfer_path(char out[AK_PATH]) {
 #endif
 }
 #endif
-apkg_status ak_http_get(const char *url, uint64_t maximum, int output,
-                        unsigned char **bytes, size_t *size,
-                        ak_import_progress *progress) {
+/* typed: a URL a person typed (apkg fetch), with no fixed duration; only a
+ * stalled transfer ends. Channel reads keep their strict URL and time bound. */
+static apkg_status http_get(const char *url, uint64_t maximum, int output,
+                            unsigned char **bytes, size_t *size,
+                            ak_import_progress *progress, int typed) {
 #ifdef AK_HTTP_CLIENT
+    /* The inherited client bounds connection and idle time itself. */
     char path[AK_PATH], why[240];
     apkg_status code = APKG_OK;
     unsigned char *memory = NULL;
@@ -113,7 +140,8 @@ apkg_status ak_http_get(const char *url, uint64_t maximum, int output,
         *bytes = NULL;
     if (size)
         *size = 0;
-    if (!ak_http_url(url) || (!bytes && output < 0) || maximum > 2147483647u)
+    if (!(typed ? ak_http_url_open(url) : ak_http_url(url)) ||
+        (!bytes && output < 0) || maximum > 2147483647u)
         return APKG_INVALID;
     if (progress) {
         progress->subject = url;
@@ -198,7 +226,8 @@ done:
         *bytes = NULL;
     if (size)
         *size = 0;
-    if (!ak_http_url(url) || (!bytes && output < 0) || maximum > 2147483647u)
+    if (!(typed ? ak_http_url_open(url) : ak_http_url(url)) ||
+        (!bytes && output < 0) || maximum > 2147483647u)
         return APKG_INVALID;
     if (progress) {
         progress->subject = url;
@@ -258,17 +287,23 @@ done:
     snprintf(limit, sizeof limit, "%llu", (unsigned long long)maximum);
     const char *protocols =
         !strncmp(url, "https://", 8) ? "=https" : "=http,https";
+    /* A channel object has two minutes; a fetch only ends when it stalls,
+     * under one byte per second for a minute. --globoff keeps [] and {} in a
+     * typed URL literal. */
     char *argv[] = {"curl",
                     "-q",
                     "-sS",
                     "--fail",
                     "--location",
+                    "--globoff",
                     "--max-redirs",
                     "5",
                     "--connect-timeout",
                     "10",
-                    "--max-time",
-                    "120",
+                    typed ? "--speed-limit" : "--max-time",
+                    typed ? "1" : "120",
+                    typed ? "--speed-time" : "--max-time",
+                    typed ? "60" : "120",
                     "--proto",
                     (char *)protocols,
                     "--proto-redir",
@@ -292,7 +327,7 @@ done:
     errors[1] = -1;
     memory.max = (size_t)maximum;
     while (body_open || error_open) {
-        if (pkg_fs_now_ms() - started > 125000) {
+        if (!typed && pkg_fs_now_ms() - started > 125000) {
             code = APKG_NETWORK;
             goto done;
         }
@@ -407,7 +442,7 @@ done:
             code = APKG_CANCELLED;
             goto done;
         }
-        if (pkg_fs_now_ms() - started > 125000) {
+        if (!typed && pkg_fs_now_ms() - started > 125000) {
             code = APKG_NETWORK;
             goto done;
         }
@@ -467,10 +502,20 @@ done:
     (void)maximum;
     (void)output;
     (void)progress;
+    (void)typed;
     if (bytes)
         *bytes = NULL;
     if (size)
         *size = 0;
     return APKG_UNSUPPORTED;
 #endif
+}
+apkg_status ak_http_get(const char *url, uint64_t maximum, int output,
+                        unsigned char **bytes, size_t *size,
+                        ak_import_progress *progress) {
+    return http_get(url, maximum, output, bytes, size, progress, 0);
+}
+apkg_status ak_http_get_open(const char *url, uint64_t maximum, int output,
+                             ak_import_progress *progress) {
+    return http_get(url, maximum, output, NULL, NULL, progress, 1);
 }

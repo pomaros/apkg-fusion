@@ -2255,6 +2255,17 @@ with the next write cleaning up. The whole engine suite also runs with the
 fallback forced (`make test-apkg-aside`). The AROS build type-checks with and
 without `ReplaceObject`; it has not run on mainline or AROS One yet.
 
+## Plain download
+
+[`apkg fetch`](channels.md#plain-download) downloads one URL to a file with
+the channel transport and no root or trust. Seven host cases cover a named
+output with its reported digest, the default name from a URL with a query
+after a redirect, standard output, a matching and a mismatched SHA-256 keeping
+the earlier file, a missing file and a size limit changing nothing, and refused
+URLs and outputs writing nothing. The API case also runs through the built-in
+client (`make test-apkg-http-client`). The AROS build links it; no fetch has
+run on AROS yet.
+
 ## Clean-workspace alpha scenario
 
 [`tests/apkg/test_alpha.py`](../../tests/apkg/test_alpha.py) runs the alpha's
