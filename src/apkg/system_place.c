@@ -1408,14 +1408,12 @@ static apkg_status place(apply *a, const char *relative, const char *sha,
         code = APKG_IO;
     if (!code && chmod(a->temp, (mode_t)mode))
         code = APKG_IO;
-    if (!code) {
-        /* The mode is metadata of the file about to be published. */
-        int fd = open(a->temp, O_RDONLY);
-        if (fd < 0 || fsync(fd))
-            code = APKG_IO;
-        if (fd >= 0 && close(fd) && !code)
-            code = APKG_IO;
-    }
+    /* The mode is metadata of the file about to be published. ak_sync_file
+     * is the engine's portable form: fsync() of a descriptor opened for
+     * reading fails with EBADF on ABIv11, and there the volume flush after
+     * the replacement carries it. */
+    if (!code && ak_sync_file(a->temp))
+        code = APKG_IO;
     if (!code && ak_fault(202))
         code = APKG_IO;
     has_aside = regular(aside, &st) == 1;
