@@ -17,8 +17,14 @@
  * system can, otherwise through the recoverable aside name of pkg_fs_aside.h.
  * pkg_fs_read returns the aside's contents while the file itself is missing. */
 int pkg_fs_atomic_replace_supported(void);
+/* Non-zero when a replacement can be one step here: a host rename, or a DOS
+ * that has ReplaceObject. Whether the handler of a given volume implements it
+ * is known only when a replacement is tried. 0 means the aside for certain. */
+int pkg_fs_replace_one_step(void);
 #ifdef APKG_TESTING
 void pkg_fs_test_replace(int force_aside, int crash_after);
+/* Host model of an old file that stays open: its aside cannot be deleted. */
+void pkg_fs_test_hold(int held);
 #endif
 /* Bytes a writer may still use on the volume that holds `path`, and the
  * allocation unit files there are rounded up to. 0, or -1 with errno set. */

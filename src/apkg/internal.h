@@ -152,6 +152,10 @@ int ak_empty(const ak_json *, int);
 apkg_status ak_fail(apkg_error **, apkg_status, const char *, const char *);
 /* 0 free, 1 held (the held drawer or file is named), -1 failure. */
 int ak_in_use(const char *tree, char *held, size_t size);
+/* One object alone: 0 free or absent, 1 held, -1 failure. */
+int ak_in_use_object(const char *path);
+/* 1 when root is the SYS: of the running system. */
+int ak_running_system(const char *root);
 char *ak_copy(const void *, size_t);
 int ak_path(char *, const char *, const char *);
 int ak_read(const char *, unsigned char **, size_t *, size_t);
@@ -245,10 +249,16 @@ apkg_status ak_objects_restore(apkg_ctx *, const ak_json *, int descriptor,
 apkg_status ak_pending_restore(apkg_ctx *, const char *endpoint,
                                const apkg_observer *, apkg_error **);
 apkg_status ak_place_ready(apkg_ctx *, const ak_json *plan, apkg_error **);
+/* Refuses with APKG_BUSY and the path while a file or directory the plan
+ * replaces or removes is held, and with APKG_UNSUPPORTED for the running
+ * system where a replacement is not one step. Nothing is changed. */
+apkg_status ak_place_busy(apkg_ctx *, const ak_json *plan, int point,
+                          apkg_error **);
 /* journal: the transaction directory, where edits kept are recorded. */
 apkg_status ak_place_apply(apkg_ctx *, const ak_json *plan,
                            const void *old_state, size_t old_size,
-                           const char *journal, const ak_place_progress *);
+                           const char *journal, const ak_place_progress *,
+                           apkg_error **);
 apkg_status ak_place_format(const apkg_plan *, ak_buf *);
 apkg_status ak_place_verify(apkg_ctx *, const ak_json *descriptor,
                             const apkg_observer *, uint64_t counts[4],

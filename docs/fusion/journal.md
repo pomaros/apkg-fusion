@@ -73,7 +73,8 @@ Fault checkpoints: 1 private preparation, 1201–1204 draft creation/records/sta
 ready-before-publication, 1205 active publication before parent flush, 2 ready, 3 payload published, 4 decision,
 5 state published, 6 recovery start, 7 recovery completion before cleanup.
 [System package placement](system-packages.md#recovery) adds 201–209 after the
-decision. The [in-use check](#a-live-tree-in-use) adds 1301, 1302 and 1303.
+decision and, for [objects in use](system-packages.md#objects-in-use), 1304–1306,
+210 and 211. The [in-use check](#a-live-tree-in-use) adds 1301, 1302 and 1303.
 The test build supports injected I/O failure or process termination at these
 points. Production builds have no environment-driven fault injection. Tests
 must cover recovery interrupted again, changed live files, offline recovery,
@@ -142,6 +143,9 @@ driver may still hold it, and that restarting the system releases it: on
 mainline x86_64 a program that opened OpenGL leaves files of its drawer in use
 after it exits. That is a defect of the system, and archiving a tree something
 still holds would hide it, so the engine refuses there too.
+
+A system package has no tree to rename; its files are asked for one by one,
+see [objects in use](system-packages.md#objects-in-use).
 
 Every participant whose existing tree leaves its name is checked: upgrade,
 remove, repair, rollback and a replacement chosen by resolution. A participant

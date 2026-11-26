@@ -1220,6 +1220,78 @@ done:
     free(scratch);
     return code;
 }
+static const char *const held_lists[] = {"overwrite", "taken", "write",
+                                         "delete",    "clear", "rmdir"};
+/* Whether something holds what the plan is about to replace or remove. DOS
+ * does not delete an object that is open or locked, and placement comes after
+ * the decision, where nothing is taken back: a held file is refused here,
+ * while the root is still as it was. Each existing file of overwrite, taken,
+ * write, delete and clear and each directory of clear and rmdir is asked for
+ * with an exclusive lock that is released at once. A holder may still appear
+ * afterwards; placement then stops with APKG_BUSY and recovery finishes once
+ * the object is free.
+ *
+ * Passing these probes does not make the running system safe to update:
+ * where a replacement is not one step a file is absent under its name between
+ * two renames, so the SYS: the system runs from is refused outright. */
+apkg_status ak_place_busy(apkg_ctx *c, const ak_json *plan, int point,
+                          apkg_error **e) {
+    ak_installed next;
+    strings list = {0};
+    struct stat st;
+    char *full = malloc(AK_PATH);
+    int system;
+    apkg_status code = full ? APKG_OK : APKG_NOMEM;
+    if (!code && plan_arrays(plan, &system, &next))
+        code = APKG_INVALID;
+    if (code || system < 0 || plan->tokens[system].next == (size_t)system + 1)
+        goto done;
+    if (!pkg_fs_replace_one_step() &&
+        (ak_running_system(c->root) || ak_fault(1306))) {
+        code = refuse(e, APKG_UNSUPPORTED,
+                      "this root is the running system, and a file replaced "
+                      "here is absent under its name for a moment; update it "
+                      "from another running system",
+                      c->root);
+        goto done;
+    }
+    for (size_t r = (size_t)system + 1; r < plan->tokens[system].next && !code;
+         r = plan->tokens[r].next)
+        for (size_t k = 0; k < sizeof held_lists / sizeof *held_lists && !code;
+             k++) {
+            code = strings_load(&list, plan, (int)r, held_lists[k]);
+            for (size_t i = 0; i < list.count && !code; i++) {
+                int held;
+                if (ak_path(full, c->root, list.paths[i])) {
+                    code = APKG_LIMIT;
+                    break;
+                }
+                held = ak_in_use_object(full);
+                /* The test build's stand-in for a holder; only what exists
+                 * can be held. */
+                if (!held && !lstat(full, &st) && ak_fault(point))
+                    held = 1;
+                if (held < 0)
+                    code = refuse(e, APKG_IO,
+                                  "whether this object is in use could not "
+                                  "be established; nothing was written",
+                                  list.paths[i]);
+                else if (held)
+                    code = refuse(e, APKG_BUSY,
+                                  "in use; close what uses it and repeat the "
+                                  "operation. If no program using it is "
+                                  "running, a library or driver may still "
+                                  "hold it; restarting the system releases "
+                                  "it. Nothing was written",
+                                  list.paths[i]);
+            }
+            strings_free(&list);
+        }
+done:
+    strings_free(&list);
+    free(full);
+    return code;
+}
 typedef struct {
     char *path;
     mode_t mode;
@@ -1233,6 +1305,7 @@ typedef struct {
     restore *restores;
     size_t nrestores, crestores;
     ak_buf kept;
+    apkg_error **error;
 } apply;
 static apkg_status sync_change(apply *a, const char *full) {
     if (ak_parent(full, a->directory))
@@ -1280,6 +1353,27 @@ static apkg_status writable(apply *a, const char *full) {
     strcpy(a->writable, a->directory);
     return APKG_OK;
 }
+/* A holder that appeared after the last check. The decision is made, so the
+ * transaction stays pending with what is placed so far in place, and recovery
+ * finishes it once the object is free. */
+static apkg_status held_after(apply *a, const char *relative) {
+    return a->error && !*a->error
+               ? ak_fail(a->error, APKG_BUSY,
+                         "in use, so the update could not finish; close what "
+                         "uses it or restart the system, then run recovery",
+                         relative)
+               : APKG_BUSY;
+}
+/* The old bytes of a replaced file, left aside under their own name. */
+static apkg_status aside_drop(apply *a, const char *aside,
+                              const char *relative) {
+    int held = ak_fault(210);
+    if (!held && !unlink(aside))
+        return APKG_OK;
+    if (!held)
+        held = errno == EBUSY || ak_in_use_object(aside) == 1;
+    return held ? held_after(a, relative) : APKG_IO;
+}
 /* Stream one retained object into the destination directory under the
  * reserved name, check its bytes, then put it in place. Unless the plan
  * said to replace whatever is there (`force`), a file that holds neither the
@@ -1325,8 +1419,9 @@ static apkg_status place(apply *a, const char *relative, const char *sha,
                 code = writable(a, a->full);
                 if (code)
                     return code;
-                if (unlink(aside))
-                    return APKG_IO;
+                code = aside_drop(a, aside, relative);
+                if (code)
+                    return code;
             }
             a->bytes += size;
             return APKG_OK;
@@ -1417,15 +1512,23 @@ static apkg_status place(apply *a, const char *relative, const char *sha,
     if (!code && ak_fault(202))
         code = APKG_IO;
     has_aside = regular(aside, &st) == 1;
-    if (!code && pkg_fs_replace(a->temp, a->full))
-        code = APKG_IO;
+    if (!code && pkg_fs_replace(a->temp, a->full)) {
+        /* The new file may already carry the name while the old bytes,
+         * still open somewhere, could not be deleted from their aside. */
+        int held = errno == EBUSY || ak_in_use_object(aside) == 1;
+        code = held && regular(a->temp, &st) == 0 ? held_after(a, relative)
+                                                   : APKG_IO;
+    }
     if (code) {
         unlink(a->temp);
         return code;
     }
     /* Where the replacement was one atomic step it left an older aside. */
-    if (has_aside && regular(aside, &st) == 1 && unlink(aside))
-        return APKG_IO;
+    if (has_aside && regular(aside, &st) == 1) {
+        code = aside_drop(a, aside, relative);
+        if (code)
+            return code;
+    }
     if (ak_fault(203))
         return APKG_IO;
     a->bytes += size;
@@ -1458,8 +1561,12 @@ static apkg_status remove_file(apply *a, const ak_json *oj, const table *was,
         code = writable(a, a->full);
         if (code)
             return code;
-        if (rmdir(a->full))
-            return strict ? APKG_CONFLICT : APKG_OK;
+        if (rmdir(a->full)) {
+            if (!strict)
+                return APKG_OK;
+            return ak_in_use_object(a->full) == 1 ? held_after(a, relative)
+                                                  : APKG_CONFLICT;
+        }
         return ak_parent(a->full, a->directory) || ak_sync_dir(a->directory)
                    ? APKG_IO
                    : APKG_OK;
@@ -1478,8 +1585,13 @@ static apkg_status remove_file(apply *a, const ak_json *oj, const table *was,
     code = writable(a, a->full);
     if (code)
         return code;
-    if (unlink(a->full))
-        return APKG_IO;
+    {
+        int held = ak_fault(211);
+        if (held || unlink(a->full))
+            return held || errno == EBUSY || ak_in_use_object(a->full) == 1
+                       ? held_after(a, relative)
+                       : APKG_IO;
+    }
     return sync_change(a, a->full);
 }
 /* Every step leaves the root one step closer and can run again: a file that
@@ -1488,7 +1600,8 @@ static apkg_status remove_file(apply *a, const ak_json *oj, const table *was,
 apkg_status ak_place_apply(apkg_ctx *c, const ak_json *plan,
                            const void *old_state, size_t old_size,
                            const char *journal,
-                           const ak_place_progress *observer) {
+                           const ak_place_progress *observer,
+                           apkg_error **e) {
     ak_json before = {0};
     ak_installed old = {0}, next;
     apply a = {0};
@@ -1507,6 +1620,7 @@ apkg_status ak_place_apply(apkg_ctx *c, const ak_json *plan,
         return parsed == -2 ? APKG_NOMEM : APKG_INVALID;
     }
     a.c = c;
+    a.error = e;
     a.progress = observer;
     a.kept.max = c->object_max;
     a.buffer = malloc(CHUNK);

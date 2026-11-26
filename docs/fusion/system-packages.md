@@ -160,7 +160,10 @@ same plan keep their staged and retained trees.
      the name, so the room counted is the highest point of the placement
      sequence (each new file in full, each replaced file's size given back
      once it is replaced), plus one allocation unit per file and directory,
-     twice the size of the state record, and 256 KiB.
+     twice the size of the state record, and 256 KiB;
+   - nothing holds what will be replaced or removed, and the root is not the
+     running system on a DOS without a one-step replacement: see
+     [objects in use](#objects-in-use).
 
    Each refusal names the path or the bytes needed and available, and leaves
    the root READY with nothing written. A last cancellable `APPLY` event is
@@ -196,6 +199,72 @@ journal records its path in a `kept` file that is archived with the history.
 Files of `overwrite` and `taken` are replaced regardless: the approved plan
 said so. A kept ordinary file shows as `changed` in `verify`, and `repair`
 restores it; a kept configuration file shows as `edited`.
+
+### Objects in use
+
+DOS does not delete a file that is open or locked. On the
+[aside path](#replacement-without-an-atomic-primitive) the new file takes the
+name and the old bytes, still open, cannot be deleted from their aside; a file
+of `delete` cannot be deleted at all. Both would happen after the decision,
+so the engine asks first.
+
+Each existing file of `overwrite`, `taken`, `write`, `delete` and `clear`, and
+each directory of `clear` and `rmdir`, is asked for with an exclusive lock that
+is released at once (the probe of the [bundle check](journal.md#a-live-tree-in-use),
+on the object alone). The check runs twice: after the stale-plan checks,
+before the private draft exists, and again among the last checks before the
+decision. A held object refuses with `APKG_BUSY` and its root-relative path as
+the subject; nothing was written, and after the second check the bundle
+participants of the same plan are restored through the journal. An answer
+other than success, `ERROR_OBJECT_IN_USE` or `ERROR_OBJECT_NOT_FOUND` refuses
+with `APKG_IO` and the path. A directory that the plan only writes into is not
+asked for: the `PROGDIR:` of a running program or an assign on `C/` does not
+block a file placed there.
+
+The check is a moment, not a hold. A holder that appears after it is met
+during placement: the step that cannot delete returns `APKG_BUSY`, the result
+is NEEDS_RECOVERY with an error that names the path, and the root stays
+pending with the files placed so far in place. `apkg_recover` returns
+`APKG_RECOVERY_REQUIRED` with the same `APKG_BUSY` error for as long as the
+object is held, and finishes the transaction once it is free. A held directory
+of `rmdir` simply stays, as a directory that is not empty does.
+
+Passing these probes does not make the running system safe to update. Where a
+replacement is not one step, a file is absent under its name between two
+renames whether or not anybody holds it. A plan with a system record therefore
+refuses with `APKG_UNSUPPORTED` when its root is the `SYS:` of the running
+system and DOS has no `ReplaceObject` (the build has no declaration of it, or
+`dos.library` is older than 50.84). The test is the root itself: a root in a
+drawer of the system volume is not the running system. Where DOS has
+`ReplaceObject`, whether the handler implements it is known only when a
+replacement is tried, and that case is not refused.
+
+A host has no such lock. Fault points of the test build stand for the answers:
+1304 and 1305 for a held object at the first and the second check, 1306 for a
+root that is the running system, 210 for an aside that cannot be deleted, 211
+for a file of `delete` that cannot be deleted; `pkg_fs_test_hold` makes the
+aside replacement itself fail at its last step.
+
+Run on 2026-11-26 with a test build of the CLI that can arm a fault, a signed
+two-version package from a file channel and a second process holding a file
+through `Open()` or a drawer through an assign:
+
+| System | Volumes |
+|---|---|
+| AROS x86_64 mainline, `dos.library` 50.89 | RAM:, SFS |
+| AROS x86_64 ABIv11 (AROS One), `dos.library` 50.77 | RAM:, SFS |
+| AROS Raspberry Pi AArch64, `dos.library` 50.89 | RAM: |
+
+On each: a held file of `write` and a held drawer of `rmdir` refuse with
+`APKG_BUSY` and the path, and the root verifies as before; an update stopped
+after its first replaced file leaves a pending root; recovery with the next
+file held stops with the `APKG_BUSY` error, the new file under its name and
+the old bytes under the aside name; recovery with a file of `delete` held
+stops the same way; recovery with nothing held commits, and the root verifies
+with no aside or temporary file left. A replacement stopped between its two
+renames recovers too. On mainline x86_64 a plan for the root `SYS:` was
+refused as the running system. All of these builds take the aside path:
+`ReplaceObject` was not exercised.
 
 ## Recovery
 
@@ -253,8 +322,9 @@ it, and a system that boots from the volume in that state may not start.
 A system root on such a handler is therefore updated from another running
 system: the RAM image the updater boots, not the installed system it
 replaces. An interruption then costs only a second run of the updater, which
-recovers before it does anything else. Updating the volume a system is
-running from is not supported on handlers without `ReplaceObject`.
+recovers before it does anything else. Updating the system a machine is
+running from is not supported without `ReplaceObject`, and the engine
+[refuses it](#objects-in-use) where DOS does not have the call.
 
 ## Events
 

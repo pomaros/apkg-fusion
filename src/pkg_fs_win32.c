@@ -913,3 +913,4 @@ int pkg_net_send(const char *method, const char *url, const char *body_file,
 }
 
 int pkg_fs_atomic_replace_supported(void) { return 1; }
+int pkg_fs_replace_one_step(void) { return 1; }

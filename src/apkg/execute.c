@@ -515,7 +515,7 @@ static int emit(const apkg_observer *, apkg_result *, uint64_t *, apkg_phase,
 #include "changes.inc"
 /* Caller holds the parent lock. No parser accepts an arbitrary write path. */
 static apkg_status recover_locked(apkg_ctx *c, apkg_result *result,
-                                  const apkg_observer *o) {
+                                  const apkg_observer *o, apkg_error **e) {
     char txn[AK_PATH], state[AK_PATH], tree[AK_PATH], live[AK_PATH], name[256],
         root_hex[AK_PATH * 2 + 1], expected_root[AK_PATH * 2 + 1], before[65],
         sha[65], actual[65];
@@ -569,7 +569,7 @@ static apkg_status recover_locked(apkg_ctx *c, apkg_result *result,
         goto done;
     body = ak_member(&plan, 0, "body");
     if (ak_equal(&plan, ak_member(&plan, body, "action"), "changes")) {
-        r = recover_changes_locked(c, result, txn, &plan, o);
+        r = recover_changes_locked(c, result, txn, &plan, o, e);
         goto done;
     }
     {
@@ -809,7 +809,7 @@ apkg_status apkg_recover(apkg_ctx *c, const apkg_observer *o, apkg_result **out,
         result_set(r, code, APKG_UNCHANGED);
         return code;
     }
-    code = recover_locked(c, r, o);
+    code = recover_locked(c, r, o, e);
     lock_drop(&lock);
     return code;
 }
@@ -1093,7 +1093,7 @@ apkg_status apkg_execute(apkg_ctx *c, const apkg_plan *p, apkg_approval *a,
             goto fail;
     }
     {
-        apkg_status completed = recover_locked(c, r, NULL);
+        apkg_status completed = recover_locked(c, r, NULL, NULL);
         if (completed != APKG_OK) {
             code = completed;
             goto done;
@@ -1119,7 +1119,7 @@ prepare_fail: /* No managed publication has occurred. */
     goto done;
 fail:
     if (!decision && ready) {
-        apkg_status recovered = recover_locked(c, r, NULL);
+        apkg_status recovered = recover_locked(c, r, NULL, NULL);
         if (recovered == APKG_OK)
             result_set(r, code, APKG_RESTORED);
         else

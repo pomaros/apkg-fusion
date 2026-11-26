@@ -62,16 +62,41 @@ int pkg_fs_atomic_replace_supported(void)
 /* Host model of a DOS without ReplaceObject: force the aside path and stop
  * the process after a numbered step (1: old contents set aside, 2: new file
  * in place, aside still present). */
-static int test_aside, test_crash;
+static int test_aside, test_crash, test_hold;
 void pkg_fs_test_replace(int force_aside, int crash_after)
 {
     test_aside = force_aside;
     test_crash = crash_after;
 }
+void pkg_fs_test_hold(int held)
+{
+    test_hold = held;
+}
 #define ASIDE_STEP(n) do { if (test_crash == (n)) _exit(99); } while (0)
+#define ASIDE_HELD() (test_hold ? (errno = EBUSY, 1) : 0)
 #else
 #define ASIDE_STEP(n) do { } while (0)
+#define ASIDE_HELD() 0
 #endif
+
+int pkg_fs_replace_one_step(void)
+{
+#ifdef __AROS__
+#ifdef ReplaceObject
+    const struct Library *dos = (const struct Library *)__aros_getbase_DOSBase();
+    return dos != NULL && (dos->lib_Version > 50 ||
+                           (dos->lib_Version == 50 && dos->lib_Revision >= 84));
+#else
+    return 0;
+#endif
+#else
+#ifdef APKG_TESTING
+    if (test_aside || getenv("APKG_TEST_REPLACE_ASIDE"))
+        return 0;
+#endif
+    return 1;
+#endif
+}
 
 #if defined(__AROS__) || defined(APKG_TESTING)
 static int plain_rename(const char *from, const char *to)
@@ -125,7 +150,8 @@ static int replace_by_aside(const char *from, const char *to)
         return -1;
     }
     ASIDE_STEP(2);
-    if ((have_to || have_aside) && unlink(aside) != 0 && errno != ENOENT) {
+    if ((have_to || have_aside) &&
+        (ASIDE_HELD() || (unlink(aside) != 0 && errno != ENOENT))) {
         free(aside);
         return -1;
     }

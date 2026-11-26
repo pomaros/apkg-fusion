@@ -144,7 +144,8 @@ static int changes_validate(apkg_ctx *c, const ak_json *plan, int *array) {
 }
 static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
                                           const char *txn, const ak_json *plan,
-                                          const apkg_observer *o) {
+                                          const apkg_observer *o,
+                                          apkg_error **e) {
     unsigned char *old = NULL, *next = NULL, *id = NULL;
     size_t on = 0, nn = 0, idn = 0, i, index = 0;
     int arr, decision, b = ak_member(plan, 0, "body");
@@ -255,7 +256,8 @@ static apkg_status recover_changes_locked(apkg_ctx *c, apkg_result *r,
              * file that already holds its signed bytes is done. */
             uint64_t sequence = 0;
             ak_place_progress placing = {o, r, &sequence, APKG_PHASE_RECOVER};
-            if (ak_place_apply(c, plan, old, on, txn, o ? &placing : NULL) ||
+            if (ak_place_apply(c, plan, old, on, txn, o ? &placing : NULL,
+                               e) ||
                 state_publish(state, txn, change_limit(c)))
                 goto done;
         }
@@ -396,6 +398,8 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         goto done;
     }
     code = ak_place_recheck(c, &j, s->raw, s->view.source_record.size);
+    if (!code)
+        code = ak_place_busy(c, &j, 1304, e);
     if (code)
         goto done;
     /* First check, before anything is written: a refusal leaves nothing. */
@@ -557,6 +561,8 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
         code = ak_place_recheck(c, &j, s->raw, s->view.source_record.size);
         if (!code)
             code = ak_place_ready(c, &j, e);
+        if (!code)
+            code = ak_place_busy(c, &j, 1305, e);
         if (code)
             goto fail;
         if (emit(o, r, &seq, APKG_PHASE_APPLY, 1, c->root)) {
@@ -574,12 +580,12 @@ static apkg_status execute_changes_locked(apkg_ctx *c, const apkg_plan *p,
     {
         ak_place_progress placing = {o, r, &seq, APKG_PHASE_APPLY};
         if (ak_place_apply(c, &j, s->raw, s->view.source_record.size, txn,
-                           &placing))
+                           &placing, e))
             goto fail;
     }
     if (state_publish(state, txn, change_limit(c)) || ak_fault(5))
         goto fail;
-    code = recover_changes_locked(c, r, txn, &j, NULL);
+    code = recover_changes_locked(c, r, txn, &j, NULL, NULL);
     if (!code) {
         r->view.committed_generation.state = APKG_KNOWN;
         r->view.committed_generation.value = p->view.generation + 1;
@@ -601,7 +607,8 @@ prepare_fail:
     goto done;
 fail:
     if (!decided && ready) {
-        apkg_status recovered = recover_changes_locked(c, r, txn, &j, NULL);
+        apkg_status recovered =
+            recover_changes_locked(c, r, txn, &j, NULL, NULL);
         if (!recovered)
             result_set(r, code, APKG_RESTORED);
         else {

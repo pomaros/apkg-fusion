@@ -31,6 +31,36 @@ static int probe(const char *path) {
     errno = EIO;
     return -1;
 }
+/* One object, not what is below it. An absent object is held by nobody. */
+int ak_in_use_object(const char *path) {
+    BPTR lock = Lock((CONST_STRPTR)path, EXCLUSIVE_LOCK);
+    LONG why;
+    if (lock) {
+        UnLock(lock);
+        return 0;
+    }
+    why = IoErr();
+    if (why == ERROR_OBJECT_IN_USE)
+        return 1;
+    if (why == ERROR_OBJECT_NOT_FOUND)
+        return 0;
+    errno = EIO;
+    return -1;
+}
+/* Whether root is the SYS: the running system was started from. */
+int ak_running_system(const char *root) {
+    BPTR mine = Lock((CONST_STRPTR)root, SHARED_LOCK), sys;
+    int same = 0;
+    if (!mine)
+        return 0;
+    sys = Lock((CONST_STRPTR) "SYS:", SHARED_LOCK);
+    if (sys) {
+        same = SameLock(mine, sys) == LOCK_SAME;
+        UnLock(sys);
+    }
+    UnLock(mine);
+    return same;
+}
 /* The drawer this program was started from is held by this process itself for
  * as long as it runs. Updating the package that carries the running client is
  * an ordinary change, so that one lock does not count. */
@@ -112,6 +142,14 @@ int ak_in_use(const char *tree, char *held, size_t size) {
         return -1;
     }
     held[0] = 0;
+    return 0;
+}
+int ak_in_use_object(const char *path) {
+    (void)path;
+    return 0;
+}
+int ak_running_system(const char *root) {
+    (void)root;
     return 0;
 }
 #endif
