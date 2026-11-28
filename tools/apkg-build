@@ -211,8 +211,10 @@ def system_archive(args,m,author,source,drawer,original,copied,configs,target,ke
   if reserved_system_path(entry['path']):raise Refusal(f"{entry['path']}: the engine keeps this name in a root")
   if len(entry['path'].split('/'))>32:raise Refusal(f"{entry['path']}: deeper than 32 components")
   if entry['type']!='file':continue
-  path=drawer/entry['path'];cpu=header_cpu(path)
-  if cpu and cpu!=m['arch']:raise Refusal(f"{entry['path']}: executable CPU {cpu} differs from {m['arch']}")
+  # No CPU check here: a system tree holds files for other processors by
+  # design (the i386 modules of GRUB, firmware loaders, keymaps and other
+  # data in the Amiga hunk format).
+  path=drawer/entry['path']
   if entry['path'] in configs:
    entry['config']='preserve';found.add(entry['path'])
   objects.setdefault(entry['blob'],path)

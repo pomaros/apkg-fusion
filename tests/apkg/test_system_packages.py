@@ -1317,6 +1317,24 @@ class SystemClients(unittest.TestCase):
             self.assertEqual([f['path'] for f in body['files'] if f.get('config')], ['S/Startup'])
             self.assertFalse(any('Package.arospkg.toml' in f['path'] for f in body['files']))
 
+    def test_builder_accepts_files_for_another_cpu(self):
+        # A real system tree: GRUB's modules are i386 ELF objects and the
+        # keymaps are Amiga hunk files, whatever the system's own CPU is.
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            source = drawer(d, {'C/Copy': 'copy', 'S/Startup': 'startup'})
+            (source / 'boot').mkdir()
+            (source / 'boot/normal.mod').write_bytes(b'\x7fELF\x01\x01\x01' + bytes(9) + b'\x01\x00\x03\x00' + bytes(44))
+            (source / 'Devs').mkdir()
+            (source / 'Devs/pc105_pl').write_bytes(bytes.fromhex('000003f3 00000000 00000001 00000000 00000000 000000f8 000003e9'))
+            out = d / 'system.pkg'
+            done = build(source, out, key_fixture(d / 'key'))
+            self.assertEqual(done.returncode, 0, done.stderr)
+            from test_author import members
+            body = json.loads(members(out)['descriptor.json'])['body']
+            self.assertIn('boot/normal.mod', [f['path'] for f in body['files']])
+            self.assertIn('Devs/pc105_pl', [f['path'] for f in body['files']])
+
     def test_builder_refuses_what_a_system_package_cannot_carry(self):
         cases = {
             'subdir': lambda d, s: (d / 'Sys.arospkg.toml').write_text(toml() + 'subdir = "Sys"\n'),
