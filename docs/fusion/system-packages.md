@@ -476,6 +476,12 @@ maps to the root itself, so `subdir`, `icon` and `launch` do not apply and no
 provenance copy of the TOML is added to the payload. `config` names files
 relative to the drawer. See [authoring](authoring.md#system-packages).
 
+A system tree holds files for other processors by design: the i386 modules of
+GRUB on an x86_64 system, firmware loaders, keymaps and other data in the
+Amiga hunk format. The builder and the engine therefore ask no CPU of the
+files of a system package; a bundle's executables must still match the
+target.
+
 ## Not supported
 
 These refuse with `APKG_UNSUPPORTED` and an error that names the package:

@@ -438,6 +438,10 @@ apkg_status ak_blob_copy(apkg_ctx *c, const char *sha, uint64_t size,
 }
 apkg_status ak_package_payload_check(apkg_ctx *c, const apkg_package *p) {
     int arr = ak_member(&p->json, ak_member(&p->json, 0, "body"), "files");
+    /* A system tree holds files for other processors by design: the i386
+     * modules of a boot loader, firmware loaders, keymaps in the Amiga hunk
+     * format. Its content is hashed, and no CPU is asked of it. */
+    const char *target = ak_package_system(p) ? NULL : p->target;
     size_t i;
 #ifdef __AROS__
     for (i = (size_t)arr + 1; i < p->json.tokens[arr].next;
@@ -455,7 +459,7 @@ apkg_status ak_package_payload_check(apkg_ctx *c, const apkg_package *p) {
                           sizeof sha) ||
                 ak_u64(&p->json, ak_member(&p->json, (int)i, "size"), &size))
                 return APKG_INVALID;
-            code = ak_blob_check(c, sha, size, p->target);
+            code = ak_blob_check(c, sha, size, target);
             if (code)
                 return code;
         }
